@@ -192,71 +192,61 @@ describe("OAuth PKCE Removal", () => {
   describe("startCallbackServer Port Handling", () => {
     it("should prefer port 51121", () => {
       // #given
-      // Port 51121 should be free
-
-      // #when
-      const handle = startCallbackServer()
-
-      // #then
-      // If 51121 is available, should use it
-      // If not available, should use valid fallback
-      expect(handle.port).toBeGreaterThan(0)
-      expect(handle.port).toBeLessThan(65536)
-      handle.close()
-    })
-
-    it("should return actual bound port", () => {
-      // #when
-      const handle = startCallbackServer()
-
-      // #then
-      expect(typeof handle.port).toBe("number")
-      expect(handle.port).toBeGreaterThan(0)
-      handle.close()
-    })
-
-    it("should fallback to OS-assigned port if 51121 is occupied (EADDRINUSE)", async () => {
-      // #given - Occupy port 51121 first
-      const blocker = Bun.serve({
-        port: ANTIGRAVITY_CALLBACK_PORT,
-        fetch: () => new Response("blocked")
+      const stop = mock(() => {})
+      const serve = mock((options: { port: number }) => {
+        return { port: options.port, stop } as unknown as ReturnType<typeof Bun.serve>
       })
 
-      try {
-        // #when
-        const handle = startCallbackServer()
+      // #when
+      const handle = startCallbackServer(5 * 60 * 1000, serve as unknown as typeof Bun.serve)
 
-        // #then
-        expect(handle.port).not.toBe(ANTIGRAVITY_CALLBACK_PORT)
-        expect(handle.port).toBeGreaterThan(0)
-        handle.close()
-      } finally {
-        // Cleanup blocker
-        blocker.stop()
-      }
+      // #then
+      expect(serve).toHaveBeenCalledTimes(1)
+      expect(serve.mock.calls[0][0].port).toBe(ANTIGRAVITY_CALLBACK_PORT)
+      expect(handle.port).toBe(ANTIGRAVITY_CALLBACK_PORT)
+      expect(handle.redirectUri).toBe(`http://localhost:${handle.port}/oauth-callback`)
+      handle.close()
+      expect(stop).toHaveBeenCalledTimes(1)
     })
 
-    it("should cleanup server on close", () => {
+    it("should fallback to OS-assigned port if 51121 is occupied (EADDRINUSE)", () => {
       // #given
-      const handle = startCallbackServer()
-      const port = handle.port
+      const stop = mock(() => {})
+      const fallbackPort = 61234
+      const serve = mock((options: { port: number }) => {
+        if (options.port === ANTIGRAVITY_CALLBACK_PORT) {
+          throw Object.assign(new Error("EADDRINUSE"), { code: "EADDRINUSE" })
+        }
+        return { port: fallbackPort, stop } as unknown as ReturnType<typeof Bun.serve>
+      })
+
+      // #when
+      const handle = startCallbackServer(5 * 60 * 1000, serve as unknown as typeof Bun.serve)
+
+      // #then
+      expect(serve).toHaveBeenCalledTimes(2)
+      expect(serve.mock.calls[0][0].port).toBe(ANTIGRAVITY_CALLBACK_PORT)
+      expect(serve.mock.calls[1][0].port).toBe(0)
+      expect(handle.port).toBe(fallbackPort)
+      expect(handle.port).not.toBe(ANTIGRAVITY_CALLBACK_PORT)
+      handle.close()
+      expect(stop).toHaveBeenCalledTimes(1)
+    })
+
+    it("should cleanup server on close (idempotent)", () => {
+      // #given
+      const stop = mock(() => {})
+      const serve = mock((options: { port: number }) => {
+        return { port: options.port, stop } as unknown as ReturnType<typeof Bun.serve>
+      })
+      const handle = startCallbackServer(5 * 60 * 1000, serve as unknown as typeof Bun.serve)
 
       // #when
       handle.close()
-
-      // #then - port should be released (can bind again)
-      const testServer = Bun.serve({ port, fetch: () => new Response("test") })
-      expect(testServer.port).toBe(port)
-      testServer.stop()
-    })
-
-    it("should provide redirect URI with actual port", () => {
-      // #given
-      const handle = startCallbackServer()
+      handle.close()
 
       // #then
-      expect(handle.redirectUri).toBe(`http://localhost:${handle.port}/oauth-callback`)
-      handle.close()
+      expect(stop).toHaveBeenCalledTimes(1)
     })
   })
 })

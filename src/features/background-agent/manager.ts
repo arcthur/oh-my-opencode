@@ -101,6 +101,7 @@ export class BackgroundManager {
       parentAgent: input.parentAgent,
       model: input.model,
       concurrencyKey,
+      silent: input.silent,
     }
 
     this.tasks.set(task.id, task)
@@ -109,7 +110,7 @@ export class BackgroundManager {
     log("[background-agent] Launching task:", { taskId: task.id, sessionID, agent: input.agent })
 
     const toastManager = getTaskToastManager()
-    if (toastManager) {
+    if (toastManager && !input.silent) {
       toastManager.addTask({
         id: task.id,
         description: input.description,
@@ -123,6 +124,7 @@ export class BackgroundManager {
       path: { id: sessionID },
       body: {
         agent: input.agent,
+        model: input.model,
         system: input.skillContent,
         tools: {
           task: false,
@@ -419,8 +421,25 @@ export class BackgroundManager {
 
   private notifyParentSession(task: BackgroundTask): void {
     const duration = this.formatDuration(task.startedAt, task.completedAt)
+    const taskId = task.id
 
     log("[background-agent] notifyParentSession called for task:", task.id)
+
+    // Silent tasks skip notification but still need cleanup
+    if (task.silent) {
+      log("[background-agent] Task is silent, skipping notification:", task.id)
+      setTimeout(() => {
+        const toastManager = getTaskToastManager()
+        toastManager?.removeTask(taskId)
+        if (task.concurrencyKey) {
+          this.concurrencyManager.release(task.concurrencyKey)
+        }
+        this.clearNotificationsForTask(taskId)
+        this.tasks.delete(taskId)
+        log("[background-agent] Removed silent task from memory:", taskId)
+      }, 200)
+      return
+    }
 
     const toastManager = getTaskToastManager()
     if (toastManager) {
@@ -435,7 +454,6 @@ export class BackgroundManager {
 
     log("[background-agent] Sending notification to parent session:", { parentSessionID: task.parentSessionID })
 
-    const taskId = task.id
     setTimeout(async () => {
       if (task.concurrencyKey) {
         this.concurrencyManager.release(task.concurrencyKey)

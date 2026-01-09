@@ -154,12 +154,12 @@ export interface CallbackServerHandle {
 }
 
 export function startCallbackServer(
-  timeoutMs: number = 5 * 60 * 1000
+  timeoutMs: number = 5 * 60 * 1000,
+  serve: typeof Bun.serve = Bun.serve
 ): CallbackServerHandle {
   let server: ReturnType<typeof Bun.serve> | null = null
   let timeoutId: ReturnType<typeof setTimeout> | null = null
   let resolveCallback: ((result: CallbackResult) => void) | null = null
-  let rejectCallback: ((error: Error) => void) | null = null
 
   const cleanup = () => {
     if (timeoutId) {
@@ -206,15 +206,29 @@ export function startCallbackServer(
   }
 
   try {
-    server = Bun.serve({
+    server = serve({
       port: ANTIGRAVITY_CALLBACK_PORT,
       fetch: fetchHandler,
     })
-  } catch (error) {
-    server = Bun.serve({
-      port: 0,
-      fetch: fetchHandler,
-    })
+  } catch (preferredError) {
+    try {
+      server = serve({
+        port: 0,
+        fetch: fetchHandler,
+      })
+    } catch (fallbackError) {
+      const preferredMessage =
+        preferredError instanceof Error ? preferredError.message : String(preferredError)
+      const fallbackMessage =
+        fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+      throw new Error(
+        `Failed to start OAuth callback server (preferred port ${ANTIGRAVITY_CALLBACK_PORT} then ephemeral): ${preferredMessage}; ${fallbackMessage}`
+      )
+    }
+  }
+
+  if (!server) {
+    throw new Error("Failed to start OAuth callback server")
   }
 
   const actualPort = server.port as number
@@ -223,7 +237,6 @@ export function startCallbackServer(
   const waitForCallback = (): Promise<CallbackResult> => {
     return new Promise((resolve, reject) => {
       resolveCallback = resolve
-      rejectCallback = reject
 
       timeoutId = setTimeout(() => {
         cleanup()

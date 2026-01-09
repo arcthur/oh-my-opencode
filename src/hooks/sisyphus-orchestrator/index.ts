@@ -204,12 +204,31 @@ interface GitFileStat {
   status: "modified" | "added" | "deleted"
 }
 
+function isInsideGitWorkTree(directory: string): boolean {
+  try {
+    const result = execSync("git rev-parse --is-inside-work-tree", {
+      cwd: directory,
+      encoding: "utf-8",
+      timeout: 2000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim()
+    return result === "true"
+  } catch {
+    return false
+  }
+}
+
 function getGitDiffStats(directory: string): GitFileStat[] {
+  if (!isInsideGitWorkTree(directory)) {
+    return []
+  }
+
   try {
     const output = execSync("git diff --numstat HEAD", {
       cwd: directory,
       encoding: "utf-8",
       timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim()
 
     if (!output) return []
@@ -218,6 +237,7 @@ function getGitDiffStats(directory: string): GitFileStat[] {
       cwd: directory,
       encoding: "utf-8",
       timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim()
 
     const statusMap = new Map<string, "modified" | "added" | "deleted">()

@@ -10,11 +10,15 @@ import {
 } from "../../features/boulder-state"
 import type { BoulderState } from "../../features/boulder-state"
 
-import { MESSAGE_STORAGE } from "../../features/hook-message-injector"
+import {
+  MESSAGE_STORAGE,
+  setOpenCodeStorageDirForTesting,
+} from "../../features/hook-message-injector"
 
 describe("sisyphus-orchestrator hook", () => {
   const TEST_DIR = join(tmpdir(), "sisyphus-orchestrator-test-" + Date.now())
   const SISYPHUS_DIR = join(TEST_DIR, ".sisyphus")
+  const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-test")
 
   function createMockPluginInput(overrides?: { promptMock?: ReturnType<typeof mock> }) {
     const promptMock = overrides?.promptMock ?? mock(() => Promise.resolve())
@@ -49,6 +53,7 @@ describe("sisyphus-orchestrator hook", () => {
   }
 
   beforeEach(() => {
+    setOpenCodeStorageDirForTesting(TEST_STORAGE_DIR)
     if (!existsSync(TEST_DIR)) {
       mkdirSync(TEST_DIR, { recursive: true })
     }

@@ -1,12 +1,14 @@
 import { describe, expect, test, beforeEach, afterEach, mock } from "bun:test"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { tmpdir } from "node:os"
 import { createPrometheusMdOnlyHook } from "./index"
-import { MESSAGE_STORAGE } from "../../features/hook-message-injector"
+import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
 
 describe("prometheus-md-only", () => {
   const TEST_SESSION_ID = "test-session-prometheus"
   let testMessageDir: string
+  const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-test")
 
   function createMockPluginInput() {
     return {
@@ -16,6 +18,7 @@ describe("prometheus-md-only", () => {
   }
 
   function setupMessageStorage(sessionID: string, agent: string): void {
+    setOpenCodeStorageDirForTesting(TEST_STORAGE_DIR)
     testMessageDir = join(MESSAGE_STORAGE, sessionID)
     mkdirSync(testMessageDir, { recursive: true })
     const messageContent = {
