@@ -69,14 +69,14 @@ Enable in `.opencode/oh-my-opencode.json`:
 
 ```json
 {
-  "planningWithFiles": {
+  "planning_with_files": {
     "enabled": true,
     "directory": "plans",
-    "twoActionRule": true,
-    "threeStrikeProtocol": true,
-    "autoReread": true,
-    "stopVerification": true,
-    "autoFromMultiPlan": true
+    "two_action_rule": true,
+    "three_strike_protocol": true,
+    "auto_reread": true,
+    "stop_verification": true,
+    "auto_from_multi_plan": true
   }
 }
 ```
@@ -87,13 +87,13 @@ Enable in `.opencode/oh-my-opencode.json`:
 |--------|---------|-------------|
 | `enabled` | `false` | Enable the planning-with-files pattern |
 | `directory` | `"plans"` | Directory for planning files (relative to .sisyphus/) |
-| `twoActionRule` | `true` | Remind to update findings after 2 research ops |
-| `threeStrikeProtocol` | `true` | Structured error handling with escalation |
-| `autoReread` | `true` | Re-read task_plan before Write/Edit/Bash/NotebookEdit |
-| `stopVerification` | `true` | Block stopping if phases are incomplete |
-| `autoFromMultiPlan` | `true` | Auto-create planning files from multi-plan results |
-| `rereadTriggerTools` | `["Write", "Edit", "Bash", "NotebookEdit"]` | Tools that trigger task_plan.md injection |
-| `actionCountTools` | `["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"]` | Tools counted for 2-action rule |
+| `two_action_rule` | `true` | Remind to update findings after 2 research ops |
+| `three_strike_protocol` | `true` | Structured error handling with escalation |
+| `auto_reread` | `true` | Re-read task_plan before Write/Edit/Bash/NotebookEdit |
+| `stop_verification` | `true` | Block stopping if phases are incomplete |
+| `auto_from_multi_plan` | `true` | Auto-create planning files from multi-plan results |
+| `reread_trigger_tools` | `["Write", "Edit", "Bash", "NotebookEdit"]` | Tools that trigger task_plan.md injection |
+| `action_count_tools` | `["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"]` | Tools counted for 2-action rule |
 
 ## Core Mechanisms
 
@@ -309,12 +309,12 @@ Context: Just the confirmation (trust the filesystem)
 
 ```json
 {
-  "silentToolOutput": {
-    "silentWrite": true,
-    "optimizePlanningReads": true,
-    "optimizeSearch": true,
-    "searchMaxLines": 20,
-    "previewMaxChars": 200
+  "silent_tool_output": {
+    "silent_write": true,
+    "optimize_planning_reads": true,
+    "optimize_search": true,
+    "search_max_lines": 20,
+    "preview_max_chars": 200
   }
 }
 ```
@@ -323,11 +323,11 @@ Context: Just the confirmation (trust the filesystem)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `silentWrite` | `true` | Replace write outputs with metadata only |
-| `optimizePlanningReads` | `true` | Minimize read output for planning files |
-| `optimizeSearch` | `true` | Truncate long search results |
-| `searchMaxLines` | `20` | Max lines before truncation |
-| `previewMaxChars` | `200` | Max characters for content preview |
+| `silent_write` | `true` | Replace write outputs with metadata only |
+| `optimize_planning_reads` | `true` | Minimize read output for planning files |
+| `optimize_search` | `true` | Truncate long search results |
+| `search_max_lines` | `20` | Max lines before truncation |
+| `preview_max_chars` | `200` | Max characters for content preview |
 
 ### Before/After Comparison
 

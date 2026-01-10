@@ -16,29 +16,29 @@ export interface PlanningState {
   lastActivityAt: string
 }
 
-/** Configuration */
+/** Configuration - matches schema snake_case convention */
 export interface PlanningWithFilesConfig {
   enabled: boolean
   directory: string
-  twoActionRule: boolean
-  threeStrikeProtocol: boolean
-  autoReread: boolean
-  stopVerification: boolean
-  rereadTriggerTools: string[]
-  actionCountTools: string[]
-  autoFromMultiPlan: boolean
+  two_action_rule: boolean
+  three_strike_protocol: boolean
+  auto_reread: boolean
+  stop_verification: boolean
+  reread_trigger_tools: string[]
+  action_count_tools: string[]
+  auto_from_multi_plan: boolean
 }
 
 export const DEFAULT_PLANNING_CONFIG: PlanningWithFilesConfig = {
   enabled: false,
-  directory: "plans", // Unified with multi-plan output
-  twoActionRule: true,
-  threeStrikeProtocol: true,
-  autoReread: true,
-  stopVerification: true,
-  rereadTriggerTools: ["Write", "Edit", "Bash", "NotebookEdit"],
-  actionCountTools: ["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"],
-  autoFromMultiPlan: true,
+  directory: "plans",
+  two_action_rule: true,
+  three_strike_protocol: true,
+  auto_reread: true,
+  stop_verification: true,
+  reread_trigger_tools: ["Write", "Edit", "Bash", "NotebookEdit"],
+  action_count_tools: ["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"],
+  auto_from_multi_plan: true,
 }
 
 // Legacy type aliases for compatibility

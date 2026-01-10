@@ -56,10 +56,10 @@ export function createPlanningWithFilesHooks(
      * we maximize KV-cache hits and reduce latency.
      */
     PreToolUse: async (input, output) => {
-      if (!config.autoReread) return
+      if (!config.auto_reread) return
 
       const { session_id, tool_name, cwd } = input
-      const triggerTools = config.rereadTriggerTools
+      const triggerTools = config.reread_trigger_tools
 
       if (!triggerTools.includes(tool_name)) return
 
@@ -125,7 +125,7 @@ Stay focused on the current phase. Do not deviate from the goal.
       }
 
       // Count actions for 2-action rule
-      if (config.twoActionRule && config.actionCountTools.includes(tool_name)) {
+      if (config.two_action_rule && config.action_count_tools.includes(tool_name)) {
         state.actionCount++
         await saveState(cwd, state)
 
@@ -146,7 +146,7 @@ Counter auto-resets when you modify findings.md.
       }
 
       // 3-strike protocol with forced error recording
-      if (config.threeStrikeProtocol && output.error) {
+      if (config.three_strike_protocol && output.error) {
         const errorKey = `${tool_name}:${output.error.slice(0, 50)}`
         state.errorStrikes[errorKey] = (state.errorStrikes[errorKey] || 0) + 1
         await saveState(cwd, state)
@@ -213,7 +213,7 @@ Error: ${output.error.slice(0, 150)}
      * Stop: Verify all phases complete (supports "blocked" status)
      */
     Stop: async (input) => {
-      if (!config.stopVerification) return { block: false }
+      if (!config.stop_verification) return { block: false }
 
       const { session_id, cwd } = input
       const planName = sessionPlans.get(session_id)

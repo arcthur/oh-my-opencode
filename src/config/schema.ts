@@ -356,6 +356,8 @@ export const SilentToolOutputConfigSchema = z.object({
   optimize_search: z.boolean().default(true),
   /** Max lines to show in search results (default: 20) */
   search_max_lines: z.number().default(20),
+  /** Max characters for content preview (default: 200) */
+  preview_max_chars: z.number().default(200),
 })
 
 export const OhMyOpenCodeConfigSchema = z.object({

@@ -45,7 +45,8 @@ const PLANNING_FILE_PATTERNS = [
 ]
 
 /**
- * Configuration for silent tool output behavior
+ * Configuration for silent tool output behavior.
+ * Uses snake_case to match schema convention.
  */
 export interface SilentToolOutputConfig {
   /**
@@ -54,7 +55,7 @@ export interface SilentToolOutputConfig {
    * "✓ {path} written ({bytes} bytes, {lines} lines)"
    * @default true
    */
-  silentWrite: boolean
+  silent_write: boolean
 
   /**
    * Optimize read outputs for planning files.
@@ -62,38 +63,38 @@ export interface SilentToolOutputConfig {
    * is redundant. Returns minimal confirmation instead.
    * @default true
    */
-  optimizePlanningReads: boolean
+  optimize_planning_reads: boolean
 
   /**
    * Truncate search results to reduce context consumption.
    * Provides file locations instead of full content matches.
    * @default true
    */
-  optimizeSearch: boolean
+  optimize_search: boolean
 
   /**
    * Maximum lines to include in search results before truncation.
    * Remaining results shown as "... and N more results"
    * @default 20
    */
-  searchMaxLines: number
+  search_max_lines: number
 
   /**
    * Maximum characters for content preview (if enabled)
    * @default 200
    */
-  previewMaxChars: number
+  preview_max_chars: number
 }
 
 /**
  * Default configuration - aggressive optimization enabled
  */
 const DEFAULT_CONFIG: SilentToolOutputConfig = {
-  silentWrite: true,
-  optimizePlanningReads: true,
-  optimizeSearch: true,
-  searchMaxLines: 20,
-  previewMaxChars: 200,
+  silent_write: true,
+  optimize_planning_reads: true,
+  optimize_search: true,
+  search_max_lines: 20,
+  preview_max_chars: 200,
 }
 
 /**
@@ -245,13 +246,13 @@ export function createSilentToolOutputHook(
       const filePath = extractPath(input.input)
 
       // Handle Write/Edit tools - replace content with metadata
-      if (fullConfig.silentWrite && WRITE_TOOLS.includes(toolName)) {
+      if (fullConfig.silent_write && WRITE_TOOLS.includes(toolName)) {
         output.output = createSilentWriteOutput(output.output, filePath)
         return
       }
 
       // Handle Read for planning files - minimize since PreToolUse injects
-      if (fullConfig.optimizePlanningReads && READ_TOOLS.includes(toolName)) {
+      if (fullConfig.optimize_planning_reads && READ_TOOLS.includes(toolName)) {
         if (filePath && isPlanningFile(filePath)) {
           output.output = createOptimizedReadOutput(output.output, filePath)
           return
@@ -259,10 +260,10 @@ export function createSilentToolOutputHook(
       }
 
       // Handle search tools - truncate long results
-      if (fullConfig.optimizeSearch && SEARCH_TOOLS.includes(toolName)) {
+      if (fullConfig.optimize_search && SEARCH_TOOLS.includes(toolName)) {
         output.output = createOptimizedSearchOutput(
           output.output,
-          fullConfig.searchMaxLines
+          fullConfig.search_max_lines
         )
         return
       }
