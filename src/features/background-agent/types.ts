@@ -34,6 +34,10 @@ export interface BackgroundTask {
   parentAgent?: string
   /** If true, skip parent session notification on completion (for internal orchestration tasks) */
   silent?: boolean
+  /** Last message count for stability detection */
+  lastMsgCount?: number
+  /** Number of consecutive polls with stable message count */
+  stablePolls?: number
 }
 
 export interface LaunchInput {
