@@ -4,26 +4,67 @@
 
 ## Overview
 
-Planning with Files 使用 3 个持久化 markdown 文件作为 "磁盘上的工作内存"，克服 AI 上下文窗口的局限性。
+Planning with Files implements a persistent markdown-based planning system inspired by [Manus](https://github.com/OthmanAdi/planning-with-files). It uses three files as "working memory on disk" to overcome AI context window limitations.
 
-## 核心原理
+### The Core Problem
 
-1. **KV-Cache 优化**: 完整注入 task_plan.md 到提示开头，保持前缀稳定以最大化缓存命中
-2. **自动检测**: 通过 mtime 自动检测 findings.md 修改，无需手动确认
-3. **状态持久化**: 使用 `.planning-state.json` 保存状态，进程重启后可恢复
-4. **blocked 状态**: 支持 `blocked` 作为阶段终止状态
+AI agents suffer from:
+- **Volatile memory**: Information lost during context resets
+- **Goal drift**: Original objectives fade after many operations
+- **Context bloat**: Everything crammed into limited active memory
+- **Hidden errors**: Failures not tracked, causing repetition
 
-## 3 文件模式
+### The Solution
+
+Treat the filesystem as persistent storage and context windows as temporary RAM:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Context Window (RAM)          Filesystem (Disk)        │
+│  ──────────────────           ─────────────────         │
+│  • Volatile                   • Persistent              │
+│  • Limited (~200K tokens)     • Unlimited               │
+│  • Expensive                  • Free                    │
+│  • Lost on reset              • Survives restarts       │
+└─────────────────────────────────────────────────────────┘
+```
+
+## The 3-File Pattern
+
+Every complex task creates three markdown files:
 
 ```
 .sisyphus/plans/{plan-name}/
-├── task_plan.md           # 阶段、目标、决策、错误
-├── findings.md            # 研究结果 (2-action rule)
-├── progress.md            # 会话日志、5-Question Reboot
-└── .planning-state.json   # 持久化状态
+├── task_plan.md           # Phases, goals, decisions, errors
+├── findings.md            # Research results (2-action rule)
+├── progress.md            # Session logs, 5-Question Reboot
+└── .planning-state.json   # Persisted state (action count, error strikes)
 ```
 
-## 配置
+### task_plan.md - Working Memory
+
+Your primary planning document containing:
+- **Goal**: North-star statement to prevent drift
+- **Phases**: Status-tracked stages (pending → in_progress → complete → blocked)
+- **Decisions**: Documented choices with rationale
+- **Errors**: 3-strike protocol tracking
+
+### findings.md - Knowledge Base
+
+Persistent research storage containing:
+- **Research**: Source-attributed discoveries
+- **Resources**: URLs and references
+- **Technical Decisions**: Architecture choices
+
+### progress.md - Session History
+
+Execution log for context continuity containing:
+- **Session Log**: Actions and files modified
+- **5-Question Reboot Check**: Context recovery helper
+
+## Configuration
+
+Enable in `.opencode/oh-my-opencode.json`:
 
 ```json
 {
@@ -39,11 +80,23 @@ Planning with Files 使用 3 个持久化 markdown 文件作为 "磁盘上的工
 }
 ```
 
-## 核心机制
+### Configuration Options
 
-### 1. PreToolUse Hook - 完整 task_plan.md 注入
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enabled` | `false` | Enable the planning-with-files pattern |
+| `directory` | `"plans"` | Directory for planning files (relative to .sisyphus/) |
+| `two_action_rule` | `true` | Remind to update findings after 2 view/search ops |
+| `three_strike_protocol` | `true` | Structured error handling with escalation |
+| `auto_reread` | `true` | Re-read task_plan before Write/Edit/Bash |
+| `stop_verification` | `true` | Block stopping if phases are incomplete |
+| `auto_from_multi_plan` | `true` | Auto-create planning files from multi-plan results |
 
-在 Write/Edit/Bash 操作前，注入**完整**的 task_plan.md 内容：
+## Core Mechanisms
+
+### 1. PreToolUse Hook - Full task_plan.md Injection
+
+Before Write/Edit/Bash operations, the **full** task_plan.md content is injected:
 
 ```xml
 <task-plan-context>
@@ -53,81 +106,213 @@ Planning with Files 使用 3 个持久化 markdown 文件作为 "磁盘上的工
 
 ## Phases
 | # | Phase | Status |
+|---|-------|--------|
+| 1 | Discovery | complete |
+| 2 | Implementation | in_progress |
 ...
 </task-plan-context>
+
+<reminder>
+Stay focused on the current phase. Do not deviate from the goal.
+</reminder>
 ```
 
-**KV-Cache 收益**: 前缀稳定 → 注意力计算可复用 → 延迟降低
+**KV-Cache Optimization**: By keeping the prefix stable across tool calls, we maximize KV-cache hits, reducing latency and cost.
 
-### 2. 2-Action Rule - 自动检测重置
+### 2. Two-Action Rule - Auto-Reset Detection
 
-每 2 次 Read/WebFetch/Grep 操作后提醒更新 findings.md：
+After 2 Read/WebFetch/Grep operations, reminds to update findings.md:
 
 ```xml
 <two-action-rule>
 ## Update findings.md NOW
 
 2 research operations completed.
+
+Update `.sisyphus/plans/{plan}/findings.md` with:
+- Key discoveries
+- Technical decisions
+- Resources found
+
 Counter auto-resets when you modify findings.md.
 </two-action-rule>
 ```
 
-**自动检测**: 通过 mtime 检测文件修改，无需说 "updated findings"。
+**Auto-Detection**: Uses file mtime to detect findings.md modifications. No need to say "updated findings" - the counter resets automatically when the file is modified.
 
-### 3. 3-Strike Protocol
+### 3. Three-Strike Error Protocol
 
-| Strike | 行动 |
-|--------|------|
-| 1 | 诊断 - 仔细阅读错误，检查上下文 |
-| 2 | 转向 - 尝试替代方案 |
-| 3 | 重新评估 - 审查假设，考虑标记 blocked |
-| 4+ | 升级 - 标记阶段为 BLOCKED |
+Structured error handling with escalation:
+
+| Strike | Action | Guidance |
+|--------|--------|----------|
+| 1 | Diagnose | Read error carefully, check context |
+| 2 | Pivot | Try alternative approach |
+| 3 | Reassess | Review assumptions, consider blocking phase |
+| 4+ | Escalate | Mark phase as BLOCKED, ask for help |
+
+Example injection:
+
+```xml
+<three-strike-protocol strike="2">
+**Strike 2/3**: Pivot - Try alternative approach
+
+Error: Command failed with exit code 1...
+</three-strike-protocol>
+```
 
 ### 4. Stop Verification
 
-支持 `complete` 和 `blocked` 作为终止状态：
+Supports both `complete` and `blocked` as terminal states:
 
 ```markdown
 ## Phases
 | # | Phase | Status |
 |---|-------|--------|
-| 1 | Discovery | complete |
-| 2 | Implementation | blocked |  ← 允许停止
-| 3 | Testing | pending |        ← 阻止停止
+| 1 | Discovery | complete |    ← Allows stop
+| 2 | Implementation | blocked | ← Allows stop (with reason)
+| 3 | Testing | pending |        ← Blocks stop
 ```
 
-## 目录结构
-
-统一使用 `.sisyphus/plans/{plan-name}/`：
-
-- 与 multi-plan 输出统一
-- 单一位置管理所有规划文件
-- 便于查找和维护
-
-## 使用方式
-
-### 启动规划
+If incomplete phases exist, provides options:
 
 ```
-start planning for "add-authentication"
+Incomplete phases:
+- Phase 3: Testing (pending)
+
+**Options**:
+1. Complete remaining phases
+2. Mark phases as `blocked` in task_plan.md
+3. Use `/stop --force` to override
 ```
 
-### 运行中
+### 5. State Persistence
 
-1. Write/Edit/Bash 前自动重读 task_plan.md
-2. 2 次研究操作后提醒更新 findings.md
-3. 修改 findings.md 后自动重置计数
-4. 错误时触发 3-strike 协议
+State is persisted to `.planning-state.json`:
 
-### 完成
+```json
+{
+  "planName": "add-auth",
+  "actionCount": 1,
+  "lastFindingsMtime": 1704067200000,
+  "errorStrikes": {
+    "Bash:npm install failed": 2
+  },
+  "activatedAt": "2024-01-01T00:00:00.000Z",
+  "lastActivityAt": "2024-01-01T01:30:00.000Z"
+}
+```
 
-确保所有阶段为 `complete` 或 `blocked` 后停止。
+This enables:
+- **Session recovery**: State survives process restarts
+- **Cross-session continuity**: Resume where you left off
+- **Accurate mtime detection**: No keyword matching needed
 
-## 与 Multi-Plan 整合
+## Silent Tool Output
 
-当 `auto_from_multi_plan: true` 时，multi-plan 完成后自动创建 3 文件结构。
+To further reduce context consumption, use the `silent-tool-output` hook in conjunction with planning-with-files.
 
-## 文件模板
+### The Problem
+
+Even when content is written to persistent files, the tool output returns full content back into context:
+
+```
+Agent: Write("task_plan.md", <200 lines>)
+    ↓
+Tool Output: "Successfully wrote:\n<200 lines>"  ← Full content in context!
+    ↓
+Context: Contains 200 lines (defeats the purpose of persistent storage)
+```
+
+### The Solution
+
+Silent Tool Output replaces verbose outputs with minimal metadata:
+
+```
+Agent: Write("task_plan.md", <200 lines>)
+    ↓
+Tool Output: "✓ task_plan.md updated"  ← Only metadata
+    ↓
+Context: Just the confirmation (trust the filesystem)
+```
+
+### Configuration
+
+```json
+{
+  "silent_tool_output": {
+    "silent_write": true,
+    "optimize_planning_reads": true,
+    "optimize_search": true,
+    "search_max_lines": 20
+  }
+}
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `silent_write` | `true` | Replace write outputs with metadata only |
+| `optimize_planning_reads` | `true` | Minimize read output for planning files |
+| `optimize_search` | `true` | Truncate long search results |
+| `search_max_lines` | `20` | Max lines before truncation |
+
+### Before/After Comparison
+
+| Tool | Before | After | Reduction |
+|------|--------|-------|-----------|
+| **Write** | `Successfully wrote:\n<200 lines>` | `✓ file.ts written (5KB, 200 lines)` | ~95% |
+| **Edit** | `Modified:\n<full content>` | `✓ file.ts updated` | ~95% |
+| **Read** (planning) | `<full content>` | `✓ task_plan.md loaded - in <task-plan-context>` | ~90% |
+| **Grep** | `<100 matches>` | `<20 matches>\n... and 80 more` | ~80% |
+
+### Core Principle
+
+**"Trust the filesystem, not the context"**
+
+- Write tools only need to confirm success, not echo content
+- Planning files are already injected via PreToolUse, Read output is redundant
+- Search results provide location references; use Read for detailed content
+
+## Usage
+
+### Starting a Planning Session
+
+Use keywords to initialize:
+
+```
+start planning for "feature-name"
+init plan "bug-fix"
+create plan for "refactoring"
+```
+
+The system creates the 3-file structure and activates hooks.
+
+### During Work
+
+1. **Before Write/Edit/Bash**: task_plan.md auto-injected as context
+2. **After 2 research operations**: Reminded to update findings.md
+3. **When findings.md modified**: Action counter auto-resets
+4. **On errors**: 3-strike protocol guidance provided
+5. **On stop attempt**: Incomplete phases block termination
+
+### Completing Work
+
+Ensure all phases are `complete` or `blocked` before stopping.
+
+## Integration with Multi-Plan
+
+When `auto_from_multi_plan: true`, after a multi-plan session completes:
+
+1. Goal extracted from unified plan
+2. Phases extracted from TODOs or headers
+3. Research findings collected from all model plans
+4. 3-file structure created automatically
+
+This enables seamless transition from planning to execution with full tracking.
+
+## File Templates
 
 ### task_plan.md
 
@@ -155,6 +340,9 @@ start planning for "add-authentication"
 | # | Error | Strikes | Resolution |
 |---|-------|---------|------------|
 | - | (none yet) | - | - |
+
+---
+*Created: 2024-01-01*
 ```
 
 ### findings.md
@@ -173,6 +361,9 @@ start planning for "add-authentication"
 | Name | URL |
 |------|-----|
 | - | - |
+
+---
+*Last updated: 2024-01-01*
 ```
 
 ### progress.md
@@ -188,51 +379,72 @@ start planning for "add-authentication"
 
 ## 5-Question Reboot
 
-1. **Where am I?** -
-2. **Where am I going?** -
-3. **What is my goal?** -
-4. **What have I learned?** -
-5. **What have I completed?** -
+Use when resuming after a break:
+
+1. **Where am I?** - Current phase and file
+2. **Where am I going?** - Next steps
+3. **What is my goal?** - The north star
+4. **What have I learned?** - Key findings
+5. **What have I completed?** - Achievements
 ```
 
-## Silent Tool Output
+## Performance Summary
 
-配合使用 `silent-tool-output` hook 进一步减少 context 消耗：
+| Metric | Effect |
+|--------|--------|
+| KV-Cache utilization | ~80% (stable prefix) |
+| State recovery | 100% (persisted to disk) |
+| Findings detection accuracy | 100% (mtime-based) |
+| Write context reduction | ~95% (metadata only) |
+| Template size | Minimal (50 lines) |
+
+## Best Practices
+
+### When to Use
+
+Apply planning-with-files for:
+- Multi-step tasks (3+ steps)
+- Research-heavy projects
+- Tasks with many tool calls (5+)
+- Complex feature implementations
+- Debugging sessions
+
+### When to Skip
+
+Skip for:
+- Simple questions
+- Single-file edits
+- Quick lookups
+- Trivial fixes
+
+### Tips
+
+1. **Update findings immediately**: Capture discoveries as you find them
+2. **Log errors promptly**: Prevents repeating failed approaches
+3. **Use blocked status**: Don't leave phases stuck in_progress indefinitely
+4. **Trust the filesystem**: Don't manually re-read files that are auto-injected
+5. **Review task_plan regularly**: Keep the goal visible
+
+## Troubleshooting
+
+### Files not created
+
+Ensure planning-with-files hook is not disabled:
 
 ```json
 {
-  "silent_tool_output": {
-    "silent_write": true,
-    "optimize_planning_reads": true,
-    "optimize_search": true,
-    "search_max_lines": 20
-  }
+  "disabled_hooks": []  // Should not include "planning-with-files"
 }
 ```
 
-### 效果对比
+### State not persisting
 
-| 工具 | 优化前 | 优化后 |
-|------|--------|--------|
-| Write | `写入成功:\n<200行内容>` | `✓ path.ts written (5000 bytes, 200 lines)` |
-| Edit | `已修改:\n<完整内容>` | `✓ path.ts updated` |
-| Read (planning) | `<完整内容>` | `✓ task_plan.md loaded - content in <task-plan-context>` |
-| Grep | `<100行匹配>` | `<20行匹配>\n... and 80 more` |
+Check that `.planning-state.json` exists in the plan directory and is writable.
 
-### 核心原理
+### Stop not blocked
 
-**"Trust the filesystem, not the context"**
+Verify `stop_verification: true` and that an active plan exists for the session.
 
-- Write 工具只需确认成功，不需要回传内容
-- Planning files 已在 PreToolUse 注入，Read 结果冗余
-- 搜索结果提供位置引用即可，详细内容用 Read 查看
+### Auto-reset not working
 
-## 性能优化
-
-| 指标 | 效果 |
-|------|------|
-| KV-Cache 利用率 | ~80% (前缀稳定) |
-| 状态恢复 | 100% (持久化) |
-| findings 检测准确率 | 100% (mtime) |
-| Write context 减少 | ~95% (只返回元数据) |
-| 模板大小 | 精简 50 行 |
+Ensure you're modifying the actual `findings.md` file, not a different file. The mtime detection only works on the exact planning file paths.

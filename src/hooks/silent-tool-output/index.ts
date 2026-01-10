@@ -1,22 +1,42 @@
 /**
  * Silent Tool Output Hook
  *
- * Optimizes tool outputs to reduce context consumption:
- * - Write/Edit: Return only metadata (path, bytes, lines)
- * - Read for planning files: Minimal since PreToolUse injects full content
- * - Grep/Glob: Return file locations, not full content
+ * Addresses the Reddit community observation: even when content is written to
+ * persistent files, the tool output returns full content back into context,
+ * defeating the purpose of "Filesystem = Disk" pattern.
+ *
+ * Optimizations:
+ * - Write/Edit: Return only metadata (path, bytes, lines) instead of content
+ * - Read for planning files: Minimal output since PreToolUse injects content
+ * - Grep/Glob: Truncate results with "use Read for details" hint
  *
  * Core principle: "Trust the filesystem, not the context"
+ *
+ * @example
+ * // Before optimization:
+ * Write("file.ts", <200 lines>) -> "Successfully wrote:\n<200 lines>"
+ *
+ * // After optimization:
+ * Write("file.ts", <200 lines>) -> "✓ file.ts written (5000 bytes, 200 lines)"
  */
 
 import type { PluginInput, Hooks } from "../../types"
 
-/** Tools that should have silent/optimized output */
-const SILENT_WRITE_TOOLS = ["Write", "Edit", "NotebookEdit", "write", "edit"]
-const SILENT_READ_TOOLS = ["Read", "read"]
-const OPTIMIZE_SEARCH_TOOLS = ["Grep", "Glob", "grep", "glob", "safe_grep", "safe_glob"]
+/** Tools that produce write operations */
+const WRITE_TOOLS = ["Write", "Edit", "NotebookEdit", "write", "edit"]
 
-/** Planning file patterns */
+/** Tools that produce read operations */
+const READ_TOOLS = ["Read", "read"]
+
+/** Tools that produce search results */
+const SEARCH_TOOLS = ["Grep", "Glob", "grep", "glob", "safe_grep", "safe_glob"]
+
+/**
+ * Patterns to identify planning-related files.
+ * These files are handled specially because:
+ * 1. PreToolUse hook injects their content before tool execution
+ * 2. Reading them again would be redundant in context
+ */
 const PLANNING_FILE_PATTERNS = [
   /task_plan\.md$/,
   /findings\.md$/,
@@ -24,19 +44,50 @@ const PLANNING_FILE_PATTERNS = [
   /\.planning-state\.json$/,
 ]
 
-interface SilentToolOutputConfig {
-  /** Enable silent write output (default: true) */
+/**
+ * Configuration for silent tool output behavior
+ */
+export interface SilentToolOutputConfig {
+  /**
+   * Replace write tool outputs with metadata only.
+   * Instead of returning the written content, returns:
+   * "✓ {path} written ({bytes} bytes, {lines} lines)"
+   * @default true
+   */
   silentWrite: boolean
-  /** Enable optimized read for planning files (default: true) */
+
+  /**
+   * Optimize read outputs for planning files.
+   * Since PreToolUse injects task_plan.md content, reading it again
+   * is redundant. Returns minimal confirmation instead.
+   * @default true
+   */
   optimizePlanningReads: boolean
-  /** Enable search result optimization (default: true) */
+
+  /**
+   * Truncate search results to reduce context consumption.
+   * Provides file locations instead of full content matches.
+   * @default true
+   */
   optimizeSearch: boolean
-  /** Max lines to show in search results (default: 20) */
+
+  /**
+   * Maximum lines to include in search results before truncation.
+   * Remaining results shown as "... and N more results"
+   * @default 20
+   */
   searchMaxLines: number
-  /** Max content preview chars (default: 200) */
+
+  /**
+   * Maximum characters for content preview (if enabled)
+   * @default 200
+   */
   previewMaxChars: number
 }
 
+/**
+ * Default configuration - aggressive optimization enabled
+ */
 const DEFAULT_CONFIG: SilentToolOutputConfig = {
   silentWrite: true,
   optimizePlanningReads: true,
@@ -46,91 +97,123 @@ const DEFAULT_CONFIG: SilentToolOutputConfig = {
 }
 
 /**
- * Check if path is a planning file
+ * Check if a file path matches planning file patterns
  */
-function isPlanningFile(path: string): boolean {
-  return PLANNING_FILE_PATTERNS.some(p => p.test(path))
+function isPlanningFile(filePath: string): boolean {
+  return PLANNING_FILE_PATTERNS.some(pattern => pattern.test(filePath))
 }
 
 /**
- * Count lines in content
+ * Count newlines in content to determine line count
  */
 function countLines(content: string): number {
+  if (!content) return 0
   return content.split("\n").length
 }
 
 /**
- * Extract path from tool input
+ * Extract file path from tool input object.
+ * Handles various tool input formats.
  */
 function extractPath(input: unknown): string | null {
-  if (typeof input === "object" && input !== null) {
-    const obj = input as Record<string, unknown>
-    return (obj.file_path || obj.path || obj.filePath) as string | null
+  if (typeof input !== "object" || input === null) {
+    return null
   }
+
+  const obj = input as Record<string, unknown>
+
+  // Try common path field names
+  const pathFields = ["file_path", "path", "filePath", "notebook_path"]
+  for (const field of pathFields) {
+    if (typeof obj[field] === "string") {
+      return obj[field] as string
+    }
+  }
+
   return null
 }
 
 /**
- * Create silent write output
+ * Create optimized output for write operations.
+ *
+ * Replaces full content echo with metadata summary:
+ * - File path
+ * - Byte count
+ * - Line count
+ *
+ * For planning files, uses even shorter format since they're
+ * frequently accessed and injected via PreToolUse.
  */
 function createSilentWriteOutput(
   originalOutput: string,
-  path: string | null,
-  config: SilentToolOutputConfig
+  filePath: string | null
 ): string {
-  // Extract useful info from original output
-  const bytes = originalOutput.length
+  const bytes = Buffer.byteLength(originalOutput, "utf-8")
   const lines = countLines(originalOutput)
 
-  // For planning files, extra minimal
-  if (path && isPlanningFile(path)) {
-    return `✓ ${path} updated`
+  // Extra minimal for planning files (frequently accessed)
+  if (filePath && isPlanningFile(filePath)) {
+    return `✓ ${filePath} updated`
   }
 
-  // For regular files, include metadata
-  const pathInfo = path ? path : "file"
-  return `✓ ${pathInfo} written (${bytes} bytes, ${lines} lines)`
+  // Standard format with metadata
+  const displayPath = filePath || "file"
+  return `✓ ${displayPath} written (${bytes} bytes, ${lines} lines)`
 }
 
 /**
- * Create optimized read output for planning files
+ * Create optimized output for read operations on planning files.
+ *
+ * Since PreToolUse hook injects task_plan.md content before tool execution,
+ * the Read tool output is redundant. Return minimal confirmation that
+ * references the injected content location.
  */
 function createOptimizedReadOutput(
   originalOutput: string,
-  path: string | null,
-  config: SilentToolOutputConfig
+  filePath: string | null
 ): string {
-  if (!path || !isPlanningFile(path)) {
-    return originalOutput // Don't modify non-planning reads
-  }
-
-  // For planning files, return minimal since PreToolUse injects full content
-  const lines = countLines(originalOutput)
-  return `✓ ${path} loaded (${lines} lines) - content available in <task-plan-context>`
-}
-
-/**
- * Optimize search results
- */
-function createOptimizedSearchOutput(
-  originalOutput: string,
-  config: SilentToolOutputConfig
-): string {
-  const lines = originalOutput.split("\n")
-
-  if (lines.length <= config.searchMaxLines) {
+  // Only optimize planning file reads
+  if (!filePath || !isPlanningFile(filePath)) {
     return originalOutput
   }
 
-  // Truncate and add summary
-  const truncated = lines.slice(0, config.searchMaxLines).join("\n")
-  const remaining = lines.length - config.searchMaxLines
-
-  return `${truncated}\n\n... and ${remaining} more results (use Read to view specific files)`
+  const lines = countLines(originalOutput)
+  return `✓ ${filePath} loaded (${lines} lines) - content available in <task-plan-context>`
 }
 
 /**
- * Create the silent tool output hook
+ * Truncate search results to reduce context consumption.
+ *
+ * Keeps first N lines and adds summary of remaining results.
+ * Encourages using Read tool for detailed content inspection.
+ */
+function createOptimizedSearchOutput(
+  originalOutput: string,
+  maxLines: number
+): string {
+  const lines = originalOutput.split("\n")
+
+  // No truncation needed
+  if (lines.length <= maxLines) {
+    return originalOutput
+  }
+
+  // Truncate and add hint
+  const truncated = lines.slice(0, maxLines).join("\n")
+  const remaining = lines.length - maxLines
+
+  return `${truncated}\n\n... and ${remaining} more results (use Read tool to view specific files)`
+}
+
+/**
+ * Create the silent tool output hook.
+ *
+ * Attaches to the "tool.execute.after" event to modify tool outputs
+ * before they enter the context window.
+ *
+ * @param ctx - Plugin context
+ * @param config - Partial configuration (merged with defaults)
+ * @returns Hooks object with tool.execute.after handler
  */
 export function createSilentToolOutputHook(
   ctx: PluginInput,
@@ -139,35 +222,54 @@ export function createSilentToolOutputHook(
   const fullConfig = { ...DEFAULT_CONFIG, ...config }
 
   return {
+    /**
+     * Post-execution hook for tool output optimization.
+     *
+     * Intercepts tool outputs and replaces verbose content with
+     * minimal metadata summaries.
+     */
     "tool.execute.after": async (
-      input: { tool: string; input: unknown; sessionID: string; callID: string },
-      output: { title: string; output: string; metadata: unknown }
+      input: {
+        tool: string
+        input: unknown
+        sessionID: string
+        callID: string
+      },
+      output: {
+        title: string
+        output: string
+        metadata: unknown
+      }
     ) => {
       const toolName = input.tool
-      const path = extractPath(input.input)
+      const filePath = extractPath(input.input)
 
-      // Silent Write/Edit
-      if (fullConfig.silentWrite && SILENT_WRITE_TOOLS.includes(toolName)) {
-        output.output = createSilentWriteOutput(output.output, path, fullConfig)
+      // Handle Write/Edit tools - replace content with metadata
+      if (fullConfig.silentWrite && WRITE_TOOLS.includes(toolName)) {
+        output.output = createSilentWriteOutput(output.output, filePath)
         return
       }
 
-      // Optimized Read for planning files
-      if (fullConfig.optimizePlanningReads && SILENT_READ_TOOLS.includes(toolName)) {
-        if (path && isPlanningFile(path)) {
-          output.output = createOptimizedReadOutput(output.output, path, fullConfig)
+      // Handle Read for planning files - minimize since PreToolUse injects
+      if (fullConfig.optimizePlanningReads && READ_TOOLS.includes(toolName)) {
+        if (filePath && isPlanningFile(filePath)) {
+          output.output = createOptimizedReadOutput(output.output, filePath)
           return
         }
       }
 
-      // Optimized Search results
-      if (fullConfig.optimizeSearch && OPTIMIZE_SEARCH_TOOLS.includes(toolName)) {
-        output.output = createOptimizedSearchOutput(output.output, fullConfig)
+      // Handle search tools - truncate long results
+      if (fullConfig.optimizeSearch && SEARCH_TOOLS.includes(toolName)) {
+        output.output = createOptimizedSearchOutput(
+          output.output,
+          fullConfig.searchMaxLines
+        )
         return
       }
     },
   }
 }
 
+// Export types and defaults for external configuration
 export type { SilentToolOutputConfig }
 export { DEFAULT_CONFIG as DEFAULT_SILENT_CONFIG }
