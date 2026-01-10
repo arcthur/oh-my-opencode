@@ -47,19 +47,20 @@ Your primary planning document containing:
 - **Goal**: North-star statement to prevent drift
 - **Phases**: Status-tracked stages (pending → in_progress → complete → blocked)
 - **Decisions**: Documented choices with rationale
-- **Errors**: 3-strike protocol tracking
+- **Errors**: 3-strike protocol tracking (forced recording on Strike 2+)
+- **Blockers**: Issues requiring external intervention
 
 ### findings.md - Knowledge Base
 
 Persistent research storage containing:
 - **Research**: Source-attributed discoveries
 - **Resources**: URLs and references
-- **Technical Decisions**: Architecture choices
 
 ### progress.md - Session History
 
 Execution log for context continuity containing:
 - **Session Log**: Actions and files modified
+- **Phase Transitions**: Tracks when phases started/completed/revisited
 - **5-Question Reboot Check**: Context recovery helper
 
 ## Configuration
@@ -68,14 +69,14 @@ Enable in `.opencode/oh-my-opencode.json`:
 
 ```json
 {
-  "planning_with_files": {
+  "planningWithFiles": {
     "enabled": true,
     "directory": "plans",
-    "two_action_rule": true,
-    "three_strike_protocol": true,
-    "auto_reread": true,
-    "stop_verification": true,
-    "auto_from_multi_plan": true
+    "twoActionRule": true,
+    "threeStrikeProtocol": true,
+    "autoReread": true,
+    "stopVerification": true,
+    "autoFromMultiPlan": true
   }
 }
 ```
@@ -86,17 +87,19 @@ Enable in `.opencode/oh-my-opencode.json`:
 |--------|---------|-------------|
 | `enabled` | `false` | Enable the planning-with-files pattern |
 | `directory` | `"plans"` | Directory for planning files (relative to .sisyphus/) |
-| `two_action_rule` | `true` | Remind to update findings after 2 view/search ops |
-| `three_strike_protocol` | `true` | Structured error handling with escalation |
-| `auto_reread` | `true` | Re-read task_plan before Write/Edit/Bash |
-| `stop_verification` | `true` | Block stopping if phases are incomplete |
-| `auto_from_multi_plan` | `true` | Auto-create planning files from multi-plan results |
+| `twoActionRule` | `true` | Remind to update findings after 2 research ops |
+| `threeStrikeProtocol` | `true` | Structured error handling with escalation |
+| `autoReread` | `true` | Re-read task_plan before Write/Edit/Bash/NotebookEdit |
+| `stopVerification` | `true` | Block stopping if phases are incomplete |
+| `autoFromMultiPlan` | `true` | Auto-create planning files from multi-plan results |
+| `rereadTriggerTools` | `["Write", "Edit", "Bash", "NotebookEdit"]` | Tools that trigger task_plan.md injection |
+| `actionCountTools` | `["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"]` | Tools counted for 2-action rule |
 
 ## Core Mechanisms
 
 ### 1. PreToolUse Hook - Full task_plan.md Injection
 
-Before Write/Edit/Bash operations, the **full** task_plan.md content is injected:
+Before Write/Edit/Bash/NotebookEdit operations, the **full** task_plan.md content is injected:
 
 ```xml
 <task-plan-context>
@@ -121,7 +124,7 @@ Stay focused on the current phase. Do not deviate from the goal.
 
 ### 2. Two-Action Rule - Auto-Reset Detection
 
-After 2 Read/WebFetch/Grep operations, reminds to update findings.md:
+After 2 research operations (Read/WebFetch/WebSearch/Glob/Grep/Task), reminds to update findings.md:
 
 ```xml
 <two-action-rule>
@@ -306,11 +309,12 @@ Context: Just the confirmation (trust the filesystem)
 
 ```json
 {
-  "silent_tool_output": {
-    "silent_write": true,
-    "optimize_planning_reads": true,
-    "optimize_search": true,
-    "search_max_lines": 20
+  "silentToolOutput": {
+    "silentWrite": true,
+    "optimizePlanningReads": true,
+    "optimizeSearch": true,
+    "searchMaxLines": 20,
+    "previewMaxChars": 200
   }
 }
 ```
@@ -319,19 +323,20 @@ Context: Just the confirmation (trust the filesystem)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `silent_write` | `true` | Replace write outputs with metadata only |
-| `optimize_planning_reads` | `true` | Minimize read output for planning files |
-| `optimize_search` | `true` | Truncate long search results |
-| `search_max_lines` | `20` | Max lines before truncation |
+| `silentWrite` | `true` | Replace write outputs with metadata only |
+| `optimizePlanningReads` | `true` | Minimize read output for planning files |
+| `optimizeSearch` | `true` | Truncate long search results |
+| `searchMaxLines` | `20` | Max lines before truncation |
+| `previewMaxChars` | `200` | Max characters for content preview |
 
 ### Before/After Comparison
 
 | Tool | Before | After | Reduction |
 |------|--------|-------|-----------|
-| **Write** | `Successfully wrote:\n<200 lines>` | `✓ file.ts written (5KB, 200 lines)` | ~95% |
+| **Write** | `Successfully wrote:\n<200 lines>` | `✓ file.ts written (5000 bytes, 200 lines)` | ~95% |
 | **Edit** | `Modified:\n<full content>` | `✓ file.ts updated` | ~95% |
-| **Read** (planning) | `<full content>` | `✓ task_plan.md loaded - in <task-plan-context>` | ~90% |
-| **Grep** | `<100 matches>` | `<20 matches>\n... and 80 more` | ~80% |
+| **Read** (planning) | `<full content>` | `✓ task_plan.md loaded (50 lines) - content available in <task-plan-context>` | ~90% |
+| **Grep** | `<100 matches>` | `<20 matches>\n... and 80 more results (use Read tool to view specific files)` | ~80% |
 
 ### Core Principle
 
@@ -450,15 +455,19 @@ This enables seamless transition from planning to execution with full tracking.
 |------|--------|-------|
 | 10:30 | Session started | - |
 
+## Phase Transitions
+
+| Phase | Started | Completed | Revisited |
+|-------|---------|-----------|-----------|
+| - | - | - | - |
+
 ## 5-Question Reboot
 
-Use when resuming after a break:
-
-1. **Where am I?** - Current phase and file
-2. **Where am I going?** - Next steps
-3. **What is my goal?** - The north star
-4. **What have I learned?** - Key findings
-5. **What have I completed?** - Achievements
+1. **Where am I?** -
+2. **Where am I going?** -
+3. **What is my goal?** -
+4. **What have I learned?** -
+5. **What have I completed?** -
 ```
 
 ## Performance Summary
