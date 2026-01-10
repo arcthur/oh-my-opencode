@@ -7,8 +7,11 @@ This document describes the **Multi-Model Planning** feature, which enables para
 Traditional single-model planning has inherent blind spots - each model has its own biases, strengths, and weaknesses. Multi-Model Planning solves this by:
 
 1. **Parallel Generation**: Multiple AI models generate plans simultaneously, each bringing a unique perspective
-2. **Conflict Detection**: Identifies where models disagree on approach
-3. **Momus-Style Synthesis**: A Plan Synthesizer ruthlessly critiques all plans and produces a unified, actionable result
+2. **Structured Evaluation**: Each plan is scored on 4 criteria (Clarity, Verification, Context, Big Picture)
+3. **Assumption & Risk Analysis**: Detects conflicting assumptions, preserves unshared risks
+4. **Conflict Detection**: Identifies where models disagree on approach
+5. **Momus-Style Synthesis**: A Plan Synthesizer ruthlessly critiques all plans and produces a unified, actionable result
+6. **Debate Mechanism** (optional): Rejected models can rebut, Synthesizer may revise
 
 ---
 
@@ -159,16 +162,14 @@ If `debate: true` was passed, rejected models get a chance to rebut:
 
 ### Step 5: Output
 
-Three types of files are generated:
+The following files are generated:
 
 | File | Path | Description |
 |------|------|-------------|
 | Individual Plans | `.sisyphus/plans/{name}-{model}.md` | Each model's original plan |
 | Comparison Report | `.sisyphus/plan-reviews/{name}-comparison.md` | Evaluations, conflicts, rebuttals |
 | Final Plan | `.sisyphus/plans/{name}.md` | Synthesized unified plan |
-
-If debate was enabled:
-| Rebuttals | `.sisyphus/rebuttals/{name}-{model}.md` | Rebuttal from each rejected model |
+| Rebuttals (if debate) | `.sisyphus/rebuttals/{name}-{model}.md` | Rebuttal from each rejected model |
 
 ---
 
@@ -335,11 +336,19 @@ For a 3-model setup where 2 were rejected, expect 3 additional model calls.
 ### Individual Plans
 
 ```
-.sisyphus/plans/{name}-claude.md
-.sisyphus/plans/{name}-gpt.md
+.sisyphus/plans/{name}-{model}.md
 ```
 
-Each follows the standard plan format with Context, Work Objectives, TODOs, and Verification Strategy.
+Example: `.sisyphus/plans/auth-strategist.md`, `.sisyphus/plans/auth-creative.md`
+
+Each follows the standard plan format:
+- Context
+- Work Objectives
+- **Assumptions** (with confidence levels)
+- **Risks** (with probability/impact/mitigation)
+- Verification Strategy
+- TODOs
+- Success Criteria
 
 ### Comparison Report
 
@@ -348,10 +357,13 @@ Each follows the standard plan format with Context, Work Objectives, TODOs, and 
 ```
 
 Contains:
-- Per-model critique with scores (X/10)
-- All conflict resolutions
+- Per-model structured evaluation with C1-C4 scores
+- Score comparison table (which model scored best on each criterion)
+- Assumption conflicts and resolutions
+- Risk coverage summary (which model was most thorough)
+- All approach conflict resolutions
 - Synthesis decision table
-- Final verdict on best overall approach
+- Rebuttal reviews (if debate was enabled)
 
 ### Final Unified Plan
 
@@ -420,11 +432,19 @@ You can:
 
 ### Cost Awareness
 
-Multi-model planning is **N+1 times** the cost of single-model:
+**Without debate**: Multi-model planning is **N+1** calls:
 - N model calls for plan generation
 - 1 Plan Synthesizer call (using capable model)
 
-For a 3-model setup with opus-class models, expect 4x the typical planning cost.
+**With debate**: Additional **M+1** calls:
+- M rebuttal generation calls (one per rejected model)
+- 1 final Synthesizer review call
+
+| Setup | Without Debate | With Debate (2 rejected) |
+|-------|----------------|--------------------------|
+| 2 models | 3 calls | 6 calls |
+| 3 models | 4 calls | 7 calls |
+| 5 models | 6 calls | 10 calls |
 
 ---
 
