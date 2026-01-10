@@ -90,6 +90,7 @@ export const HookNameSchema = z.enum([
   "sisyphus-orchestrator",
   "multi-plan-trigger",
   "planning-with-files",
+  "silent-tool-output",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -344,6 +345,19 @@ export const PlanningWithFilesConfigSchema = z.object({
   /** Auto-create planning files from multi-plan results (default: true) */
   auto_from_multi_plan: z.boolean().default(true),
 })
+
+/** Silent Tool Output Configuration - reduces context by optimizing tool outputs */
+export const SilentToolOutputConfigSchema = z.object({
+  /** Enable silent write output - returns metadata only (default: true) */
+  silent_write: z.boolean().default(true),
+  /** Enable optimized read for planning files (default: true) */
+  optimize_planning_reads: z.boolean().default(true),
+  /** Enable search result truncation (default: true) */
+  optimize_search: z.boolean().default(true),
+  /** Max lines to show in search results (default: 20) */
+  search_max_lines: z.number().default(20),
+})
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -366,6 +380,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   git_master: GitMasterConfigSchema.optional(),
   multi_plan: MultiPlanConfigSchema.optional(),
   planning_with_files: PlanningWithFilesConfigSchema.optional(),
+  silent_tool_output: SilentToolOutputConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -391,5 +406,6 @@ export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
 export type MultiPlanModel = z.infer<typeof MultiPlanModelSchema>
 export type MultiPlanConfig = z.infer<typeof MultiPlanConfigSchema>
 export type PlanningWithFilesConfig = z.infer<typeof PlanningWithFilesConfigSchema>
+export type SilentToolOutputConfig = z.infer<typeof SilentToolOutputConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

@@ -195,6 +195,38 @@ start planning for "add-authentication"
 5. **What have I completed?** -
 ```
 
+## Silent Tool Output
+
+配合使用 `silent-tool-output` hook 进一步减少 context 消耗：
+
+```json
+{
+  "silent_tool_output": {
+    "silent_write": true,
+    "optimize_planning_reads": true,
+    "optimize_search": true,
+    "search_max_lines": 20
+  }
+}
+```
+
+### 效果对比
+
+| 工具 | 优化前 | 优化后 |
+|------|--------|--------|
+| Write | `写入成功:\n<200行内容>` | `✓ path.ts written (5000 bytes, 200 lines)` |
+| Edit | `已修改:\n<完整内容>` | `✓ path.ts updated` |
+| Read (planning) | `<完整内容>` | `✓ task_plan.md loaded - content in <task-plan-context>` |
+| Grep | `<100行匹配>` | `<20行匹配>\n... and 80 more` |
+
+### 核心原理
+
+**"Trust the filesystem, not the context"**
+
+- Write 工具只需确认成功，不需要回传内容
+- Planning files 已在 PreToolUse 注入，Read 结果冗余
+- 搜索结果提供位置引用即可，详细内容用 Read 查看
+
 ## 性能优化
 
 | 指标 | 效果 |
@@ -202,4 +234,5 @@ start planning for "add-authentication"
 | KV-Cache 利用率 | ~80% (前缀稳定) |
 | 状态恢复 | 100% (持久化) |
 | findings 检测准确率 | 100% (mtime) |
+| Write context 减少 | ~95% (只返回元数据) |
 | 模板大小 | 精简 50 行 |
