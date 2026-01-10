@@ -5,7 +5,9 @@
  * - State persistence via .planning-state.json
  * - Full task_plan.md re-read for KV-cache optimization
  * - Auto-detection of findings.md updates via mtime
- * - Unified directory structure with multi-plan
+ * - Forced error recording to task_plan.md
+ * - Blockers section for issues requiring escalation
+ * - Reflection prompts on phase completion
  */
 
 import * as fs from "fs"
@@ -15,6 +17,9 @@ import { DEFAULT_PLANNING_CONFIG } from "./types"
 
 /** In-memory cache */
 const stateCache = new Map<string, PlanningState>()
+
+/** Track last known phase statuses for reflection detection */
+const phaseStatusCache = new Map<string, Map<number, PhaseStatus>>()
 
 /**
  * Get plan directory path
@@ -92,6 +97,14 @@ export async function readTaskPlan(cwd: string, planName: string): Promise<strin
 }
 
 /**
+ * Write task_plan.md
+ */
+export async function writeTaskPlan(cwd: string, planName: string, content: string): Promise<void> {
+  const taskPlanPath = path.join(getPlanDir(cwd, planName), "task_plan.md")
+  await fs.promises.writeFile(taskPlanPath, content)
+}
+
+/**
  * Detect active plan from directory
  */
 export async function detectActivePlan(cwd: string): Promise<string | null> {
@@ -121,7 +134,7 @@ export async function detectActivePlan(cwd: string): Promise<string | null> {
 }
 
 /**
- * Initialize a new planning session
+ * Initialize a new planning session with enhanced template
  */
 export async function initializePlan(
   cwd: string,
@@ -138,7 +151,7 @@ export async function initializePlan(
 
   const now = new Date().toISOString().split("T")[0]
 
-  // Minimal, focused templates
+  // Enhanced template with Blockers section
   const taskPlanContent = `# Task Plan: ${planName}
 
 > **Goal**: ${goal}
@@ -153,18 +166,25 @@ export async function initializePlan(
 
 ## Decisions
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| - | (none yet) | - |
-
-## Errors (3-Strike Protocol)
-
-| # | Error | Strikes | Resolution |
-|---|-------|---------|------------|
+| # | Decision | Rationale | Phase |
+|---|----------|-----------|-------|
 | - | (none yet) | - | - |
+
+## Errors (Must Record on Strike 2+)
+
+| # | Error | Phase | Attempts | Root Cause | Resolution |
+|---|-------|-------|----------|------------|------------|
+| - | (none yet) | - | - | - | - |
+
+## Blockers (Require Escalation)
+
+| # | Blocker | Phase | Impact | Status | Escalation |
+|---|---------|-------|--------|--------|------------|
+| - | (none yet) | - | - | - | - |
 
 ---
 *Created: ${now}*
+*Last Reflection: (none yet)*
 `
 
   const findingsContent = `# Findings: ${planName}
@@ -192,6 +212,12 @@ export async function initializePlan(
 | Time | Action | Files |
 |------|--------|-------|
 | ${new Date().toISOString().split("T")[1].slice(0, 5)} | Session started | - |
+
+## Phase Transitions
+
+| Phase | Started | Completed | Revisited |
+|-------|---------|-----------|-----------|
+| - | - | - | - |
 
 ## 5-Question Reboot
 
@@ -239,19 +265,173 @@ export function parsePhases(content: string): Array<{ id: number; name: string; 
 }
 
 /**
- * Get 3-strike guidance
+ * Detect if any phase was just completed (for reflection trigger)
  */
-export function getStrikeGuidance(strikes: number): string {
+export function detectPhaseCompletion(
+  cwd: string,
+  planName: string,
+  currentPhases: Array<{ id: number; name: string; status: PhaseStatus }>
+): Array<{ id: number; name: string }> {
+  const cacheKey = `${cwd}:${planName}`
+  const previousStatuses = phaseStatusCache.get(cacheKey) || new Map()
+  const completedPhases: Array<{ id: number; name: string }> = []
+
+  for (const phase of currentPhases) {
+    const previousStatus = previousStatuses.get(phase.id)
+    // Phase just became complete (was not complete before)
+    if (phase.status === "complete" && previousStatus !== "complete") {
+      completedPhases.push({ id: phase.id, name: phase.name })
+    }
+  }
+
+  // Update cache
+  const newCache = new Map<number, PhaseStatus>()
+  for (const phase of currentPhases) {
+    newCache.set(phase.id, phase.status)
+  }
+  phaseStatusCache.set(cacheKey, newCache)
+
+  return completedPhases
+}
+
+/**
+ * Get 3-strike guidance with forced recording requirement
+ */
+export function getStrikeGuidance(strikes: number, requiresRecording: boolean): string {
+  const recordingNote = requiresRecording
+    ? "\n\n**REQUIRED**: Record this error in task_plan.md ## Errors section before continuing."
+    : ""
+
   switch (strikes) {
     case 1:
       return `**Strike 1/3**: Diagnose - Read error carefully, check context`
     case 2:
-      return `**Strike 2/3**: Pivot - Try alternative approach`
+      return `**Strike 2/3**: Pivot - Try alternative approach${recordingNote}`
     case 3:
-      return `**Strike 3/3**: Reassess - Review assumptions, consider blocking phase`
+      return `**Strike 3/3**: Reassess - Review assumptions, consider blocking phase${recordingNote}`
     default:
-      return `**Strike ${strikes}/3**: ESCALATE - Mark phase as BLOCKED`
+      return `**Strike ${strikes}/3**: ESCALATE - Add to ## Blockers section and ask for help${recordingNote}`
   }
+}
+
+/**
+ * Generate reflection prompt for completed phase
+ */
+export function generateReflectionPrompt(
+  completedPhase: { id: number; name: string },
+  allPhases: Array<{ id: number; name: string; status: PhaseStatus }>
+): string {
+  const remainingPhases = allPhases
+    .filter(p => p.status === "pending" || p.status === "in_progress")
+    .map(p => `  - Phase ${p.id}: ${p.name} (${p.status})`)
+    .join("\n")
+
+  return `<phase-reflection>
+## Phase ${completedPhase.id} Complete: ${completedPhase.name}
+
+**Before proceeding, reflect on:**
+
+1. **Discoveries**: Did you learn anything that affects the remaining plan?
+2. **Assumptions**: Were any assumptions proven wrong?
+3. **Remaining Phases**: Do they still make sense?
+${remainingPhases ? `\n**Remaining:**\n${remainingPhases}` : ""}
+
+**Actions you can take:**
+- Add new phases if needed
+- Remove phases that are no longer relevant
+- Reorder phases based on new understanding
+- Update phase descriptions with new context
+
+**Update task_plan.md if any changes are needed, then continue.**
+</phase-reflection>`
+}
+
+/**
+ * Generate forced error recording prompt
+ */
+export function generateErrorRecordingPrompt(
+  errorKey: string,
+  strikes: number,
+  currentPhase: number | null
+): string {
+  const phaseNote = currentPhase ? `Phase ${currentPhase}` : "Current phase"
+
+  return `<error-recording-required>
+## Record Error Before Continuing
+
+This error has occurred ${strikes} times. You MUST record it in task_plan.md before retrying.
+
+**Add to ## Errors section:**
+
+| # | Error | Phase | Attempts | Root Cause | Resolution |
+|---|-------|-------|----------|------------|------------|
+| N | ${errorKey.slice(0, 50)} | ${phaseNote} | ${strikes} | [ANALYZE] | [PLAN] |
+
+**Required fields:**
+- **Root Cause**: Why is this happening? (not just "it failed")
+- **Resolution**: What different approach will you try?
+
+${strikes >= 3 ? `
+**Consider adding to ## Blockers if:**
+- The error requires external input (credentials, permissions)
+- Multiple approaches have failed
+- The issue is outside your control
+` : ""}
+</error-recording-required>`
+}
+
+/**
+ * Generate blocker recording prompt
+ */
+export function generateBlockerPrompt(
+  issue: string,
+  phase: number | null
+): string {
+  return `<blocker-detected>
+## Blocker Identified
+
+This issue requires escalation. Add to task_plan.md ## Blockers section:
+
+| # | Blocker | Phase | Impact | Status | Escalation |
+|---|---------|-------|--------|--------|------------|
+| N | ${issue.slice(0, 40)} | ${phase || "?"} | [DESCRIBE] | open | [WHAT NEEDED] |
+
+**Then:**
+1. Mark the affected phase as \`blocked\` in ## Phases
+2. Consider if other phases can proceed in parallel
+3. Communicate the blocker to the user
+
+</blocker-detected>`
+}
+
+/**
+ * Check if error recording is present for a given error
+ */
+export async function isErrorRecorded(
+  cwd: string,
+  planName: string,
+  errorKey: string
+): Promise<boolean> {
+  const content = await readTaskPlan(cwd, planName)
+  if (!content) return false
+
+  // Check if error appears in the Errors table
+  const errorsSection = content.match(/## Errors[\s\S]*?(?=##|$)/i)
+  if (!errorsSection) return false
+
+  // Normalize for comparison
+  const normalizedError = errorKey.slice(0, 30).toLowerCase()
+  return errorsSection[0].toLowerCase().includes(normalizedError)
+}
+
+/**
+ * Get current in_progress phase
+ */
+export function getCurrentPhase(
+  phases: Array<{ id: number; name: string; status: PhaseStatus }>
+): number | null {
+  const inProgress = phases.find(p => p.status === "in_progress")
+  return inProgress ? inProgress.id : null
 }
 
 /**
@@ -259,6 +439,7 @@ export function getStrikeGuidance(strikes: number): string {
  */
 export function cleanupSession(cwd: string, planName: string): void {
   stateCache.delete(`${cwd}:${planName}`)
+  phaseStatusCache.delete(`${cwd}:${planName}`)
 }
 
 // Legacy exports for compatibility

@@ -21,6 +21,10 @@ import {
   parsePhases,
   cleanupSession,
   getPlanDir,
+  detectPhaseCompletion,
+  generateReflectionPrompt,
+  generateErrorRecordingPrompt,
+  getCurrentPhase,
 } from "../../features/planning-with-files/manager"
 
 /** Track active plan per session */
@@ -81,7 +85,7 @@ Stay focused on the current phase. Do not deviate from the goal.
     },
 
     /**
-     * PostToolUse: Smart action counting with auto-reset
+     * PostToolUse: Smart action counting, phase reflection, and error protocol
      */
     PostToolUse: async (input, output) => {
       const { session_id, tool_name, cwd } = input
@@ -91,6 +95,25 @@ Stay focused on the current phase. Do not deviate from the goal.
 
       let state = await loadState(cwd, planName)
       if (!state) return
+
+      // Detect phase completion after task_plan.md modifications
+      // This triggers reflection prompts for non-linear planning adjustments
+      if (["Write", "Edit", "write", "edit"].includes(tool_name)) {
+        const filePath = (input as { file_path?: string }).file_path || ""
+        if (filePath.includes("task_plan.md")) {
+          const content = await readTaskPlan(cwd, planName)
+          if (content) {
+            const currentPhases = parsePhases(content)
+            const completedPhases = detectPhaseCompletion(cwd, planName, currentPhases)
+
+            // Inject reflection prompt for each newly completed phase
+            for (const phase of completedPhases) {
+              const reflectionPrompt = generateReflectionPrompt(phase, currentPhases)
+              output.systemMessage = (output.systemMessage || "") + "\n\n" + reflectionPrompt
+            }
+          }
+        }
+      }
 
       // Auto-detect findings.md modification
       const check = await wasFindingsModified(cwd, planName, state.lastFindingsMtime)
@@ -122,20 +145,32 @@ Counter auto-resets when you modify findings.md.
         }
       }
 
-      // 3-strike protocol for errors
+      // 3-strike protocol with forced error recording
       if (config.threeStrikeProtocol && output.error) {
         const errorKey = `${tool_name}:${output.error.slice(0, 50)}`
         state.errorStrikes[errorKey] = (state.errorStrikes[errorKey] || 0) + 1
         await saveState(cwd, state)
 
         const strikes = state.errorStrikes[errorKey]
+        const requiresRecording = strikes >= 2
+
+        // Get current phase for error context
+        const content = await readTaskPlan(cwd, planName)
+        const phases = content ? parsePhases(content) : []
+        const currentPhase = getCurrentPhase(phases)
+
         output.systemMessage = (output.systemMessage || "") + `
 
 <three-strike-protocol strike="${strikes}">
-${getStrikeGuidance(strikes)}
+${getStrikeGuidance(strikes, requiresRecording)}
 
 Error: ${output.error.slice(0, 150)}
 </three-strike-protocol>`
+
+        // Force error recording prompt on Strike 2+
+        if (requiresRecording) {
+          output.systemMessage += "\n\n" + generateErrorRecordingPrompt(errorKey, strikes, currentPhase)
+        }
       }
     },
 
@@ -160,14 +195,16 @@ Error: ${output.error.slice(0, 150)}
 **Location**: .sisyphus/plans/${planName}/
 
 **Files**:
-- task_plan.md - Phases, decisions, errors
+- task_plan.md - Phases, decisions, errors, blockers
 - findings.md - Research (2-action rule)
 - progress.md - Session logs
 
 **Active Protocols**:
 - Auto re-read task_plan before Write/Edit/Bash
 - 2-Action Rule with auto-reset
-- 3-Strike Error Protocol
+- 3-Strike Error Protocol (forced recording on Strike 2+)
+- Phase Reflection (prompts on completion for plan adjustment)
+- Blockers section for escalation (distinct from retry-able errors)
 - Stop verification
 </planning-with-files-active>`
     },

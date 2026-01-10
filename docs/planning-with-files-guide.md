@@ -142,26 +142,92 @@ Counter auto-resets when you modify findings.md.
 
 ### 3. Three-Strike Error Protocol
 
-Structured error handling with escalation:
+Structured error handling with forced recording and escalation:
 
 | Strike | Action | Guidance |
 |--------|--------|----------|
 | 1 | Diagnose | Read error carefully, check context |
-| 2 | Pivot | Try alternative approach |
-| 3 | Reassess | Review assumptions, consider blocking phase |
-| 4+ | Escalate | Mark phase as BLOCKED, ask for help |
+| 2 | Pivot | Try alternative approach + **MUST record in task_plan.md** |
+| 3 | Reassess | Review assumptions + **MUST record in task_plan.md** |
+| 4+ | Escalate | Add to Blockers section, ask for help |
 
-Example injection:
+**Forced Error Recording (Strike 2+)**
+
+On the second occurrence of an error, the agent is required to document it:
 
 ```xml
-<three-strike-protocol strike="2">
-**Strike 2/3**: Pivot - Try alternative approach
+<error-recording-required>
+## Record Error Before Continuing
 
-Error: Command failed with exit code 1...
-</three-strike-protocol>
+This error has occurred 2 times. You MUST record it in task_plan.md before retrying.
+
+**Add to ## Errors section:**
+
+| # | Error | Phase | Attempts | Root Cause | Resolution |
+|---|-------|-------|----------|------------|------------|
+| N | Bash:npm install failed | Phase 2 | 2 | [ANALYZE] | [PLAN] |
+
+**Required fields:**
+- **Root Cause**: Why is this happening? (not just "it failed")
+- **Resolution**: What different approach will you try?
+</error-recording-required>
 ```
 
-### 4. Stop Verification
+This prevents blind retries and forces the agent to analyze before trying again.
+
+### 4. Blockers vs Errors
+
+**Errors** are issues that can potentially be resolved by the agent:
+- Command failures
+- Syntax errors
+- Missing dependencies
+
+**Blockers** require external intervention:
+- Missing credentials or permissions
+- External service unavailable
+- Design decisions needing human input
+- Multiple approaches exhausted
+
+The Blockers section in task_plan.md:
+
+```markdown
+## Blockers (Require Escalation)
+
+| # | Blocker | Phase | Impact | Status | Escalation |
+|---|---------|-------|--------|--------|------------|
+| 1 | Missing API key | 2 | Cannot test auth | open | Need user to provide key |
+```
+
+### 5. Phase Reflection
+
+When a phase transitions to `complete`, the agent receives a reflection prompt encouraging non-linear planning adjustments:
+
+```xml
+<phase-reflection>
+## Phase 2 Complete: Implementation
+
+**Before proceeding, reflect on:**
+
+1. **Discoveries**: Did you learn anything that affects the remaining plan?
+2. **Assumptions**: Were any assumptions proven wrong?
+3. **Remaining Phases**: Do they still make sense?
+
+**Remaining:**
+  - Phase 3: Verification (pending)
+
+**Actions you can take:**
+- Add new phases if needed
+- Remove phases that are no longer relevant
+- Reorder phases based on new understanding
+- Update phase descriptions with new context
+
+**Update task_plan.md if any changes are needed, then continue.**
+</phase-reflection>
+```
+
+This enables graph-like navigation instead of linear Phase 1 → Phase 2 → Phase 3 execution.
+
+### 6. Stop Verification
 
 Supports both `complete` and `blocked` as terminal states:
 
@@ -186,7 +252,7 @@ Incomplete phases:
 3. Use `/stop --force` to override
 ```
 
-### 5. State Persistence
+### 7. State Persistence
 
 State is persisted to `.planning-state.json`:
 
@@ -331,18 +397,25 @@ This enables seamless transition from planning to execution with full tracking.
 
 ## Decisions
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| - | (none yet) | - |
-
-## Errors (3-Strike Protocol)
-
-| # | Error | Strikes | Resolution |
-|---|-------|---------|------------|
+| # | Decision | Rationale | Phase |
+|---|----------|-----------|-------|
 | - | (none yet) | - | - |
+
+## Errors (Must Record on Strike 2+)
+
+| # | Error | Phase | Attempts | Root Cause | Resolution |
+|---|-------|-------|----------|------------|------------|
+| - | (none yet) | - | - | - | - |
+
+## Blockers (Require Escalation)
+
+| # | Blocker | Phase | Impact | Status | Escalation |
+|---|---------|-------|--------|--------|------------|
+| - | (none yet) | - | - | - | - |
 
 ---
 *Created: 2024-01-01*
+*Last Reflection: (none yet)*
 ```
 
 ### findings.md
@@ -396,7 +469,9 @@ Use when resuming after a break:
 | State recovery | 100% (persisted to disk) |
 | Findings detection accuracy | 100% (mtime-based) |
 | Write context reduction | ~95% (metadata only) |
-| Template size | Minimal (50 lines) |
+| Template size | Minimal (~60 lines) |
+| Error retry prevention | Forced recording on Strike 2+ |
+| Plan adaptability | Reflection prompts on phase completion |
 
 ## Best Practices
 
@@ -424,6 +499,9 @@ Skip for:
 3. **Use blocked status**: Don't leave phases stuck in_progress indefinitely
 4. **Trust the filesystem**: Don't manually re-read files that are auto-injected
 5. **Review task_plan regularly**: Keep the goal visible
+6. **Distinguish errors from blockers**: Errors can be retried; blockers need external help
+7. **Embrace reflection prompts**: Use phase completion as opportunity to adapt the plan
+8. **Record root causes**: On Strike 2+, analyze why before trying again
 
 ## Troubleshooting
 
