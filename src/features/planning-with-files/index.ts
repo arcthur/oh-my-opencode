@@ -1,70 +1,46 @@
 /**
  * Planning with Files
  *
- * Implements the Manus-style persistent planning pattern for AI agents.
+ * Manus-style persistent planning pattern for AI agents.
  *
- * Core Principles:
- * - "Context Window = RAM (volatile); Filesystem = Disk (persistent)"
- * - Three persistent files: task_plan.md, findings.md, progress.md
- * - 2-Action Rule: Update findings after every 2 search/view operations
- * - 3-Strike Protocol: Structured error handling and escalation
- * - Auto re-read: Re-read task plan before critical operations
- *
- * @module planning-with-files
+ * Core Features:
+ * - 3-file pattern: task_plan.md, findings.md, progress.md
+ * - Full task_plan.md re-read for KV-cache optimization
+ * - Auto-detection of findings.md updates via mtime
+ * - State persistence via .planning-state.json
+ * - 2-Action Rule with auto-reset
+ * - 3-Strike Error Protocol
  */
 
-// Types
 export type {
   PhaseStatus,
+  PlanningState,
+  PlanningWithFilesConfig,
+  PlanningSession,
   TaskPhase,
   Decision,
   ErrorRecord,
-  Finding,
-  SessionLogEntry,
-  TestResult,
-  TaskPlan,
-  Findings,
-  ProgressLog,
-  PlanningSession,
-  PlanningWithFilesConfig,
 } from "./types"
 
 export { DEFAULT_PLANNING_CONFIG } from "./types"
 
-// Templates
 export {
-  generateTaskPlanTemplate,
-  parseTaskPlan,
-  generateFindingsTemplate,
-  updateFindingsActionCount,
-  resetFindingsActionCount,
-  getFindingsActionCount,
-  generateProgressTemplate,
-  addPhaseLogEntry,
-  updatePhaseStatus as updateProgressPhaseStatus,
-  updateLastActivity,
-} from "./templates"
-
-// Manager
-export {
+  getPlanDir,
+  loadState,
+  saveState,
+  readTaskPlan,
+  detectActivePlan,
+  wasFindingsModified,
+  initializePlan,
+  parsePhases,
+  getStrikeGuidance,
+  cleanupSession,
+  // Legacy exports
   initializePlanningSession,
   getPlanningSession,
   loadPlanningSession,
-  readTaskPlan,
   readFindings,
   readProgress,
-  incrementActionCount,
-  resetActionCount,
-  recordErrorStrike,
-  getErrorStrikes,
-  clearErrorStrikes,
-  getStrikeGuidance,
-  updatePhaseStatus,
-  logAction,
-  addDecision,
-  addError,
   areAllPhasesComplete,
   getIncompletePhases,
-  generateRereadContext,
-  cleanupSession,
 } from "./manager"

@@ -1,60 +1,206 @@
 /**
  * Planning with Files Manager
  *
- * Manages the 3-file planning pattern lifecycle:
- * - Creates and initializes planning files
- * - Tracks action counts for the 2-action rule
- * - Manages error strikes for the 3-strike protocol
- * - Provides file access and update utilities
+ * Optimized implementation with:
+ * - State persistence via .planning-state.json
+ * - Full task_plan.md re-read for KV-cache optimization
+ * - Auto-detection of findings.md updates via mtime
+ * - Unified directory structure with multi-plan
  */
 
 import * as fs from "fs"
 import * as path from "path"
-import type { PlanningSession, PlanningWithFilesConfig, PhaseStatus } from "./types"
+import type { PlanningState, PlanningWithFilesConfig, PhaseStatus } from "./types"
 import { DEFAULT_PLANNING_CONFIG } from "./types"
-import {
-  generateTaskPlanTemplate,
-  generateFindingsTemplate,
-  generateProgressTemplate,
-  parseTaskPlan,
-  getFindingsActionCount,
-  updateFindingsActionCount,
-  resetFindingsActionCount,
-  updatePhaseStatus as updateProgressPhaseStatus,
-  updateLastActivity,
-  addPhaseLogEntry,
-} from "./templates"
 
-/** Session storage */
-const sessions = new Map<string, PlanningSession>()
-
-/** Error strike tracking per session and error key */
-const errorStrikes = new Map<string, Map<string, number>>()
+/** In-memory cache */
+const stateCache = new Map<string, PlanningState>()
 
 /**
- * Initialize a new planning session with the 3-file pattern
+ * Get plan directory path
  */
-export async function initializePlanningSession(
-  sessionId: string,
+export function getPlanDir(cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG): string {
+  return path.join(cwd, ".sisyphus", config.directory, planName)
+}
+
+/**
+ * Get state file path
+ */
+function getStatePath(cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG): string {
+  return path.join(getPlanDir(cwd, planName, config), ".planning-state.json")
+}
+
+/**
+ * Load persisted state
+ */
+export async function loadState(cwd: string, planName: string): Promise<PlanningState | null> {
+  const cacheKey = `${cwd}:${planName}`
+  if (stateCache.has(cacheKey)) {
+    return stateCache.get(cacheKey)!
+  }
+
+  try {
+    const content = await fs.promises.readFile(getStatePath(cwd, planName), "utf-8")
+    const state = JSON.parse(content) as PlanningState
+    stateCache.set(cacheKey, state)
+    return state
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Save state to disk
+ */
+export async function saveState(cwd: string, state: PlanningState): Promise<void> {
+  const statePath = getStatePath(cwd, state.planName)
+  const cacheKey = `${cwd}:${state.planName}`
+
+  await fs.promises.mkdir(path.dirname(statePath), { recursive: true })
+  state.lastActivityAt = new Date().toISOString()
+  await fs.promises.writeFile(statePath, JSON.stringify(state, null, 2))
+  stateCache.set(cacheKey, state)
+}
+
+/**
+ * Check if findings.md was modified
+ */
+export async function wasFindingsModified(
+  cwd: string,
+  planName: string,
+  lastMtime: number
+): Promise<{ modified: boolean; newMtime: number }> {
+  const findingsPath = path.join(getPlanDir(cwd, planName), "findings.md")
+  try {
+    const stat = await fs.promises.stat(findingsPath)
+    return { modified: stat.mtimeMs > lastMtime, newMtime: stat.mtimeMs }
+  } catch {
+    return { modified: false, newMtime: lastMtime }
+  }
+}
+
+/**
+ * Read FULL task_plan.md for KV-cache optimization
+ */
+export async function readTaskPlan(cwd: string, planName: string): Promise<string | null> {
+  const taskPlanPath = path.join(getPlanDir(cwd, planName), "task_plan.md")
+  try {
+    return await fs.promises.readFile(taskPlanPath, "utf-8")
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Detect active plan from directory
+ */
+export async function detectActivePlan(cwd: string): Promise<string | null> {
+  const plansDir = path.join(cwd, ".sisyphus", "plans")
+  try {
+    const entries = await fs.promises.readdir(plansDir, { withFileTypes: true })
+    let latestPlan: string | null = null
+    let latestMtime = 0
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const statePath = path.join(plansDir, entry.name, ".planning-state.json")
+      try {
+        const stat = await fs.promises.stat(statePath)
+        if (stat.mtimeMs > latestMtime) {
+          latestMtime = stat.mtimeMs
+          latestPlan = entry.name
+        }
+      } catch {
+        // No state file
+      }
+    }
+    return latestPlan
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Initialize a new planning session
+ */
+export async function initializePlan(
+  cwd: string,
   planName: string,
   goal: string,
-  cwd: string,
-  config: Partial<PlanningWithFilesConfig> = {}
-): Promise<PlanningSession> {
-  const fullConfig = { ...DEFAULT_PLANNING_CONFIG, ...config }
-  const planningDir = path.join(cwd, ".sisyphus", fullConfig.directory, planName)
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<{ taskPlanPath: string; findingsPath: string; progressPath: string }> {
+  const planDir = getPlanDir(cwd, planName, config)
+  await fs.promises.mkdir(planDir, { recursive: true })
 
-  // Create directory
-  await fs.promises.mkdir(planningDir, { recursive: true })
+  const taskPlanPath = path.join(planDir, "task_plan.md")
+  const findingsPath = path.join(planDir, "findings.md")
+  const progressPath = path.join(planDir, "progress.md")
 
-  // Generate and write files
-  const taskPlanPath = path.join(planningDir, "task_plan.md")
-  const findingsPath = path.join(planningDir, "findings.md")
-  const progressPath = path.join(planningDir, "progress.md")
+  const now = new Date().toISOString().split("T")[0]
 
-  const taskPlanContent = generateTaskPlanTemplate({ goal, planName })
-  const findingsContent = generateFindingsTemplate({ planName })
-  const progressContent = generateProgressTemplate({ planName })
+  // Minimal, focused templates
+  const taskPlanContent = `# Task Plan: ${planName}
+
+> **Goal**: ${goal}
+
+## Phases
+
+| # | Phase | Status | Notes |
+|---|-------|--------|-------|
+| 1 | Discovery | pending | Understand requirements |
+| 2 | Implementation | pending | Build the solution |
+| 3 | Verification | pending | Test and validate |
+
+## Decisions
+
+| # | Decision | Rationale |
+|---|----------|-----------|
+| - | (none yet) | - |
+
+## Errors (3-Strike Protocol)
+
+| # | Error | Strikes | Resolution |
+|---|-------|---------|------------|
+| - | (none yet) | - | - |
+
+---
+*Created: ${now}*
+`
+
+  const findingsContent = `# Findings: ${planName}
+
+## Research
+
+| Source | Finding |
+|--------|---------|
+| - | (update after 2 actions) |
+
+## Resources
+
+| Name | URL |
+|------|-----|
+| - | - |
+
+---
+*Last updated: ${now}*
+`
+
+  const progressContent = `# Progress: ${planName}
+
+## Session Log
+
+| Time | Action | Files |
+|------|--------|-------|
+| ${new Date().toISOString().split("T")[1].slice(0, 5)} | Session started | - |
+
+## 5-Question Reboot
+
+1. **Where am I?** -
+2. **Where am I going?** -
+3. **What is my goal?** -
+4. **What have I learned?** -
+5. **What have I completed?** -
+`
 
   await Promise.all([
     fs.promises.writeFile(taskPlanPath, taskPlanContent),
@@ -62,354 +208,77 @@ export async function initializePlanningSession(
     fs.promises.writeFile(progressPath, progressContent),
   ])
 
-  const session: PlanningSession = {
-    id: sessionId,
+  const state: PlanningState = {
     planName,
-    taskPlanPath,
-    findingsPath,
-    progressPath,
     actionCount: 0,
-    lastFindingsUpdate: new Date(),
-    errorStrikes: new Map(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    lastFindingsMtime: Date.now(),
+    errorStrikes: {},
+    activatedAt: new Date().toISOString(),
+    lastActivityAt: new Date().toISOString(),
   }
+  await saveState(cwd, state)
 
-  sessions.set(sessionId, session)
-  errorStrikes.set(sessionId, new Map())
-
-  return session
+  return { taskPlanPath, findingsPath, progressPath }
 }
 
 /**
- * Get an existing planning session
+ * Parse phases from task_plan.md
  */
-export function getPlanningSession(sessionId: string): PlanningSession | undefined {
-  return sessions.get(sessionId)
-}
-
-/**
- * Load a planning session from existing files
- */
-export async function loadPlanningSession(
-  sessionId: string,
-  planName: string,
-  cwd: string,
-  config: Partial<PlanningWithFilesConfig> = {}
-): Promise<PlanningSession | null> {
-  const fullConfig = { ...DEFAULT_PLANNING_CONFIG, ...config }
-  const planningDir = path.join(cwd, ".sisyphus", fullConfig.directory, planName)
-
-  const taskPlanPath = path.join(planningDir, "task_plan.md")
-  const findingsPath = path.join(planningDir, "findings.md")
-  const progressPath = path.join(planningDir, "progress.md")
-
-  // Check if files exist
-  try {
-    await Promise.all([
-      fs.promises.access(taskPlanPath),
-      fs.promises.access(findingsPath),
-      fs.promises.access(progressPath),
-    ])
-  } catch {
-    return null
+export function parsePhases(content: string): Array<{ id: number; name: string; status: PhaseStatus }> {
+  const phases: Array<{ id: number; name: string; status: PhaseStatus }> = []
+  const regex = /\|\s*(\d+)\s*\|([^|]+)\|\s*(pending|in_progress|complete|blocked)\s*\|/gi
+  let match
+  while ((match = regex.exec(content)) !== null) {
+    phases.push({
+      id: parseInt(match[1]),
+      name: match[2].trim(),
+      status: match[3].toLowerCase() as PhaseStatus,
+    })
   }
-
-  // Load action count from findings
-  const findingsContent = await fs.promises.readFile(findingsPath, "utf-8")
-  const actionCount = getFindingsActionCount(findingsContent)
-
-  const session: PlanningSession = {
-    id: sessionId,
-    planName,
-    taskPlanPath,
-    findingsPath,
-    progressPath,
-    actionCount,
-    lastFindingsUpdate: new Date(),
-    errorStrikes: new Map(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }
-
-  sessions.set(sessionId, session)
-  errorStrikes.set(sessionId, new Map())
-
-  return session
+  return phases
 }
 
 /**
- * Read the task plan content
+ * Get 3-strike guidance
  */
-export async function readTaskPlan(session: PlanningSession): Promise<string> {
-  return fs.promises.readFile(session.taskPlanPath, "utf-8")
-}
-
-/**
- * Read the findings content
- */
-export async function readFindings(session: PlanningSession): Promise<string> {
-  return fs.promises.readFile(session.findingsPath, "utf-8")
-}
-
-/**
- * Read the progress content
- */
-export async function readProgress(session: PlanningSession): Promise<string> {
-  return fs.promises.readFile(session.progressPath, "utf-8")
-}
-
-/**
- * Increment action count and check if findings update is needed
- * Returns true if the 2-action threshold is reached
- */
-export async function incrementActionCount(session: PlanningSession): Promise<boolean> {
-  session.actionCount++
-  session.updatedAt = new Date()
-
-  // Update findings file with new count
-  const content = await readFindings(session)
-  const updatedContent = updateFindingsActionCount(content, session.actionCount)
-  await fs.promises.writeFile(session.findingsPath, updatedContent)
-
-  // Return true if 2-action threshold reached
-  return session.actionCount >= 2
-}
-
-/**
- * Reset action count after findings update
- */
-export async function resetActionCount(session: PlanningSession): Promise<void> {
-  session.actionCount = 0
-  session.lastFindingsUpdate = new Date()
-  session.updatedAt = new Date()
-
-  const content = await readFindings(session)
-  const updatedContent = resetFindingsActionCount(content)
-  await fs.promises.writeFile(session.findingsPath, updatedContent)
-}
-
-/**
- * Record an error and increment strike count
- * Returns the current strike count for this error
- */
-export function recordErrorStrike(sessionId: string, errorKey: string): number {
-  const sessionStrikes = errorStrikes.get(sessionId) || new Map()
-  const currentStrikes = sessionStrikes.get(errorKey) || 0
-  const newStrikes = currentStrikes + 1
-  sessionStrikes.set(errorKey, newStrikes)
-  errorStrikes.set(sessionId, sessionStrikes)
-  return newStrikes
-}
-
-/**
- * Get current strike count for an error
- */
-export function getErrorStrikes(sessionId: string, errorKey: string): number {
-  const sessionStrikes = errorStrikes.get(sessionId)
-  return sessionStrikes?.get(errorKey) || 0
-}
-
-/**
- * Clear strikes for an error (after resolution)
- */
-export function clearErrorStrikes(sessionId: string, errorKey: string): void {
-  const sessionStrikes = errorStrikes.get(sessionId)
-  if (sessionStrikes) {
-    sessionStrikes.delete(errorKey)
-  }
-}
-
-/**
- * Get 3-strike protocol guidance based on strike count
- */
-export function getStrikeGuidance(strikeCount: number): string {
-  switch (strikeCount) {
+export function getStrikeGuidance(strikes: number): string {
+  switch (strikes) {
     case 1:
-      return "Strike 1: Diagnose the root cause. Analyze error messages and context carefully."
+      return `**Strike 1/3**: Diagnose - Read error carefully, check context`
     case 2:
-      return "Strike 2: Try alternative approaches. The current method isn't working."
+      return `**Strike 2/3**: Pivot - Try alternative approach`
     case 3:
-      return "Strike 3: Rethink your assumptions. Something fundamental may be wrong."
+      return `**Strike 3/3**: Reassess - Review assumptions, consider blocking phase`
     default:
-      return "Strike 4+: ESCALATE. Ask for help, block the phase, or reconsider the entire approach."
+      return `**Strike ${strikes}/3**: ESCALATE - Mark phase as BLOCKED`
   }
 }
 
 /**
- * Update phase status in the task plan
+ * Cleanup session cache
  */
-export async function updatePhaseStatus(
-  session: PlanningSession,
-  phase: number,
-  status: PhaseStatus
-): Promise<void> {
-  // Update task_plan.md
-  const taskPlanContent = await readTaskPlan(session)
-  const statusRegex = new RegExp(
-    `(\\|\\s*${phase}\\s*\\|[^|]+\\|\\s*)(pending|in_progress|complete|blocked)(\\s*\\|)`,
-    "m"
-  )
-  const updatedTaskPlan = taskPlanContent.replace(statusRegex, `$1${status}$3`)
-  await fs.promises.writeFile(session.taskPlanPath, updatedTaskPlan)
-
-  // Update progress.md
-  const progressContent = await readProgress(session)
-  const updatedProgress = updateProgressPhaseStatus(progressContent, phase, status)
-  await fs.promises.writeFile(session.progressPath, updatedProgress)
-
-  session.updatedAt = new Date()
+export function cleanupSession(cwd: string, planName: string): void {
+  stateCache.delete(`${cwd}:${planName}`)
 }
 
-/**
- * Add an action log entry to progress
- */
-export async function logAction(
-  session: PlanningSession,
-  phase: number,
-  action: string,
-  filesModified?: string[]
-): Promise<void> {
-  const content = await readProgress(session)
-  let updatedContent = addPhaseLogEntry(content, phase, action, filesModified)
-  updatedContent = updateLastActivity(updatedContent)
-  await fs.promises.writeFile(session.progressPath, updatedContent)
-  session.updatedAt = new Date()
+// Legacy exports for compatibility
+export const initializePlanningSession = initializePlan
+export const getPlanningSession = loadState
+export const loadPlanningSession = loadState
+export const readFindings = async (cwd: string, planName: string) =>
+  fs.promises.readFile(path.join(getPlanDir(cwd, planName), "findings.md"), "utf-8")
+export const readProgress = async (cwd: string, planName: string) =>
+  fs.promises.readFile(path.join(getPlanDir(cwd, planName), "progress.md"), "utf-8")
+export const areAllPhasesComplete = async (cwd: string, planName: string) => {
+  const content = await readTaskPlan(cwd, planName)
+  if (!content) return false
+  const phases = parsePhases(content)
+  return phases.length > 0 && phases.every(p => p.status === "complete" || p.status === "blocked")
 }
-
-/**
- * Add a decision to the task plan
- */
-export async function addDecision(
-  session: PlanningSession,
-  decision: string,
-  rationale: string,
-  phase: number
-): Promise<void> {
-  const content = await readTaskPlan(session)
-
-  // Find the decisions table and add a new row
-  const tableEndRegex = /(\| - \| \(none yet\) \| - \| - \|)/
-  const existingRowsRegex = /(\| \d+ \| [^|]+ \| [^|]+ \| [^|]+ \|)\s*$/m
-
-  // Get next decision number
-  const decisionMatches = content.match(/\| (\d+) \| [^|]+ \| [^|]+ \| [^|]+ \|/g) || []
-  const nextId = decisionMatches.length > 0
-    ? Math.max(...decisionMatches.map(m => parseInt(m.match(/\| (\d+)/)?.[1] || "0", 10))) + 1
-    : 1
-
-  const newRow = `| ${nextId} | ${decision} | ${rationale} | ${phase} |`
-
-  let updatedContent: string
-  if (tableEndRegex.test(content)) {
-    // Replace placeholder row
-    updatedContent = content.replace(tableEndRegex, newRow)
-  } else {
-    // Add to existing rows
-    updatedContent = content.replace(existingRowsRegex, `$1\n${newRow}`)
-  }
-
-  await fs.promises.writeFile(session.taskPlanPath, updatedContent)
-  session.updatedAt = new Date()
-}
-
-/**
- * Add an error to the task plan
- */
-export async function addError(
-  session: PlanningSession,
-  error: string,
-  attempt: number,
-  action: string,
-  resolution?: string
-): Promise<void> {
-  const content = await readTaskPlan(session)
-
-  // Find the errors table and add a new row
-  const tableEndRegex = /(\| - \| \(none yet\) \| - \| - \| - \|)/
-  const existingRowsRegex = /(\| \d+ \| [^|]+ \| [^|]+ \| [^|]+ \| [^|]+ \|)\s*$/m
-
-  // Get next error number
-  const errorMatches = content.match(/\| (\d+) \| [^|]+ \| [^|]+ \| [^|]+ \| [^|]+ \|/g) || []
-  const nextId = errorMatches.length > 0
-    ? Math.max(...errorMatches.map(m => parseInt(m.match(/\| (\d+)/)?.[1] || "0", 10))) + 1
-    : 1
-
-  const newRow = `| ${nextId} | ${error.slice(0, 50)}${error.length > 50 ? "..." : ""} | ${attempt} | ${action} | ${resolution || "-"} |`
-
-  let updatedContent: string
-  if (tableEndRegex.test(content)) {
-    // Replace placeholder row
-    updatedContent = content.replace(tableEndRegex, newRow)
-  } else {
-    // Add to existing rows
-    updatedContent = content.replace(existingRowsRegex, `$1\n${newRow}`)
-  }
-
-  await fs.promises.writeFile(session.taskPlanPath, updatedContent)
-  session.updatedAt = new Date()
-}
-
-/**
- * Check if all phases are complete
- */
-export async function areAllPhasesComplete(session: PlanningSession): Promise<boolean> {
-  const content = await readTaskPlan(session)
-  const parsed = parseTaskPlan(content)
-
-  return parsed.phases.length > 0 && parsed.phases.every(p => p.status === "complete")
-}
-
-/**
- * Get incomplete phases
- */
-export async function getIncompletePhases(session: PlanningSession): Promise<string[]> {
-  const content = await readTaskPlan(session)
-  const parsed = parseTaskPlan(content)
-
-  return parsed.phases
-    .filter(p => p.status !== "complete")
+export const getIncompletePhases = async (cwd: string, planName: string) => {
+  const content = await readTaskPlan(cwd, planName)
+  if (!content) return []
+  return parsePhases(content)
+    .filter(p => p.status !== "complete" && p.status !== "blocked")
     .map(p => `Phase ${p.id}: ${p.name} (${p.status})`)
-}
-
-/**
- * Generate a context summary for re-reading before tool use
- */
-export async function generateRereadContext(session: PlanningSession): Promise<string> {
-  const [taskPlan, findings] = await Promise.all([
-    readTaskPlan(session),
-    readFindings(session),
-  ])
-
-  const parsed = parseTaskPlan(taskPlan)
-  const currentPhase = parsed.phases.find(p => p.status === "in_progress")
-  const pendingPhases = parsed.phases.filter(p => p.status === "pending")
-  const completedPhases = parsed.phases.filter(p => p.status === "complete")
-
-  return `<planning-context plan="${session.planName}">
-## Goal
-${parsed.goal}
-
-## Current Status
-- Completed: ${completedPhases.length}/${parsed.phases.length} phases
-- Current Phase: ${currentPhase ? `${currentPhase.id}. ${currentPhase.name}` : "None in progress"}
-- Pending: ${pendingPhases.length} phases
-
-## Recent Decisions
-${parsed.decisions.slice(-3).map(d => `- ${d.decision}`).join("\n") || "- None yet"}
-
-## Active Errors
-${parsed.errors.filter(e => !e.resolution || e.resolution === "-").slice(-3).map(e => `- ${e.error} (attempt ${e.attempt})`).join("\n") || "- None"}
-
-## Reminder
-Stay focused on the goal. Check task_plan.md if you need more context.
-</planning-context>`
-}
-
-/**
- * Clean up session
- */
-export function cleanupSession(sessionId: string): void {
-  sessions.delete(sessionId)
-  errorStrikes.delete(sessionId)
 }

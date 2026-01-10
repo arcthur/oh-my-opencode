@@ -1,290 +1,251 @@
 /**
  * Planning with Files Hooks
  *
- * Implements the Manus-style planning pattern through hooks:
- *
- * 1. PreToolUse Hook: Re-reads task_plan.md before Write/Edit/Bash operations
- *    to prevent goal drift after many tool calls.
- *
- * 2. PostToolUse Hook: Tracks action count for the 2-action rule and
- *    reminds to update findings.md after 2 view/search operations.
- *
- * 3. Stop Hook: Verifies all phases are complete before allowing task
- *    termination.
- *
- * 4. Error Protocol: Implements 3-strike protocol for error handling.
+ * Optimized implementation:
+ * - Full task_plan.md injection for KV-cache optimization
+ * - Auto-detection of findings.md updates via mtime
+ * - State persistence via .planning-state.json
+ * - Prometheus integration via chat.message hook
  */
 
-import type { Hooks, PluginInput } from "../../types"
+import type { Hooks } from "../../types"
 import type { PlanningWithFilesConfig } from "../../features/planning-with-files/types"
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
 import {
-  getPlanningSession,
-  loadPlanningSession,
-  generateRereadContext,
-  areAllPhasesComplete,
-  getIncompletePhases,
+  loadState,
+  saveState,
+  readTaskPlan,
+  detectActivePlan,
+  wasFindingsModified,
   getStrikeGuidance,
-} from "../../features/planning-with-files"
-import {
-  REREAD_TRIGGER_TOOLS,
-  ACTION_COUNT_TOOLS,
-  MIN_REREAD_INTERVAL,
-  ACTION_THRESHOLD,
-} from "./constants"
-import {
-  getSessionState,
-  setActivePlan,
-  getActivePlan,
-  incrementActionCount,
-  resetActionCount,
-  wasTwoActionWarningShown,
-  markTwoActionWarningShown,
-  updateLastRereadTime,
-  getLastRereadTime,
-  recordErrorStrike,
+  parsePhases,
   cleanupSession,
-} from "./storage"
+  getPlanDir,
+} from "../../features/planning-with-files/manager"
+
+/** Track active plan per session */
+const sessionPlans = new Map<string, string>()
+/** Track capability injection per session */
+const injectedSessions = new Set<string>()
 
 export interface PlanningWithFilesHookOptions {
   config?: Partial<PlanningWithFilesConfig>
 }
 
 /**
- * Create the planning-with-files hooks
+ * Create planning-with-files hooks
  */
 export function createPlanningWithFilesHooks(
-  ctx: PluginInput,
   options: PlanningWithFilesHookOptions = {}
 ): Hooks {
   const config = { ...DEFAULT_PLANNING_CONFIG, ...options.config }
 
-  // Early exit if disabled
   if (!config.enabled) {
     return {}
   }
 
   return {
     /**
-     * PreToolUse Hook
+     * PreToolUse: Inject FULL task_plan.md for KV-cache optimization
      *
-     * Before Write/Edit/Bash operations, re-read the task plan to maintain
-     * goal awareness. This counteracts the "lost in the middle" problem.
+     * By keeping the content stable at the prompt start,
+     * we maximize KV-cache hits and reduce latency.
      */
     PreToolUse: async (input, output) => {
-      const sessionId = input.session_id
-      const toolName = input.tool_name
-
-      // Only trigger for specific tools
       if (!config.autoReread) return
-      if (!REREAD_TRIGGER_TOOLS.includes(toolName)) return
 
-      // Check if there's an active plan
-      const activePlanName = getActivePlan(sessionId)
-      if (!activePlanName) return
+      const { session_id, tool_name, cwd } = input
+      const triggerTools = config.rereadTriggerTools
 
-      // Rate limit re-reads
-      const lastReread = getLastRereadTime(sessionId)
-      const now = Date.now()
-      if (now - lastReread < MIN_REREAD_INTERVAL) return
+      if (!triggerTools.includes(tool_name)) return
 
-      // Load the planning session
-      const session = getPlanningSession(sessionId) ||
-        await loadPlanningSession(sessionId, activePlanName, input.cwd, config)
-
-      if (!session) return
-
-      // Generate and inject the context
-      try {
-        const context = await generateRereadContext(session)
-        updateLastRereadTime(sessionId)
-
-        // Inject as system message
-        if (context) {
-          output.systemMessage = context
-        }
-      } catch {
-        // Silently fail - don't block tool use
+      // Get or detect active plan
+      let planName = sessionPlans.get(session_id)
+      if (!planName) {
+        planName = await detectActivePlan(cwd) ?? undefined
+        if (planName) sessionPlans.set(session_id, planName)
       }
+      if (!planName) return
+
+      // Read FULL task_plan.md
+      const content = await readTaskPlan(cwd, planName)
+      if (!content) return
+
+      output.systemMessage = `<task-plan-context>
+${content}
+</task-plan-context>
+
+<reminder>
+Stay focused on the current phase. Do not deviate from the goal.
+</reminder>`
     },
 
     /**
-     * PostToolUse Hook
-     *
-     * After view/search operations, track action count for the 2-action rule.
-     * When threshold is reached, remind to update findings.md.
+     * PostToolUse: Smart action counting with auto-reset
      */
     PostToolUse: async (input, output) => {
-      const sessionId = input.session_id
-      const toolName = input.tool_name
+      const { session_id, tool_name, cwd } = input
 
-      // Only count specific tools
-      if (!config.twoActionRule) return
-      if (!ACTION_COUNT_TOOLS.includes(toolName)) return
+      const planName = sessionPlans.get(session_id)
+      if (!planName) return
 
-      // Check if there's an active plan
-      const activePlanName = getActivePlan(sessionId)
-      if (!activePlanName) return
+      let state = await loadState(cwd, planName)
+      if (!state) return
 
-      // Increment action count
-      const count = incrementActionCount(sessionId)
+      // Auto-detect findings.md modification
+      const check = await wasFindingsModified(cwd, planName, state.lastFindingsMtime)
+      if (check.modified) {
+        state.actionCount = 0
+        state.lastFindingsMtime = check.newMtime
+        await saveState(cwd, state)
+        return
+      }
 
-      // Check if we've hit the threshold
-      if (count >= ACTION_THRESHOLD && !wasTwoActionWarningShown(sessionId)) {
-        markTwoActionWarningShown(sessionId)
+      // Count actions for 2-action rule
+      if (config.twoActionRule && config.actionCountTools.includes(tool_name)) {
+        state.actionCount++
+        await saveState(cwd, state)
 
-        const session = getPlanningSession(sessionId) ||
-          await loadPlanningSession(sessionId, activePlanName, input.cwd, config)
-
-        if (session) {
+        if (state.actionCount >= 2) {
           output.systemMessage = `<two-action-rule>
-## Findings Update Reminder
+## Update findings.md NOW
 
-You've completed ${count} view/search operations since the last findings update.
+${state.actionCount} research operations completed.
 
-**2-Action Rule**: Update \`${session.findingsPath}\` now to persist:
-- Key discoveries from your research
-- Technical decisions made
+Update \`${getPlanDir(cwd, planName)}/findings.md\` with:
+- Key discoveries
+- Technical decisions
 - Resources found
 
-This prevents information loss when context resets.
-
-After updating findings.md, the action counter will reset.
+Counter auto-resets when you modify findings.md.
 </two-action-rule>`
         }
       }
 
-      // Check for errors in tool output and apply 3-strike protocol
+      // 3-strike protocol for errors
       if (config.threeStrikeProtocol && output.error) {
-        const errorKey = `${toolName}:${output.error.slice(0, 100)}`
-        const strikes = recordErrorStrike(sessionId, errorKey)
-        const guidance = getStrikeGuidance(strikes)
+        const errorKey = `${tool_name}:${output.error.slice(0, 50)}`
+        state.errorStrikes[errorKey] = (state.errorStrikes[errorKey] || 0) + 1
+        await saveState(cwd, state)
 
+        const strikes = state.errorStrikes[errorKey]
         output.systemMessage = (output.systemMessage || "") + `
 
-<three-strike-protocol>
-## Error Handling - ${guidance}
+<three-strike-protocol strike="${strikes}">
+${getStrikeGuidance(strikes)}
 
-Error: ${output.error.slice(0, 200)}
-
-${strikes >= 3 ? "**CRITICAL**: Consider blocking this phase and reassessing the approach." : ""}
+Error: ${output.error.slice(0, 150)}
 </three-strike-protocol>`
       }
     },
 
     /**
-     * Stop Hook
-     *
-     * Before stopping, verify all phases are complete.
-     * Block if there are incomplete phases.
+     * ChatMessage: Prometheus integration
      */
-    Stop: async (input) => {
-      if (!config.stopVerification) {
-        return { block: false }
-      }
+    "chat.message": async (input, output) => {
+      const { session_id, cwd } = input
 
-      const sessionId = input.session_id
-      const activePlanName = getActivePlan(sessionId)
+      if (injectedSessions.has(session_id)) return
 
-      if (!activePlanName) {
-        return { block: false }
-      }
+      const planName = sessionPlans.get(session_id) || await detectActivePlan(cwd)
+      if (!planName) return
 
-      const session = getPlanningSession(sessionId) ||
-        await loadPlanningSession(sessionId, activePlanName, input.cwd, config)
+      injectedSessions.add(session_id)
+      sessionPlans.set(session_id, planName)
 
-      if (!session) {
-        return { block: false }
-      }
+      output.systemMessage = `<planning-with-files-active plan="${planName}">
+## Planning with Files Active
 
-      try {
-        const allComplete = await areAllPhasesComplete(session)
+**Plan**: ${planName}
+**Location**: .sisyphus/plans/${planName}/
 
-        if (!allComplete) {
-          const incomplete = await getIncompletePhases(session)
+**Files**:
+- task_plan.md - Phases, decisions, errors
+- findings.md - Research (2-action rule)
+- progress.md - Session logs
 
-          return {
-            block: true,
-            reason: `Cannot stop - incomplete phases detected:
-
-${incomplete.map(p => `- ${p}`).join("\n")}
-
-Either complete these phases or explicitly mark them as blocked with a reason.
-
-To force stop, you can:
-1. Mark remaining phases as \`complete\` or \`blocked\` in task_plan.md
-2. Or use the /stop-force command (if available)`,
-          }
-        }
-
-        // Cleanup on successful stop
-        cleanupSession(sessionId)
-        return { block: false }
-      } catch {
-        // On error, allow stopping
-        return { block: false }
-      }
+**Active Protocols**:
+- Auto re-read task_plan before Write/Edit/Bash
+- 2-Action Rule with auto-reset
+- 3-Strike Error Protocol
+- Stop verification
+</planning-with-files-active>`
     },
 
     /**
-     * UserPromptSubmit Hook
-     *
-     * Detect when user starts a new planning session via keywords.
+     * Stop: Verify all phases complete (supports "blocked" status)
      */
-    UserPromptSubmit: async (input, output) => {
-      const sessionId = input.session_id
-      const prompt = input.prompt?.toLowerCase() || ""
+    Stop: async (input) => {
+      if (!config.stopVerification) return { block: false }
 
-      // Detect plan initialization keywords
-      const planInitPatterns = [
-        /start\s+plan(?:ning)?\s+(?:for\s+)?["']?([^"'\n]+)["']?/i,
-        /init(?:ialize)?\s+plan\s+["']?([^"'\n]+)["']?/i,
-        /create\s+plan\s+(?:for\s+)?["']?([^"'\n]+)["']?/i,
-        /begin\s+planning\s+["']?([^"'\n]+)["']?/i,
-      ]
+      const { session_id, cwd } = input
+      const planName = sessionPlans.get(session_id)
+      if (!planName) return { block: false }
 
-      for (const pattern of planInitPatterns) {
-        const match = prompt.match(pattern)
-        if (match) {
-          const planName = match[1]?.trim().replace(/\s+/g, "-").toLowerCase() || "default"
-          setActivePlan(sessionId, planName)
+      const content = await readTaskPlan(cwd, planName)
+      if (!content) return { block: false }
 
-          output.systemMessage = `<planning-session-activated>
-## Planning with Files Activated
+      const phases = parsePhases(content)
+      const incomplete = phases.filter(p =>
+        p.status !== "complete" && p.status !== "blocked"
+      )
 
-Plan Name: **${planName}**
+      if (incomplete.length > 0) {
+        return {
+          block: true,
+          reason: `Incomplete phases:
 
-I'll create the 3-file planning structure:
-- \`task_plan.md\` - Phases, goals, decisions, errors
-- \`findings.md\` - Research, technical decisions, resources
-- \`progress.md\` - Session logs, test results
+${incomplete.map(p => `- Phase ${p.id}: ${p.name} (${p.status})`).join("\n")}
 
-**Active Patterns**:
-- Auto re-read task_plan.md before Write/Edit/Bash operations
-- 2-Action Rule: Update findings after 2 view/search operations
-- 3-Strike Protocol: Structured error handling
-- Stop verification: Ensure all phases complete
-
-Tell me your goal and I'll initialize the planning files.
-</planning-session-activated>`
-          break
+**Options**:
+1. Complete remaining phases
+2. Mark phases as \`blocked\` in task_plan.md
+3. Use \`/stop --force\` to override`,
         }
       }
 
-      // Detect findings update acknowledgment
-      if (prompt.includes("updated findings") || prompt.includes("findings updated")) {
-        resetActionCount(sessionId)
-      }
+      // Cleanup
+      sessionPlans.delete(session_id)
+      injectedSessions.delete(session_id)
+      cleanupSession(cwd, planName)
+      return { block: false }
     },
   }
 }
 
-// Re-export types and utilities
-export type { PlanningWithFilesConfig } from "../../features/planning-with-files/types"
+// Re-exports
 export { setActivePlan, getActivePlan, resetActionCount } from "./storage"
-export {
-  REREAD_TRIGGER_TOOLS,
-  ACTION_COUNT_TOOLS,
-  MIN_REREAD_INTERVAL,
-  ACTION_THRESHOLD,
-} from "./constants"
+export type { PlanningWithFilesConfig } from "../../features/planning-with-files/types"
+
+/**
+ * Set active plan for a session
+ */
+export function setActivePlan(sessionId: string, planName: string | null): void {
+  if (planName) {
+    sessionPlans.set(sessionId, planName)
+  } else {
+    sessionPlans.delete(sessionId)
+  }
+}
+
+/**
+ * Get active plan for a session
+ */
+export function getActivePlan(sessionId: string): string | undefined {
+  return sessionPlans.get(sessionId)
+}
+
+/**
+ * Reset action count (called after manual findings update)
+ */
+export async function resetActionCount(sessionId: string, cwd: string): Promise<void> {
+  const planName = sessionPlans.get(sessionId)
+  if (!planName) return
+
+  const state = await loadState(cwd, planName)
+  if (!state) return
+
+  state.actionCount = 0
+  state.lastFindingsMtime = Date.now()
+  await saveState(cwd, state)
+}
