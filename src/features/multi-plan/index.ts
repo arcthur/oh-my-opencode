@@ -528,27 +528,44 @@ Plan Synthesizer (Momus-style) will:
   ): Array<{ modelName: string; conflictId: string; criticism: string }> {
     const rejections: Array<{ modelName: string; conflictId: string; criticism: string }> = []
 
-    // Look for CONFLICT sections and parse verdicts
-    const conflictRegex = /### CONFLICT: (.+?)(?=\n)/g
-    const verdictRegex = /\*\*VERDICT\*\*: (?:ACCEPT|MERGE) Plan (\w+)/g
+    // Find all CONFLICT sections
+    const conflictSections = reportContent.split(/### CONFLICT:/).slice(1)
 
-    let conflictMatch
-    const conflicts: string[] = []
-    while ((conflictMatch = conflictRegex.exec(reportContent)) !== null) {
-      conflicts.push(conflictMatch[1])
-    }
+    for (const section of conflictSections) {
+      const conflictIdMatch = section.match(/^([^\n]+)/)
+      const conflictId = conflictIdMatch ? conflictIdMatch[1].trim() : "general"
 
-    // For each model in session, check if it was rejected in any conflict
-    for (const model of session.models) {
-      // Simple heuristic: if the model is mentioned in "Why Plan X is WRONG"
-      const wrongPattern = new RegExp(`\\*\\*Why (?:Plan )?${model.name} is WRONG\\*\\*:([\\s\\S]*?)(?=\\*\\*Why|\\*\\*VERDICT|---|\n\n)`, "gi")
-      const wrongMatch = wrongPattern.exec(reportContent)
-      if (wrongMatch) {
-        rejections.push({
-          modelName: model.name,
-          conflictId: conflicts[0] || "general",
-          criticism: wrongMatch[1].trim(),
-        })
+      // Find the VERDICT to know which model won
+      const verdictMatch = section.match(/\*\*VERDICT\*\*:\s*`?(?:ACCEPT\s+)?(\w+)`?/i)
+      const winnerModel = verdictMatch ? verdictMatch[1].toLowerCase() : null
+
+      // For each model, check if it was criticized and NOT the winner
+      for (const model of session.models) {
+        const modelNameLower = model.name.toLowerCase()
+
+        // Skip if this model won this conflict
+        if (winnerModel && modelNameLower === winnerModel) continue
+
+        // Match "Why {model} is WRONG:" pattern (case insensitive)
+        const wrongPattern = new RegExp(
+          `\\*\\*Why\\s+(?:\\{)?${model.name}(?:\\})?\\s+is\\s+WRONG\\*\\*:([\\s\\S]*?)(?=\\*\\*Why|\\*\\*VERDICT|---|\n\n)`,
+          "i"
+        )
+        const wrongMatch = wrongPattern.exec(section)
+
+        if (wrongMatch) {
+          // Check if this model-conflict pair is already added
+          const alreadyAdded = rejections.some(
+            r => r.modelName === model.name && r.conflictId === conflictId
+          )
+          if (!alreadyAdded) {
+            rejections.push({
+              modelName: model.name,
+              conflictId,
+              criticism: wrongMatch[1].trim(),
+            })
+          }
+        }
       }
     }
 

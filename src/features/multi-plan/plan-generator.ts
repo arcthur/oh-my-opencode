@@ -315,11 +315,23 @@ Generate a comprehensive work plan following the standard .sisyphus/plans/*.md f
    - Definition of Done (checkboxes)
    - Must Have / Must NOT Have
 
-3. **Verification Strategy**
+3. **Assumptions (REQUIRED)**
+   List ALL assumptions with confidence levels:
+   | # | Assumption | Confidence (High/Med/Low) | If Wrong, Impact |
+   - High = verified via code/user confirmation
+   - Medium = reasonable inference
+   - Low = educated guess, needs validation
+
+4. **Risks (REQUIRED)**
+   Identify what could go wrong:
+   | # | Risk | Probability | Impact | Mitigation |
+   Categories: Technical, Integration, Scope, Testing
+
+5. **Verification Strategy**
    - Test infrastructure decision
    - Framework choice
 
-4. **TODOs** (numbered, with checkboxes)
+6. **TODOs** (numbered, with checkboxes)
    Each TODO must have:
    - What to do (clear steps)
    - Must NOT do (guardrails)
@@ -327,7 +339,7 @@ Generate a comprehensive work plan following the standard .sisyphus/plans/*.md f
    - References (CRITICAL - specific file paths and line numbers)
    - Acceptance Criteria (checkboxes)
 
-5. **Success Criteria**
+7. **Success Criteria**
    - Verification commands with expected output
 
 **Quality Requirements**:

@@ -166,13 +166,13 @@ Identify risks that only one plan noticed:
 
 #### Risk Coverage Score
 
-| Plan | # Risks Identified | Coverage Quality |
-|------|-------------------|------------------|
-| Plan A | N | Thorough / Adequate / Shallow |
-| Plan B | N | Thorough / Adequate / Shallow |
-| Plan C | N | Thorough / Adequate / Shallow |
+| Model | # Risks Identified | Coverage Quality |
+|-------|-------------------|------------------|
+| {model-1} | N | Thorough / Adequate / Shallow |
+| {model-2} | N | Thorough / Adequate / Shallow |
+| {model-3} | N | Thorough / Adequate / Shallow |
 
-**Most Risk-Aware Plan**: Plan X
+**Most Risk-Aware Model**: {model-name}
 **Blind Spots**: [Risks ALL plans missed - you identify these]
 
 ---
@@ -188,31 +188,31 @@ For EACH major section (Context, Objectives, Assumptions, Risks, TODOs, Verifica
 
 ### Phase 4: Conflict Resolution (Momus Style)
 
-For EACH conflict, output this EXACT format:
+For EACH conflict, output this EXACT format. **Use actual model names** (e.g., "strategist", "creative") not "Plan A/B/C":
 
 \`\`\`markdown
 ### CONFLICT: [Brief description - 5-10 words]
 
-**Plan A says**: [Summary of approach]
-**Plan B says**: [Summary of approach]
-**Plan C says**: [Summary of approach]
+**{strategist} says**: [Summary of approach]
+**{creative} says**: [Summary of approach]
+**{practical} says**: [Summary of approach]
 
 ---
 
-**Why Plan A is WRONG**:
+**Why {strategist} is WRONG**:
 [Harsh critique - be specific. What's the fatal flaw? Don't hold back.]
 
-**Why Plan B is WRONG**:
+**Why {creative} is WRONG**:
 [Harsh critique - be specific. Even if it's the best option, find its weaknesses.]
 
-**Why Plan C is WRONG**:
+**Why {practical} is WRONG**:
 [Harsh critique - be specific. No plan is perfect.]
 
 ---
 
 **VERDICT**: [Choose ONE]
-- \`ACCEPT Plan X\` - This plan wins, use it directly
-- \`MERGE\` - Take best elements from multiple plans (specify which)
+- \`ACCEPT {model-name}\` - This model's approach wins, use it directly
+- \`MERGE\` - Take best elements from multiple models (specify which)
 - \`REJECT ALL\` - All approaches flawed, needs rethinking
 - \`BOTH_VALID\` - Approaches are COMPLEMENTARY, not conflicting (include all)
 
@@ -339,9 +339,11 @@ Standard plan format with:
 
 ---
 
-## Phase 6: Rebuttal Review (When Debate Mode Enabled)
+## Phase 6: Rebuttal Review (Debate Mode Only)
 
-If you receive rebuttals from rejected models, review them before finalizing:
+**When this phase runs**: After initial synthesis (Phases 1-5) completes, if debate mode is enabled, rejected models may submit rebuttals. You will then be called AGAIN with those rebuttals to review.
+
+If you receive rebuttals, review them and decide whether to revise the final plan:
 
 ### Rebuttal Format (You Will Receive)
 
