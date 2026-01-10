@@ -132,16 +132,16 @@ Compare assumptions across plans:
 \`\`\`markdown
 ### ASSUMPTION CONFLICT: [Topic]
 
-**Plan A assumes**: [Assumption with confidence level]
-**Plan B assumes**: [Different/conflicting assumption]
-**Plan C assumes**: [Yet another assumption]
+**{model-A} assumes**: [Assumption with confidence level]
+**{model-B} assumes**: [Different/conflicting assumption]
+**{model-C} assumes**: [Yet another assumption]
 
 **Analysis**:
 - Are these mutually exclusive? (e.g., "uses JWT" vs "uses sessions")
 - Which has higher confidence (verified vs guessed)?
 - What's the impact if the wrong assumption is chosen?
 
-**VERDICT**: Accept Plan X's assumption
+**VERDICT**: Accept {model-X}'s assumption
 **REASON**: [Why this assumption is more reliable]
 **ACTION**: Validate this assumption in first TODO if confidence < High
 \`\`\`
@@ -153,7 +153,7 @@ Identify risks that only one plan noticed:
 \`\`\`markdown
 ### UNSHARED RISK: [Risk description]
 
-**Only Plan X identified this risk**
+**Only {model-X} identified this risk**
 
 **Risk Details**:
 - Probability: [H/M/L]
@@ -311,12 +311,12 @@ You MUST produce exactly two files:
 
 | Section | Winner | Rationale |
 |---------|--------|-----------|
-| Context | Plan A | ... |
-| Objectives | Plan B | ... |
-| TODO 1 | Plan A | ... |
-| TODO 2 | MERGE A+C | ... |
-| TODO 3 | BOTH_VALID (A+B) | Complementary approaches |
-| Verification | Plan C | ... |
+| Context | {model-A} | ... |
+| Objectives | {model-B} | ... |
+| TODO 1 | {model-A} | ... |
+| TODO 2 | MERGE {model-A}+{model-C} | ... |
+| TODO 3 | BOTH_VALID ({model-A}+{model-B}) | Complementary approaches |
+| Verification | {model-C} | ... |
 
 ## Final Verdict
 
@@ -427,27 +427,27 @@ For EACH rebuttal, respond with:
 
 ### CONFLICT: How to handle authentication errors
 
-**Plan A says**: Throw generic AuthError, let global handler catch it
-**Plan B says**: Return Result<User, AuthError> type, handle explicitly at call site
-**Plan C says**: Use middleware to intercept and redirect to login page
+**strategist says**: Throw generic AuthError, let global handler catch it
+**pragmatist says**: Return Result<User, AuthError> type, handle explicitly at call site
+**creative says**: Use middleware to intercept and redirect to login page
 
 ---
 
-**Why Plan A is WRONG**:
+**Why strategist is WRONG**:
 Generic errors are lazy. Global handlers become catch-all garbage dumps. When auth fails in 5 different ways, you'll have no idea which one happened. This is enterprise Java disease.
 
-**Why Plan B is WRONG**:
+**Why pragmatist is WRONG**:
 Result types are fine but this adds ceremony to every single call site. In a web app where 90% of auth failures should just redirect to login, explicit handling everywhere is over-engineering.
 
-**Why Plan C is WRONG**:
+**Why creative is WRONG**:
 Middleware-only approach loses granularity. What about API endpoints that should return 401, not redirect? What about "remember me" vs "session expired" distinction?
 
 ---
 
-**VERDICT**: MERGE Plan B + C
+**VERDICT**: MERGE pragmatist + creative
 
 **RECOMMENDATION**:
-Use middleware for default redirect behavior (Plan C), but expose AuthError types (Plan B) for API routes and special cases. No global catch-all (reject Plan A).
+Use middleware for default redirect behavior (creative), but expose AuthError types (pragmatist) for API routes and special cases. No global catch-all (reject strategist).
 
 **RATIONALE**:
 Web routes get automatic redirect handling. API routes get proper status codes. Special cases can handle errors explicitly. This is the 80/20 split that actually matches real usage patterns.
@@ -458,19 +458,19 @@ Web routes get automatic redirect handling. API routes get proper status codes. 
 
 ### CONFLICT: How to improve database performance
 
-**Plan A says**: Add Redis caching for frequently accessed data
-**Plan B says**: Add database indexes on commonly queried columns
-**Plan C says**: Implement connection pooling
+**strategist says**: Add Redis caching for frequently accessed data
+**pragmatist says**: Add database indexes on commonly queried columns
+**creative says**: Implement connection pooling
 
 ---
 
-**Why Plan A is WRONG** (but not fatally):
+**Why strategist is WRONG** (but not fatally):
 Redis adds infrastructure complexity. Cache invalidation is hard. But for read-heavy workloads, this is legitimate.
 
-**Why Plan B is WRONG** (but not fatally):
+**Why pragmatist is WRONG** (but not fatally):
 Indexes only help if queries are the bottleneck. If it's connection overhead, indexes won't help. Also risks slowing writes.
 
-**Why Plan C is WRONG** (but not fatally):
+**Why creative is WRONG** (but not fatally):
 Connection pooling helps throughput but not individual query latency. It's infrastructure, not data optimization.
 
 ---

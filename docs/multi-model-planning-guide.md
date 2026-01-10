@@ -47,12 +47,13 @@ graph TD
             Rebuttals --> FinalReview[Synthesizer Reviews]
             FinalReview --> MayRevise[May Revise Plan]
         end
+
+        RejectedModels -->|No| FinalDecision[Final Decision]
+        MayRevise --> FinalDecision
     end
 
-    MayRevise --> Comparison[comparison.md]
-    MayRevise --> FinalPlan[final-plan.md]
-    RejectedModels -->|No| Comparison
-    RejectedModels -->|No| FinalPlan
+    FinalDecision --> Comparison[comparison.md]
+    FinalDecision --> FinalPlan[final-plan.md]
 ```
 
 ---
@@ -440,11 +441,11 @@ You can:
 - M rebuttal generation calls (one per rejected model)
 - 1 final Synthesizer review call
 
-| Setup | Without Debate | With Debate (2 rejected) |
-|-------|----------------|--------------------------|
-| 2 models | 3 calls | 6 calls |
-| 3 models | 4 calls | 7 calls |
-| 5 models | 6 calls | 10 calls |
+| Setup | Without Debate | With Debate (worst case: N-1 rejected) |
+|-------|----------------|----------------------------------------|
+| 2 models | 3 calls | 5 calls (1 rejected) |
+| 3 models | 4 calls | 7 calls (2 rejected) |
+| 5 models | 6 calls | 11 calls (4 rejected) |
 
 ---
 

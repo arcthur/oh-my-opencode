@@ -348,8 +348,9 @@ Plan Synthesizer (Momus-style) will:
 • Identify and resolve conflicts
 • Generate unified final plan`
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tuiClient = this.ctx.client as any
+    const tuiClient = this.ctx.client as {
+      tui?: { showToast: (payload: { body: object }) => Promise<void> }
+    }
     if (tuiClient.tui?.showToast) {
       tuiClient.tui.showToast({
         body: {
@@ -720,8 +721,9 @@ ${rebuttalSummary}
       ? `${count} rejected model(s) are preparing rebuttals...`
       : `Synthesizer is reviewing ${count} rebuttal(s)...`
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tuiClient = this.ctx.client as any
+    const tuiClient = this.ctx.client as {
+      tui?: { showToast: (payload: { body: object }) => Promise<void> }
+    }
     if (tuiClient.tui?.showToast) {
       tuiClient.tui.showToast({
         body: {
