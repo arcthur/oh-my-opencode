@@ -89,6 +89,8 @@ export const HookNameSchema = z.enum([
   "start-work",
   "sisyphus-orchestrator",
   "multi-plan-trigger",
+  "planning-with-files",
+  "silent-tool-output",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -321,6 +323,43 @@ export const GitMasterConfigSchema = z.object({
   /** Add "Co-authored-by: Sisyphus" trailer to commit messages (default: true) */
   include_co_authored_by: z.boolean().default(true),
 })
+
+/** Planning with Files Configuration (Manus-style persistent planning) */
+export const PlanningWithFilesConfigSchema = z.object({
+  /** Enable the planning-with-files pattern (default: false) */
+  enabled: z.boolean().default(false),
+  /** Directory for planning files relative to .sisyphus/ (default: "planning") */
+  directory: z.string().default("planning"),
+  /** Enable 2-action rule for findings updates (default: true) */
+  two_action_rule: z.boolean().default(true),
+  /** Enable 3-strike error protocol (default: true) */
+  three_strike_protocol: z.boolean().default(true),
+  /** Enable auto re-read of task_plan before tool use (default: true) */
+  auto_reread: z.boolean().default(true),
+  /** Enable stop hook verification (default: true) */
+  stop_verification: z.boolean().default(true),
+  /** Tools that trigger plan re-read */
+  reread_trigger_tools: z.array(z.string()).optional(),
+  /** Tools that count toward the 2-action rule */
+  action_count_tools: z.array(z.string()).optional(),
+  /** Auto-create planning files from multi-plan results (default: true) */
+  auto_from_multi_plan: z.boolean().default(true),
+})
+
+/** Silent Tool Output Configuration - reduces context by optimizing tool outputs */
+export const SilentToolOutputConfigSchema = z.object({
+  /** Enable silent write output - returns metadata only (default: true) */
+  silent_write: z.boolean().default(true),
+  /** Enable optimized read for planning files (default: true) */
+  optimize_planning_reads: z.boolean().default(true),
+  /** Enable search result truncation (default: true) */
+  optimize_search: z.boolean().default(true),
+  /** Max lines to show in search results (default: 20) */
+  search_max_lines: z.number().default(20),
+  /** Max characters for content preview (default: 200) */
+  preview_max_chars: z.number().default(200),
+})
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -342,6 +381,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
   multi_plan: MultiPlanConfigSchema.optional(),
+  planning_with_files: PlanningWithFilesConfigSchema.optional(),
+  silent_tool_output: SilentToolOutputConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -366,5 +407,7 @@ export type BuiltinCategoryName = z.infer<typeof BuiltinCategoryNameSchema>
 export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
 export type MultiPlanModel = z.infer<typeof MultiPlanModelSchema>
 export type MultiPlanConfig = z.infer<typeof MultiPlanConfigSchema>
+export type PlanningWithFilesConfig = z.infer<typeof PlanningWithFilesConfigSchema>
+export type SilentToolOutputConfig = z.infer<typeof SilentToolOutputConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"
