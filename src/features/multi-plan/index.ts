@@ -7,6 +7,7 @@ import type {
   MultiPlanSession,
   MultiPlanResult,
   StartMultiPlanInput,
+  PlanRebuttal,
 } from "./types"
 import { PlanGenerator, type MultiPlanProgressCallback } from "./plan-generator"
 import { log } from "../../shared/logger"
@@ -74,6 +75,8 @@ export class MultiPlanOrchestrator {
       tasks: [],
       status: "generating",
       startedAt: new Date(),
+      debateEnabled: input.debateEnabled ?? false,
+      rebuttals: [],
     }
 
     this.activeSessions.set(sessionId, session)
@@ -98,13 +101,25 @@ export class MultiPlanOrchestrator {
         )
       }
 
-      // Phase 2: Plan Synthesizer review
+      // Phase 2: Plan Synthesizer initial review
       session.status = "reviewing"
+      const comparisonReportPath = `.sisyphus/plan-reviews/${input.planName}-comparison.md`
       await this.runPlanSynthesis(session, input.parentSessionId)
+
+      // Phase 2.5: Debate round (if enabled)
+      if (session.debateEnabled) {
+        session.status = "debating"
+        const rebuttals = await this.runDebateRound(session, comparisonReportPath, input.parentSessionId)
+
+        if (rebuttals.length > 0) {
+          session.rebuttals = rebuttals
+          session.status = "finalizing"
+          await this.runFinalSynthesis(session, rebuttals, input.parentSessionId)
+        }
+      }
 
       // Phase 3: Verify output files exist
       const finalPlanPath = `.sisyphus/plans/${input.planName}.md`
-      const comparisonReportPath = `.sisyphus/plan-reviews/${input.planName}-comparison.md`
 
       const verification = this.verifyOutputFiles(finalPlanPath, comparisonReportPath)
       if (!verification.valid) {
@@ -401,5 +416,304 @@ Plan Synthesizer (Momus-style) will:
     }
 
     return files
+  }
+
+  /**
+   * Run debate round - generate rebuttals from rejected models
+   */
+  private async runDebateRound(
+    session: MultiPlanSession,
+    comparisonReportPath: string,
+    parentSessionId: string
+  ): Promise<PlanRebuttal[]> {
+    log("[multi-plan] Starting debate round")
+
+    // Read comparison report to find rejections
+    const absReportPath = path.resolve(this.ctx.directory, comparisonReportPath)
+    if (!fs.existsSync(absReportPath)) {
+      log("[multi-plan] Comparison report not found, skipping debate")
+      return []
+    }
+
+    const reportContent = fs.readFileSync(absReportPath, "utf-8")
+
+    // Parse which models were rejected in conflicts
+    const rejectedModels = this.parseRejectedModels(reportContent, session)
+    if (rejectedModels.length === 0) {
+      log("[multi-plan] No rejected models found, skipping debate")
+      return []
+    }
+
+    log("[multi-plan] Generating rebuttals", { rejectedModels: rejectedModels.map(r => r.modelName) })
+    this.showDebateToast(session, "Debate Round Started", rejectedModels.length)
+
+    // Generate rebuttals in parallel
+    const rebuttals: PlanRebuttal[] = []
+    const rebuttalPromises = rejectedModels.map(async (rejection) => {
+      const rebuttal: PlanRebuttal = {
+        modelName: rejection.modelName,
+        conflictId: rejection.conflictId,
+        content: "",
+        status: "generating",
+      }
+      rebuttals.push(rebuttal)
+
+      try {
+        const prompt = this.buildRebuttalPrompt(rejection, session)
+        const task = await this.manager.launch({
+          description: `Rebuttal: ${rejection.modelName}`,
+          prompt,
+          agent: "Sisyphus",
+          parentSessionID: parentSessionId,
+          parentMessageID: "",
+          silent: true,
+        })
+
+        rebuttal.taskId = task.id
+
+        // Wait for completion (max 5 minutes per rebuttal)
+        const maxWait = 5 * 60 * 1000
+        const startTime = Date.now()
+        while (true) {
+          const bgTask = this.manager.getTask(task.id)
+          if (!bgTask || bgTask.status === "completed") break
+          if (bgTask.status === "error" || bgTask.status === "cancelled") {
+            rebuttal.status = "error"
+            rebuttal.error = bgTask.error || "Rebuttal generation failed"
+            break
+          }
+          if (Date.now() - startTime > maxWait) {
+            rebuttal.status = "error"
+            rebuttal.error = "Timeout"
+            break
+          }
+          await new Promise(r => setTimeout(r, 2000))
+        }
+
+        // Read rebuttal content from output
+        const rebuttalPath = `.sisyphus/rebuttals/${session.planName}-${rejection.modelName}.md`
+        const absRebuttalPath = path.resolve(this.ctx.directory, rebuttalPath)
+        if (fs.existsSync(absRebuttalPath)) {
+          rebuttal.content = fs.readFileSync(absRebuttalPath, "utf-8")
+          rebuttal.status = "completed"
+        } else if (rebuttal.status !== "error") {
+          rebuttal.status = "error"
+          rebuttal.error = "Rebuttal file not created"
+        }
+      } catch (error) {
+        rebuttal.status = "error"
+        rebuttal.error = error instanceof Error ? error.message : String(error)
+      }
+
+      return rebuttal
+    })
+
+    await Promise.all(rebuttalPromises)
+
+    const successfulRebuttals = rebuttals.filter(r => r.status === "completed")
+    log("[multi-plan] Debate round completed", {
+      total: rebuttals.length,
+      successful: successfulRebuttals.length,
+    })
+
+    return successfulRebuttals
+  }
+
+  /**
+   * Parse comparison report to find rejected models
+   */
+  private parseRejectedModels(
+    reportContent: string,
+    session: MultiPlanSession
+  ): Array<{ modelName: string; conflictId: string; criticism: string }> {
+    const rejections: Array<{ modelName: string; conflictId: string; criticism: string }> = []
+
+    // Look for CONFLICT sections and parse verdicts
+    const conflictRegex = /### CONFLICT: (.+?)(?=\n)/g
+    const verdictRegex = /\*\*VERDICT\*\*: (?:ACCEPT|MERGE) Plan (\w+)/g
+
+    let conflictMatch
+    const conflicts: string[] = []
+    while ((conflictMatch = conflictRegex.exec(reportContent)) !== null) {
+      conflicts.push(conflictMatch[1])
+    }
+
+    // For each model in session, check if it was rejected in any conflict
+    for (const model of session.models) {
+      // Simple heuristic: if the model is mentioned in "Why Plan X is WRONG"
+      const wrongPattern = new RegExp(`\\*\\*Why (?:Plan )?${model.name} is WRONG\\*\\*:([\\s\\S]*?)(?=\\*\\*Why|\\*\\*VERDICT|---|\n\n)`, "gi")
+      const wrongMatch = wrongPattern.exec(reportContent)
+      if (wrongMatch) {
+        rejections.push({
+          modelName: model.name,
+          conflictId: conflicts[0] || "general",
+          criticism: wrongMatch[1].trim(),
+        })
+      }
+    }
+
+    return rejections
+  }
+
+  /**
+   * Build rebuttal prompt for a rejected model
+   */
+  private buildRebuttalPrompt(
+    rejection: { modelName: string; conflictId: string; criticism: string },
+    session: MultiPlanSession
+  ): string {
+    const outputPath = `.sisyphus/rebuttals/${session.planName}-${rejection.modelName}.md`
+
+    return `## Rebuttal Request
+
+You are the "${rejection.modelName}" model. Your plan was partially rejected by the Plan Synthesizer.
+
+### The Criticism Against You
+
+**Conflict**: ${rejection.conflictId}
+
+**Synthesizer's Criticism**:
+${rejection.criticism}
+
+### Your Task
+
+Write a rebuttal arguing why your approach should be reconsidered. Be specific and provide evidence.
+
+**Output**: Write to \`${outputPath}\`
+
+**Format**:
+\`\`\`markdown
+## Rebuttal from ${rejection.modelName}
+
+**Conflict**: ${rejection.conflictId}
+**Original Verdict**: [summarize what Synthesizer decided]
+
+**My Counter-Argument**:
+[Why your approach should be reconsidered - be SPECIFIC]
+
+**Evidence**:
+- [Specific code references]
+- [Technical reasoning]
+- [What the Synthesizer missed or got wrong]
+
+**Proposed Revision**:
+[What specifically should change in the final plan]
+\`\`\`
+
+**Rules**:
+1. Do NOT just repeat your original argument
+2. Provide NEW evidence or perspective
+3. Address the SPECIFIC criticism made
+4. Be concise - this is your one chance to argue back
+5. If the Synthesizer was right, say so and concede
+
+Read your original plan at \`.sisyphus/plans/${session.planName}-${rejection.modelName}.md\` for context.
+`
+  }
+
+  /**
+   * Run final synthesis with rebuttals
+   */
+  private async runFinalSynthesis(
+    session: MultiPlanSession,
+    rebuttals: PlanRebuttal[],
+    parentSessionId: string
+  ): Promise<void> {
+    if (rebuttals.length === 0) return
+
+    log("[multi-plan] Running final synthesis with rebuttals", {
+      rebuttalCount: rebuttals.length,
+    })
+
+    this.showDebateToast(session, "Reviewing Rebuttals", rebuttals.length)
+
+    const rebuttalSummary = rebuttals.map(r =>
+      `### Rebuttal from ${r.modelName}\n\n${r.content}`
+    ).join("\n\n---\n\n")
+
+    const prompt = `## Final Synthesis with Rebuttals
+
+The rejected models have submitted rebuttals. Review them and update the final plan if warranted.
+
+### Rebuttals to Review
+
+${rebuttalSummary}
+
+### Your Task
+
+1. Read each rebuttal carefully
+2. For each rebuttal, apply your Phase 6 (Rebuttal Review) process
+3. If any rebuttal is convincing (provides NEW evidence, addresses your criticism technically), REVISE the final plan
+4. Update the comparison report with your rebuttal review decisions
+5. If you revise, add a "Revised after rebuttal" note to the affected section
+
+### Files to Update (if needed)
+
+- Final plan: \`.sisyphus/plans/${session.planName}.md\`
+- Comparison report: \`.sisyphus/plan-reviews/${session.planName}-comparison.md\`
+
+### Important
+
+- Give rebuttals FAIR consideration
+- But don't change your mind without NEW evidence
+- Document your reasoning for MAINTAIN or REVISE decisions
+`
+
+    const task = await this.manager.launch({
+      description: `Final Synthesis: ${session.planName}`,
+      prompt,
+      agent: "plan-synthesizer",
+      parentSessionID: parentSessionId,
+      parentMessageID: "",
+      silent: true,
+    })
+
+    // Wait for completion (max 10 minutes)
+    const maxWait = 10 * 60 * 1000
+    const startTime = Date.now()
+    while (true) {
+      const bgTask = this.manager.getTask(task.id)
+      if (!bgTask || bgTask.status === "completed") break
+      if (bgTask.status === "error" || bgTask.status === "cancelled") {
+        log("[multi-plan] Final synthesis failed", { error: bgTask?.error })
+        break
+      }
+      if (Date.now() - startTime > maxWait) {
+        log("[multi-plan] Final synthesis timed out")
+        break
+      }
+      await new Promise(r => setTimeout(r, 3000))
+    }
+
+    log("[multi-plan] Final synthesis completed")
+  }
+
+  /**
+   * Show debate phase toast
+   */
+  private showDebateToast(
+    session: MultiPlanSession,
+    title: string,
+    count: number
+  ): void {
+    const toastManager = getTaskToastManager()
+    if (!toastManager) return
+
+    const message = title.includes("Started")
+      ? `${count} rejected model(s) are preparing rebuttals...`
+      : `Synthesizer is reviewing ${count} rebuttal(s)...`
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tuiClient = this.ctx.client as any
+    if (tuiClient.tui?.showToast) {
+      tuiClient.tui.showToast({
+        body: {
+          title: `⚔️ ${title}`,
+          message,
+          variant: "info",
+          duration: 4000,
+        },
+      }).catch(() => {})
+    }
   }
 }

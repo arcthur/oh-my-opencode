@@ -35,8 +35,28 @@ export interface PlanGenerationTask {
 export type MultiPlanSessionStatus =
   | "generating"   // Plans being generated in parallel
   | "reviewing"    // Plan Synthesizer reviewing all plans
+  | "debating"     // Debate round: rebuttals being generated
+  | "finalizing"   // Synthesizer reviewing rebuttals
   | "complete"     // All done
   | "error"        // Something failed
+
+/**
+ * A rebuttal from a rejected model
+ */
+export interface PlanRebuttal {
+  /** Model name that was rejected */
+  modelName: string
+  /** Which conflict this rebuttal addresses */
+  conflictId: string
+  /** The rebuttal content */
+  content: string
+  /** Task ID for the rebuttal generation */
+  taskId?: string
+  /** Status of rebuttal generation */
+  status: "pending" | "generating" | "completed" | "error"
+  /** Error if failed */
+  error?: string
+}
 
 /**
  * A multi-plan session tracking all tasks and results
@@ -64,6 +84,10 @@ export interface MultiPlanSession {
   completedAt?: Date
   /** Error message if failed */
   error?: string
+  /** Whether debate mode is enabled */
+  debateEnabled?: boolean
+  /** Rebuttals from rejected models (if debate enabled) */
+  rebuttals?: PlanRebuttal[]
 }
 
 /**
@@ -78,6 +102,8 @@ export interface StartMultiPlanInput {
   parentSessionId: string
   /** Configuration */
   config: MultiPlanConfig
+  /** Enable debate mode - rejected plans can rebut */
+  debateEnabled?: boolean
 }
 
 /**

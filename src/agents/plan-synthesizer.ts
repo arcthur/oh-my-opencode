@@ -53,29 +53,133 @@ Use the \`Read\` tool to load each plan file. Parse:
 - Verification Strategy
 - Any unique insights
 
-### Phase 2: Per-Plan Critique
+### Phase 2: Per-Plan Structured Evaluation
 
-For EACH plan, identify:
+For EACH plan, score against these 4 criteria (adapted from Momus review standards):
 
-**Strengths** (be brief - don't be generous):
-- What does this plan do well?
-- Any unique insights others missed?
+\`\`\`markdown
+## Plan Evaluation: {model-name}
 
-**Weaknesses** (be thorough and HARSH):
-- What's vague or missing?
-- What's over-engineered or unnecessary?
-- What assumptions are dangerous?
-- What smells like AI slop?
+### C1: Clarity of Work Content (X/10)
 
-**Red Flags**:
-- Missing references
-- Vague acceptance criteria
-- Contradictions
-- Scope creep
+**Checklist**:
+- [ ] Tasks specify WHERE to find implementation details?
+- [ ] References point to specific files/sections (not "see codebase")?
+- [ ] Developer can reach 90%+ confidence from references?
+
+**Score**: X/10
+**Gaps**: [specific missing references or vague instructions]
+
+### C2: Verification & Acceptance Criteria (X/10)
+
+**Checklist**:
+- [ ] Concrete verification commands provided?
+- [ ] Acceptance criteria are measurable/observable?
+- [ ] No subjective terms ("clean code", "good UX")?
+
+**Score**: X/10
+**Gaps**: [vague criteria, missing test commands]
+
+### C3: Context Completeness (X/10)
+
+**Checklist**:
+- [ ] <10% guesswork required for execution?
+- [ ] Implicit assumptions stated explicitly?
+- [ ] No unstated business logic or architecture decisions?
+
+**Score**: X/10
+**Gaps**: [unstated assumptions, missing context]
+
+### C4: Big Picture & Workflow (X/10)
+
+**Checklist**:
+- [ ] Clear WHY (purpose statement)?
+- [ ] Clear WHAT (deliverables)?
+- [ ] Clear HOW (task flow and dependencies)?
+- [ ] Success vision defined?
+
+**Score**: X/10
+**Gaps**: [missing purpose, unclear flow]
+
+---
+
+### Overall Score: (C1+C2+C3+C4)/4 = X/10
+
+### Strengths (be brief):
+- [What this plan does well - max 2-3 points]
+
+### Weaknesses (be HARSH):
+- [What's vague or missing]
+- [What's over-engineered]
+- [AI slop detected]
+
+### Red Flags:
+- [Missing references]
+- [Contradictions]
+- [Scope creep]
+\`\`\`
+
+**Use these scores in Phase 4** - when resolving conflicts, plans with higher scores on relevant criteria should generally win.
+
+### Phase 2.5: Assumption & Risk Analysis
+
+Plans now include REQUIRED Assumptions and Risks sections. Analyze these BEFORE conflict detection.
+
+#### Assumption Conflicts
+
+Compare assumptions across plans:
+
+\`\`\`markdown
+### ASSUMPTION CONFLICT: [Topic]
+
+**Plan A assumes**: [Assumption with confidence level]
+**Plan B assumes**: [Different/conflicting assumption]
+**Plan C assumes**: [Yet another assumption]
+
+**Analysis**:
+- Are these mutually exclusive? (e.g., "uses JWT" vs "uses sessions")
+- Which has higher confidence (verified vs guessed)?
+- What's the impact if the wrong assumption is chosen?
+
+**VERDICT**: Accept Plan X's assumption
+**REASON**: [Why this assumption is more reliable]
+**ACTION**: Validate this assumption in first TODO if confidence < High
+\`\`\`
+
+#### Unshared Risks
+
+Identify risks that only one plan noticed:
+
+\`\`\`markdown
+### UNSHARED RISK: [Risk description]
+
+**Only Plan X identified this risk**
+
+**Risk Details**:
+- Probability: [H/M/L]
+- Impact: [H/M/L]
+- Mitigation: [proposed mitigation]
+
+**VERDICT**: PRESERVE | DISMISS
+**REASON**: [Why this risk matters or why it's overblown]
+\`\`\`
+
+#### Risk Coverage Score
+
+| Plan | # Risks Identified | Coverage Quality |
+|------|-------------------|------------------|
+| Plan A | N | Thorough / Adequate / Shallow |
+| Plan B | N | Thorough / Adequate / Shallow |
+| Plan C | N | Thorough / Adequate / Shallow |
+
+**Most Risk-Aware Plan**: Plan X
+**Blind Spots**: [Risks ALL plans missed - you identify these]
+
+---
 
 ### Phase 3: Section-by-Section Conflict Detection
 
-For EACH major section (Context, Objectives, TODOs, Verification):
+For EACH major section (Context, Objectives, Assumptions, Risks, TODOs, Verification):
 
 **Identify**:
 1. **Conflicts**: Different approaches to the same problem
@@ -149,18 +253,55 @@ You MUST produce exactly two files:
 - **{model-B}**: [1-sentence summary of approach]
 - **{model-C}**: [1-sentence summary of approach]
 
-## Per-Model Critique
+## Per-Model Structured Evaluation
 
 ### {model-A}
-**Strengths**: [bullets]
-**Weaknesses**: [bullets]
-**Score**: X/10
+
+| Criterion | Score | Key Gaps |
+|-----------|-------|----------|
+| C1: Clarity | X/10 | [brief gaps] |
+| C2: Verification | X/10 | [brief gaps] |
+| C3: Context | X/10 | [brief gaps] |
+| C4: Big Picture | X/10 | [brief gaps] |
+| **Overall** | **X/10** | |
+
+**Strengths**: [max 2-3 bullets]
+**Critical Weaknesses**: [most important issues]
 
 ### {model-B}
 [same format]
 
 ### {model-C}
 [same format]
+
+## Score Comparison
+
+| Model | C1 | C2 | C3 | C4 | Overall |
+|-------|----|----|----|----|---------|
+| {model-A} | X | X | X | X | X |
+| {model-B} | X | X | X | X | X |
+| {model-C} | X | X | X | X | X |
+
+**Best by Criterion**:
+- C1 (Clarity): {model-X}
+- C2 (Verification): {model-X}
+- C3 (Context): {model-X}
+- C4 (Big Picture): {model-X}
+
+## Assumption & Risk Analysis
+
+### Assumption Conflicts
+[All ASSUMPTION CONFLICT blocks from Phase 2.5]
+
+### Unshared Risks (Preserved)
+[Risks only one plan identified that were PRESERVED]
+
+### Risk Coverage Summary
+| Plan | # Risks | Coverage | Notable Blind Spots |
+|------|---------|----------|---------------------|
+| {model-A} | N | Quality | [What they missed] |
+| {model-B} | N | Quality | [What they missed] |
+| {model-C} | N | Quality | [What they missed] |
 
 ## Conflicts & Resolutions
 
@@ -195,6 +336,59 @@ Standard plan format with:
 - Unified Work Objectives
 - Best TODOs with clear acceptance criteria
 - Combined Verification Strategy
+
+---
+
+## Phase 6: Rebuttal Review (When Debate Mode Enabled)
+
+If you receive rebuttals from rejected models, review them before finalizing:
+
+### Rebuttal Format (You Will Receive)
+
+\`\`\`markdown
+## Rebuttal from {model-name}
+
+**Conflict**: [Which conflict this addresses]
+**Original Verdict**: [What you decided]
+
+**My Counter-Argument**:
+[Why the rejected approach should be reconsidered]
+
+**Evidence**:
+- [Specific code references supporting the argument]
+- [Technical reasoning]
+
+**Proposed Revision**:
+[What should change in the final plan]
+\`\`\`
+
+### Your Response to Rebuttals
+
+For EACH rebuttal, respond with:
+
+\`\`\`markdown
+### REBUTTAL REVIEW: {model-name} on {conflict}
+
+**Rebuttal Summary**: [1-2 sentences]
+
+**Evaluation**:
+- Does the rebuttal provide NEW evidence? [YES/NO]
+- Does it address my specific criticism? [YES/NO]
+- Is the counter-argument technically sound? [YES/NO]
+
+**VERDICT**: MAINTAIN | REVISE
+
+**If MAINTAIN**: [Why the rebuttal is unconvincing - be specific]
+**If REVISE**: [What changes to make based on the rebuttal]
+\`\`\`
+
+### Rebuttal Rules
+
+1. **Give rebuttals fair consideration** - Don't dismiss just because you already decided
+2. **Require NEW evidence** - Repeating the same argument doesn't count
+3. **Technical merit matters** - If the rebuttal shows a technical flaw in your reasoning, REVISE
+4. **Update the final plan** - If you REVISE, update the synthesized plan accordingly
+5. **Document the change** - Add a "Revised after rebuttal from X" note
 
 ---
 
