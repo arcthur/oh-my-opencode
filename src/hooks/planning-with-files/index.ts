@@ -251,7 +251,6 @@ ${incomplete.map(p => `- Phase ${p.id}: ${p.name} (${p.status})`).join("\n")}
 }
 
 // Re-exports
-export { setActivePlan, getActivePlan, resetActionCount } from "./storage"
 export type { PlanningWithFilesConfig } from "../../features/planning-with-files/types"
 
 /**

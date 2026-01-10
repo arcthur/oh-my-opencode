@@ -266,6 +266,9 @@ export function parsePhases(content: string): Array<{ id: number; name: string; 
 
 /**
  * Detect if any phase was just completed (for reflection trigger)
+ *
+ * On first call (cache miss), initializes cache and returns empty array
+ * to avoid false positives on session restart.
  */
 export function detectPhaseCompletion(
   cwd: string,
@@ -273,7 +276,18 @@ export function detectPhaseCompletion(
   currentPhases: Array<{ id: number; name: string; status: PhaseStatus }>
 ): Array<{ id: number; name: string }> {
   const cacheKey = `${cwd}:${planName}`
-  const previousStatuses = phaseStatusCache.get(cacheKey) || new Map()
+  const previousStatuses = phaseStatusCache.get(cacheKey)
+
+  // First call: initialize cache, return empty (no false positives on restart)
+  if (!previousStatuses) {
+    const initialCache = new Map<number, PhaseStatus>()
+    for (const phase of currentPhases) {
+      initialCache.set(phase.id, phase.status)
+    }
+    phaseStatusCache.set(cacheKey, initialCache)
+    return []
+  }
+
   const completedPhases: Array<{ id: number; name: string }> = []
 
   for (const phase of currentPhases) {
