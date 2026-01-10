@@ -8,6 +8,7 @@ import { sanitizePathSegment } from "../../shared/path-sanitizer"
 interface MultiPlanArgs {
   planName: string
   context: string
+  debate?: boolean
 }
 
 /**
@@ -34,11 +35,16 @@ export function createMultiPlanTool(options: {
 **What this tool does:**
 1. Launches N models in parallel to generate plans (each writes to .sisyphus/plans/{name}-{model}.md)
 2. Runs Plan Synthesizer (Momus-style) to:
-   - Compare all generated plans section by section
-   - Identify and analyze conflicts
+   - Compare all generated plans with structured 4-criterion evaluation
+   - Analyze assumption conflicts and risk coverage
+   - Identify and analyze approach conflicts
    - Make harsh, decisive verdicts on each conflict
    - Synthesize a unified final plan
-3. Produces:
+3. (Optional) Debate round if enabled:
+   - Rejected models generate rebuttals
+   - Synthesizer reviews rebuttals
+   - May revise final plan based on convincing arguments
+4. Produces:
    - Comparison report: .sisyphus/plan-reviews/{name}-comparison.md
    - Final unified plan: .sisyphus/plans/{name}.md
 
@@ -46,6 +52,7 @@ export function createMultiPlanTool(options: {
     args: {
       planName: tool.schema.string().describe("Name for the plan (used in file paths). Example: 'auth-system', 'dark-mode'"),
       context: tool.schema.string().describe("Complete context from the interview including: user requirements, decisions made, research findings, scope boundaries, and any draft content. This is passed to each model for plan generation."),
+      debate: tool.schema.boolean().optional().describe("Enable debate mode. When true, rejected models can submit rebuttals, and the Synthesizer will review them before finalizing. Use for complex/high-stakes plans where you want maximum scrutiny. Default: false"),
     },
     async execute(args: MultiPlanArgs, execCtx) {
       // Check if multi-plan is enabled
@@ -107,6 +114,7 @@ Multiple models would write to the same output file. Ensure each model has a uni
           requestContext: context,
           parentSessionId: sessionID,
           config,
+          debateEnabled: args.debate ?? false,
         })
 
         log("[multi_plan] Multi-model planning completed", {
@@ -119,9 +127,13 @@ Multiple models would write to the same output file. Ensure each model has a uni
           .map((t) => `- ${t.status === "completed" ? "✓" : "✗"} \`${t.outputPath}\` (${t.modelName})`)
           .join("\n")
 
+        const debateInfo = result.session.debateEnabled && result.session.rebuttals?.length
+          ? `\n**Debate Round:** ${result.session.rebuttals.length} rebuttal(s) reviewed`
+          : ""
+
         return `✅ Multi-model planning completed successfully!
 
-${result.summary}
+${result.summary}${debateInfo}
 
 **Individual Plans:**
 ${individualPlans}

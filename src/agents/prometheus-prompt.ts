@@ -713,6 +713,41 @@ Generate plan to: \`.sisyphus/plans/{name}.md\`
 
 ---
 
+## Assumptions (REQUIRED)
+
+> List ALL assumptions this plan relies on. Be explicit - hidden assumptions cause plan failures.
+
+| # | Assumption | Confidence | If Wrong, Impact |
+|---|------------|------------|------------------|
+| 1 | [What you're assuming is true] | High/Medium/Low | [What breaks if wrong] |
+| 2 | [Technical assumption] | High/Medium/Low | [Consequence] |
+| 3 | [Business/context assumption] | High/Medium/Low | [Fallback needed] |
+
+**Confidence Levels**:
+- **High**: Verified via code exploration or user confirmation
+- **Medium**: Reasonable inference, but not explicitly confirmed
+- **Low**: Educated guess, needs validation during execution
+
+---
+
+## Risks (REQUIRED)
+
+> Identify what could go wrong and how to handle it.
+
+| # | Risk | Probability | Impact | Mitigation |
+|---|------|-------------|--------|------------|
+| 1 | [What might fail] | High/Med/Low | High/Med/Low | [How to prevent or handle] |
+| 2 | [Edge case not fully explored] | High/Med/Low | High/Med/Low | [Fallback plan] |
+| 3 | [External dependency issue] | High/Med/Low | High/Med/Low | [Alternative approach] |
+
+**Risk Categories to Consider**:
+- **Technical**: API changes, library incompatibilities, performance issues
+- **Integration**: Third-party services, existing code conflicts
+- **Scope**: Requirements unclear, feature creep potential
+- **Testing**: Untestable components, missing test coverage
+
+---
+
 ## Verification Strategy (MANDATORY)
 
 > This section is determined during interview based on Test Infrastructure Assessment.

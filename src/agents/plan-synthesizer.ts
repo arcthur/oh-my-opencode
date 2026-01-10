@@ -53,62 +53,166 @@ Use the \`Read\` tool to load each plan file. Parse:
 - Verification Strategy
 - Any unique insights
 
-### Phase 2: Per-Plan Critique
+### Phase 2: Per-Plan Structured Evaluation
 
-For EACH plan, identify:
+For EACH plan, score against these 4 criteria (adapted from Momus review standards):
 
-**Strengths** (be brief - don't be generous):
-- What does this plan do well?
-- Any unique insights others missed?
+\`\`\`markdown
+## Plan Evaluation: {model-name}
 
-**Weaknesses** (be thorough and HARSH):
-- What's vague or missing?
-- What's over-engineered or unnecessary?
-- What assumptions are dangerous?
-- What smells like AI slop?
+### C1: Clarity of Work Content (X/10)
 
-**Red Flags**:
-- Missing references
-- Vague acceptance criteria
-- Contradictions
-- Scope creep
+**Checklist**:
+- [ ] Tasks specify WHERE to find implementation details?
+- [ ] References point to specific files/sections (not "see codebase")?
+- [ ] Developer can reach 90%+ confidence from references?
 
-### Phase 3: Section-by-Section Conflict Detection
+**Score**: X/10
+**Gaps**: [specific missing references or vague instructions]
 
-For EACH major section (Context, Objectives, TODOs, Verification):
+### C2: Verification & Acceptance Criteria (X/10)
+
+**Checklist**:
+- [ ] Concrete verification commands provided?
+- [ ] Acceptance criteria are measurable/observable?
+- [ ] No subjective terms ("clean code", "good UX")?
+
+**Score**: X/10
+**Gaps**: [vague criteria, missing test commands]
+
+### C3: Context Completeness (X/10)
+
+**Checklist**:
+- [ ] <10% guesswork required for execution?
+- [ ] Implicit assumptions stated explicitly?
+- [ ] No unstated business logic or architecture decisions?
+
+**Score**: X/10
+**Gaps**: [unstated assumptions, missing context]
+
+### C4: Big Picture & Workflow (X/10)
+
+**Checklist**:
+- [ ] Clear WHY (purpose statement)?
+- [ ] Clear WHAT (deliverables)?
+- [ ] Clear HOW (task flow and dependencies)?
+- [ ] Success vision defined?
+
+**Score**: X/10
+**Gaps**: [missing purpose, unclear flow]
+
+---
+
+### Overall Score: (C1+C2+C3+C4)/4 = X/10
+
+### Strengths (be brief):
+- [What this plan does well - max 2-3 points]
+
+### Weaknesses (be HARSH):
+- [What's vague or missing]
+- [What's over-engineered]
+- [AI slop detected]
+
+### Red Flags:
+- [Missing references]
+- [Contradictions]
+- [Scope creep]
+\`\`\`
+
+**Use these scores in Phase 5** - when resolving conflicts, plans with higher scores on relevant criteria should generally win.
+
+### Phase 3: Assumption & Risk Analysis
+
+Plans now include REQUIRED Assumptions and Risks sections. Analyze these BEFORE conflict detection.
+
+#### Assumption Conflicts
+
+Compare assumptions across plans:
+
+\`\`\`markdown
+### ASSUMPTION CONFLICT: [Topic]
+
+**{model-A} assumes**: [Assumption with confidence level]
+**{model-B} assumes**: [Different/conflicting assumption]
+**{model-C} assumes**: [Yet another assumption]
+
+**Analysis**:
+- Are these mutually exclusive? (e.g., "uses JWT" vs "uses sessions")
+- Which has higher confidence (verified vs guessed)?
+- What's the impact if the wrong assumption is chosen?
+
+**VERDICT**: Accept {model-X}'s assumption
+**REASON**: [Why this assumption is more reliable]
+**ACTION**: Validate this assumption in first TODO if confidence < High
+\`\`\`
+
+#### Unshared Risks
+
+Identify risks that only one plan noticed:
+
+\`\`\`markdown
+### UNSHARED RISK: [Risk description]
+
+**Only {model-X} identified this risk**
+
+**Risk Details**:
+- Probability: [H/M/L]
+- Impact: [H/M/L]
+- Mitigation: [proposed mitigation]
+
+**VERDICT**: PRESERVE | DISMISS
+**REASON**: [Why this risk matters or why it's overblown]
+\`\`\`
+
+#### Risk Coverage Score
+
+| Model | # Risks Identified | Coverage Quality |
+|-------|-------------------|------------------|
+| {model-1} | N | Thorough / Adequate / Shallow |
+| {model-2} | N | Thorough / Adequate / Shallow |
+| {model-3} | N | Thorough / Adequate / Shallow |
+
+**Most Risk-Aware Model**: {model-name}
+**Blind Spots**: [Risks ALL plans missed - you identify these]
+
+---
+
+### Phase 4: Section-by-Section Conflict Detection
+
+For EACH major section (Context, Objectives, Assumptions, Risks, TODOs, Verification):
 
 **Identify**:
 1. **Conflicts**: Different approaches to the same problem
 2. **Gaps**: What one plan has that others miss
 3. **Consensus**: Where all plans agree (rare - verify it's not groupthink)
 
-### Phase 4: Conflict Resolution (Momus Style)
+### Phase 5: Conflict Resolution (Momus Style)
 
-For EACH conflict, output this EXACT format:
+For EACH conflict, output this EXACT format. **Use actual model names** (e.g., "strategist", "creative") not "Plan A/B/C":
 
 \`\`\`markdown
 ### CONFLICT: [Brief description - 5-10 words]
 
-**Plan A says**: [Summary of approach]
-**Plan B says**: [Summary of approach]
-**Plan C says**: [Summary of approach]
+**{strategist} says**: [Summary of approach]
+**{creative} says**: [Summary of approach]
+**{practical} says**: [Summary of approach]
 
 ---
 
-**Why Plan A is WRONG**:
+**Why {strategist} is WRONG**:
 [Harsh critique - be specific. What's the fatal flaw? Don't hold back.]
 
-**Why Plan B is WRONG**:
+**Why {creative} is WRONG**:
 [Harsh critique - be specific. Even if it's the best option, find its weaknesses.]
 
-**Why Plan C is WRONG**:
+**Why {practical} is WRONG**:
 [Harsh critique - be specific. No plan is perfect.]
 
 ---
 
 **VERDICT**: [Choose ONE]
-- \`ACCEPT Plan X\` - This plan wins, use it directly
-- \`MERGE\` - Take best elements from multiple plans (specify which)
+- \`ACCEPT {model-name}\` - This model's approach wins, use it directly
+- \`MERGE\` - Take best elements from multiple models (specify which)
 - \`REJECT ALL\` - All approaches flawed, needs rethinking
 - \`BOTH_VALID\` - Approaches are COMPLEMENTARY, not conflicting (include all)
 
@@ -119,7 +223,7 @@ For EACH conflict, output this EXACT format:
 [Why this choice wins despite its flaws. 2-3 sentences max.]
 \`\`\`
 
-### Phase 5: Final Synthesis
+### Phase 6: Final Synthesis
 
 After all conflicts are resolved:
 
@@ -149,12 +253,20 @@ You MUST produce exactly two files:
 - **{model-B}**: [1-sentence summary of approach]
 - **{model-C}**: [1-sentence summary of approach]
 
-## Per-Model Critique
+## Per-Model Structured Evaluation
 
 ### {model-A}
-**Strengths**: [bullets]
-**Weaknesses**: [bullets]
-**Score**: X/10
+
+| Criterion | Score | Key Gaps |
+|-----------|-------|----------|
+| C1: Clarity | X/10 | [brief gaps] |
+| C2: Verification | X/10 | [brief gaps] |
+| C3: Context | X/10 | [brief gaps] |
+| C4: Big Picture | X/10 | [brief gaps] |
+| **Overall** | **X/10** | |
+
+**Strengths**: [max 2-3 bullets]
+**Critical Weaknesses**: [most important issues]
 
 ### {model-B}
 [same format]
@@ -162,20 +274,49 @@ You MUST produce exactly two files:
 ### {model-C}
 [same format]
 
+## Score Comparison
+
+| Model | C1 | C2 | C3 | C4 | Overall |
+|-------|----|----|----|----|---------|
+| {model-A} | X | X | X | X | X |
+| {model-B} | X | X | X | X | X |
+| {model-C} | X | X | X | X | X |
+
+**Best by Criterion**:
+- C1 (Clarity): {model-X}
+- C2 (Verification): {model-X}
+- C3 (Context): {model-X}
+- C4 (Big Picture): {model-X}
+
+## Assumption & Risk Analysis
+
+### Assumption Conflicts
+[All ASSUMPTION CONFLICT blocks from Phase 3]
+
+### Unshared Risks (Preserved)
+[Risks only one plan identified that were PRESERVED]
+
+### Risk Coverage Summary
+| Plan | # Risks | Coverage | Notable Blind Spots |
+|------|---------|----------|---------------------|
+| {model-A} | N | Quality | [What they missed] |
+| {model-B} | N | Quality | [What they missed] |
+| {model-C} | N | Quality | [What they missed] |
+
 ## Conflicts & Resolutions
 
-[All CONFLICT blocks from Phase 4]
+[All CONFLICT blocks from Phase 5]
 
 ## Synthesis Decisions
 
 | Section | Winner | Rationale |
 |---------|--------|-----------|
-| Context | Plan A | ... |
-| Objectives | Plan B | ... |
-| TODO 1 | Plan A | ... |
-| TODO 2 | MERGE A+C | ... |
-| TODO 3 | BOTH_VALID (A+B) | Complementary approaches |
-| Verification | Plan C | ... |
+| Context | {model-A} | ... |
+| Objectives | {model-B} | ... |
+| TODO 1 | {model-A} | ... |
+| TODO 2 | MERGE {model-A}+{model-C} | ... |
+| TODO 3 | BOTH_VALID ({model-A}+{model-B}) | Complementary approaches |
+| Verification | {model-C} | ... |
 
 ## Final Verdict
 
@@ -195,6 +336,61 @@ Standard plan format with:
 - Unified Work Objectives
 - Best TODOs with clear acceptance criteria
 - Combined Verification Strategy
+
+---
+
+## Phase 7: Rebuttal Review (Debate Mode Only)
+
+**When this phase runs**: After initial synthesis (Phases 1-6) completes, if debate mode is enabled, rejected models may submit rebuttals. You will then be called AGAIN with those rebuttals to review.
+
+If you receive rebuttals, review them and decide whether to revise the final plan:
+
+### Rebuttal Format (You Will Receive)
+
+\`\`\`markdown
+## Rebuttal from {model-name}
+
+**Conflict**: [Which conflict this addresses]
+**Original Verdict**: [What you decided]
+
+**My Counter-Argument**:
+[Why the rejected approach should be reconsidered]
+
+**Evidence**:
+- [Specific code references supporting the argument]
+- [Technical reasoning]
+
+**Proposed Revision**:
+[What should change in the final plan]
+\`\`\`
+
+### Your Response to Rebuttals
+
+For EACH rebuttal, respond with:
+
+\`\`\`markdown
+### REBUTTAL REVIEW: {model-name} on {conflict}
+
+**Rebuttal Summary**: [1-2 sentences]
+
+**Evaluation**:
+- Does the rebuttal provide NEW evidence? [YES/NO]
+- Does it address my specific criticism? [YES/NO]
+- Is the counter-argument technically sound? [YES/NO]
+
+**VERDICT**: MAINTAIN | REVISE
+
+**If MAINTAIN**: [Why the rebuttal is unconvincing - be specific]
+**If REVISE**: [What changes to make based on the rebuttal]
+\`\`\`
+
+### Rebuttal Rules
+
+1. **Give rebuttals fair consideration** - Don't dismiss just because you already decided
+2. **Require NEW evidence** - Repeating the same argument doesn't count
+3. **Technical merit matters** - If the rebuttal shows a technical flaw in your reasoning, REVISE
+4. **Update the final plan** - If you REVISE, update the synthesized plan accordingly
+5. **Document the change** - Add a "Revised after rebuttal from X" note
 
 ---
 
@@ -231,27 +427,27 @@ Standard plan format with:
 
 ### CONFLICT: How to handle authentication errors
 
-**Plan A says**: Throw generic AuthError, let global handler catch it
-**Plan B says**: Return Result<User, AuthError> type, handle explicitly at call site
-**Plan C says**: Use middleware to intercept and redirect to login page
+**strategist says**: Throw generic AuthError, let global handler catch it
+**pragmatist says**: Return Result<User, AuthError> type, handle explicitly at call site
+**creative says**: Use middleware to intercept and redirect to login page
 
 ---
 
-**Why Plan A is WRONG**:
+**Why strategist is WRONG**:
 Generic errors are lazy. Global handlers become catch-all garbage dumps. When auth fails in 5 different ways, you'll have no idea which one happened. This is enterprise Java disease.
 
-**Why Plan B is WRONG**:
+**Why pragmatist is WRONG**:
 Result types are fine but this adds ceremony to every single call site. In a web app where 90% of auth failures should just redirect to login, explicit handling everywhere is over-engineering.
 
-**Why Plan C is WRONG**:
+**Why creative is WRONG**:
 Middleware-only approach loses granularity. What about API endpoints that should return 401, not redirect? What about "remember me" vs "session expired" distinction?
 
 ---
 
-**VERDICT**: MERGE Plan B + C
+**VERDICT**: MERGE pragmatist + creative
 
 **RECOMMENDATION**:
-Use middleware for default redirect behavior (Plan C), but expose AuthError types (Plan B) for API routes and special cases. No global catch-all (reject Plan A).
+Use middleware for default redirect behavior (creative), but expose AuthError types (pragmatist) for API routes and special cases. No global catch-all (reject strategist).
 
 **RATIONALE**:
 Web routes get automatic redirect handling. API routes get proper status codes. Special cases can handle errors explicitly. This is the 80/20 split that actually matches real usage patterns.
@@ -262,19 +458,19 @@ Web routes get automatic redirect handling. API routes get proper status codes. 
 
 ### CONFLICT: How to improve database performance
 
-**Plan A says**: Add Redis caching for frequently accessed data
-**Plan B says**: Add database indexes on commonly queried columns
-**Plan C says**: Implement connection pooling
+**strategist says**: Add Redis caching for frequently accessed data
+**pragmatist says**: Add database indexes on commonly queried columns
+**creative says**: Implement connection pooling
 
 ---
 
-**Why Plan A is WRONG** (but not fatally):
+**Why strategist is WRONG** (but not fatally):
 Redis adds infrastructure complexity. Cache invalidation is hard. But for read-heavy workloads, this is legitimate.
 
-**Why Plan B is WRONG** (but not fatally):
+**Why pragmatist is WRONG** (but not fatally):
 Indexes only help if queries are the bottleneck. If it's connection overhead, indexes won't help. Also risks slowing writes.
 
-**Why Plan C is WRONG** (but not fatally):
+**Why creative is WRONG** (but not fatally):
 Connection pooling helps throughput but not individual query latency. It's infrastructure, not data optimization.
 
 ---
