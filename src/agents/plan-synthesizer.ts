@@ -119,9 +119,9 @@ For EACH plan, score against these 4 criteria (adapted from Momus review standar
 - [Scope creep]
 \`\`\`
 
-**Use these scores in Phase 4** - when resolving conflicts, plans with higher scores on relevant criteria should generally win.
+**Use these scores in Phase 5** - when resolving conflicts, plans with higher scores on relevant criteria should generally win.
 
-### Phase 2.5: Assumption & Risk Analysis
+### Phase 3: Assumption & Risk Analysis
 
 Plans now include REQUIRED Assumptions and Risks sections. Analyze these BEFORE conflict detection.
 
@@ -177,7 +177,7 @@ Identify risks that only one plan noticed:
 
 ---
 
-### Phase 3: Section-by-Section Conflict Detection
+### Phase 4: Section-by-Section Conflict Detection
 
 For EACH major section (Context, Objectives, Assumptions, Risks, TODOs, Verification):
 
@@ -186,7 +186,7 @@ For EACH major section (Context, Objectives, Assumptions, Risks, TODOs, Verifica
 2. **Gaps**: What one plan has that others miss
 3. **Consensus**: Where all plans agree (rare - verify it's not groupthink)
 
-### Phase 4: Conflict Resolution (Momus Style)
+### Phase 5: Conflict Resolution (Momus Style)
 
 For EACH conflict, output this EXACT format. **Use actual model names** (e.g., "strategist", "creative") not "Plan A/B/C":
 
@@ -223,7 +223,7 @@ For EACH conflict, output this EXACT format. **Use actual model names** (e.g., "
 [Why this choice wins despite its flaws. 2-3 sentences max.]
 \`\`\`
 
-### Phase 5: Final Synthesis
+### Phase 6: Final Synthesis
 
 After all conflicts are resolved:
 
@@ -291,7 +291,7 @@ You MUST produce exactly two files:
 ## Assumption & Risk Analysis
 
 ### Assumption Conflicts
-[All ASSUMPTION CONFLICT blocks from Phase 2.5]
+[All ASSUMPTION CONFLICT blocks from Phase 3]
 
 ### Unshared Risks (Preserved)
 [Risks only one plan identified that were PRESERVED]
@@ -305,7 +305,7 @@ You MUST produce exactly two files:
 
 ## Conflicts & Resolutions
 
-[All CONFLICT blocks from Phase 4]
+[All CONFLICT blocks from Phase 5]
 
 ## Synthesis Decisions
 
@@ -339,9 +339,9 @@ Standard plan format with:
 
 ---
 
-## Phase 6: Rebuttal Review (Debate Mode Only)
+## Phase 7: Rebuttal Review (Debate Mode Only)
 
-**When this phase runs**: After initial synthesis (Phases 1-5) completes, if debate mode is enabled, rejected models may submit rebuttals. You will then be called AGAIN with those rebuttals to review.
+**When this phase runs**: After initial synthesis (Phases 1-6) completes, if debate mode is enabled, rejected models may submit rebuttals. You will then be called AGAIN with those rebuttals to review.
 
 If you receive rebuttals, review them and decide whether to revise the final plan:
 

@@ -139,7 +139,7 @@ Each model writes its plan to:
 .sisyphus/plans/{name}-{model}.md
 ```
 
-### Step 3: Plan Synthesis (Phases 1-5)
+### Step 3: Plan Synthesis (Phases 1-6)
 
 Once all plans are generated, the **Plan Synthesizer** is invoked:
 
@@ -147,10 +147,10 @@ Once all plans are generated, the **Plan Synthesizer** is invoked:
 |-------|--------|
 | **Phase 1** | Read all plans |
 | **Phase 2** | **Structured Evaluation** - Score each plan on 4 criteria (C1-C4) |
-| **Phase 2.5** | **Assumption & Risk Analysis** - Detect conflicts, preserve unshared risks |
-| **Phase 3** | Section-by-section conflict detection |
-| **Phase 4** | Conflict resolution with harsh verdicts |
-| **Phase 5** | Synthesize final unified plan |
+| **Phase 3** | **Assumption & Risk Analysis** - Detect conflicts, preserve unshared risks |
+| **Phase 4** | Section-by-section conflict detection |
+| **Phase 5** | Conflict resolution with harsh verdicts |
+| **Phase 6** | Synthesize final unified plan |
 
 ### Step 4: Debate Round (Optional)
 
@@ -158,7 +158,7 @@ If `debate: true` was passed, rejected models get a chance to rebut:
 
 1. **Parse rejections**: Identify models that lost conflicts
 2. **Generate rebuttals**: Each rejected model argues why it should be reconsidered
-3. **Final review (Phase 6)**: Synthesizer reviews rebuttals
+3. **Final review (Phase 7)**: Synthesizer reviews rebuttals
 4. **May revise**: If rebuttal provides NEW evidence, plan is updated
 
 ### Step 5: Output
@@ -195,7 +195,7 @@ Each plan is scored on **4 criteria** (adapted from Momus review standards):
 
 These scores inform conflict resolution - higher-scoring plans generally win.
 
-### 5.2 Assumption & Risk Analysis (Phase 2.5)
+### 5.2 Assumption & Risk Analysis (Phase 3)
 
 **Assumption Conflicts**: When models assume different things:
 ```markdown
@@ -221,7 +221,7 @@ These scores inform conflict resolution - higher-scoring plans generally win.
 **VERDICT**: PRESERVE - add to final plan's risk section
 ```
 
-### 5.3 Conflict Resolution Format (Phase 4)
+### 5.3 Conflict Resolution Format (Phase 5)
 
 For each conflict point, the synthesizer outputs (using **actual model names**, not "Plan A/B"):
 
@@ -514,10 +514,10 @@ EOF
 # 5. Pipeline executes:
 # a) Parallel generation: strategist + pragmatist + creative
 # b) Phase 2: 4-criterion evaluation (C1-C4 scores)
-# c) Phase 2.5: Assumption/Risk analysis
-# d) Phases 3-5: Conflict detection & synthesis
+# c) Phase 3: Assumption/Risk analysis
+# d) Phases 4-6: Conflict detection & synthesis
 # e) Debate round: Rejected models rebut
-# f) Phase 6: Final review, may revise
+# f) Phase 7: Final review, may revise
 
 # 6. Output files created:
 # .sisyphus/plans/auth-strategist.md

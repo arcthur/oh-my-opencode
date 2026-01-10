@@ -267,12 +267,13 @@ ${session.requestContext}
 ### Your Task
 
 1. Read ALL plan files listed above using the Read tool
-2. Apply your Phase 1-5 process:
+2. Apply your Phase 1-6 process:
    - Phase 1: Read all plans
    - Phase 2: Critique each plan (Momus style)
-   - Phase 3: Detect conflicts section by section
-   - Phase 4: Resolve each conflict with harsh verdicts
-   - Phase 5: Synthesize the final unified plan
+   - Phase 3: Analyze assumptions and risks
+   - Phase 4: Detect conflicts section by section
+   - Phase 5: Resolve each conflict with harsh verdicts
+   - Phase 6: Synthesize the final unified plan
 
 3. Generate TWO files:
    - Comparison report: \`.sisyphus/plan-reviews/${session.planName}-comparison.md\`
