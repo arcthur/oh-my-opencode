@@ -27,6 +27,7 @@ export const BuiltinAgentNameSchema = z.enum([
   "Metis (Plan Consultant)",
   "Momus (Plan Reviewer)",
   "orchestrator-sisyphus",
+  "plan-synthesizer",
 ])
 
 export const BuiltinSkillNameSchema = z.enum([
@@ -50,6 +51,7 @@ export const OverridableAgentNameSchema = z.enum([
   "document-writer",
   "multimodal-looker",
   "orchestrator-sisyphus",
+  "plan-synthesizer",
 ])
 
 export const AgentNameSchema = BuiltinAgentNameSchema
@@ -86,6 +88,7 @@ export const HookNameSchema = z.enum([
   "prometheus-md-only",
   "start-work",
   "sisyphus-orchestrator",
+  "multi-plan-trigger",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -130,6 +133,28 @@ export const AgentOverridesSchema = z.object({
   "document-writer": AgentOverrideConfigSchema.optional(),
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
   "orchestrator-sisyphus": AgentOverrideConfigSchema.optional(),
+  "plan-synthesizer": AgentOverrideConfigSchema.optional(),
+})
+
+/** Multi-Plan Model Configuration */
+export const MultiPlanModelSchema = z.object({
+  /** Display name for this model perspective, e.g., "strategist", "creative" */
+  name: z.string().min(1),
+  /** Use a predefined category (inherits model and settings from sisyphus_task categories) */
+  category: z.string().optional(),
+  /** Direct model specification, e.g., "anthropic/claude-opus-4-5", "openai/gpt-5.2" */
+  model: z.string().optional(),
+}).refine(
+  data => data.category || data.model,
+  { message: "Either category or model must be specified" }
+)
+
+/** Multi-Plan Configuration for parallel plan generation with synthesis */
+export const MultiPlanConfigSchema = z.object({
+  /** Enable multi-model planning (default: false) */
+  enabled: z.boolean().default(false),
+  /** List of models to participate in parallel plan generation (2-5 recommended) */
+  models: z.array(MultiPlanModelSchema).min(2).max(5),
 })
 
 export const ClaudeCodeConfigSchema = z.object({
@@ -316,6 +341,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   background_task: BackgroundTaskConfigSchema.optional(),
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
+  multi_plan: MultiPlanConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -338,5 +364,7 @@ export type CategoryConfig = z.infer<typeof CategoryConfigSchema>
 export type CategoriesConfig = z.infer<typeof CategoriesConfigSchema>
 export type BuiltinCategoryName = z.infer<typeof BuiltinCategoryNameSchema>
 export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
+export type MultiPlanModel = z.infer<typeof MultiPlanModelSchema>
+export type MultiPlanConfig = z.infer<typeof MultiPlanConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

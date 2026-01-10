@@ -32,6 +32,8 @@ export interface BackgroundTask {
   concurrencyKey?: string
   /** Parent session's agent name for notification */
   parentAgent?: string
+  /** If true, skip parent session notification on completion (for internal orchestration tasks) */
+  silent?: boolean
 }
 
 export interface LaunchInput {
@@ -45,6 +47,8 @@ export interface LaunchInput {
   model?: { providerID: string; modelID: string }
   skills?: string[]
   skillContent?: string
+  /** If true, skip parent session notification on completion (for internal orchestration tasks) */
+  silent?: boolean
 }
 
 export interface ResumeInput {

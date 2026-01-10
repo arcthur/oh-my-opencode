@@ -30,6 +30,7 @@ import {
   createStartWorkHook,
   createSisyphusOrchestratorHook,
   createPrometheusMdOnlyHook,
+  createMultiPlanTriggerHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -61,6 +62,7 @@ import {
   discoverCommandsSync,
   sessionExists,
   createSisyphusTask,
+  createMultiPlanTool,
   interactive_bash,
   startTmuxCheck,
 } from "./tools";
@@ -214,6 +216,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   initTaskToastManager(ctx.client);
 
+  const multiPlanTrigger = isHookEnabled("multi-plan-trigger") && pluginConfig.multi_plan?.enabled
+    ? createMultiPlanTriggerHook({
+        config: pluginConfig.multi_plan,
+      })
+    : null;
+
   const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
     ? createTodoContinuationEnforcer(ctx, { backgroundManager })
     : null;
@@ -236,6 +244,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     manager: backgroundManager,
     client: ctx.client,
     userCategories: pluginConfig.categories,
+  });
+  const multiPlanTool = createMultiPlanTool({
+    ctx,
+    backgroundManager,
+    config: pluginConfig.multi_plan,
   });
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();
@@ -305,6 +318,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       call_omo_agent: callOmoAgent,
       look_at: lookAt,
       sisyphus_task: sisyphusTask,
+      multi_plan: multiPlanTool,
       skill: skillTool,
       skill_mcp: skillMcpTool,
       slashcommand: slashcommandTool,
@@ -317,6 +331,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await contextInjector["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
+      await multiPlanTrigger?.["chat.message"]?.(input, output);
 
       if (ralphLoop) {
         const parts = (
