@@ -35,9 +35,9 @@ Every complex task creates three markdown files:
 
 ```
 .sisyphus/plans/{plan-name}/
-├── task_plan.md           # Phases, goals, decisions, errors
+├── task_plan.md           # Phases, goals, decisions, errors, blockers
 ├── findings.md            # Research results (2-action rule)
-├── progress.md            # Session logs, 5-Question Reboot
+├── progress.md            # Session logs, phase transitions
 └── .planning-state.json   # Persisted state (action count, error strikes)
 ```
 

@@ -175,7 +175,7 @@ Error: ${output.error.slice(0, 150)}
     },
 
     /**
-     * ChatMessage: Prometheus integration
+     * ChatMessage: Session initialization and capability notice
      */
     "chat.message": async (input, output) => {
       const { session_id, cwd } = input
@@ -200,7 +200,7 @@ Error: ${output.error.slice(0, 150)}
 - progress.md - Session logs
 
 **Active Protocols**:
-- Auto re-read task_plan before Write/Edit/Bash
+- Auto re-read task_plan before Write/Edit/Bash/NotebookEdit
 - 2-Action Rule with auto-reset
 - 3-Strike Error Protocol (forced recording on Strike 2+)
 - Phase Reflection (prompts on completion for plan adjustment)
