@@ -21,7 +21,7 @@ A comprehensive guide to context window management in oh-my-opencode. This docum
 
 ### The Context Window Problem
 
-Large Language Models operate within fixed context window limits. As conversations progress, the context gradually fills, leading to several critical challenges:
+Large Language Models operate within fixed context window limits. As conversations progress, the context gradually fills, leading to three critical challenges:
 
 1. **Performance Degradation**: Model performance significantly deteriorates when approaching context limits, a phenomenon known as "context rot"
 2. **Information Loss**: Naive truncation discards important historical information
@@ -55,7 +55,7 @@ The system implements a hierarchical approach to context management:
 
 | Strategy | Trigger | Advantages | Disadvantages |
 |----------|---------|------------|---------------|
-| **Proactive** | Threshold-based (before limits) | Smooth transitions, no interruptions | May compact earlier than necessary |
+| **Proactive** | Threshold-based (before limits) | Smooth transitions, no interruptions | Uses less than maximum available context |
 | **Reactive** | Error-based (after API failure) | Maximum context utilization | Causes workflow interruption |
 
 oh-my-opencode supports both strategies. **Proactive mode is recommended** for production use to avoid workflow interruptions.
@@ -231,7 +231,7 @@ DCP comprises a set of reversible pruning strategies that remove redundant infor
 1. Deduplication - Safe: identical calls, agent can re-fetch
 2. Clear Tool Results - Safe: old results from deep history, agent can re-fetch
 3. Supersede Writes - Medium risk: writes that have been re-read
-4. Purge Errors - Lower priority: old errors might still be informative
+4. Purge Errors - Executed last: old errors have limited ongoing value but may aid debugging
 
 This order ensures the safest operations are applied first, maximizing token savings with minimal information loss risk.
 
@@ -326,7 +326,7 @@ Bash("invalid-cmd")  // Error → Pruned after threshold
 Bash("valid-cmd")    // Success → Preserved
 ```
 
-**Rationale**: Error messages from many turns ago rarely provide actionable information and consume valuable context space.
+**Rationale**: Error context degrades as the conversation progresses and the agent's focus shifts. Old errors consume space better utilized for current task information.
 
 **Configuration**:
 ```json
@@ -764,7 +764,7 @@ Certain tools should never be pruned as they maintain critical state:
 |--------|-------------------------|----------|
 | **Context Utilization** | ~80% of available | ~100% of available |
 | **Workflow Interruption** | Smooth, predictable | Sudden, disruptive |
-| **Information Retention** | Slightly lower | Maximum until failure |
+| **Information Retention** | Compacted at threshold | Maximum until API error |
 | **User Experience** | Better (no errors) | Risk of failures |
 | **Recommended For** | Production, long sessions | Short sessions, exploration |
 
@@ -802,7 +802,7 @@ Certain tools should never be pruned as they maintain critical state:
 
 3. **Repo Overview Cache**: Stored at `~/.opencode/cache/repo-overview/`. May expose project structure. Clear cache if switching between sensitive projects.
 
-4. **Tool Output Pruning**: Pruned content is replaced with placeholder text, not deleted from disk immediately. Sensitive output in tool results follows normal session cleanup.
+4. **Tool Output Pruning**: Pruned content is replaced with placeholder text, not deleted from disk immediately. Sensitive output in tool results is retained until session termination or explicit cleanup.
 
 ---
 
