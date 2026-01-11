@@ -110,7 +110,7 @@ PHASE 3: Session Summarize
 ### 3.2 阈值管理
 
 - 不要等 API 报错再处理
-- Claude 3.7 Sonnet (~200K): 建议在 150K-180K 触发
+- Claude 3.5 Sonnet (~200K): 建议在 150K-180K 触发
 - 1M context: 建议在 256K 前触发（避免 "context rot"）
 
 ### 3.3 保留动量 (Preserving Momentum)

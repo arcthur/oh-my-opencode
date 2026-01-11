@@ -390,6 +390,8 @@ export const RuntimeTrackerConfigSchema = z.object({
   max_recent: z.number().min(3).max(50).default(10),
   /** Inject runtime hints into tool output (default: true) */
   inject_hints: z.boolean().default(true),
+  /** Cooldown in ms between hints for the same tool (default: 60000) */
+  hint_cooldown_ms: z.number().min(0).default(60000),
 })
 
 /** User Memory Configuration - persistent memory across sessions */

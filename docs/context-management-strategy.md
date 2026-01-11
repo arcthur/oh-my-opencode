@@ -1035,6 +1035,6 @@ Set `turn_protection.turns` based on your typical task complexity:
 |---------|------|---------|
 | 3.1.0 | 2026-01 | Added Org Memory (project/team-level memory), optimized DCP strategy execution order, added hint throttling to Runtime Tracker |
 | 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, Repository Overview, User Memory, Runtime Tracker |
-| 2.9.0 | - | Initial DCP implementation with deduplication, supersede_writes, purge_errors |
-| 2.8.0 | - | Preemptive compaction hook |
-| 2.7.0 | - | Context window monitoring |
+| 2.9.0 | TBD | Initial DCP implementation with deduplication, supersede_writes, purge_errors |
+| 2.8.0 | TBD | Preemptive compaction hook |
+| 2.7.0 | TBD | Context window monitoring |

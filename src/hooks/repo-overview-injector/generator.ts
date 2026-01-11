@@ -254,7 +254,6 @@ function generateDirectoryTree(projectDir: string, maxLines: number): string {
 
   function traverse(dir: string, prefix: string, depth: number): void {
     if (lines.length >= maxLines) return
-    if (depth > 4) return // Max depth of 4 levels
 
     try {
       const items = readdirSync(dir)
