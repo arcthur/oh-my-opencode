@@ -142,7 +142,11 @@ oh-my-opencode Context Management
 │   ├── repo-overview-injector/        # Project context injection
 │   └── directory-agents-injector/     # Directory-level context
 ├── Memory Systems                     # Persistent memory
-│   └── user-memory/                   # Cross-session memory
+│   ├── user-memory/                   # Cross-session user memory
+│   │   ├── types.ts                   # Memory schema
+│   │   ├── storage.ts                 # Persistence layer
+│   │   └── hook.ts                    # Injection hook
+│   └── org-memory/                    # Project/team memory
 │       ├── types.ts                   # Memory schema
 │       ├── storage.ts                 # Persistence layer
 │       └── hook.ts                    # Injection hook
@@ -166,6 +170,7 @@ oh-my-opencode Context Management
               │   Bootstrap Injection   │
               │  • Repository Overview  │
               │  • User Memory          │
+              │  • Org Memory           │
               │  • AGENTS.md Context    │
               └────────────┬────────────┘
                            │
@@ -447,6 +452,8 @@ Automatically injects project context at session start, reducing redundant explo
 
 **Caching**: Stored at `~/.opencode/cache/repo-overview/` with configurable TTL (default: 1 hour)
 
+**Injection Timing**: Configurable via `min_tool_calls` (default: 1 = first tool use). Set to 2+ to skip injection for trivial one-shot interactions.
+
 **Configuration** (top-level):
 ```json
 {
@@ -454,7 +461,8 @@ Automatically injects project context at session start, reducing redundant explo
     "enabled": true,
     "auto_generate": true,
     "max_tree_depth": 50,
-    "cache_duration_ms": 3600000
+    "cache_duration_ms": 3600000,
+    "min_tool_calls": 1
   }
 }
 ```
@@ -480,7 +488,14 @@ User: Remember that our API uses snake_case for all endpoints
 → Automatically saved to explicitMemories
 ```
 
-The system detects patterns: "remember that", "note that", "keep in mind", "save this", "please save".
+The system detects patterns:
+- "remember that X" - declarative statements
+- "remember: X" or "remember this: X" - explicit memory markers
+- "note that X" - declarative statements
+- "keep in mind that X" - must have "that" to be declarative
+- "I prefer/always/like/use/want X" - preference statements
+
+**Note**: Imperative commands like "remember to run tests" are NOT captured (no "that" or colon marker).
 
 **Configuration** (top-level):
 ```json
@@ -537,6 +552,8 @@ The system detects patterns:
     "auto_inject": true,
     "max_conventions": 10,
     "max_decisions": 5,
+    "max_patterns": 5,
+    "max_terminology": 10,
     "max_custom_rules": 20
   }
 }
@@ -573,6 +590,8 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
  Consider narrower queries or caching results.]
 ```
 
+**Throttling**: Hints are throttled via `hint_cooldown_ms` (default: 60 seconds per tool) to prevent spam when a tool is repeatedly slow.
+
 **Configuration** (top-level):
 ```json
 {
@@ -580,7 +599,8 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
     "enabled": true,
     "threshold_ms": 3000,
     "max_recent": 10,
-    "inject_hints": true
+    "inject_hints": true,
+    "hint_cooldown_ms": 60000
   }
 }
 ```
@@ -647,7 +667,8 @@ oh-my-opencode config
     "enabled": true,
     "auto_generate": true,
     "max_tree_depth": 50,
-    "cache_duration_ms": 3600000
+    "cache_duration_ms": 3600000,
+    "min_tool_calls": 1
   },
   "user_memory": {
     "enabled": true,
@@ -656,11 +677,21 @@ oh-my-opencode config
     "max_history_entries": 50,
     "auto_inject": true
   },
+  "org_memory": {
+    "enabled": true,
+    "auto_inject": true,
+    "max_conventions": 10,
+    "max_decisions": 5,
+    "max_patterns": 5,
+    "max_terminology": 10,
+    "max_custom_rules": 20
+  },
   "runtime_tracker": {
     "enabled": true,
     "threshold_ms": 3000,
     "max_recent": 10,
-    "inject_hints": true
+    "inject_hints": true,
+    "hint_cooldown_ms": 60000
   }
 }
 ```
@@ -759,9 +790,11 @@ Certain tools should never be pruned as they maintain critical state:
 
 1. **User Memory**: Stored at `~/.opencode/memory/user.json` with standard file permissions. Do not store secrets.
 
-2. **Repo Overview Cache**: Stored at `~/.opencode/cache/repo-overview/`. May expose project structure. Clear cache if switching between sensitive projects.
+2. **Org Memory**: Stored at `.opencode/memory/org.json` in project root. May be committed to version control—do not store secrets or sensitive credentials.
 
-3. **Tool Output Pruning**: Pruned content is replaced with placeholder text, not deleted from disk immediately. Sensitive output in tool results follows normal session cleanup.
+3. **Repo Overview Cache**: Stored at `~/.opencode/cache/repo-overview/`. May expose project structure. Clear cache if switching between sensitive projects.
+
+4. **Tool Output Pruning**: Pruned content is replaced with placeholder text, not deleted from disk immediately. Sensitive output in tool results follows normal session cleanup.
 
 ---
 
