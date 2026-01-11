@@ -495,7 +495,54 @@ The system detects patterns: "remember that", "note that", "keep in mind", "save
 }
 ```
 
-### 3. AGENTS.md Injection
+### 3. Org Memory (Project/Team Memory)
+
+Project-level memory shared across all team members, stored at `.opencode/memory/org.json` in the project root.
+
+**Stored Information**:
+
+| Category | Description | Example |
+|----------|-------------|---------|
+| `conventions` | Coding conventions and style rules | `[{ "name": "api-naming", "description": "Use snake_case for API endpoints" }]` |
+| `architecturalDecisions` | ADRs (Architecture Decision Records) | `[{ "title": "Use Redux", "rationale": "Team familiarity..." }]` |
+| `patterns` | Common patterns used in the project | `[{ "name": "error-handling", "description": "..." }]` |
+| `terminology` | Project-specific terms | `{ "PDC": "Product Data Catalog" }` |
+| `protectedPaths` | Files that should never be modified | `["config/production.json", ".env.production"]` |
+| `customRules` | Project-wide rules | `["Always use TypeScript strict mode"]` |
+
+**Memory Triggers**:
+```
+User: Remember for this project that we use snake_case for database columns
+→ Automatically saved to customRules
+
+User: Never modify config/secrets.json
+→ Automatically saved to protectedPaths
+```
+
+The system detects patterns:
+- "remember for project/project-wide that..."
+- "project rule: ..."
+- "team/org convention: ..."
+- "never modify/change/edit..."
+
+**Key Difference from User Memory**:
+- **User Memory**: Personal preferences stored in `~/.opencode/memory/user.json` (follows the user across projects)
+- **Org Memory**: Project conventions stored in `.opencode/memory/org.json` (shared with team via version control)
+
+**Configuration** (top-level):
+```json
+{
+  "org_memory": {
+    "enabled": true,
+    "auto_inject": true,
+    "max_conventions": 10,
+    "max_decisions": 5,
+    "max_custom_rules": 20
+  }
+}
+```
+
+### 4. AGENTS.md Injection
 
 Automatically injects directory-level AGENTS.md files to provide localized context.
 
@@ -509,7 +556,7 @@ Automatically injects directory-level AGENTS.md files to provide localized conte
 
 This enables project-specific and directory-specific context to be automatically provided without explicit configuration.
 
-### 4. Runtime Tracker
+### 5. Runtime Tracker
 
 Monitors tool execution times to help the agent avoid repeating slow operations.
 
@@ -562,6 +609,7 @@ oh-my-opencode config
 │           └── clear_tool_results
 ├── repo_overview                   # Repository Overview (top-level)
 ├── user_memory                     # User Memory (top-level)
+├── org_memory                      # Org Memory (top-level)
 └── runtime_tracker                 # Runtime Tracker (top-level)
 ```
 
