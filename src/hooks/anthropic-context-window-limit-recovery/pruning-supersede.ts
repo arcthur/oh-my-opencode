@@ -82,7 +82,9 @@ export function executeSupersedeWrites(
       }
     }
   }
-  
+
+  state.currentTurn = currentTurn
+
   let prunedCount = 0
   let tokensSaved = 0
   

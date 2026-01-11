@@ -6,7 +6,6 @@ import { readMessages } from "./pruning-shared"
 export interface PurgeErrorsConfig {
   enabled: boolean
   turns: number
-  protectedTools?: string[]
 }
 
 interface ErrorCandidate {
@@ -42,8 +41,6 @@ export function executePurgeErrors(
       if (part.type !== "tool" || !part.callID || !part.tool) continue
 
       if (protectedTools.has(part.tool)) continue
-
-      if (config.protectedTools?.includes(part.tool)) continue
 
       if (state.toolIdsToPrune.has(part.callID)) continue
 

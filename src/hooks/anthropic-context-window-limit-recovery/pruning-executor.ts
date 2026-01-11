@@ -89,7 +89,7 @@ export async function executeDynamicContextPruning(
     )
   }
 
-  // 4. Purge errors: Lower priority - old errors might still be informative
+  // 4. Purge errors: Executed last - old errors have limited ongoing value but may aid debugging
   if (config.strategies?.purge_errors?.enabled !== false) {
     purgeCount = executePurgeErrors(
       sessionID,

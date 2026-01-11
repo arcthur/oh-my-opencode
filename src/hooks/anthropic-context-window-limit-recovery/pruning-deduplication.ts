@@ -5,7 +5,6 @@ import { readMessages, findToolOutput } from "./pruning-shared"
 
 export interface DeduplicationConfig {
   enabled: boolean
-  protectedTools?: string[]
 }
 
 export function createToolSignature(toolName: string, input: unknown): string {
@@ -51,9 +50,7 @@ export function executeDeduplication(
       if (part.type !== "tool" || !part.callID || !part.tool) continue
       
       if (protectedTools.has(part.tool)) continue
-      
-      if (config.protectedTools?.includes(part.tool)) continue
-      
+
       if (state.toolIdsToPrune.has(part.callID)) continue
       
       const signature = createToolSignature(part.tool, part.state?.input)
@@ -80,7 +77,9 @@ export function executeDeduplication(
       })
     }
   }
-  
+
+  state.currentTurn = currentTurn
+
   let prunedCount = 0
   let tokensSaved = 0
   

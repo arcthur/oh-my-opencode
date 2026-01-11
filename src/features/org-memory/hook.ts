@@ -1,35 +1,14 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { OrgMemoryConfig } from "./types"
+import type {
+  ToolExecuteInput,
+  ToolExecuteOutput,
+  EventInput,
+  MessageInput,
+} from "../../shared/hook-types"
 import { DEFAULT_CONFIG } from "./types"
 import { getOrgMemorySummary, addCustomRule, addProtectedPath } from "./storage"
 import { log } from "../../shared/logger"
-
-interface ToolExecuteInput {
-  tool: string
-  sessionID: string
-  callID: string
-}
-
-interface ToolExecuteOutput {
-  title: string
-  output: string
-  metadata: unknown
-}
-
-interface EventInput {
-  event: {
-    type: string
-    properties?: unknown
-  }
-}
-
-interface MessageInput {
-  sessionID: string
-  message: {
-    role: string
-    content: string
-  }
-}
 
 /**
  * Creates a hook that injects org/project memory into sessions
