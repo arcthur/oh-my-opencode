@@ -10,6 +10,7 @@ A comprehensive guide to context window management in oh-my-opencode. This docum
 - [Compaction Strategies](#compaction-strategies)
 - [Memory Systems](#memory-systems)
 - [Configuration Guide](#configuration-guide)
+- [Trade-offs and Limitations](#trade-offs-and-limitations)
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
 - [References](#references)
@@ -52,20 +53,22 @@ The system implements a hierarchical approach to context management:
 
 ### 1. Proactive vs Reactive Management
 
-| Strategy | Trigger | Advantages |
-|----------|---------|------------|
-| **Proactive** | Threshold-based (before limits) | Smooth transitions, no interruptions |
-| **Reactive** | Error-based (after API failure) | Maximum context utilization |
+| Strategy | Trigger | Advantages | Disadvantages |
+|----------|---------|------------|---------------|
+| **Proactive** | Threshold-based (before limits) | Smooth transitions, no interruptions | May compact earlier than necessary |
+| **Reactive** | Error-based (after API failure) | Maximum context utilization | Causes workflow interruption |
 
-oh-my-opencode supports both strategies, with proactive mode recommended for production use.
+oh-my-opencode supports both strategies. **Proactive mode is recommended** for production use to avoid workflow interruptions.
 
 ### 2. Preserve Momentum
 
-During compaction, the system always preserves the most recent 3-5 conversation turns in their original form. This ensures the model maintains:
+During compaction, the system preserves the most recent conversation turns in their original form. This ensures the model maintains:
 
 - Consistent formatting style
 - Task execution "rhythm"
 - Tool invocation patterns
+
+**Configuration**: `turn_protection.turns` (default: 3 turns)
 
 Research indicates that keeping recent turns raw significantly improves post-compaction coherence.
 
@@ -101,6 +104,16 @@ PHASE 3: Session Summarization
 
 This approach minimizes information loss by applying the least destructive method first.
 
+### 5. Cooldown Mechanism
+
+To prevent excessive compaction cycles, the system enforces a **60-second cooldown** between compaction operations. This prevents:
+
+- Rapid successive compactions that could lose context
+- Performance degradation from frequent summarization calls
+- User experience disruption from constant notifications
+
+**Constant**: `COMPACTION_COOLDOWN_MS = 60000` (60 seconds)
+
 ---
 
 ## Architecture
@@ -111,8 +124,14 @@ This approach minimizes information loss by applying the least destructive metho
 oh-my-opencode Context Management
 ├── Preemptive Compaction              # Proactive compression
 │   └── preemptive-compaction/
+│       ├── index.ts                   # Main logic
+│       ├── constants.ts               # Thresholds, cooldown
+│       └── types.ts                   # TokenInfo, State
 ├── Error Recovery                     # Reactive recovery
 │   └── anthropic-context-window-limit-recovery/
+│       ├── index.ts                   # Hook entry point
+│       ├── executor.ts                # Three-phase orchestration
+│       ├── parser.ts                  # Token error parsing
 │       ├── pruning-deduplication.ts   # Remove duplicate calls
 │       ├── pruning-supersede.ts       # Remove superseded writes
 │       ├── pruning-purge-errors.ts    # Remove old errors
@@ -124,8 +143,11 @@ oh-my-opencode Context Management
 │   └── directory-agents-injector/     # Directory-level context
 ├── Memory Systems                     # Persistent memory
 │   └── user-memory/                   # Cross-session memory
+│       ├── types.ts                   # Memory schema
+│       ├── storage.ts                 # Persistence layer
+│       └── hook.ts                    # Injection hook
 ├── Monitoring                         # Runtime monitoring
-│   ├── context-window-monitor.ts      # Usage tracking
+│   ├── context-window-monitor.ts      # Usage tracking (70% warning)
 │   └── runtime-tracker/               # Tool performance tracking
 └── Output Optimization                # Output size management
     ├── tool-output-truncator.ts       # Tool output truncation
@@ -156,8 +178,8 @@ oh-my-opencode Context Management
                            │                          │
               ┌────────────▼────────────┐             │
               │   Context Monitoring    │             │
-              │  • 70% Warning          │             │
-              │  • 85% Compaction       │             │
+              │  • 70% → Warning        │             │
+              │  • 85% → Compaction     │             │
               └────────────┬────────────┘             │
                            │                          │
             ┌──────────────┴──────────────┐           │
@@ -169,13 +191,28 @@ oh-my-opencode Context Management
             │                             │           │
             │              ┌──────────────▼──────────┐│
             │              │   Compaction Pipeline   ││
+            │              │  (if cooldown passed)   ││
             │              │  1. DCP Pruning         ││
             │              │  2. Truncation          ││
             │              │  3. Summarization       ││
             │              └──────────────┬──────────┘│
             │                             │           │
+            │              ┌──────────────▼──────────┐│
+            │              │   60s Cooldown Reset    ││
+            │              └──────────────┬──────────┘│
+            │                             │           │
             └─────────────────────────────┴───────────┘
 ```
+
+### Event Flow
+
+| Event | Handler | Action |
+|-------|---------|--------|
+| `message.updated` | preemptive-compaction | Check usage after assistant response |
+| `session.idle` | preemptive-compaction | Check usage when session becomes idle |
+| `session.error` | anthropic-context-window-limit-recovery | Trigger recovery on token limit error |
+| `session.compacted` | Various | Clear session-specific caches |
+| `session.deleted` | Various | Clean up session state |
 
 ---
 
@@ -187,17 +224,19 @@ DCP comprises a set of reversible pruning strategies that remove redundant infor
 
 #### 1.1 Deduplication
 
-Removes identical tool invocations (same tool name + identical arguments).
+Removes duplicate tool invocations (same tool name + identical arguments), **keeping only the most recent occurrence**.
 
 ```typescript
-// Example: Consecutive reads of the same file
-Read("src/index.ts")  // Preserved (first occurrence)
-Read("src/index.ts")  // Pruned (duplicate)
+// Example: Multiple reads of the same file
+Read("src/index.ts")  // Pruned (older duplicate)
+Read("src/index.ts")  // Pruned (older duplicate)
 Read("src/utils.ts")  // Preserved (different file)
-Read("src/index.ts")  // Pruned (duplicate)
+Read("src/index.ts")  // Preserved (most recent)
 ```
 
-**Rationale**: Duplicate tool calls provide no additional information. The agent can rely on the most recent result.
+**Rationale**: The most recent result is the most relevant. Earlier identical calls provide no additional information.
+
+**Implementation Detail**: Uses signature-based deduplication where signature = `toolName::JSON(sortedInput)`.
 
 **Configuration**:
 ```json
@@ -221,13 +260,17 @@ Read("config.json")            // Preserved (proves writes completed)
 
 **Rationale**: Once a file has been read after modifications, the write inputs are redundant—the read output contains the current state.
 
+**Modes**:
+- `aggressive: false` (default): Only prune writes when the SAME file is read
+- `aggressive: true`: Prune writes when ANY subsequent read occurs
+
 **Configuration**:
 ```json
 {
   "strategies": {
     "supersede_writes": {
       "enabled": true,
-      "aggressive": false  // true: prune any write followed by ANY read
+      "aggressive": false
     }
   }
 }
@@ -270,7 +313,7 @@ Read("file.ts") → output: "[Content pruned by Dynamic Context Pruning]"
 Read("file.ts") → output: "actual file content..."
 ```
 
-**Rationale**: Tool results deep in conversation history are rarely referenced. If needed, the agent can re-invoke the tool to retrieve current information.
+**Rationale**: Tool results deep in conversation history are rarely referenced. If needed, the agent can re-invoke the tool to retrieve current information. The tool invocation record is preserved, only the verbose output is cleared.
 
 **Configuration**:
 ```json
@@ -284,6 +327,21 @@ Read("file.ts") → output: "actual file content..."
 }
 ```
 
+#### Turn Protection
+
+All DCP strategies respect **turn protection**, which prevents pruning of recent tool calls regardless of other criteria.
+
+```json
+{
+  "turn_protection": {
+    "enabled": true,
+    "turns": 3  // Never prune tools from the last 3 turns
+  }
+}
+```
+
+**Rationale**: Recent tool outputs are likely still relevant to ongoing work. Pruning them could disrupt the agent's current reasoning flow.
+
 ### 2. Aggressive Truncation
 
 When DCP fails to release sufficient context space, the system applies aggressive truncation to the largest tool outputs.
@@ -295,11 +353,22 @@ When DCP fails to release sufficient context space, the system applies aggressiv
 
 **Target**: Reduce token count to `maxTokens * 0.5`
 
+**Configuration Constants**:
+- `TRUNCATE_CONFIG.maxTruncateAttempts = 20`
+- `TRUNCATE_CONFIG.targetRatio = 0.5`
+- `CHARS_PER_TOKEN = 4` (estimation)
+
 This phase preserves tool invocation records while removing verbose output content.
 
 ### 3. Session Summarization
 
 The final fallback strategy employs the LLM to generate a structured session summary.
+
+**Retry Configuration**:
+- `RETRY_CONFIG.maxAttempts = 2`
+- `RETRY_CONFIG.initialDelayMs = 2000`
+- `RETRY_CONFIG.maxDelayMs = 30000`
+- Exponential backoff between retries
 
 #### Compaction Template
 
@@ -368,17 +437,17 @@ This structured approach ensures comprehensive information preservation during l
 Automatically injects project context at session start, reducing redundant exploration.
 
 **Injected Content**:
-- Project name and description
+- Project name and description (from package.json)
 - Technology stack (TypeScript, React, Python, etc.)
 - Frameworks (Next.js, Express, Django, etc.)
 - Package manager (npm, yarn, pnpm, bun)
 - Common commands (build, dev, test, lint)
-- Core file listing
-- Directory structure tree
+- Core file listing (package.json, tsconfig.json, etc.)
+- Directory structure tree (max depth configurable)
 
-**Caching**: 1 hour default (configurable)
+**Caching**: Stored at `~/.opencode/cache/repo-overview/` with configurable TTL (default: 1 hour)
 
-**Configuration**:
+**Configuration** (top-level):
 ```json
 {
   "repo_overview": {
@@ -400,9 +469,10 @@ Cross-session persistent memory stored at `~/.opencode/memory/user.json`.
 |----------|-------------|---------|
 | `preferences` | User preferences | `{ "style": "concise", "language": "en" }` |
 | `environment` | Development environment | `{ "os": "macOS", "shell": "zsh", "editor": "vscode" }` |
-| `workHistory` | Recent work sessions | Last 50 session summaries |
+| `workHistory` | Recent work sessions | Last N session summaries (configurable) |
 | `customRules` | Persistent instructions | `["Always use TypeScript", "Prefer functional style"]` |
 | `explicitMemories` | User-requested memories | Content from "remember that..." requests |
+| `frequentPatterns` | Common commands/patterns | Auto-detected frequent operations |
 
 **Memory Triggers**:
 ```
@@ -410,9 +480,9 @@ User: Remember that our API uses snake_case for all endpoints
 → Automatically saved to explicitMemories
 ```
 
-The system detects patterns like "remember that", "note that", "keep in mind" and persists the associated content.
+The system detects patterns: "remember that", "note that", "keep in mind", "save this", "please save".
 
-**Configuration**:
+**Configuration** (top-level):
 ```json
 {
   "user_memory": {
@@ -433,6 +503,9 @@ Automatically injects directory-level AGENTS.md files to provide localized conte
 1. Start from the directory of the current file operation
 2. Traverse upward to project root
 3. Inject all discovered AGENTS.md files in hierarchical order
+4. Skip root-level AGENTS.md (loaded separately by system)
+
+**Injection Timing**: On first file access in each directory
 
 This enables project-specific and directory-specific context to be automatically provided without explicit configuration.
 
@@ -440,19 +513,20 @@ This enables project-specific and directory-specific context to be automatically
 
 Monitors tool execution times to help the agent avoid repeating slow operations.
 
-**Tracked Metrics**:
-- Average duration (rolling window)
+**Tracked Metrics** (per session):
+- Average duration (rolling window of last N calls)
 - Last duration
 - Total call count
 - Recent durations for trend analysis
+- Last called timestamp
 
-**Runtime Hints**:
+**Runtime Hints** (injected when threshold exceeded):
 ```
 [Runtime: 5.2s - Tool "grep" averaged 4.8s over 3 calls.
  Consider narrower queries or caching results.]
 ```
 
-**Configuration**:
+**Configuration** (top-level):
 ```json
 {
   "runtime_tracker": {
@@ -467,6 +541,31 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
 ---
 
 ## Configuration Guide
+
+### Configuration Hierarchy
+
+```
+oh-my-opencode config
+├── experimental                    # Experimental features
+│   ├── preemptive_compaction      # Enable proactive compaction
+│   ├── preemptive_compaction_threshold  # Trigger threshold (0.80)
+│   ├── dcp_for_compaction         # Use DCP in recovery
+│   └── dynamic_context_pruning    # DCP configuration
+│       ├── enabled
+│       ├── notification
+│       ├── turn_protection
+│       ├── protected_tools
+│       └── strategies
+│           ├── deduplication
+│           ├── supersede_writes
+│           ├── purge_errors
+│           └── clear_tool_results
+├── repo_overview                   # Repository Overview (top-level)
+├── user_memory                     # User Memory (top-level)
+└── runtime_tracker                 # Runtime Tracker (top-level)
+```
+
+**Note**: DCP configuration is under `experimental.dynamic_context_pruning`, while memory systems are top-level configurations.
 
 ### Complete Configuration Example
 
@@ -528,7 +627,7 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
 | GPT-4 Turbo | 128K | 0.80 (102K) | Standard configuration |
 | GPT-4o | 128K | 0.80 (102K) | Standard configuration |
 
-**Key Insight**: For 1M context models, do not wait until 800K+ tokens. Performance degradation begins well before the absolute limit.
+**Key Insight**: For 1M context models, do not wait until 800K+ tokens. Performance degradation ("context rot") begins well before the absolute limit. Research suggests quality degrades significantly beyond 256K tokens.
 
 ### Protected Tools
 
@@ -537,10 +636,10 @@ Certain tools should never be pruned as they maintain critical state:
 ```json
 {
   "protected_tools": [
-    "task",                      // Subtask state
-    "todowrite",                 // Task list management
+    "task",                      // Subtask state - losing this breaks task coordination
+    "todowrite",                 // Task list management - critical for task tracking
     "todoread",                  // Task list retrieval
-    "lsp_rename",                // LSP rename operations
+    "lsp_rename",                // LSP rename operations - partial renames are dangerous
     "lsp_code_action_resolve",   // LSP code actions
     "session_read",              // Session state
     "session_write",             // Session state
@@ -551,11 +650,70 @@ Certain tools should never be pruned as they maintain critical state:
 
 ### Notification Levels
 
-| Level | Output |
-|-------|--------|
-| `"off"` | No notifications |
-| `"minimal"` | `Pruned 12 tool outputs (~8k tokens)` |
-| `"detailed"` | `Pruned 12 tool outputs (~8k tokens). Dedup: 3, Supersede: 5, Purge: 2, ClearResults: 2` |
+| Level | Output | Use Case |
+|-------|--------|----------|
+| `"off"` | No notifications | Production, minimal interruption |
+| `"minimal"` | `Pruned 12 tool outputs (~8k tokens)` | Normal use |
+| `"detailed"` | `Pruned 12 tool outputs (~8k tokens). Dedup: 3, Supersede: 5, Purge: 2, ClearResults: 2` | Debugging, optimization |
+
+---
+
+## Trade-offs and Limitations
+
+### Strategy Trade-offs
+
+| Strategy | Benefits | Costs | When to Disable |
+|----------|----------|-------|-----------------|
+| **Deduplication** | Removes redundant reads | May lose context if file changed between reads | Never (always safe) |
+| **Supersede Writes** | Significant token savings | Loses write history for debugging | When debugging write operations |
+| **Purge Errors** | Cleans up failed attempts | Loses error context for pattern recognition | When debugging recurring errors |
+| **Clear Tool Results** | Major token savings | Agent must re-fetch if needed | When working with slow/expensive tools |
+| **Aggressive Truncation** | Forces space recovery | Loses detailed output | When output detail is critical |
+| **Summarization** | Guaranteed space recovery | Lossy, may lose nuance | Cannot disable (last resort) |
+
+### Proactive vs Reactive Trade-offs
+
+| Aspect | Proactive (Recommended) | Reactive |
+|--------|-------------------------|----------|
+| **Context Utilization** | ~80% of available | ~100% of available |
+| **Workflow Interruption** | Smooth, predictable | Sudden, disruptive |
+| **Information Retention** | Slightly lower | Maximum until failure |
+| **User Experience** | Better (no errors) | Risk of failures |
+| **Recommended For** | Production, long sessions | Short sessions, exploration |
+
+### Limitations
+
+1. **Summarization Quality**: LLM-generated summaries may lose nuance or misinterpret context. The structured template mitigates but doesn't eliminate this risk.
+
+2. **Token Estimation**: Uses 4 characters per token approximation. Actual token counts vary by model and content type (code vs prose).
+
+3. **File Change Detection**: Deduplication assumes files don't change between reads. If external processes modify files, duplicate reads may actually return different content.
+
+4. **Memory Persistence**: User memory is stored in plaintext JSON. Sensitive information should not be stored via "remember" commands.
+
+5. **Cross-Session State**: While user memory persists, session-specific context (runtime stats, injection caches) is lost on session end.
+
+6. **Cooldown Rigidity**: The 60-second cooldown is fixed. In rapidly filling contexts, this may delay necessary compaction.
+
+7. **Protected Tool Scope**: Protected tools are identified by name only. Custom tools with similar functions need manual protection.
+
+### Performance Considerations
+
+| Operation | Latency Impact | Token Cost |
+|-----------|---------------|------------|
+| DCP Pruning | <100ms | None |
+| Aggressive Truncation | <100ms per iteration | None |
+| Summarization | 2-10s | ~1000-3000 tokens |
+| Repo Overview Generation | 100-500ms | ~500-2000 tokens |
+| User Memory Injection | <50ms | ~200-1000 tokens |
+
+### Security Considerations
+
+1. **User Memory**: Stored at `~/.opencode/memory/user.json` with standard file permissions. Do not store secrets.
+
+2. **Repo Overview Cache**: Stored at `~/.opencode/cache/repo-overview/`. May expose project structure. Clear cache if switching between sensitive projects.
+
+3. **Tool Output Pruning**: Pruned content is replaced with placeholder text, not deleted from disk immediately. Sensitive output in tool results follows normal session cleanup.
 
 ---
 
@@ -565,7 +723,8 @@ Certain tools should never be pruned as they maintain critical state:
 
 ```
 ✅ Recommended: 0.75 - 0.85
-❌ Avoid: > 0.90 (too late) or < 0.60 (too aggressive)
+❌ Avoid: > 0.90 (too late, risk errors)
+❌ Avoid: < 0.60 (too aggressive, waste context)
 ```
 
 Setting the threshold too high risks API errors; setting it too low wastes available context.
@@ -576,15 +735,16 @@ Always protect tools that maintain important state:
 - Task management tools (task, todo*)
 - LSP tools (rename, refactor, code actions)
 - Session management tools (session_*)
+- Any custom tools that maintain state
 
 ### 3. Enable Structured Summarization
 
 Always use the compaction context injector to ensure critical information preservation:
-- Original user requests
-- File modification records
-- Decision rationale
-- Remaining tasks
-- Failure constraints
+- Original user requests (exact wording)
+- File modification records (with line numbers)
+- Decision rationale (prevents re-exploration)
+- Remaining tasks (maintains continuity)
+- Failure constraints (prevents retry of failed approaches)
 
 ### 4. Monitor Context Usage
 
@@ -612,6 +772,22 @@ Enable repository overview injection to eliminate redundant project exploration 
 - Build commands
 - Entry points
 
+### 7. Configure Turn Protection
+
+Set `turn_protection.turns` based on your typical task complexity:
+- Simple tasks: 2-3 turns
+- Complex tasks: 4-5 turns
+- Deep debugging: 5-7 turns
+
+### 8. Use Appropriate DCP Strategy Combinations
+
+| Use Case | Recommended Strategies |
+|----------|----------------------|
+| Code refactoring | dedup + supersede + clear_results |
+| Debugging | dedup + clear_results (disable purge_errors) |
+| Long sessions | All strategies enabled |
+| Short tasks | dedup only |
+
 ---
 
 ## Troubleshooting
@@ -620,51 +796,94 @@ Enable repository overview injection to eliminate redundant project exploration 
 
 **Symptoms**: Agent forgets previous decisions or file modifications after compaction
 
+**Causes**:
+- Summarization template not being used
+- Turn protection too low
+- Critical tools not protected
+
 **Solutions**:
-1. Enable the enhanced compaction context template
-2. Increase `keep_recent_turns` value
+1. Verify `compaction-context-injector` hook is enabled
+2. Increase `turn_protection.turns` value (try 5)
 3. Add critical tools to `protected_tools`
-4. Review if `aggressive` mode is appropriate for your use case
+4. Review if `aggressive: true` for supersede_writes is appropriate
+5. Check compaction logs for what was pruned
 
 ### Issue: Excessive Compaction Frequency
 
 **Symptoms**: Frequent compaction notifications disrupting workflow
 
+**Causes**:
+- Threshold too low
+- Large tool outputs accumulating
+- Verbose tool usage patterns
+
 **Solutions**:
-1. Increase `preemptive_compaction_threshold`
+1. Increase `preemptive_compaction_threshold` (try 0.85)
 2. Enable `clear_tool_results` strategy to reduce tool output accumulation
 3. Enable `tool-output-truncator` hook for proactive output management
-4. Consider using more concise tool invocations
+4. Use more concise tool invocations (narrower searches, specific files)
 
 ### Issue: Token Limit Exceeded Errors
 
 **Symptoms**: API returns token limit exceeded errors despite compaction
+
+**Causes**:
+- Recovery hook not enabled
+- DCP not releasing enough tokens
+- Cooldown preventing timely compaction
 
 **Solutions**:
 1. Verify `anthropic-context-window-limit-recovery` hook is enabled
 2. Enable `dcp_for_compaction: true`
 3. Lower `preemptive_compaction_threshold`
 4. Check for unusually large tool outputs
+5. Review if all DCP strategies are enabled
 
 ### Issue: Oversized Tool Outputs
 
 **Symptoms**: Single tool invocations consuming excessive tokens
+
+**Causes**:
+- Unbounded search results
+- Full file reads of large files
+- Verbose command outputs
 
 **Solutions**:
 1. Enable `tool-output-truncator` hook
 2. Configure `experimental.truncate_all_tool_outputs: true`
 3. Use more precise queries (narrower grep patterns, specific file paths)
 4. Enable runtime tracking to identify problematic tools
+5. Use line limits when reading large files
 
 ### Issue: Slow Tool Operations
 
 **Symptoms**: Long wait times for tool execution
+
+**Causes**:
+- Broad search patterns
+- Large directory traversals
+- Network-dependent operations
 
 **Solutions**:
 1. Enable `runtime_tracker` to identify slow tools
 2. Use more targeted queries
 3. Consider caching frequently accessed information
 4. Break large operations into smaller, focused invocations
+
+### Issue: Memory Not Being Injected
+
+**Symptoms**: Agent doesn't remember cross-session context
+
+**Causes**:
+- User memory disabled
+- Memory file corrupted
+- Auto-inject disabled
+
+**Solutions**:
+1. Verify `user_memory.enabled: true`
+2. Verify `user_memory.auto_inject: true`
+3. Check `~/.opencode/memory/user.json` exists and is valid JSON
+4. Try `clearUserMemory()` and re-add memories
 
 ---
 
@@ -677,12 +896,14 @@ Enable repository overview injection to eliminate redundant project exploration 
 - [Google ADK - Context Compaction](https://google.github.io/adk-docs/context/compaction/)
 - [JetBrains Research - Cutting Through the Noise: Smarter Context Management](https://blog.jetbrains.com/research/2025/12/efficient-context-management/)
 - [Jason Liu - Two Experiments on Context Compaction](https://jxnl.co/writing/2025/08/30/context-engineering-compaction/)
+- [Phil Schmid - Context Engineering for AI Agents](https://www.philschmid.de/context-engineering-part-2)
 
 ### Related Documentation
 
 - [oh-my-opencode Configuration Schema](../src/config/schema.ts)
 - [DCP Implementation](../src/hooks/anthropic-context-window-limit-recovery/)
 - [Preemptive Compaction](../src/hooks/preemptive-compaction/)
+- [Compaction Context Injector](../src/hooks/compaction-context-injector/)
 
 ---
 
@@ -698,6 +919,24 @@ Enable repository overview injection to eliminate redundant project exploration 
 | **Turn** | A single request-response cycle in the conversation |
 | **Protected Tools** | Tools exempt from pruning due to critical state maintenance |
 | **Bootstrap Injection** | Initial context provided at session start |
+| **Turn Protection** | Mechanism to prevent pruning of recent tool calls |
+| **Cooldown** | Minimum time interval between compaction operations |
+
+---
+
+## Appendix: Default Constants
+
+| Constant | Value | Location |
+|----------|-------|----------|
+| `DEFAULT_THRESHOLD` | 0.85 | preemptive-compaction/constants.ts |
+| `MIN_TOKENS_FOR_COMPACTION` | 50,000 | preemptive-compaction/constants.ts |
+| `COMPACTION_COOLDOWN_MS` | 60,000 (60s) | preemptive-compaction/constants.ts |
+| `CONTEXT_WARNING_THRESHOLD` | 0.70 | context-window-monitor.ts |
+| `CHARS_PER_TOKEN` | 4 | pruning-types.ts |
+| `TRUNCATE_MAX_ATTEMPTS` | 20 | executor.ts |
+| `TRUNCATE_TARGET_RATIO` | 0.5 | executor.ts |
+| `RETRY_MAX_ATTEMPTS` | 2 | executor.ts |
+| `RETRY_INITIAL_DELAY_MS` | 2,000 | executor.ts |
 
 ---
 
