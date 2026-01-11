@@ -195,7 +195,7 @@ export function getOrgMemorySummary(
   // Patterns
   if (memory.patterns.length > 0) {
     const patterns = memory.patterns
-      .slice(0, 5)
+      .slice(-config.max_patterns)
       .map(p => `- **${p.name}**: ${p.description}`)
       .join("\n")
     sections.push(`### Project Patterns\n${patterns}`)
@@ -205,7 +205,7 @@ export function getOrgMemorySummary(
   const terms = Object.entries(memory.terminology)
   if (terms.length > 0) {
     const termList = terms
-      .slice(0, 10)
+      .slice(0, config.max_terminology)
       .map(([term, def]) => `- **${term}**: ${def}`)
       .join("\n")
     sections.push(`### Project Terminology\n${termList}`)

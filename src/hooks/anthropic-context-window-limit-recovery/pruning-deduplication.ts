@@ -2,7 +2,6 @@ import type { PruningState, ToolCallSignature } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
 import { log } from "../../shared/logger"
 import { readMessages, findToolOutput } from "./pruning-shared"
-import type { MessagePart } from "./pruning-shared"
 
 export interface DeduplicationConfig {
   enabled: boolean

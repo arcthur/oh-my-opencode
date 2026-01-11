@@ -73,6 +73,10 @@ export interface OrgMemoryConfig {
   max_conventions: number
   /** Max architectural decisions to include (default: 5) */
   max_decisions: number
+  /** Max patterns to include (default: 5) */
+  max_patterns: number
+  /** Max terminology entries to include (default: 10) */
+  max_terminology: number
   /** Max custom rules to include (default: 20) */
   max_custom_rules: number
 }
@@ -82,6 +86,8 @@ export const DEFAULT_CONFIG: OrgMemoryConfig = {
   auto_inject: true,
   max_conventions: 10,
   max_decisions: 5,
+  max_patterns: 5,
+  max_terminology: 10,
   max_custom_rules: 20,
 }
 
