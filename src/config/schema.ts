@@ -144,7 +144,7 @@ export const AgentOverridesSchema = z.object({
 export const MultiPlanModelSchema = z.object({
   /** Display name for this model perspective, e.g., "strategist", "creative" */
   name: z.string().min(1),
-  /** Use a predefined category (inherits model and settings from sisyphus_task categories) */
+  /** Use a predefined category (selects the model + category prompt append; other category tuning is not currently applied here) */
   category: z.string().optional(),
   /** Direct model specification, e.g., "anthropic/claude-opus-4-5", "openai/gpt-5.2" */
   model: z.string().optional(),
@@ -257,7 +257,7 @@ export const ExperimentalConfigSchema = z.object({
   auto_resume: z.boolean().optional(),
   /** Enable preemptive compaction at threshold (default: true since v2.9.0) */
   preemptive_compaction: z.boolean().optional(),
-  /** Threshold percentage to trigger preemptive compaction (default: 0.80) */
+  /** Threshold percentage to trigger preemptive compaction (default: 0.85) */
   preemptive_compaction_threshold: z.number().min(0.5).max(0.95).optional(),
   /** Truncate all tool outputs, not just whitelisted tools (default: false). Tool output truncator is enabled by default - disable via disabled_hooks. */
   truncate_all_tool_outputs: z.boolean().optional(),
@@ -336,8 +336,8 @@ export const GitMasterConfigSchema = z.object({
 export const PlanningWithFilesConfigSchema = z.object({
   /** Enable the planning-with-files pattern (default: false) */
   enabled: z.boolean().default(false),
-  /** Directory for planning files relative to .sisyphus/ (default: "planning") */
-  directory: z.string().default("planning"),
+  /** Directory for planning files relative to .sisyphus/ (default: "plans") */
+  directory: z.string().default("plans"),
   /** Enable 2-action rule for findings updates (default: true) */
   two_action_rule: z.boolean().default(true),
   /** Enable 3-strike error protocol (default: true) */
@@ -408,6 +408,24 @@ export const UserMemoryConfigSchema = z.object({
   auto_inject: z.boolean().default(true),
 })
 
+/** Org Memory Configuration - project/team memory shared via repo */
+export const OrgMemoryConfigSchema = z.object({
+  /** Enable org memory (default: true) */
+  enabled: z.boolean().default(true),
+  /** Auto-inject org memory into sessions (default: true) */
+  auto_inject: z.boolean().default(true),
+  /** Max conventions to include in context (default: 10) */
+  max_conventions: z.number().min(0).max(50).default(10),
+  /** Max architectural decisions to include (default: 5) */
+  max_decisions: z.number().min(0).max(50).default(5),
+  /** Max patterns to include (default: 5) */
+  max_patterns: z.number().min(0).max(50).default(5),
+  /** Max terminology entries to include (default: 10) */
+  max_terminology: z.number().min(0).max(50).default(10),
+  /** Max custom rules to include (default: 20) */
+  max_custom_rules: z.number().min(0).max(200).default(20),
+})
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -434,6 +452,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   repo_overview: RepoOverviewConfigSchema.optional(),
   runtime_tracker: RuntimeTrackerConfigSchema.optional(),
   user_memory: UserMemoryConfigSchema.optional(),
+  org_memory: OrgMemoryConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -463,5 +482,6 @@ export type SilentToolOutputConfig = z.infer<typeof SilentToolOutputConfigSchema
 export type RepoOverviewConfig = z.infer<typeof RepoOverviewConfigSchema>
 export type RuntimeTrackerConfig = z.infer<typeof RuntimeTrackerConfigSchema>
 export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>
+export type OrgMemoryConfig = z.infer<typeof OrgMemoryConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

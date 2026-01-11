@@ -4,6 +4,7 @@
  */
 export type ContextSourceType =
   | "keyword-detector"
+  | "planning-with-files"
   | "rules-injector"
   | "directory-agents"
   | "directory-readme"

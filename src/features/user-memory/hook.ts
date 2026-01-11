@@ -1,13 +1,21 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import type { UserMemoryConfig } from "./types"
+import type { UserMemoryConfig, PatternStats } from "./types"
 import type {
   ToolExecuteInput,
   ToolExecuteOutput,
   EventInput,
   MessageInput,
 } from "../../shared/hook-types"
-import { DEFAULT_CONFIG } from "./types"
-import { getMemorySummary, addWorkHistoryEntry, addExplicitMemory } from "./storage"
+import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS } from "./types"
+import {
+  getMemorySummary,
+  addWorkHistoryEntry,
+  addExplicitMemory,
+  loadPatternStats,
+  savePatternStats,
+  recordToolUsage,
+  aggregateFrequentPatterns,
+} from "./storage"
 import { log } from "../../shared/logger"
 
 /**
@@ -17,6 +25,9 @@ import { log } from "../../shared/logger"
 export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<UserMemoryConfig>) {
   const config: UserMemoryConfig = { ...DEFAULT_CONFIG, ...userConfig }
   const injectedSessions = new Set<string>()
+
+  // In-memory pattern stats accumulator (persisted on session end)
+  let patternStats: PatternStats = loadPatternStats()
 
   // Patterns to detect "remember" requests
   // More precise to avoid matching imperative commands like "remember to run tests"
@@ -56,6 +67,12 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
     if (!injectedSessions.has(input.sessionID)) {
       await injectMemory(input.sessionID, output)
     }
+
+    // Track tool usage patterns
+    if (config.enabled) {
+      const args = (output.metadata as { args?: unknown })?.args
+      recordToolUsage(input.tool, args, input.sessionID, patternStats)
+    }
   }
 
   const userPromptSubmit = async (input: MessageInput) => {
@@ -86,6 +103,10 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
       if (sessionInfo?.id) {
         injectedSessions.delete(sessionInfo.id)
       }
+
+      // Persist pattern stats and aggregate on session end
+      savePatternStats(patternStats)
+      aggregateFrequentPatterns()
     }
 
     // Clear session state on compaction (will re-inject on next tool use)
@@ -95,6 +116,10 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
       if (sessionID) {
         injectedSessions.delete(sessionID)
       }
+
+      // Persist pattern stats and aggregate on compaction
+      savePatternStats(patternStats)
+      aggregateFrequentPatterns()
     }
 
     // Capture work summary on session end/summarize

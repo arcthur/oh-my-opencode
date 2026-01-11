@@ -31,12 +31,16 @@ import {
   createSisyphusOrchestratorHook,
   createPrometheusMdOnlyHook,
   createMultiPlanTriggerHook,
+  createPlanningWithFilesHook,
+  createSilentToolOutputHook,
 } from "./hooks";
 import {
   contextCollector,
   createContextInjectorHook,
   createContextInjectorMessagesTransformHook,
 } from "./features/context-injector";
+import { createUserMemoryHook } from "./features/user-memory";
+import { createOrgMemoryHook } from "./features/org-memory";
 import { createGoogleAntigravityAuthPlugin } from "./auth/antigravity";
 import {
   discoverUserClaudeSkills,
@@ -75,6 +79,7 @@ import { log, detectExternalNotificationPlugin, getNotificationConflictWarning }
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
+import type { MessageInput } from "./shared/hook-types";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   // Start background tmux check immediately
@@ -118,6 +123,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createToolOutputTruncatorHook(ctx, {
         experimental: pluginConfig.experimental,
       })
+    : null;
+  const silentToolOutput = isHookEnabled("silent-tool-output") && pluginConfig.silent_tool_output
+    ? createSilentToolOutputHook(ctx, pluginConfig.silent_tool_output)
     : null;
   const directoryAgentsInjector = isHookEnabled("directory-agents-injector")
     ? createDirectoryAgentsInjectorHook(ctx)
@@ -172,6 +180,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const contextInjector = createContextInjectorHook(contextCollector);
   const contextInjectorMessagesTransform =
     createContextInjectorMessagesTransformHook(contextCollector);
+
+  const userMemory = createUserMemoryHook(ctx, pluginConfig.user_memory);
+  const orgMemory = createOrgMemoryHook(ctx, pluginConfig.org_memory);
   const agentUsageReminder = isHookEnabled("agent-usage-reminder")
     ? createAgentUsageReminderHook(ctx)
     : null;
@@ -223,7 +234,17 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
-  const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
+  const todoContinuationEnabled = isHookEnabled("todo-continuation-enforcer");
+
+  const planningWithFiles = isHookEnabled("planning-with-files") && pluginConfig.planning_with_files?.enabled
+    ? createPlanningWithFilesHook(ctx, {
+        config: pluginConfig.planning_with_files,
+        collector: contextCollector,
+        todoContinuationEnabled,
+      })
+    : null;
+
+  const todoContinuationEnforcer = todoContinuationEnabled
     ? createTodoContinuationEnforcer(ctx, { backgroundManager })
     : null;
 
@@ -334,6 +355,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
       await multiPlanTrigger?.["chat.message"]?.(input, output);
+      await planningWithFiles?.["chat.message"]?.(input, output);
 
       if (ralphLoop) {
         const parts = (
@@ -389,6 +411,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       }
     },
 
+    "user.prompt.submit": async (input: MessageInput) => {
+      await userMemory["user.prompt.submit"]?.(input);
+      await orgMemory["user.prompt.submit"]?.(input);
+    },
+
     "experimental.chat.messages.transform": async (
       input: Record<string, never>,
       output: { messages: Array<{ info: unknown; parts: unknown[] }> }
@@ -413,6 +440,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await backgroundNotificationHook?.event(input);
       await sessionNotification?.(input);
       await todoContinuationEnforcer?.handler(input);
+      await planningWithFiles?.event?.(input);
+      await userMemory?.event(input);
+      await orgMemory?.event(input);
       await contextWindowMonitor?.event(input);
       await directoryAgentsInjector?.event(input);
       await directoryReadmeInjector?.event(input);
@@ -483,6 +513,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await directoryReadmeInjector?.["tool.execute.before"]?.(input, output);
       await rulesInjector?.["tool.execute.before"]?.(input, output);
       await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
+      await planningWithFiles?.["tool.execute.before"]?.(input, output);
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
@@ -527,11 +558,17 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           ralphLoop.cancelLoop(sessionID);
         }
       }
+
+      await silentToolOutput?.["tool.execute.before"]?.(input, output);
     },
 
     "tool.execute.after": async (input, output) => {
+      await planningWithFiles?.["tool.execute.after"]?.(input, output);
       await claudeCodeHooks["tool.execute.after"](input, output);
+      await silentToolOutput?.["tool.execute.after"]?.(input, output);
       await toolOutputTruncator?.["tool.execute.after"](input, output);
+      await userMemory?.["tool.execute.after"]?.(input, output);
+      await orgMemory?.["tool.execute.after"]?.(input, output);
       await contextWindowMonitor?.["tool.execute.after"](input, output);
       await commentChecker?.["tool.execute.after"](input, output);
       await directoryAgentsInjector?.["tool.execute.after"](input, output);

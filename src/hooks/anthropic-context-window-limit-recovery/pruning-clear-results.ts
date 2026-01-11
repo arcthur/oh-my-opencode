@@ -1,5 +1,6 @@
 import type { PruningState } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
+import { markToolForPruning } from "./pruning-types"
 import { log } from "../../shared/logger"
 import { readMessages } from "./pruning-shared"
 
@@ -27,12 +28,16 @@ export function executeClearResults(
   sessionID: string,
   state: PruningState,
   config: ClearResultsConfig,
-  protectedTools: Set<string>
+  protectedTools: Set<string>,
+  turnProtectionTurns: number = 0
 ): number {
   if (!config.enabled) return 0
 
   const messages = readMessages(sessionID)
-  const keepRecentTurns = config.keep_recent_turns || 5
+  const keepRecentTurns = Math.max(
+    config.keep_recent_turns || 5,
+    Math.max(0, turnProtectionTurns)
+  )
 
   // First pass: count turns and collect tool info
   const toolInfos: TurnInfo[] = []
@@ -50,10 +55,10 @@ export function executeClearResults(
       if (part.type !== "tool" || !part.callID || !part.tool) continue
 
       // Skip protected tools
-      if (protectedTools.has(part.tool)) continue
+      if (protectedTools.has(part.tool.toLowerCase())) continue
 
-      // Skip already pruned
-      if (state.toolIdsToPrune.has(part.callID)) continue
+      // Skip already output-pruned
+      if (state.toolPruneActions.get(part.callID)?.pruneOutput === true) continue
 
       // Skip tools without output
       if (!part.state?.output) continue
@@ -93,8 +98,12 @@ export function executeClearResults(
   let tokensSaved = 0
 
   for (const info of toPrune) {
-    state.toolIdsToPrune.add(info.callID)
-    prunedCount++
+    const alreadyOutputPruned = state.toolPruneActions.get(info.callID)?.pruneOutput === true
+    markToolForPruning(state, info.callID, {
+      pruneOutput: true,
+      reason: "clear_tool_results",
+    })
+    if (!alreadyOutputPruned) prunedCount++
     tokensSaved += info.outputSize
 
     log("[pruning-clear-results] marked for pruning", {

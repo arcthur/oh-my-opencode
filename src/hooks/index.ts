@@ -31,5 +31,7 @@ export { createTaskResumeInfoHook } from "./task-resume-info";
 export { createStartWorkHook } from "./start-work";
 export { createSisyphusOrchestratorHook } from "./sisyphus-orchestrator";
 export { createMultiPlanTriggerHook, type MultiPlanTriggerHookOptions } from "./multi-plan-trigger";
+export { createPlanningWithFilesHook, type PlanningWithFilesHookOptions } from "./planning-with-files";
+export { createSilentToolOutputHook } from "./silent-tool-output";
 export { createRepoOverviewInjectorHook } from "./repo-overview-injector";
 export { createRuntimeTrackerHook, type RuntimeTrackerConfig } from "./runtime-tracker";

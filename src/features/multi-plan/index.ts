@@ -10,7 +10,9 @@ import type {
   PlanRebuttal,
 } from "./types"
 import { PlanGenerator, type MultiPlanProgressCallback } from "./plan-generator"
+import { parseRejectedModels } from "./parser"
 import { log } from "../../shared/logger"
+import { sanitizePathSegment } from "../../shared/path-sanitizer"
 import { getTaskToastManager } from "../task-toast-manager"
 
 /**
@@ -349,8 +351,8 @@ Plan Synthesizer (Momus-style) will:
 • Identify and resolve conflicts
 • Generate unified final plan`
 
-    const tuiClient = this.ctx.client as {
-      tui?: { showToast: (payload: { body: object }) => Promise<void> }
+    const tuiClient = this.ctx.client as unknown as {
+      tui?: { showToast: (payload: { body: object }) => Promise<unknown> }
     }
     if (tuiClient.tui?.showToast) {
       tuiClient.tui.showToast({
@@ -420,6 +422,26 @@ Plan Synthesizer (Momus-style) will:
     return files
   }
 
+  private getSafePathSegment(label: string, value: string): string {
+    const sanitized = sanitizePathSegment(value)
+    if (!sanitized) {
+      throw new Error(`Invalid ${label} name for file path: "${value}"`)
+    }
+    return sanitized
+  }
+
+  private getRebuttalOutputPath(planName: string, modelName: string): string {
+    const safePlanName = this.getSafePathSegment("plan", planName)
+    const safeModelName = this.getSafePathSegment("model", modelName)
+    return `.sisyphus/rebuttals/${safePlanName}-${safeModelName}.md`
+  }
+
+  private getIndividualPlanPath(planName: string, modelName: string): string {
+    const safePlanName = this.getSafePathSegment("plan", planName)
+    const safeModelName = this.getSafePathSegment("model", modelName)
+    return `.sisyphus/plans/${safePlanName}-${safeModelName}.md`
+  }
+
   /**
    * Run debate round - generate rebuttals from rejected models
    */
@@ -440,21 +462,44 @@ Plan Synthesizer (Momus-style) will:
     const reportContent = fs.readFileSync(absReportPath, "utf-8")
 
     // Parse which models were rejected in conflicts
-    const rejectedModels = this.parseRejectedModels(reportContent, session)
+    const modelNames = session.models.map((m) => m.name)
+    const rejectedModels = parseRejectedModels(reportContent, modelNames)
     if (rejectedModels.length === 0) {
       log("[multi-plan] No rejected models found, skipping debate")
       return []
     }
 
-    log("[multi-plan] Generating rebuttals", { rejectedModels: rejectedModels.map(r => r.modelName) })
-    this.showDebateToast(session, "Debate Round Started", rejectedModels.length)
+    const rejectionsByModel = new Map<
+      string,
+      Array<{ conflictId: string; criticism: string }>
+    >()
+    for (const rejection of rejectedModels) {
+      const existing = rejectionsByModel.get(rejection.modelName) ?? []
+      existing.push({ conflictId: rejection.conflictId, criticism: rejection.criticism })
+      rejectionsByModel.set(rejection.modelName, existing)
+    }
+
+    const groupedRejections = Array.from(rejectionsByModel.entries()).map(
+      ([modelName, conflicts]) => ({ modelName, conflicts })
+    )
+
+    log("[multi-plan] Generating rebuttals", {
+      rejectedModels: groupedRejections.map((r) => ({
+        modelName: r.modelName,
+        conflictCount: r.conflicts.length,
+      })),
+    })
+    this.showDebateToast(session, "Debate Round Started", groupedRejections.length)
 
     // Generate rebuttals in parallel
     const rebuttals: PlanRebuttal[] = []
-    const rebuttalPromises = rejectedModels.map(async (rejection) => {
+    const rebuttalPromises = groupedRejections.map(async (rejection) => {
+      const conflictIds = Array.from(
+        new Set(rejection.conflicts.map((c) => c.conflictId).filter(Boolean))
+      )
       const rebuttal: PlanRebuttal = {
         modelName: rejection.modelName,
-        conflictId: rejection.conflictId,
+        conflictIds,
         content: "",
         status: "generating",
       }
@@ -462,12 +507,18 @@ Plan Synthesizer (Momus-style) will:
 
       try {
         const prompt = this.buildRebuttalPrompt(rejection, session)
+
+        const modelConfig = session.models.find((m) => m.name === rejection.modelName)
+        const resolvedModelConfig = modelConfig ? this.generator.resolveModelConfig(modelConfig) : {}
+
         const task = await this.manager.launch({
           description: `Rebuttal: ${rejection.modelName}`,
           prompt,
           agent: "Sisyphus",
           parentSessionID: parentSessionId,
           parentMessageID: "",
+          model: resolvedModelConfig.model,
+          skillContent: resolvedModelConfig.systemPrompt,
           silent: true,
         })
 
@@ -493,7 +544,7 @@ Plan Synthesizer (Momus-style) will:
         }
 
         // Read rebuttal content from output
-        const rebuttalPath = `.sisyphus/rebuttals/${session.planName}-${rejection.modelName}.md`
+        const rebuttalPath = this.getRebuttalOutputPath(session.planName, rejection.modelName)
         const absRebuttalPath = path.resolve(this.ctx.directory, rebuttalPath)
         if (fs.existsSync(absRebuttalPath)) {
           rebuttal.content = fs.readFileSync(absRebuttalPath, "utf-8")
@@ -522,81 +573,32 @@ Plan Synthesizer (Momus-style) will:
   }
 
   /**
-   * Parse comparison report to find rejected models
-   */
-  private parseRejectedModels(
-    reportContent: string,
-    session: MultiPlanSession
-  ): Array<{ modelName: string; conflictId: string; criticism: string }> {
-    const rejections: Array<{ modelName: string; conflictId: string; criticism: string }> = []
-
-    // Find all CONFLICT sections
-    const conflictSections = reportContent.split(/### CONFLICT:/).slice(1)
-
-    for (const section of conflictSections) {
-      const conflictIdMatch = section.match(/^([^\n]+)/)
-      const conflictId = conflictIdMatch ? conflictIdMatch[1].trim() : "general"
-
-      // Find the VERDICT to know which model won
-      const verdictMatch = section.match(/\*\*VERDICT\*\*:\s*`?(?:ACCEPT\s+)?(\w+)`?/i)
-      const winnerModel = verdictMatch ? verdictMatch[1].toLowerCase() : null
-
-      // For each model, check if it was criticized and NOT the winner
-      for (const model of session.models) {
-        const modelNameLower = model.name.toLowerCase()
-
-        // Skip if this model won this conflict
-        if (winnerModel && modelNameLower === winnerModel) continue
-
-        // Match "Why {model} is WRONG:" pattern (case insensitive)
-        const wrongPattern = new RegExp(
-          `\\*\\*Why\\s+(?:\\{)?${model.name}(?:\\})?\\s+is\\s+WRONG\\*\\*:([\\s\\S]*?)(?=\\*\\*Why|\\*\\*VERDICT|---|\n\n)`,
-          "i"
-        )
-        const wrongMatch = wrongPattern.exec(section)
-
-        if (wrongMatch) {
-          // Check if this model-conflict pair is already added
-          const alreadyAdded = rejections.some(
-            r => r.modelName === model.name && r.conflictId === conflictId
-          )
-          if (!alreadyAdded) {
-            rejections.push({
-              modelName: model.name,
-              conflictId,
-              criticism: wrongMatch[1].trim(),
-            })
-          }
-        }
-      }
-    }
-
-    return rejections
-  }
-
-  /**
    * Build rebuttal prompt for a rejected model
    */
   private buildRebuttalPrompt(
-    rejection: { modelName: string; conflictId: string; criticism: string },
+    rejection: { modelName: string; conflicts: Array<{ conflictId: string; criticism: string }> },
     session: MultiPlanSession
   ): string {
-    const outputPath = `.sisyphus/rebuttals/${session.planName}-${rejection.modelName}.md`
+    const outputPath = this.getRebuttalOutputPath(session.planName, rejection.modelName)
+    const planPath = this.getIndividualPlanPath(session.planName, rejection.modelName)
+    const conflictsBlock = rejection.conflicts
+      .map(
+        (c, idx) =>
+          `#### ${idx + 1}. ${c.conflictId}\n\n**Synthesizer's Criticism**:\n${c.criticism}\n`
+      )
+      .join("\n")
 
     return `## Rebuttal Request
 
 You are the "${rejection.modelName}" model. Your plan was partially rejected by the Plan Synthesizer.
 
-### The Criticism Against You
+### Conflicts You Lost (and Why)
 
-**Conflict**: ${rejection.conflictId}
-
-**Synthesizer's Criticism**:
-${rejection.criticism}
+${conflictsBlock}
 
 ### Your Task
 
-Write a rebuttal arguing why your approach should be reconsidered. Be specific and provide evidence.
+Write ONE rebuttal that addresses EACH conflict above. Be specific and provide evidence.
 
 **Output**: Write to \`${outputPath}\`
 
@@ -604,8 +606,9 @@ Write a rebuttal arguing why your approach should be reconsidered. Be specific a
 \`\`\`markdown
 ## Rebuttal from ${rejection.modelName}
 
-**Conflict**: ${rejection.conflictId}
-**Original Verdict**: [summarize what Synthesizer decided]
+### Conflict: <conflict-id>
+**Original Verdict**: [summarize what the Synthesizer decided]
+**Synthesizer Criticism**: [quote or summarize the criticism you are responding to]
 
 **My Counter-Argument**:
 [Why your approach should be reconsidered - be SPECIFIC]
@@ -623,10 +626,10 @@ Write a rebuttal arguing why your approach should be reconsidered. Be specific a
 1. Do NOT just repeat your original argument
 2. Provide NEW evidence or perspective
 3. Address the SPECIFIC criticism made
-4. Be concise - this is your one chance to argue back
-5. If the Synthesizer was right, say so and concede
+4. If the Synthesizer was right for a conflict, say so and concede
+5. Be concise - focus on high-signal technical arguments
 
-Read your original plan at \`.sisyphus/plans/${session.planName}-${rejection.modelName}.md\` for context.
+Read your original plan at \`${planPath}\` for context.
 `
   }
 
@@ -653,6 +656,7 @@ Read your original plan at \`.sisyphus/plans/${session.planName}-${rejection.mod
     const prompt = `## Final Synthesis with Rebuttals
 
 The rejected models have submitted rebuttals. Review them and update the final plan if warranted.
+A single rebuttal may cover multiple conflicts (look for multiple "### Conflict:" sections).
 
 ### Rebuttals to Review
 
@@ -660,11 +664,12 @@ ${rebuttalSummary}
 
 ### Your Task
 
-1. Read each rebuttal carefully
-2. For each rebuttal, apply your Phase 6 (Rebuttal Review) process
-3. If any rebuttal is convincing (provides NEW evidence, addresses your criticism technically), REVISE the final plan
-4. Update the comparison report with your rebuttal review decisions
-5. If you revise, add a "Revised after rebuttal" note to the affected section
+1. Use the Read tool to load the existing files listed below before making any changes
+2. Read each rebuttal carefully
+3. For each rebuttal, apply your Phase 7 (Rebuttal Review) process
+4. If any rebuttal is convincing (provides NEW evidence, addresses your criticism technically), REVISE the final plan
+5. Update the comparison report with your rebuttal review decisions
+6. If you revise, add a "Revised after rebuttal" note to the affected section
 
 ### Files to Update (if needed)
 
@@ -722,8 +727,8 @@ ${rebuttalSummary}
       ? `${count} rejected model(s) are preparing rebuttals...`
       : `Synthesizer is reviewing ${count} rebuttal(s)...`
 
-    const tuiClient = this.ctx.client as {
-      tui?: { showToast: (payload: { body: object }) => Promise<void> }
+    const tuiClient = this.ctx.client as unknown as {
+      tui?: { showToast: (payload: { body: object }) => Promise<unknown> }
     }
     if (tuiClient.tui?.showToast) {
       tuiClient.tui.showToast({

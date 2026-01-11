@@ -102,6 +102,8 @@ Instead of specifying a model directly, you can use categories:
 | `quick` | anthropic/claude-haiku-4-5 | Fast, simple tasks |
 | `artistry` | google/gemini-3-pro-preview | Creative solutions |
 
+**Note**: In `multi_plan`, `models[].category` currently affects model selection and applies the category prompt append. Other category-level tuning (temperature, top_p, maxTokens, etc.) is not currently applied.
+
 ---
 
 ## 4. How It Works
@@ -273,13 +275,16 @@ Debate is **optional** and only runs when:
 
 ### 6.2 Rebuttal Format
 
-Each rejected model submits a rebuttal:
+Each rejected model submits a single rebuttal file (one per model), which may address multiple conflicts:
+
+Rebuttals are generated using the same configured model (or category) as that model's original plan.
 
 ```markdown
 ## Rebuttal from {model-name}
 
-**Conflict**: [Which conflict this addresses]
+### Conflict: {conflict-id}
 **Original Verdict**: [What Synthesizer decided]
+**Synthesizer Criticism**: [What Synthesizer criticized about your approach]
 
 **My Counter-Argument**:
 [Why my approach should be reconsidered - SPECIFIC]
@@ -291,6 +296,9 @@ Each rejected model submits a rebuttal:
 
 **Proposed Revision**:
 [What should change in the final plan]
+
+### Conflict: {another-conflict-id}
+[Repeat the same structure for each conflict addressed]
 ```
 
 ### 6.3 Rebuttal Rules
@@ -325,10 +333,10 @@ For each rebuttal, Synthesizer decides:
 ### 6.6 Cost Consideration
 
 Debate adds:
-- N rebuttal generation calls (one per rejected model)
+- R rebuttal generation calls (one per rejected model; R ≤ N)
 - 1 additional Synthesizer call for final review
 
-For a 3-model setup where 2 were rejected, expect 3 additional model calls.
+For a 3-model setup where 2 were rejected, expect 3 additional model calls (2 rebuttals + 1 Synthesizer review).
 
 ---
 
@@ -437,15 +445,15 @@ You can:
 - N model calls for plan generation
 - 1 Plan Synthesizer call (using capable model)
 
-**With debate**: Additional **M+1** calls:
-- M rebuttal generation calls (one per rejected model)
+**With debate**: Additional **R+1** calls:
+- R rebuttal generation calls (one per rejected model; R ≤ N)
 - 1 final Synthesizer review call
 
-| Setup | Without Debate | With Debate (worst case: N-1 rejected) |
+| Setup | Without Debate | With Debate (worst case: N rejected) |
 |-------|----------------|----------------------------------------|
-| 2 models | 3 calls | 5 calls (1 rejected) |
-| 3 models | 4 calls | 7 calls (2 rejected) |
-| 5 models | 6 calls | 11 calls (4 rejected) |
+| 2 models | 3 calls | 6 calls (2 rejected) |
+| 3 models | 4 calls | 8 calls (3 rejected) |
+| 5 models | 6 calls | 12 calls (5 rejected) |
 
 ---
 

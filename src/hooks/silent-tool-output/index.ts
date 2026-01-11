@@ -20,7 +20,7 @@
  * Write("file.ts", <200 lines>) -> "✓ file.ts written (5000 bytes, 200 lines)"
  */
 
-import type { PluginInput, Hooks } from "../../types"
+import type { PluginInput, Hooks } from "@opencode-ai/plugin"
 
 /** Tools that produce write operations */
 const WRITE_TOOLS = ["Write", "Edit", "NotebookEdit", "write", "edit"]
@@ -221,8 +221,16 @@ export function createSilentToolOutputHook(
   config: Partial<SilentToolOutputConfig> = {}
 ): Hooks {
   const fullConfig = { ...DEFAULT_CONFIG, ...config }
+  const toolArgsByCallID = new Map<string, unknown>()
 
   return {
+    "tool.execute.before": async (
+      input: { tool: string; sessionID: string; callID: string },
+      output: { args: unknown }
+    ): Promise<void> => {
+      toolArgsByCallID.set(input.callID, output.args)
+    },
+
     /**
      * Post-execution hook for tool output optimization.
      *
@@ -230,12 +238,7 @@ export function createSilentToolOutputHook(
      * minimal metadata summaries.
      */
     "tool.execute.after": async (
-      input: {
-        tool: string
-        input: unknown
-        sessionID: string
-        callID: string
-      },
+      input: { tool: string; sessionID: string; callID: string },
       output: {
         title: string
         output: string
@@ -243,7 +246,9 @@ export function createSilentToolOutputHook(
       }
     ) => {
       const toolName = input.tool
-      const filePath = extractPath(input.input)
+      const toolArgs = toolArgsByCallID.get(input.callID)
+      toolArgsByCallID.delete(input.callID)
+      const filePath = extractPath(toolArgs)
 
       // Handle Write/Edit tools - replace content with metadata
       if (fullConfig.silent_write && WRITE_TOOLS.includes(toolName)) {
@@ -271,6 +276,5 @@ export function createSilentToolOutputHook(
   }
 }
 
-// Export types and defaults for external configuration
-export type { SilentToolOutputConfig }
+// Export defaults for external configuration
 export { DEFAULT_CONFIG as DEFAULT_SILENT_CONFIG }

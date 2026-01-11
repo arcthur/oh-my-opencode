@@ -1,18 +1,20 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import {
+  getDefaultAnthropicContextLimit,
+  formatContextLimit,
+} from "../shared/context-limits"
 
-const ANTHROPIC_DISPLAY_LIMIT = 1_000_000
-const ANTHROPIC_ACTUAL_LIMIT =
-  process.env.ANTHROPIC_1M_CONTEXT === "true" ||
-  process.env.VERTEX_ANTHROPIC_1M_CONTEXT === "true"
-    ? 1_000_000
-    : 200_000
+const ANTHROPIC_ACTUAL_LIMIT = getDefaultAnthropicContextLimit()
 const CONTEXT_WARNING_THRESHOLD = 0.70
 
-const CONTEXT_REMINDER = `[SYSTEM REMINDER - 1M Context Window]
+function getContextReminder(actualLimit: number): string {
+  const limitLabel = formatContextLimit(actualLimit)
+  return `[SYSTEM REMINDER - ${limitLabel} Context Window]
 
-You are using Anthropic Claude with 1M context window.
+You are using Anthropic Claude with ${limitLabel} context window.
 You have plenty of context remaining - do NOT rush or skip tasks.
 Complete your work thoroughly and methodically.`
+}
 
 interface AssistantMessageInfo {
   role: "assistant"
@@ -67,13 +69,13 @@ export function createContextWindowMonitorHook(ctx: PluginInput) {
 
       remindedSessions.add(sessionID)
 
-      const displayUsagePercentage = totalInputTokens / ANTHROPIC_DISPLAY_LIMIT
-      const usedPct = (displayUsagePercentage * 100).toFixed(1)
-      const remainingPct = ((1 - displayUsagePercentage) * 100).toFixed(1)
+      const usagePercentage = totalInputTokens / ANTHROPIC_ACTUAL_LIMIT
+      const usedPct = (usagePercentage * 100).toFixed(1)
+      const remainingPct = ((1 - usagePercentage) * 100).toFixed(1)
       const usedTokens = totalInputTokens.toLocaleString()
-      const limitTokens = ANTHROPIC_DISPLAY_LIMIT.toLocaleString()
+      const limitTokens = ANTHROPIC_ACTUAL_LIMIT.toLocaleString()
 
-      output.output += `\n\n${CONTEXT_REMINDER}
+      output.output += `\n\n${getContextReminder(ANTHROPIC_ACTUAL_LIMIT)}
 [Context Status: ${usedPct}% used (${usedTokens}/${limitTokens} tokens), ${remainingPct}% remaining]`
     } catch {
       // Graceful degradation - do not disrupt tool execution

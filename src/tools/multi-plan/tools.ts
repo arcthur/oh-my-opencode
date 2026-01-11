@@ -2,6 +2,7 @@ import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin
 import type { BackgroundManager } from "../../features/background-agent"
 import type { MultiPlanConfig } from "../../config/schema"
 import { MultiPlanOrchestrator, MultiPlanError } from "../../features/multi-plan"
+import type { MultiPlanResult, StartMultiPlanInput } from "../../features/multi-plan"
 import { log } from "../../shared/logger"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 
@@ -10,6 +11,16 @@ interface MultiPlanArgs {
   context: string
   debate?: boolean
 }
+
+type MultiPlanOrchestratorLike = {
+  start: (input: StartMultiPlanInput) => Promise<MultiPlanResult>
+}
+
+type CreateMultiPlanOrchestrator = (
+  ctx: PluginInput,
+  backgroundManager: BackgroundManager,
+  config: MultiPlanConfig
+) => MultiPlanOrchestratorLike
 
 /**
  * Tool for Prometheus to explicitly invoke multi-model planning.
@@ -21,8 +32,9 @@ export function createMultiPlanTool(options: {
   ctx: PluginInput
   backgroundManager: BackgroundManager
   config: MultiPlanConfig | undefined
+  createOrchestrator?: CreateMultiPlanOrchestrator
 }): ToolDefinition {
-  const { ctx, backgroundManager, config } = options
+  const { ctx, backgroundManager, config, createOrchestrator } = options
 
   return tool({
     description: `Orchestrate multi-model planning where multiple AI models generate plans in parallel, followed by Plan Synthesizer review and conflict resolution.
@@ -57,9 +69,10 @@ export function createMultiPlanTool(options: {
     async execute(args: MultiPlanArgs, execCtx) {
       // Check if multi-plan is enabled
       if (!config?.enabled) {
+        const safePlanName = sanitizePathSegment(args.planName) ?? "work-plan"
         return `❌ Multi-model planning is not enabled.
 
-Generate the plan directly instead using the Write tool to create .sisyphus/plans/${args.planName}.md`
+Generate the plan directly instead using the Write tool to create \`.sisyphus/plans/${safePlanName}.md\``
       }
 
       if (!config.models || config.models.length < 2) {
@@ -107,13 +120,16 @@ Multiple models would write to the same output file. Ensure each model has a uni
       })
 
       try {
-        const orchestrator = new MultiPlanOrchestrator(ctx, backgroundManager, config)
+        const enabledConfig = config
+        const orchestrator = createOrchestrator
+          ? createOrchestrator(ctx, backgroundManager, enabledConfig)
+          : new MultiPlanOrchestrator(ctx, backgroundManager, enabledConfig)
 
         const result = await orchestrator.start({
           planName,
           requestContext: context,
           parentSessionId: sessionID,
-          config,
+          config: enabledConfig,
           debateEnabled: args.debate ?? false,
         })
 

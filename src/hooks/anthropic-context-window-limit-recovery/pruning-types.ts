@@ -19,6 +19,18 @@ export interface ErroredToolCall {
   errorAge: number
 }
 
+export type PruneReason =
+  | "deduplication"
+  | "clear_tool_results"
+  | "supersede_writes"
+  | "purge_errors"
+
+export interface ToolPruneAction {
+  pruneInput: boolean
+  pruneOutput: boolean
+  reasons: Set<PruneReason>
+}
+
 export interface PruningResult {
   itemsPruned: number
   totalTokensSaved: number
@@ -31,7 +43,7 @@ export interface PruningResult {
 }
 
 export interface PruningState {
-  toolIdsToPrune: Set<string>
+  toolPruneActions: Map<string, ToolPruneAction>
   currentTurn: number
   fileOperations: Map<string, FileOperation[]>
   toolSignatures: Map<string, ToolCallSignature[]>
@@ -42,4 +54,22 @@ export const CHARS_PER_TOKEN = 4
 
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN)
+}
+
+export function markToolForPruning(
+  state: PruningState,
+  callID: string,
+  action: { pruneInput?: boolean; pruneOutput?: boolean; reason: PruneReason }
+): void {
+  const existing = state.toolPruneActions.get(callID) ?? {
+    pruneInput: false,
+    pruneOutput: false,
+    reasons: new Set<PruneReason>(),
+  }
+
+  if (action.pruneInput) existing.pruneInput = true
+  if (action.pruneOutput) existing.pruneOutput = true
+  existing.reasons.add(action.reason)
+
+  state.toolPruneActions.set(callID, existing)
 }

@@ -1,10 +1,6 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { getOpenCodeStorageDir } from "../../shared/data-path"
-
-const OPENCODE_STORAGE = getOpenCodeStorageDir()
-const MESSAGE_STORAGE = join(OPENCODE_STORAGE, "message")
-const PART_STORAGE = join(OPENCODE_STORAGE, "part")
+import { MESSAGE_STORAGE, PART_STORAGE } from "../../features/hook-message-injector"
 
 const TRUNCATION_MESSAGE =
   "[TOOL RESULT TRUNCATED - Context limit exceeded. Original output was too large and has been truncated to recover the session. Please re-run this tool if you need the full output.]"

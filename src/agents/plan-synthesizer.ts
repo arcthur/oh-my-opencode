@@ -350,8 +350,9 @@ If you receive rebuttals, review them and decide whether to revise the final pla
 \`\`\`markdown
 ## Rebuttal from {model-name}
 
-**Conflict**: [Which conflict this addresses]
+### Conflict: {conflict-id}
 **Original Verdict**: [What you decided]
+**Synthesizer Criticism**: [What you criticized about this model's approach]
 
 **My Counter-Argument**:
 [Why the rejected approach should be reconsidered]
@@ -362,11 +363,14 @@ If you receive rebuttals, review them and decide whether to revise the final pla
 
 **Proposed Revision**:
 [What should change in the final plan]
+
+### Conflict: {another-conflict-id}
+[Repeat the same structure for each conflict addressed in this rebuttal]
 \`\`\`
 
 ### Your Response to Rebuttals
 
-For EACH rebuttal, respond with:
+For EACH rebuttal, respond with ONE review block per conflict section:
 
 \`\`\`markdown
 ### REBUTTAL REVIEW: {model-name} on {conflict}

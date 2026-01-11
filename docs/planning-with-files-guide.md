@@ -34,7 +34,7 @@ Treat the filesystem as persistent storage and context windows as temporary RAM:
 Every complex task creates three markdown files:
 
 ```
-.sisyphus/plans/{plan-name}/
+.sisyphus/{directory}/{plan-name}/
 ├── task_plan.md           # Phases, goals, decisions, errors, blockers
 ├── findings.md            # Research results (2-action rule)
 ├── progress.md            # Session logs, phase transitions
@@ -120,11 +120,13 @@ Stay focused on the current phase. Do not deviate from the goal.
 </reminder>
 ```
 
+**OpenCode Implementation Note**: Injection is performed via ContextCollector + `experimental.chat.messages.transform`, so the plan appears as a stable prefix without mutating stored conversation history.
+
 **KV-Cache Optimization**: By keeping the prefix stable across tool calls, we maximize KV-cache hits, reducing latency and cost.
 
 ### 2. Two-Action Rule - Auto-Reset Detection
 
-After 2 research operations (Read/WebFetch/WebSearch/Glob/Grep/Task), reminds to update findings.md:
+After every 2 research operations (Read/WebFetch/WebSearch/Glob/Grep/Task), reminds to update findings.md (2, 4, 6, ...). The counter auto-resets when you modify findings.md (mtime-based).
 
 ```xml
 <two-action-rule>
@@ -132,7 +134,7 @@ After 2 research operations (Read/WebFetch/WebSearch/Glob/Grep/Task), reminds to
 
 2 research operations completed.
 
-Update `.sisyphus/plans/{plan}/findings.md` with:
+Update `.sisyphus/{directory}/{plan}/findings.md` with:
 - Key discoveries
 - Technical decisions
 - Resources found
@@ -255,6 +257,10 @@ Incomplete phases:
 3. Use `/stop --force` to override
 ```
 
+**Operational Notes**:
+- Stop verification is advisory (prompt-based) and throttled per session to avoid repeated injections.
+- If `todo-continuation-enforcer` is enabled and pending TODOs exist, stop verification defers to it to avoid duplicate continuation prompts.
+
 ### 7. State Persistence
 
 State is persisted to `.planning-state.json`:
@@ -263,12 +269,12 @@ State is persisted to `.planning-state.json`:
 {
   "planName": "add-auth",
   "actionCount": 1,
-  "lastFindingsMtime": 1704067200000,
+  "lastFindingsMtime": 1767225600000,
   "errorStrikes": {
     "Bash:npm install failed": 2
   },
-  "activatedAt": "2024-01-01T00:00:00.000Z",
-  "lastActivityAt": "2024-01-01T01:30:00.000Z"
+  "activatedAt": "2026-01-01T00:00:00.000Z",
+  "lastActivityAt": "2026-01-01T01:30:00.000Z"
 }
 ```
 
@@ -359,14 +365,15 @@ create plan for "refactoring"
 ```
 
 The system creates the 3-file structure and activates hooks.
+Initialization is idempotent: existing planning files are not overwritten; re-running the directive simply (re)activates the plan.
 
 ### During Work
 
 1. **Before Write/Edit/Bash**: task_plan.md auto-injected as context
-2. **After 2 research operations**: Reminded to update findings.md
+2. **After every 2 research operations**: Reminded to update findings.md (until findings.md is updated)
 3. **When findings.md modified**: Action counter auto-resets
-4. **On errors**: 3-strike protocol guidance provided
-5. **On stop attempt**: Incomplete phases block termination
+4. **On errors**: 3-strike protocol guidance provided (best-effort, based on tool output markers)
+5. **On session idle**: If phases are incomplete, a continuation prompt is injected unless you force-stop
 
 ### Completing Work
 
@@ -374,12 +381,11 @@ Ensure all phases are `complete` or `blocked` before stopping.
 
 ## Integration with Multi-Plan
 
-When `auto_from_multi_plan: true`, after a multi-plan session completes:
+When `auto_from_multi_plan: true`, after a successful `multi_plan` tool run completes:
 
-1. Goal extracted from unified plan
-2. Phases extracted from TODOs or headers
-3. Research findings collected from all model plans
-4. 3-file structure created automatically
+1. Planning files are initialized at `.sisyphus/{directory}/{planName}/` (if missing)
+2. `task_plan.md` starts from the default template (edit freely)
+3. The unified plan remains the source of truth for detailed TODOs; planning-with-files focuses on persistence, error tracking, and lightweight phase gating
 
 This enables seamless transition from planning to execution with full tracking.
 
@@ -419,7 +425,7 @@ This enables seamless transition from planning to execution with full tracking.
 | - | (none yet) | - | - | - | - |
 
 ---
-*Created: 2024-01-01*
+*Created: 2026-01-01*
 *Last Reflection: (none yet)*
 ```
 
@@ -441,7 +447,7 @@ This enables seamless transition from planning to execution with full tracking.
 | - | - |
 
 ---
-*Last updated: 2024-01-01*
+*Last updated: 2026-01-01*
 ```
 
 ### progress.md
@@ -474,13 +480,26 @@ This enables seamless transition from planning to execution with full tracking.
 
 | Metric | Effect |
 |--------|--------|
-| KV-Cache utilization | ~80% (stable prefix) |
-| State recovery | 100% (persisted to disk) |
-| Findings detection accuracy | 100% (mtime-based) |
-| Write context reduction | ~95% (metadata only) |
-| Template size | Minimal (~60 lines) |
+| KV-cache utilization | Improved via a stable, repeatable prefix |
+| State recovery | Survives restarts via disk state (`.planning-state.json`) |
+| Findings reset signal | mtime-based (no keyword parsing) |
+| Context reduction (with `silent-tool-output`) | Reduces redundant Write/Edit echoes |
 | Error retry prevention | Forced recording on Strike 2+ |
 | Plan adaptability | Reflection prompts on phase completion |
+
+## Design Trade-offs
+
+### What This Optimizes For
+
+- **Context stability**: A stable task plan prefix to reduce drift across long sessions.
+- **Persistence**: Critical state lives on disk and survives restarts.
+- **Low redundancy**: Hooks inject the minimum needed context; the filesystem remains the source of truth.
+
+### What This Trades Off
+
+- **Active plan selection**: Session-scoped when possible; otherwise falls back to a heuristic (most recently active plan by state mtime).
+- **3-strike detection**: Best-effort (based on output markers), so signatures may be imperfect across tools/providers.
+- **Stop verification**: Advisory (prompt-based). It cannot hard-block `/stop` in OpenCode today; it encourages explicit `complete`/`blocked` states or a conscious `/stop --force`.
 
 ## Best Practices
 

@@ -81,7 +81,11 @@
           "prometheus-md-only",
           "start-work",
           "sisyphus-orchestrator",
-          "multi-plan-trigger"
+          "multi-plan-trigger",
+          "planning-with-files",
+          "silent-tool-output",
+          "repo-overview-injector",
+          "runtime-tracker"
         ]
       }
     },
@@ -2187,6 +2191,21 @@
                       "maximum": 20
                     }
                   }
+                },
+                "clear_tool_results": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "default": true,
+                      "type": "boolean"
+                    },
+                    "keep_recent_turns": {
+                      "default": 5,
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 20
+                    }
+                  }
                 }
               }
             }
@@ -2421,6 +2440,156 @@
       "required": [
         "models"
       ]
+    },
+    "planning_with_files": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "directory": {
+          "default": "plans",
+          "type": "string"
+        },
+        "two_action_rule": {
+          "default": true,
+          "type": "boolean"
+        },
+        "three_strike_protocol": {
+          "default": true,
+          "type": "boolean"
+        },
+        "auto_reread": {
+          "default": true,
+          "type": "boolean"
+        },
+        "stop_verification": {
+          "default": true,
+          "type": "boolean"
+        },
+        "reread_trigger_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "action_count_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "auto_from_multi_plan": {
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "silent_tool_output": {
+      "type": "object",
+      "properties": {
+        "silent_write": {
+          "default": true,
+          "type": "boolean"
+        },
+        "optimize_planning_reads": {
+          "default": true,
+          "type": "boolean"
+        },
+        "optimize_search": {
+          "default": true,
+          "type": "boolean"
+        },
+        "search_max_lines": {
+          "default": 20,
+          "type": "number"
+        },
+        "preview_max_chars": {
+          "default": 200,
+          "type": "number"
+        }
+      }
+    },
+    "repo_overview": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "auto_generate": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_tree_depth": {
+          "default": 50,
+          "type": "number",
+          "minimum": 10,
+          "maximum": 200
+        },
+        "cache_duration_ms": {
+          "default": 3600000,
+          "type": "number"
+        }
+      }
+    },
+    "runtime_tracker": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "threshold_ms": {
+          "default": 3000,
+          "type": "number",
+          "minimum": 500,
+          "maximum": 60000
+        },
+        "max_recent": {
+          "default": 10,
+          "type": "number",
+          "minimum": 3,
+          "maximum": 50
+        },
+        "inject_hints": {
+          "default": true,
+          "type": "boolean"
+        },
+        "hint_cooldown_ms": {
+          "default": 60000,
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "user_memory": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "persist_preferences": {
+          "default": true,
+          "type": "boolean"
+        },
+        "persist_work_history": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_history_entries": {
+          "default": 50,
+          "type": "number",
+          "minimum": 10,
+          "maximum": 200
+        },
+        "auto_inject": {
+          "default": true,
+          "type": "boolean"
+        }
+      }
     }
   }
 }

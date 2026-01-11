@@ -1,5 +1,6 @@
 import type { PruningState, FileOperation } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
+import { markToolForPruning } from "./pruning-types"
 import { log } from "../../shared/logger"
 import { readMessages, findToolInput } from "./pruning-shared"
 
@@ -13,9 +14,15 @@ function extractFilePath(toolName: string, input: unknown): string | null {
   
   const inputObj = input as Record<string, unknown>
   
-  if (toolName === "write" || toolName === "edit" || toolName === "read") {
-    if (typeof inputObj.filePath === "string") {
-      return inputObj.filePath
+  const normalizedTool = toolName.toLowerCase()
+  if (normalizedTool !== "write" && normalizedTool !== "edit" && normalizedTool !== "read") {
+    return null
+  }
+
+  const candidates = ["filePath", "file_path", "path", "file"]
+  for (const key of candidates) {
+    if (typeof inputObj[key] === "string") {
+      return inputObj[key] as string
     }
   }
   
@@ -26,13 +33,15 @@ export function executeSupersedeWrites(
   sessionID: string,
   state: PruningState,
   config: SupersedeWritesConfig,
-  protectedTools: Set<string>
+  protectedTools: Set<string>,
+  turnProtectionTurns: number = 0
 ): number {
   if (!config.enabled) return 0
 
   const messages = readMessages(sessionID)
-  const writesByFile = new Map<string, FileOperation[]>()
+  const writes: FileOperation[] = []
   const readsByFile = new Map<string, number[]>()
+  const anyReadTurns: number[] = []
   
   let currentTurn = 0
   
@@ -47,18 +56,19 @@ export function executeSupersedeWrites(
       
       if (part.type !== "tool" || !part.callID || !part.tool) continue
       
-      if (protectedTools.has(part.tool)) continue
+      const toolName = part.tool.toLowerCase()
+      if (protectedTools.has(part.tool) || protectedTools.has(toolName)) continue
       
-      if (state.toolIdsToPrune.has(part.callID)) continue
+      if (state.toolPruneActions.get(part.callID)?.pruneInput === true) {
+        // Supersede-writes only targets inputs; if input already pruned, skip.
+        continue
+      }
       
-      const filePath = extractFilePath(part.tool, part.state?.input)
+      const filePath = extractFilePath(toolName, part.state?.input)
       if (!filePath) continue
       
-      if (part.tool === "write" || part.tool === "edit") {
-        if (!writesByFile.has(filePath)) {
-          writesByFile.set(filePath, [])
-        }
-        writesByFile.get(filePath)!.push({
+      if (toolName === "write" || toolName === "edit") {
+        writes.push({
           callID: part.callID,
           tool: part.tool,
           filePath,
@@ -74,7 +84,8 @@ export function executeSupersedeWrites(
           filePath,
           turn: currentTurn,
         })
-      } else if (part.tool === "read") {
+      } else if (toolName === "read") {
+        anyReadTurns.push(currentTurn)
         if (!readsByFile.has(filePath)) {
           readsByFile.set(filePath, [])
         }
@@ -85,61 +96,45 @@ export function executeSupersedeWrites(
 
   state.currentTurn = currentTurn
 
+  const minPrunableTurn = Math.max(0, currentTurn - Math.max(0, turnProtectionTurns))
+
   let prunedCount = 0
   let tokensSaved = 0
   
-  for (const [filePath, writes] of writesByFile) {
-    const reads = readsByFile.get(filePath) || []
-    
-    if (config.aggressive) {
-      for (const write of writes) {
-        const superseded = reads.some(readTurn => readTurn > write.turn)
-        if (superseded) {
-          state.toolIdsToPrune.add(write.callID)
-          prunedCount++
-          
-          const input = findToolInput(messages, write.callID)
-          if (input) {
-            tokensSaved += estimateTokens(JSON.stringify(input))
-          }
-          
-          log("[pruning-supersede] pruned superseded write", {
-            tool: write.tool,
-            callID: write.callID,
-            turn: write.turn,
-            filePath,
-          })
-        }
-      }
-    } else {
-      if (writes.length > 1) {
-        for (const write of writes.slice(0, -1)) {
-          const superseded = reads.some(readTurn => readTurn > write.turn)
-          if (superseded) {
-            state.toolIdsToPrune.add(write.callID)
-            prunedCount++
-            
-            const input = findToolInput(messages, write.callID)
-            if (input) {
-              tokensSaved += estimateTokens(JSON.stringify(input))
-            }
-            
-            log("[pruning-supersede] pruned superseded write (conservative)", {
-              tool: write.tool,
-              callID: write.callID,
-              turn: write.turn,
-              filePath,
-            })
-          }
-        }
-      }
+  for (const write of writes) {
+    if (write.turn > minPrunableTurn) continue
+
+    const superseded = config.aggressive
+      ? anyReadTurns.some((readTurn) => readTurn > write.turn)
+      : (readsByFile.get(write.filePath) ?? []).some((readTurn) => readTurn > write.turn)
+
+    if (!superseded) continue
+
+    const alreadyInputPruned = state.toolPruneActions.get(write.callID)?.pruneInput === true
+    markToolForPruning(state, write.callID, {
+      pruneInput: true,
+      reason: "supersede_writes",
+    })
+    if (!alreadyInputPruned) prunedCount++
+
+    const input = findToolInput(messages, write.callID)
+    if (input) {
+      tokensSaved += estimateTokens(JSON.stringify(input))
     }
+    
+    log("[pruning-supersede] pruned superseded write", {
+      tool: write.tool,
+      callID: write.callID,
+      turn: write.turn,
+      filePath: write.filePath,
+      mode: config.aggressive ? "aggressive" : "conservative",
+    })
   }
   
   log("[pruning-supersede] complete", {
     prunedCount,
     tokensSaved,
-    filesTracked: writesByFile.size,
+    filesTracked: readsByFile.size,
     mode: config.aggressive ? "aggressive" : "conservative",
   })
   

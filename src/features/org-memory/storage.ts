@@ -90,13 +90,47 @@ export function addConvention(
 }
 
 /**
- * Add an architectural decision
+ * Normalize a title for comparison (lowercase, remove non-alphanumeric)
+ */
+function normalizeTitle(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+/**
+ * Check if two architectural decisions are similar (by title)
+ */
+function isSimilarDecision(
+  existing: ArchitecturalDecision,
+  newDecision: { title: string }
+): boolean {
+  return normalizeTitle(existing.title) === normalizeTitle(newDecision.title)
+}
+
+/**
+ * Add an architectural decision with deduplication
+ * @returns true if decision was added, false if duplicate
  */
 export function addArchitecturalDecision(
   projectDir: string,
-  decision: Omit<ArchitecturalDecision, "decidedAt">
-): void {
+  decision: Omit<ArchitecturalDecision, "decidedAt">,
+  maxDecisions = 20
+): boolean {
   const memory = loadOrgMemory(projectDir)
+
+  // Check for duplicates
+  const isDuplicate = memory.architecturalDecisions.some(d =>
+    isSimilarDecision(d, decision)
+  )
+
+  if (isDuplicate) {
+    log("[org-memory] skipping duplicate ADR", { title: decision.title })
+    return false
+  }
+
+  // Limit total decisions (remove oldest if over limit)
+  if (memory.architecturalDecisions.length >= maxDecisions) {
+    memory.architecturalDecisions.shift()
+  }
 
   memory.architecturalDecisions.push({
     ...decision,
@@ -104,6 +138,8 @@ export function addArchitecturalDecision(
   })
 
   saveOrgMemory(projectDir, memory)
+  log("[org-memory] added ADR", { title: decision.title })
+  return true
 }
 
 /**

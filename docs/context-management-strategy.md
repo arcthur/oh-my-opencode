@@ -300,8 +300,8 @@ Read("config.json")            // Preserved (proves writes completed)
 **Rationale**: Once a file has been read after modifications, the write inputs are redundant—the read output contains the current state.
 
 **Modes**:
-- `aggressive: false` (default): Only prune writes when the SAME file is read
-- `aggressive: true`: Prune writes when ANY subsequent read occurs
+- `aggressive: false` (default): Prune write/edit inputs only when the SAME file is read later
+- `aggressive: true`: Prune write/edit inputs when ANY subsequent read occurs (even if it reads a different file)
 
 **Configuration**:
 ```json
@@ -623,8 +623,8 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
 oh-my-opencode config
 ├── experimental                    # Experimental features
 │   ├── preemptive_compaction      # Enable proactive compaction
-│   ├── preemptive_compaction_threshold  # Trigger threshold (0.80)
-│   ├── dcp_for_compaction         # Use DCP in recovery
+│   ├── preemptive_compaction_threshold  # Trigger threshold (default: 0.85)
+│   ├── dcp_for_compaction         # Use DCP in recovery (requires dynamic_context_pruning.enabled=true)
 │   └── dynamic_context_pruning    # DCP configuration
 │       ├── enabled
 │       ├── notification
@@ -740,8 +740,8 @@ Certain tools should never be pruned as they maintain critical state:
 | Level | Output | Use Case |
 |-------|--------|----------|
 | `"off"` | No notifications | Production, minimal interruption |
-| `"minimal"` | `Pruned 12 tool outputs (~8k tokens)` | Normal use |
-| `"detailed"` | `Pruned 12 tool outputs (~8k tokens). Dedup: 3, Supersede: 5, Purge: 2, ClearResults: 2` | Debugging, optimization |
+| `"minimal"` | `Pruned 12 tool calls (~8k tokens)` | Normal use |
+| `"detailed"` | `Pruned 12 tool calls (~8k tokens). Dedup: 3, Supersede: 5, Purge: 2, ClearResults: 2` | Debugging, optimization |
 
 ---
 
@@ -923,7 +923,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 
 **Solutions**:
 1. Verify `anthropic-context-window-limit-recovery` hook is enabled
-2. Enable `dcp_for_compaction: true`
+2. Enable `dcp_for_compaction: true` and `dynamic_context_pruning.enabled: true`
 3. Lower `preemptive_compaction_threshold`
 4. Check for unusually large tool outputs
 5. Review if all DCP strategies are enabled

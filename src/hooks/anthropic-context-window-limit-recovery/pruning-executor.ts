@@ -20,7 +20,7 @@ const DEFAULT_PROTECTED_TOOLS = new Set([
 
 function createPruningState(): PruningState {
   return {
-    toolIdsToPrune: new Set<string>(),
+    toolPruneActions: new Map(),
     currentTurn: 0,
     fileOperations: new Map(),
     toolSignatures: new Map(),
@@ -34,12 +34,26 @@ export async function executeDynamicContextPruning(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any
 ): Promise<PruningResult> {
+  if (config.enabled !== true) {
+    return {
+      itemsPruned: 0,
+      totalTokensSaved: 0,
+      strategies: {
+        deduplication: 0,
+        supersedeWrites: 0,
+        purgeErrors: 0,
+        clearToolResults: 0,
+      },
+    }
+  }
+
   const state = createPruningState()
   
-  const protectedTools = new Set([
-    ...DEFAULT_PROTECTED_TOOLS,
-    ...(config.protected_tools || []),
-  ])
+  const protectedTools = new Set<string>(DEFAULT_PROTECTED_TOOLS)
+  for (const tool of config.protected_tools || []) {
+    protectedTools.add(tool)
+    protectedTools.add(tool.toLowerCase())
+  }
   
   log("[pruning-executor] starting DCP", {
     sessionID,
@@ -52,6 +66,11 @@ export async function executeDynamicContextPruning(
   let purgeCount = 0
   let clearResultsCount = 0
 
+  const turnProtectionTurns =
+    config.turn_protection?.enabled === false
+      ? 0
+      : (config.turn_protection?.turns ?? 3)
+
   // Strategy execution order: lowest risk → highest risk
   // 1. Deduplication: Safe - identical calls, agent can re-fetch
   if (config.strategies?.deduplication?.enabled !== false) {
@@ -59,7 +78,8 @@ export async function executeDynamicContextPruning(
       sessionID,
       state,
       { enabled: true },
-      protectedTools
+      protectedTools,
+      turnProtectionTurns
     )
   }
 
@@ -72,7 +92,8 @@ export async function executeDynamicContextPruning(
         enabled: true,
         keep_recent_turns: config.strategies?.clear_tool_results?.keep_recent_turns || 5,
       },
-      protectedTools
+      protectedTools,
+      turnProtectionTurns
     )
   }
 
@@ -85,7 +106,8 @@ export async function executeDynamicContextPruning(
         enabled: true,
         aggressive: config.strategies?.supersede_writes?.aggressive || false,
       },
-      protectedTools
+      protectedTools,
+      turnProtectionTurns
     )
   }
 
@@ -98,11 +120,12 @@ export async function executeDynamicContextPruning(
         enabled: true,
         turns: config.strategies?.purge_errors?.turns || 5,
       },
-      protectedTools
+      protectedTools,
+      turnProtectionTurns
     )
   }
 
-  const totalPruned = state.toolIdsToPrune.size
+  const totalPruned = state.toolPruneActions.size
   const tokensSaved = await applyPruning(sessionID, state)
 
   log("[pruning-executor] DCP complete", {
@@ -128,8 +151,8 @@ export async function executeDynamicContextPruning(
   if (config.notification !== "off" && totalPruned > 0) {
     const message =
       config.notification === "detailed"
-        ? `Pruned ${totalPruned} tool outputs (~${Math.round(tokensSaved / 1000)}k tokens). Dedup: ${dedupCount}, Supersede: ${supersedeCount}, Purge: ${purgeCount}, ClearResults: ${clearResultsCount}`
-        : `Pruned ${totalPruned} tool outputs (~${Math.round(tokensSaved / 1000)}k tokens)`
+        ? `Pruned ${totalPruned} tool calls (~${Math.round(tokensSaved / 1000)}k tokens). Dedup: ${dedupCount}, Supersede: ${supersedeCount}, Purge: ${purgeCount}, ClearResults: ${clearResultsCount}`
+        : `Pruned ${totalPruned} tool calls (~${Math.round(tokensSaved / 1000)}k tokens)`
     
     await client.tui
       .showToast({

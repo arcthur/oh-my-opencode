@@ -1,12 +1,13 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
-import type { UserMemory, WorkHistoryEntry, UserMemoryConfig } from "./types"
-import { DEFAULT_USER_MEMORY, CURRENT_SCHEMA_VERSION } from "./types"
+import type { UserMemory, WorkHistoryEntry, UserMemoryConfig, PatternStats, FrequentPatternConfig, PatternEntry } from "./types"
+import { DEFAULT_USER_MEMORY, CURRENT_SCHEMA_VERSION, DEFAULT_PATTERN_STATS, DEFAULT_PATTERN_CONFIG } from "./types"
 import { log } from "../../shared/logger"
 
 const MEMORY_DIR = join(homedir(), ".opencode", "memory")
 const USER_MEMORY_FILE = join(MEMORY_DIR, "user.json")
+const PATTERN_STATS_FILE = join(MEMORY_DIR, "pattern-stats.json")
 
 function ensureMemoryDir(): void {
   if (!existsSync(MEMORY_DIR)) {
@@ -209,7 +210,206 @@ export function getMemorySummary(): string | null {
     sections.push(`## Recent Work\n${workLines.join("\n")}`)
   }
 
+  // Frequent operations
+  if (memory.frequentPatterns.length > 0) {
+    const patterns = memory.frequentPatterns.slice(0, 10)
+    sections.push(`## Frequent Operations\n${patterns.map(p => `- ${p}`).join("\n")}`)
+  }
+
   if (sections.length === 0) return null
 
   return `[User Memory - Persistent Context]\n${sections.join("\n\n")}\n[End User Memory]`
+}
+
+// ============================================================================
+// Pattern Statistics API
+// ============================================================================
+
+/**
+ * Load pattern statistics from persistent storage
+ */
+export function loadPatternStats(): PatternStats {
+  try {
+    ensureMemoryDir()
+
+    if (!existsSync(PATTERN_STATS_FILE)) {
+      return { ...DEFAULT_PATTERN_STATS }
+    }
+
+    const data = JSON.parse(readFileSync(PATTERN_STATS_FILE, "utf-8")) as PatternStats
+    return data
+  } catch (error) {
+    log("[user-memory] failed to load pattern stats", { error: String(error) })
+    return { ...DEFAULT_PATTERN_STATS }
+  }
+}
+
+/**
+ * Save pattern statistics to persistent storage
+ */
+export function savePatternStats(stats: PatternStats): void {
+  try {
+    ensureMemoryDir()
+    writeFileSync(PATTERN_STATS_FILE, JSON.stringify(stats, null, 2), "utf-8")
+  } catch (error) {
+    log("[user-memory] failed to save pattern stats", { error: String(error) })
+  }
+}
+
+/**
+ * Normalize tool arguments to a directory-level pattern
+ * e.g., "src/hooks/preemptive-compaction/index.ts" -> "src/hooks/*"
+ */
+export function normalizeArgsToPattern(tool: string, args: unknown): string | null {
+  if (!args || typeof args !== "object") return null
+
+  const argsObj = args as Record<string, unknown>
+
+  // Handle file-based tools (Read, Write, Edit, Glob)
+  if (tool === "Read" || tool === "Write" || tool === "Edit") {
+    const filePath = argsObj.file_path || argsObj.filePath || argsObj.path
+    if (typeof filePath === "string") {
+      return extractDirectoryPattern(filePath)
+    }
+  }
+
+  // Handle Glob
+  if (tool === "Glob" || tool === "glob") {
+    const pattern = argsObj.pattern
+    if (typeof pattern === "string") {
+      // Keep glob patterns as-is but truncate
+      return pattern.length > 50 ? pattern.slice(0, 47) + "..." : pattern
+    }
+  }
+
+  // Handle Grep
+  if (tool === "Grep" || tool === "grep") {
+    const pattern = argsObj.pattern
+    if (typeof pattern === "string") {
+      // Categorize grep patterns
+      if (/TODO|FIXME|XXX|HACK/i.test(pattern)) return "TODO/FIXME patterns"
+      if (/import|require|from/i.test(pattern)) return "import statements"
+      if (/function|class|interface|type/i.test(pattern)) return "definitions"
+      return pattern.length > 30 ? pattern.slice(0, 27) + "..." : pattern
+    }
+  }
+
+  // Handle Bash
+  if (tool === "Bash" || tool === "bash") {
+    const command = argsObj.command
+    if (typeof command === "string") {
+      // Extract command name and first arg
+      const parts = command.trim().split(/\s+/)
+      const cmd = parts[0]
+      if (["npm", "yarn", "pnpm", "bun"].includes(cmd)) {
+        return `${cmd} ${parts[1] || ""}`.trim()
+      }
+      if (["git", "docker", "kubectl"].includes(cmd)) {
+        return `${cmd} ${parts[1] || ""}`.trim()
+      }
+      return cmd
+    }
+  }
+
+  return null
+}
+
+/**
+ * Extract directory pattern from a file path
+ * e.g., "src/hooks/preemptive-compaction/index.ts" -> "src/hooks/*"
+ */
+function extractDirectoryPattern(filePath: string): string {
+  const parts = filePath.split("/")
+  if (parts.length <= 2) {
+    return parts[0] + "/*"
+  }
+  // Keep first two directory levels
+  return parts.slice(0, 2).join("/") + "/*"
+}
+
+/**
+ * Create a signature for a tool pattern
+ */
+function createPatternSignature(tool: string, argsPattern: string): string {
+  return `${tool}::${argsPattern}`
+}
+
+/**
+ * Record a tool usage for pattern tracking (in-memory accumulation)
+ */
+export function recordToolUsage(
+  tool: string,
+  args: unknown,
+  sessionID: string,
+  stats: PatternStats
+): void {
+  const argsPattern = normalizeArgsToPattern(tool, args)
+  if (!argsPattern) return
+
+  const signature = createPatternSignature(tool, argsPattern)
+
+  if (!stats.patterns[signature]) {
+    stats.patterns[signature] = {
+      tool,
+      argsPattern,
+      count: 0,
+      lastUsed: 0,
+      sessionIds: [],
+    }
+  }
+
+  const entry = stats.patterns[signature]
+  entry.count++
+  entry.lastUsed = Date.now()
+
+  if (!entry.sessionIds.includes(sessionID)) {
+    entry.sessionIds.push(sessionID)
+    // Keep only last 10 session IDs
+    if (entry.sessionIds.length > 10) {
+      entry.sessionIds = entry.sessionIds.slice(-10)
+    }
+  }
+}
+
+/**
+ * Aggregate pattern stats into frequentPatterns in user memory
+ */
+export function aggregateFrequentPatterns(
+  config: FrequentPatternConfig = DEFAULT_PATTERN_CONFIG
+): string[] {
+  const stats = loadPatternStats()
+  const now = Date.now()
+  const decayMs = config.decay_days * 24 * 60 * 60 * 1000
+
+  // Filter and score patterns
+  const qualified = Object.values(stats.patterns)
+    .filter(p => p.count >= config.min_occurrences)
+    .filter(p => p.sessionIds.length >= config.min_sessions)
+    .map(p => {
+      // Apply decay penalty for old patterns
+      const age = now - p.lastUsed
+      const decayFactor = age > decayMs ? 0.5 : 1.0
+      const score = p.count * decayFactor * p.sessionIds.length
+      return { ...p, score }
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, config.max_patterns)
+
+  // Format as human-readable strings
+  const patterns = qualified.map(p =>
+    `${p.tool}: ${p.argsPattern} (${p.count} uses)`
+  )
+
+  // Update user memory
+  const memory = loadUserMemory()
+  memory.frequentPatterns = patterns
+  saveUserMemory(memory)
+
+  // Update aggregation timestamp
+  stats.lastAggregated = now
+  savePatternStats(stats)
+
+  log("[user-memory] aggregated frequent patterns", { count: patterns.length })
+
+  return patterns
 }

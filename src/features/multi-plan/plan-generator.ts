@@ -257,7 +257,7 @@ export class PlanGenerator {
   /**
    * Resolve model configuration from category or direct specification
    */
-  private resolveModelConfig(model: MultiPlanModel): {
+  resolveModelConfig(model: MultiPlanModel): {
     model?: { providerID: string; modelID: string }
     systemPrompt?: string
   } {

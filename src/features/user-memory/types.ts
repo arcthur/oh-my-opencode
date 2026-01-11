@@ -89,3 +89,52 @@ export const DEFAULT_CONFIG: UserMemoryConfig = {
 }
 
 export const CURRENT_SCHEMA_VERSION = 1
+
+/**
+ * Pattern Statistics for tracking frequent tool usage
+ */
+export interface PatternEntry {
+  /** Tool name (e.g., "Read", "Bash", "Grep") */
+  tool: string
+  /** Normalized arguments pattern (e.g., "src/hooks/*") */
+  argsPattern: string
+  /** Total occurrence count */
+  count: number
+  /** Last usage timestamp */
+  lastUsed: number
+  /** Unique session IDs where this pattern appeared */
+  sessionIds: string[]
+}
+
+export interface PatternStats {
+  /** Pattern entries keyed by signature (tool::argsPattern) */
+  patterns: Record<string, PatternEntry>
+  /** Last aggregation timestamp */
+  lastAggregated: number
+}
+
+export interface FrequentPatternConfig {
+  /** Enable pattern tracking (default: true) */
+  enabled: boolean
+  /** Minimum occurrences to be considered frequent (default: 5) */
+  min_occurrences: number
+  /** Minimum unique sessions required (default: 2) */
+  min_sessions: number
+  /** Maximum patterns to keep (default: 20) */
+  max_patterns: number
+  /** Days after which patterns decay in relevance (default: 30) */
+  decay_days: number
+}
+
+export const DEFAULT_PATTERN_CONFIG: FrequentPatternConfig = {
+  enabled: true,
+  min_occurrences: 5,
+  min_sessions: 2,
+  max_patterns: 20,
+  decay_days: 30,
+}
+
+export const DEFAULT_PATTERN_STATS: PatternStats = {
+  patterns: {},
+  lastAggregated: 0,
+}

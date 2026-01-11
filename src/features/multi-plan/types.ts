@@ -46,8 +46,8 @@ export type MultiPlanSessionStatus =
 export interface PlanRebuttal {
   /** Model name that was rejected */
   modelName: string
-  /** Which conflict this rebuttal addresses */
-  conflictId: string
+  /** Conflicts this rebuttal addresses */
+  conflictIds: string[]
   /** The rebuttal content */
   content: string
   /** Task ID for the rebuttal generation */

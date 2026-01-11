@@ -1,5 +1,6 @@
 import type { PruningState, ErroredToolCall } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
+import { markToolForPruning } from "./pruning-types"
 import { log } from "../../shared/logger"
 import { readMessages } from "./pruning-shared"
 
@@ -19,7 +20,8 @@ export function executePurgeErrors(
   sessionID: string,
   state: PruningState,
   config: PurgeErrorsConfig,
-  protectedTools: Set<string>
+  protectedTools: Set<string>,
+  turnProtectionTurns: number = 0
 ): number {
   if (!config.enabled) return 0
 
@@ -40,9 +42,10 @@ export function executePurgeErrors(
 
       if (part.type !== "tool" || !part.callID || !part.tool) continue
 
-      if (protectedTools.has(part.tool)) continue
+      if (protectedTools.has(part.tool.toLowerCase())) continue
 
-      if (state.toolIdsToPrune.has(part.callID)) continue
+      const existing = state.toolPruneActions.get(part.callID)
+      if (existing?.pruneInput === true && existing?.pruneOutput === true) continue
 
       if (part.state?.status !== "error") continue
 
@@ -57,16 +60,28 @@ export function executePurgeErrors(
 
   state.currentTurn = currentTurn
 
+  const minPrunableTurn = Math.max(0, currentTurn - Math.max(0, turnProtectionTurns))
+
   // Now filter candidates based on turnAge (requires knowing final currentTurn)
   let prunedCount = 0
   let tokensSaved = 0
 
   for (const candidate of candidates) {
+    if (candidate.turn > minPrunableTurn) continue
     const turnAge = currentTurn - candidate.turn
 
     if (turnAge >= config.turns) {
-      state.toolIdsToPrune.add(candidate.callID)
-      prunedCount++
+      const alreadyPruned =
+        state.toolPruneActions.get(candidate.callID)?.pruneInput === true &&
+        state.toolPruneActions.get(candidate.callID)?.pruneOutput === true
+
+      markToolForPruning(state, candidate.callID, {
+        pruneInput: true,
+        pruneOutput: true,
+        reason: "purge_errors",
+      })
+
+      if (!alreadyPruned) prunedCount++
 
       if (candidate.input) {
         tokensSaved += estimateTokens(JSON.stringify(candidate.input))

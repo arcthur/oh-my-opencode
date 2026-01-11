@@ -7,7 +7,7 @@ import type {
   MessageInput,
 } from "../../shared/hook-types"
 import { DEFAULT_CONFIG } from "./types"
-import { getOrgMemorySummary, addCustomRule, addProtectedPath } from "./storage"
+import { getOrgMemorySummary, addCustomRule, addProtectedPath, addArchitecturalDecision } from "./storage"
 import { log } from "../../shared/logger"
 
 /**
@@ -34,6 +34,47 @@ export function createOrgMemoryHook(ctx: PluginInput, userConfig?: Partial<OrgMe
 
   // Pattern for protected paths
   const PROTECTED_PATH_PATTERN = /\bnever\s+(?:modify|change|edit|touch)\s+(.+)/i
+
+  // Patterns to detect architectural decisions from user messages
+  const ADR_USER_PATTERNS: Array<{ pattern: RegExp; extractor: (match: RegExpMatchArray) => { title: string; rationale: string } | null }> = [
+    {
+      // "let's use X for Y"
+      pattern: /\blet'?s?\s+use\s+(\S+(?:\s+\S+)?)\s+(?:for|to\s+handle)\s+(.+)/i,
+      extractor: (m) => ({ title: `Use ${m[1]}`, rationale: `For ${m[2].replace(/[.,!?]+$/, "")}` }),
+    },
+    {
+      // "we should use X because Y"
+      pattern: /\bwe\s+should\s+use\s+(\S+(?:\s+\S+)?)\s+(?:because|since)\s+(.+)/i,
+      extractor: (m) => ({ title: `Use ${m[1]}`, rationale: m[2].replace(/[.,!?]+$/, "") }),
+    },
+    {
+      // "decided: use X for Y" or "decided to use X"
+      pattern: /\bdecided\s*:\s*(?:use\s+)?(.+)/i,
+      extractor: (m) => {
+        const content = m[1].replace(/[.,!?]+$/, "").trim()
+        if (content.length < 10) return null
+        return { title: content, rationale: "User decision" }
+      },
+    },
+    {
+      // "ADR: X"
+      pattern: /\bADR\s*:\s*(.+)/i,
+      extractor: (m) => {
+        const content = m[1].replace(/[.,!?]+$/, "").trim()
+        if (content.length < 10) return null
+        return { title: content, rationale: "Explicit ADR" }
+      },
+    },
+    {
+      // "architecture decision: X"
+      pattern: /\b(?:architecture|architectural)\s+decision\s*:\s*(.+)/i,
+      extractor: (m) => {
+        const content = m[1].replace(/[.,!?]+$/, "").trim()
+        if (content.length < 10) return null
+        return { title: content, rationale: "Explicit architecture decision" }
+      },
+    },
+  ]
 
   async function injectOrgMemory(sessionID: string, output: ToolExecuteOutput): Promise<void> {
     if (!config.enabled || !config.auto_inject) return
@@ -88,6 +129,18 @@ export function createOrgMemoryHook(ctx: PluginInput, userConfig?: Partial<OrgMe
         break
       }
     }
+
+    // Check for architectural decision patterns
+    for (const { pattern, extractor } of ADR_USER_PATTERNS) {
+      const match = content.match(pattern)
+      if (match) {
+        const decision = extractor(match)
+        if (decision && decision.title.length >= 10 && decision.title.length <= 200) {
+          addArchitecturalDecision(ctx.directory, decision)
+        }
+        break
+      }
+    }
   }
 
   const eventHandler = async ({ event }: EventInput) => {
@@ -109,6 +162,50 @@ export function createOrgMemoryHook(ctx: PluginInput, userConfig?: Partial<OrgMe
         injectedSessions.delete(sessionID)
       }
     }
+
+    // Extract ADRs from compaction summary
+    if (event.type === "session.summarized") {
+      const summary = props?.summary as string | undefined
+      if (summary) {
+        const decisions = extractDecisionsFromSummary(summary)
+        for (const decision of decisions) {
+          addArchitecturalDecision(ctx.directory, decision)
+        }
+      }
+    }
+  }
+
+  /**
+   * Extract architectural decisions from compaction summary
+   * Looks for "Key Decisions & Rationale" section
+   */
+  function extractDecisionsFromSummary(summary: string): Array<{ title: string; rationale: string }> {
+    // Look for "Key Decisions" section with various numbering formats
+    const sectionMatch = summary.match(/##\s*(?:\d+\.\s*)?(?:Key\s+)?Decisions?\s*(?:&|and)?\s*Rationale?[\s\S]*?(?=##|$)/i)
+    if (!sectionMatch) return []
+
+    const section = sectionMatch[0]
+    const decisions: Array<{ title: string; rationale: string }> = []
+
+    // Extract bullet points
+    const bulletPattern = /[-*]\s*(?:\*\*)?([^*:\n]+)(?:\*\*)?\s*[:\-]?\s*(.+)/g
+    let match
+
+    while ((match = bulletPattern.exec(section)) !== null) {
+      const title = match[1].trim()
+      const rationale = match[2].trim().replace(/[.,!?]+$/, "")
+
+      // Validate
+      if (title.length >= 5 && title.length <= 200 && rationale.length >= 5) {
+        decisions.push({ title, rationale })
+      }
+    }
+
+    if (decisions.length > 0) {
+      log("[org-memory] extracted ADRs from summary", { count: decisions.length })
+    }
+
+    return decisions
   }
 
   return {

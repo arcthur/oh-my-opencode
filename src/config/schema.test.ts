@@ -303,6 +303,51 @@ describe("AgentOverrideConfigSchema", () => {
   })
 })
 
+describe("org_memory schema", () => {
+  test("should accept org_memory config", () => {
+    // #given
+    const config = {
+      org_memory: {
+        enabled: true,
+        auto_inject: true,
+        max_conventions: 10,
+        max_decisions: 5,
+        max_patterns: 5,
+        max_terminology: 10,
+        max_custom_rules: 20,
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // #then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.org_memory?.enabled).toBe(true)
+      expect(result.data.org_memory?.auto_inject).toBe(true)
+    }
+  })
+
+  test("should allow disabling org_memory", () => {
+    // #given
+    const config = {
+      org_memory: {
+        enabled: false,
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // #then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.org_memory?.enabled).toBe(false)
+    }
+  })
+})
+
 describe("BuiltinCategoryNameSchema", () => {
   test("accepts all builtin category names", () => {
     // #given

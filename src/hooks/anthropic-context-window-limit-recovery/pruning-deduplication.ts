@@ -1,5 +1,6 @@
 import type { PruningState, ToolCallSignature } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
+import { markToolForPruning } from "./pruning-types"
 import { log } from "../../shared/logger"
 import { readMessages, findToolOutput } from "./pruning-shared"
 
@@ -29,7 +30,8 @@ export function executeDeduplication(
   sessionID: string,
   state: PruningState,
   config: DeduplicationConfig,
-  protectedTools: Set<string>
+  protectedTools: Set<string>,
+  turnProtectionTurns: number = 0
 ): number {
   if (!config.enabled) return 0
 
@@ -49,18 +51,21 @@ export function executeDeduplication(
       
       if (part.type !== "tool" || !part.callID || !part.tool) continue
       
-      if (protectedTools.has(part.tool)) continue
+      const toolName = part.tool.toLowerCase()
+      if (protectedTools.has(toolName)) continue
 
-      if (state.toolIdsToPrune.has(part.callID)) continue
+      if (state.toolPruneActions.get(part.callID)?.pruneInput && state.toolPruneActions.get(part.callID)?.pruneOutput) {
+        continue
+      }
       
-      const signature = createToolSignature(part.tool, part.state?.input)
+      const signature = createToolSignature(toolName, part.state?.input)
       
       if (!signatures.has(signature)) {
         signatures.set(signature, [])
       }
       
       signatures.get(signature)!.push({
-        toolName: part.tool,
+        toolName,
         signature,
         callID: part.callID,
         turn: currentTurn,
@@ -70,7 +75,7 @@ export function executeDeduplication(
         state.toolSignatures.set(signature, [])
       }
       state.toolSignatures.get(signature)!.push({
-        toolName: part.tool,
+        toolName,
         signature,
         callID: part.callID,
         turn: currentTurn,
@@ -80,6 +85,8 @@ export function executeDeduplication(
 
   state.currentTurn = currentTurn
 
+  const minPrunableTurn = Math.max(0, currentTurn - Math.max(0, turnProtectionTurns))
+
   let prunedCount = 0
   let tokensSaved = 0
   
@@ -88,8 +95,20 @@ export function executeDeduplication(
       const toPrune = calls.slice(0, -1)
       
       for (const call of toPrune) {
-        state.toolIdsToPrune.add(call.callID)
-        prunedCount++
+        if (call.turn > minPrunableTurn) continue
+        const alreadyPruned =
+          state.toolPruneActions.get(call.callID)?.pruneInput === true &&
+          state.toolPruneActions.get(call.callID)?.pruneOutput === true
+
+        markToolForPruning(state, call.callID, {
+          pruneInput: true,
+          pruneOutput: true,
+          reason: "deduplication",
+        })
+
+        if (!alreadyPruned) {
+          prunedCount++
+        }
         
         const output = findToolOutput(messages, call.callID)
         if (output) {

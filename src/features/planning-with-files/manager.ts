@@ -21,6 +21,10 @@ const stateCache = new Map<string, PlanningState>()
 /** Track last known phase statuses for reflection detection */
 const phaseStatusCache = new Map<string, Map<number, PhaseStatus>>()
 
+function getCacheKey(cwd: string, planName: string, config: PlanningWithFilesConfig): string {
+  return `${cwd}:${config.directory}:${planName}`
+}
+
 /**
  * Get plan directory path
  */
@@ -38,14 +42,18 @@ function getStatePath(cwd: string, planName: string, config = DEFAULT_PLANNING_C
 /**
  * Load persisted state
  */
-export async function loadState(cwd: string, planName: string): Promise<PlanningState | null> {
-  const cacheKey = `${cwd}:${planName}`
+export async function loadState(
+  cwd: string,
+  planName: string,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<PlanningState | null> {
+  const cacheKey = getCacheKey(cwd, planName, config)
   if (stateCache.has(cacheKey)) {
     return stateCache.get(cacheKey)!
   }
 
   try {
-    const content = await fs.promises.readFile(getStatePath(cwd, planName), "utf-8")
+    const content = await fs.promises.readFile(getStatePath(cwd, planName, config), "utf-8")
     const state = JSON.parse(content) as PlanningState
     stateCache.set(cacheKey, state)
     return state
@@ -57,9 +65,13 @@ export async function loadState(cwd: string, planName: string): Promise<Planning
 /**
  * Save state to disk
  */
-export async function saveState(cwd: string, state: PlanningState): Promise<void> {
-  const statePath = getStatePath(cwd, state.planName)
-  const cacheKey = `${cwd}:${state.planName}`
+export async function saveState(
+  cwd: string,
+  state: PlanningState,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<void> {
+  const statePath = getStatePath(cwd, state.planName, config)
+  const cacheKey = getCacheKey(cwd, state.planName, config)
 
   await fs.promises.mkdir(path.dirname(statePath), { recursive: true })
   state.lastActivityAt = new Date().toISOString()
@@ -73,9 +85,10 @@ export async function saveState(cwd: string, state: PlanningState): Promise<void
 export async function wasFindingsModified(
   cwd: string,
   planName: string,
-  lastMtime: number
+  lastMtime: number,
+  config = DEFAULT_PLANNING_CONFIG
 ): Promise<{ modified: boolean; newMtime: number }> {
-  const findingsPath = path.join(getPlanDir(cwd, planName), "findings.md")
+  const findingsPath = path.join(getPlanDir(cwd, planName, config), "findings.md")
   try {
     const stat = await fs.promises.stat(findingsPath)
     return { modified: stat.mtimeMs > lastMtime, newMtime: stat.mtimeMs }
@@ -87,8 +100,12 @@ export async function wasFindingsModified(
 /**
  * Read FULL task_plan.md for KV-cache optimization
  */
-export async function readTaskPlan(cwd: string, planName: string): Promise<string | null> {
-  const taskPlanPath = path.join(getPlanDir(cwd, planName), "task_plan.md")
+export async function readTaskPlan(
+  cwd: string,
+  planName: string,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<string | null> {
+  const taskPlanPath = path.join(getPlanDir(cwd, planName, config), "task_plan.md")
   try {
     return await fs.promises.readFile(taskPlanPath, "utf-8")
   } catch {
@@ -99,16 +116,24 @@ export async function readTaskPlan(cwd: string, planName: string): Promise<strin
 /**
  * Write task_plan.md
  */
-export async function writeTaskPlan(cwd: string, planName: string, content: string): Promise<void> {
-  const taskPlanPath = path.join(getPlanDir(cwd, planName), "task_plan.md")
+export async function writeTaskPlan(
+  cwd: string,
+  planName: string,
+  content: string,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<void> {
+  const taskPlanPath = path.join(getPlanDir(cwd, planName, config), "task_plan.md")
   await fs.promises.writeFile(taskPlanPath, content)
 }
 
 /**
  * Detect active plan from directory
  */
-export async function detectActivePlan(cwd: string): Promise<string | null> {
-  const plansDir = path.join(cwd, ".sisyphus", "plans")
+export async function detectActivePlan(
+  cwd: string,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<string | null> {
+  const plansDir = path.join(cwd, ".sisyphus", config.directory)
   try {
     const entries = await fs.promises.readdir(plansDir, { withFileTypes: true })
     let latestPlan: string | null = null
@@ -228,21 +253,33 @@ export async function initializePlan(
 5. **What have I completed?** -
 `
 
-  await Promise.all([
-    fs.promises.writeFile(taskPlanPath, taskPlanContent),
-    fs.promises.writeFile(findingsPath, findingsContent),
-    fs.promises.writeFile(progressPath, progressContent),
-  ])
-
-  const state: PlanningState = {
-    planName,
-    actionCount: 0,
-    lastFindingsMtime: Date.now(),
-    errorStrikes: {},
-    activatedAt: new Date().toISOString(),
-    lastActivityAt: new Date().toISOString(),
+  const writes: Array<Promise<void>> = []
+  if (!fs.existsSync(taskPlanPath)) {
+    writes.push(fs.promises.writeFile(taskPlanPath, taskPlanContent))
   }
-  await saveState(cwd, state)
+  if (!fs.existsSync(findingsPath)) {
+    writes.push(fs.promises.writeFile(findingsPath, findingsContent))
+  }
+  if (!fs.existsSync(progressPath)) {
+    writes.push(fs.promises.writeFile(progressPath, progressContent))
+  }
+  await Promise.all(writes)
+
+  const existingState = await loadState(cwd, planName, config)
+
+  if (existingState) {
+    await saveState(cwd, existingState, config)
+  } else {
+    const state: PlanningState = {
+      planName,
+      actionCount: 0,
+      lastFindingsMtime: Date.now(),
+      errorStrikes: {},
+      activatedAt: new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
+    }
+    await saveState(cwd, state, config)
+  }
 
   return { taskPlanPath, findingsPath, progressPath }
 }
@@ -273,9 +310,10 @@ export function parsePhases(content: string): Array<{ id: number; name: string; 
 export function detectPhaseCompletion(
   cwd: string,
   planName: string,
-  currentPhases: Array<{ id: number; name: string; status: PhaseStatus }>
+  currentPhases: Array<{ id: number; name: string; status: PhaseStatus }>,
+  config = DEFAULT_PLANNING_CONFIG
 ): Array<{ id: number; name: string }> {
-  const cacheKey = `${cwd}:${planName}`
+  const cacheKey = getCacheKey(cwd, planName, config)
   const previousStatuses = phaseStatusCache.get(cacheKey)
 
   // First call: initialize cache, return empty (no false positives on restart)
@@ -424,9 +462,10 @@ This issue requires escalation. Add to task_plan.md ## Blockers section:
 export async function isErrorRecorded(
   cwd: string,
   planName: string,
-  errorKey: string
+  errorKey: string,
+  config = DEFAULT_PLANNING_CONFIG
 ): Promise<boolean> {
-  const content = await readTaskPlan(cwd, planName)
+  const content = await readTaskPlan(cwd, planName, config)
   if (!content) return false
 
   // Check if error appears in the Errors table
@@ -451,27 +490,31 @@ export function getCurrentPhase(
 /**
  * Cleanup session cache
  */
-export function cleanupSession(cwd: string, planName: string): void {
-  stateCache.delete(`${cwd}:${planName}`)
-  phaseStatusCache.delete(`${cwd}:${planName}`)
+export function cleanupSession(
+  cwd: string,
+  planName: string,
+  config = DEFAULT_PLANNING_CONFIG
+): void {
+  stateCache.delete(getCacheKey(cwd, planName, config))
+  phaseStatusCache.delete(getCacheKey(cwd, planName, config))
 }
 
 // Legacy exports for compatibility
 export const initializePlanningSession = initializePlan
 export const getPlanningSession = loadState
 export const loadPlanningSession = loadState
-export const readFindings = async (cwd: string, planName: string) =>
-  fs.promises.readFile(path.join(getPlanDir(cwd, planName), "findings.md"), "utf-8")
-export const readProgress = async (cwd: string, planName: string) =>
-  fs.promises.readFile(path.join(getPlanDir(cwd, planName), "progress.md"), "utf-8")
-export const areAllPhasesComplete = async (cwd: string, planName: string) => {
-  const content = await readTaskPlan(cwd, planName)
+export const readFindings = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) =>
+  fs.promises.readFile(path.join(getPlanDir(cwd, planName, config), "findings.md"), "utf-8")
+export const readProgress = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) =>
+  fs.promises.readFile(path.join(getPlanDir(cwd, planName, config), "progress.md"), "utf-8")
+export const areAllPhasesComplete = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) => {
+  const content = await readTaskPlan(cwd, planName, config)
   if (!content) return false
   const phases = parsePhases(content)
   return phases.length > 0 && phases.every(p => p.status === "complete" || p.status === "blocked")
 }
-export const getIncompletePhases = async (cwd: string, planName: string) => {
-  const content = await readTaskPlan(cwd, planName)
+export const getIncompletePhases = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) => {
+  const content = await readTaskPlan(cwd, planName, config)
   if (!content) return []
   return parsePhases(content)
     .filter(p => p.status !== "complete" && p.status !== "blocked")

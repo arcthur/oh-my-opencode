@@ -302,27 +302,19 @@ export async function executeCompact(
       errorData?.maxTokens &&
       errorData.currentTokens > errorData.maxTokens;
 
-    // PHASE 1: DCP (Dynamic Context Pruning) - prune duplicate tool calls first
+    // PHASE 1: DCP (Dynamic Context Pruning) - prune low-signal history first
     const dcpState = getOrCreateDcpState(autoCompactState, sessionID);
-    if (dcpForCompaction !== false && !dcpState.attempted && isOverLimit) {
+    const dcpConfig = experimental?.dynamic_context_pruning;
+    const dcpEnabled =
+      dcpForCompaction === true && dcpConfig?.enabled === true;
+
+    if (dcpEnabled && !dcpState.attempted && isOverLimit) {
       dcpState.attempted = true;
       log("[auto-compact] PHASE 1: DCP triggered on token limit error", {
         sessionID,
         currentTokens: errorData.currentTokens,
         maxTokens: errorData.maxTokens,
       });
-
-      const dcpConfig = experimental?.dynamic_context_pruning ?? {
-        enabled: true,
-        notification: "detailed" as const,
-        protected_tools: [
-          "task",
-          "todowrite",
-          "todoread",
-          "lsp_rename",
-          "lsp_code_action_resolve",
-        ],
-      };
 
       try {
         const pruningResult = await executeDynamicContextPruning(

@@ -3,21 +3,8 @@ import { join } from "node:path"
 import type { PruningState } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
 import { log } from "../../shared/logger"
-import { MESSAGE_STORAGE } from "../../features/hook-message-injector"
-
-function getMessageDir(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) return null
-
-  const directPath = join(MESSAGE_STORAGE, sessionID)
-  if (existsSync(directPath)) return directPath
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-    if (existsSync(sessionPath)) return sessionPath
-  }
-
-  return null
-}
+import { PART_STORAGE } from "../../features/hook-message-injector"
+import { getMessageDir } from "./pruning-shared"
 
 interface ToolPart {
   type: string
@@ -28,11 +15,17 @@ interface ToolPart {
     output?: string
     status?: string
   }
+  id?: string
 }
 
 interface MessageData {
   parts?: ToolPart[]
   [key: string]: unknown
+}
+
+function isAlreadyPrunedInput(input: unknown): boolean {
+  if (!input || typeof input !== "object") return false
+  return (input as Record<string, unknown>).__pruned === true
 }
 
 export async function applyPruning(
@@ -49,39 +42,53 @@ export async function applyPruning(
   let filesModified = 0
 
   try {
-    const files = readdirSync(messageDir).filter(f => f.endsWith(".json"))
-    
-    for (const file of files) {
-      const filePath = join(messageDir, file)
-      const content = readFileSync(filePath, "utf-8")
-      const data: MessageData = JSON.parse(content)
-      
-      if (!data.parts) continue
-      
-      let modified = false
-      
-      for (const part of data.parts) {
+    const messageFiles = readdirSync(messageDir).filter((f) => f.endsWith(".json"))
+
+    for (const messageFile of messageFiles) {
+      const messageID = messageFile.replace(/\.json$/, "")
+      const partDir = join(PART_STORAGE, messageID)
+      if (!existsSync(partDir)) continue
+
+      const partFiles = readdirSync(partDir).filter((f) => f.endsWith(".json"))
+      for (const partFile of partFiles) {
+        const partPath = join(partDir, partFile)
+
+        let part: ToolPart
+        try {
+          const content = readFileSync(partPath, "utf-8")
+          part = JSON.parse(content) as ToolPart
+        } catch {
+          continue
+        }
+
         if (part.type !== "tool" || !part.callID) continue
-        
-        if (!state.toolIdsToPrune.has(part.callID)) continue
-        
-        if (part.state?.input) {
+
+        const action = state.toolPruneActions.get(part.callID)
+        if (!action) continue
+
+        let modified = false
+
+        if (action.pruneInput && part.state?.input && !isAlreadyPrunedInput(part.state.input)) {
           const inputStr = JSON.stringify(part.state.input)
           totalTokensSaved += estimateTokens(inputStr)
           part.state.input = { __pruned: true, reason: "DCP" }
           modified = true
         }
-        
-        if (part.state?.output) {
+
+        if (
+          action.pruneOutput &&
+          part.state?.output &&
+          !part.state.output.includes("[Content pruned by Dynamic Context Pruning]")
+        ) {
           totalTokensSaved += estimateTokens(part.state.output)
           part.state.output = "[Content pruned by Dynamic Context Pruning]"
           modified = true
         }
-      }
-      
-      if (modified) {
-        writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8")
-        filesModified++
+
+        if (modified) {
+          writeFileSync(partPath, JSON.stringify(part, null, 2), "utf-8")
+          filesModified++
+        }
       }
     }
   } catch (error) {
