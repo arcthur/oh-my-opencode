@@ -26,6 +26,7 @@ export interface PruningResult {
     deduplication: number
     supersedeWrites: number
     purgeErrors: number
+    clearToolResults: number
   }
 }
 
