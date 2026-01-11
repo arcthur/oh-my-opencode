@@ -91,6 +91,8 @@ export const HookNameSchema = z.enum([
   "multi-plan-trigger",
   "planning-with-files",
   "silent-tool-output",
+  "repo-overview-injector",
+  "runtime-tracker",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -241,6 +243,12 @@ export const DynamicContextPruningConfigSchema = z.object({
       enabled: z.boolean().default(true),
       turns: z.number().min(1).max(20).default(5),
     }).optional(),
+    /** Clear tool results from older turns - safest form of compaction */
+    clear_tool_results: z.object({
+      enabled: z.boolean().default(true),
+      /** Number of recent turns to keep full results (default: 5) */
+      keep_recent_turns: z.number().min(1).max(20).default(5),
+    }).optional(),
   }).optional(),
 })
 
@@ -360,6 +368,46 @@ export const SilentToolOutputConfigSchema = z.object({
   preview_max_chars: z.number().default(200),
 })
 
+/** Repository Overview Configuration - bootstraps session with project context */
+export const RepoOverviewConfigSchema = z.object({
+  /** Enable repository overview injection (default: true) */
+  enabled: z.boolean().default(true),
+  /** Auto-generate overview on first tool use (default: true) */
+  auto_generate: z.boolean().default(true),
+  /** Max lines for directory tree (default: 50) */
+  max_tree_depth: z.number().min(10).max(200).default(50),
+  /** Cache duration in ms (default: 1 hour = 3600000) */
+  cache_duration_ms: z.number().default(3600000),
+})
+
+/** Runtime Tracker Configuration - tracks tool execution times */
+export const RuntimeTrackerConfigSchema = z.object({
+  /** Enable runtime tracking (default: true) */
+  enabled: z.boolean().default(true),
+  /** Threshold in ms to trigger warning (default: 3000) */
+  threshold_ms: z.number().min(500).max(60000).default(3000),
+  /** Max recent durations to track for average (default: 10) */
+  max_recent: z.number().min(3).max(50).default(10),
+  /** Inject runtime hints into tool output (default: true) */
+  inject_hints: z.boolean().default(true),
+  /** Cooldown in ms between hints for the same tool (default: 60000) */
+  hint_cooldown_ms: z.number().min(0).default(60000),
+})
+
+/** User Memory Configuration - persistent memory across sessions */
+export const UserMemoryConfigSchema = z.object({
+  /** Enable user memory persistence (default: true) */
+  enabled: z.boolean().default(true),
+  /** Persist user preferences (default: true) */
+  persist_preferences: z.boolean().default(true),
+  /** Persist work history (default: true) */
+  persist_work_history: z.boolean().default(true),
+  /** Max work history entries to keep (default: 50) */
+  max_history_entries: z.number().min(10).max(200).default(50),
+  /** Auto-inject memory context on session start (default: true) */
+  auto_inject: z.boolean().default(true),
+})
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -383,6 +431,9 @@ export const OhMyOpenCodeConfigSchema = z.object({
   multi_plan: MultiPlanConfigSchema.optional(),
   planning_with_files: PlanningWithFilesConfigSchema.optional(),
   silent_tool_output: SilentToolOutputConfigSchema.optional(),
+  repo_overview: RepoOverviewConfigSchema.optional(),
+  runtime_tracker: RuntimeTrackerConfigSchema.optional(),
+  user_memory: UserMemoryConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -409,5 +460,8 @@ export type MultiPlanModel = z.infer<typeof MultiPlanModelSchema>
 export type MultiPlanConfig = z.infer<typeof MultiPlanConfigSchema>
 export type PlanningWithFilesConfig = z.infer<typeof PlanningWithFilesConfigSchema>
 export type SilentToolOutputConfig = z.infer<typeof SilentToolOutputConfigSchema>
+export type RepoOverviewConfig = z.infer<typeof RepoOverviewConfigSchema>
+export type RuntimeTrackerConfig = z.infer<typeof RuntimeTrackerConfigSchema>
+export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

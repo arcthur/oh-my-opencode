@@ -3,6 +3,7 @@ import type { PruningState, PruningResult } from "./pruning-types"
 import { executeDeduplication } from "./pruning-deduplication"
 import { executeSupersedeWrites } from "./pruning-supersede"
 import { executePurgeErrors } from "./pruning-purge-errors"
+import { executeClearResults } from "./pruning-clear-results"
 import { applyPruning } from "./pruning-storage"
 import { log } from "../../shared/logger"
 
@@ -49,7 +50,10 @@ export async function executeDynamicContextPruning(
   let dedupCount = 0
   let supersedeCount = 0
   let purgeCount = 0
-  
+  let clearResultsCount = 0
+
+  // Strategy execution order: lowest risk → highest risk
+  // 1. Deduplication: Safe - identical calls, agent can re-fetch
   if (config.strategies?.deduplication?.enabled !== false) {
     dedupCount = executeDeduplication(
       sessionID,
@@ -58,7 +62,21 @@ export async function executeDynamicContextPruning(
       protectedTools
     )
   }
-  
+
+  // 2. Clear tool results: Safe - old results from deep history, agent can re-fetch
+  if (config.strategies?.clear_tool_results?.enabled !== false) {
+    clearResultsCount = executeClearResults(
+      sessionID,
+      state,
+      {
+        enabled: true,
+        keep_recent_turns: config.strategies?.clear_tool_results?.keep_recent_turns || 5,
+      },
+      protectedTools
+    )
+  }
+
+  // 3. Supersede writes: Medium risk - writes that have been re-read
   if (config.strategies?.supersede_writes?.enabled !== false) {
     supersedeCount = executeSupersedeWrites(
       sessionID,
@@ -70,7 +88,8 @@ export async function executeDynamicContextPruning(
       protectedTools
     )
   }
-  
+
+  // 4. Purge errors: Executed last - old errors have limited ongoing value but may aid debugging
   if (config.strategies?.purge_errors?.enabled !== false) {
     purgeCount = executePurgeErrors(
       sessionID,
@@ -82,18 +101,19 @@ export async function executeDynamicContextPruning(
       protectedTools
     )
   }
-  
+
   const totalPruned = state.toolIdsToPrune.size
   const tokensSaved = await applyPruning(sessionID, state)
-  
+
   log("[pruning-executor] DCP complete", {
     totalPruned,
     tokensSaved,
     deduplication: dedupCount,
     supersede: supersedeCount,
     purge: purgeCount,
+    clearResults: clearResultsCount,
   })
-  
+
   const result: PruningResult = {
     itemsPruned: totalPruned,
     totalTokensSaved: tokensSaved,
@@ -101,13 +121,14 @@ export async function executeDynamicContextPruning(
       deduplication: dedupCount,
       supersedeWrites: supersedeCount,
       purgeErrors: purgeCount,
+      clearToolResults: clearResultsCount,
     },
   }
-  
+
   if (config.notification !== "off" && totalPruned > 0) {
     const message =
       config.notification === "detailed"
-        ? `Pruned ${totalPruned} tool outputs (~${Math.round(tokensSaved / 1000)}k tokens). Dedup: ${dedupCount}, Supersede: ${supersedeCount}, Purge: ${purgeCount}`
+        ? `Pruned ${totalPruned} tool outputs (~${Math.round(tokensSaved / 1000)}k tokens). Dedup: ${dedupCount}, Supersede: ${supersedeCount}, Purge: ${purgeCount}, ClearResults: ${clearResultsCount}`
         : `Pruned ${totalPruned} tool outputs (~${Math.round(tokensSaved / 1000)}k tokens)`
     
     await client.tui
