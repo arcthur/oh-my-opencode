@@ -1,28 +1,12 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
 import type { PruningState, ToolCallSignature } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
 import { log } from "../../shared/logger"
-import { MESSAGE_STORAGE } from "../../features/hook-message-injector"
+import { readMessages, findToolOutput } from "./pruning-shared"
+import type { MessagePart } from "./pruning-shared"
 
 export interface DeduplicationConfig {
   enabled: boolean
   protectedTools?: string[]
-}
-
-interface ToolPart {
-  type: string
-  callID?: string
-  tool?: string
-  state?: {
-    input?: unknown
-    output?: string
-  }
-}
-
-interface MessagePart {
-  type: string
-  parts?: ToolPart[]
 }
 
 export function createToolSignature(toolName: string, input: unknown): string {
@@ -34,49 +18,13 @@ function sortObject(obj: unknown): unknown {
   if (obj === null || obj === undefined) return obj
   if (typeof obj !== "object") return obj
   if (Array.isArray(obj)) return obj.map(sortObject)
-  
+
   const sorted: Record<string, unknown> = {}
   const keys = Object.keys(obj as Record<string, unknown>).sort()
   for (const key of keys) {
     sorted[key] = sortObject((obj as Record<string, unknown>)[key])
   }
   return sorted
-}
-
-function getMessageDir(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) return null
-
-  const directPath = join(MESSAGE_STORAGE, sessionID)
-  if (existsSync(directPath)) return directPath
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-    if (existsSync(sessionPath)) return sessionPath
-  }
-
-  return null
-}
-
-function readMessages(sessionID: string): MessagePart[] {
-  const messageDir = getMessageDir(sessionID)
-  if (!messageDir) return []
-
-  const messages: MessagePart[] = []
-  
-  try {
-    const files = readdirSync(messageDir).filter(f => f.endsWith(".json"))
-    for (const file of files) {
-      const content = readFileSync(join(messageDir, file), "utf-8")
-      const data = JSON.parse(content)
-      if (data.parts) {
-        messages.push(data)
-      }
-    }
-  } catch {
-    return []
-  }
-
-  return messages
 }
 
 export function executeDeduplication(
@@ -167,18 +115,4 @@ export function executeDeduplication(
   })
   
   return prunedCount
-}
-
-function findToolOutput(messages: MessagePart[], callID: string): string | null {
-  for (const msg of messages) {
-    if (!msg.parts) continue
-    
-    for (const part of msg.parts) {
-      if (part.type === "tool" && part.callID === callID && part.state?.output) {
-        return part.state.output
-      }
-    }
-  }
-  
-  return null
 }

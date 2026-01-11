@@ -89,6 +89,7 @@ function setCachedOverview(projectDir: string, overview: string): void {
 export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Partial<RepoOverviewConfig>) {
   const config: RepoOverviewConfig = { ...DEFAULT_CONFIG, ...userConfig }
   const injectedSessions = new Set<string>()
+  const sessionToolCalls = new Map<string, number>()
 
   async function injectOverview(sessionID: string, output: ToolExecuteOutput): Promise<void> {
     if (!config.enabled || !config.auto_generate) return
@@ -119,8 +120,14 @@ export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Pa
     input: ToolExecuteInput,
     output: ToolExecuteOutput
   ) => {
-    // Inject on first tool use in session
-    if (!injectedSessions.has(input.sessionID)) {
+    if (injectedSessions.has(input.sessionID)) return
+
+    // Track tool call count for this session
+    const count = (sessionToolCalls.get(input.sessionID) || 0) + 1
+    sessionToolCalls.set(input.sessionID, count)
+
+    // Only inject after reaching min_tool_calls threshold
+    if (count >= config.min_tool_calls) {
       await injectOverview(input.sessionID, output)
     }
   }
@@ -133,6 +140,7 @@ export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Pa
       const sessionInfo = props?.info as { id?: string } | undefined
       if (sessionInfo?.id) {
         injectedSessions.delete(sessionInfo.id)
+        sessionToolCalls.delete(sessionInfo.id)
       }
     }
 
@@ -142,6 +150,7 @@ export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Pa
         (props?.info as { id?: string } | undefined)?.id) as string | undefined
       if (sessionID) {
         injectedSessions.delete(sessionID)
+        sessionToolCalls.delete(sessionID)
       }
     }
   }

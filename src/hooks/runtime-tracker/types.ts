@@ -22,6 +22,11 @@ export interface RuntimeTrackerConfig {
   max_recent: number
   /** Inject runtime hints into tool output (default: true) */
   inject_hints: boolean
+  /**
+   * Cooldown in ms before showing another hint for the same tool (default: 60000)
+   * Prevents spamming hints for repeatedly slow tools
+   */
+  hint_cooldown_ms: number
 }
 
 export const DEFAULT_CONFIG: RuntimeTrackerConfig = {
@@ -29,6 +34,7 @@ export const DEFAULT_CONFIG: RuntimeTrackerConfig = {
   threshold_ms: 3000,
   max_recent: 10,
   inject_hints: true,
+  hint_cooldown_ms: 60000, // 1 minute cooldown per tool
 }
 
 export interface RuntimeStats {

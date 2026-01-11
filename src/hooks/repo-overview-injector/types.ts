@@ -34,6 +34,11 @@ export interface RepoOverviewConfig {
   max_tree_depth: number
   /** Cache duration in ms (default: 1 hour) */
   cache_duration_ms: number
+  /**
+   * Minimum tool calls before injecting overview (default: 1 = first tool use)
+   * Set to 2+ to skip injection for trivial one-shot interactions.
+   */
+  min_tool_calls: number
 }
 
 export const DEFAULT_CONFIG: RepoOverviewConfig = {
@@ -41,4 +46,5 @@ export const DEFAULT_CONFIG: RepoOverviewConfig = {
   auto_generate: true,
   max_tree_depth: 50,
   cache_duration_ms: 60 * 60 * 1000, // 1 hour
+  min_tool_calls: 1, // Inject on first tool use by default
 }

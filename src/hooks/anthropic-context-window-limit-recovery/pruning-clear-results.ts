@@ -1,9 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
 import type { PruningState } from "./pruning-types"
 import { estimateTokens } from "./pruning-types"
 import { log } from "../../shared/logger"
-import { MESSAGE_STORAGE } from "../../features/hook-message-injector"
+import { readMessages } from "./pruning-shared"
 
 export interface ClearResultsConfig {
   enabled: boolean
@@ -11,63 +9,11 @@ export interface ClearResultsConfig {
   keep_recent_turns: number
 }
 
-interface ToolPart {
-  type: string
-  callID?: string
-  tool?: string
-  state?: {
-    input?: unknown
-    output?: string
-    status?: string
-  }
-}
-
-interface MessagePart {
-  type: string
-  parts?: ToolPart[]
-}
-
 interface TurnInfo {
   turn: number
   callID: string
   tool: string
   outputSize: number
-}
-
-function getMessageDir(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) return null
-
-  const directPath = join(MESSAGE_STORAGE, sessionID)
-  if (existsSync(directPath)) return directPath
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-    if (existsSync(sessionPath)) return sessionPath
-  }
-
-  return null
-}
-
-function readMessages(sessionID: string): MessagePart[] {
-  const messageDir = getMessageDir(sessionID)
-  if (!messageDir) return []
-
-  const messages: MessagePart[] = []
-
-  try {
-    const files = readdirSync(messageDir).filter(f => f.endsWith(".json"))
-    for (const file of files) {
-      const content = readFileSync(join(messageDir, file), "utf-8")
-      const data = JSON.parse(content)
-      if (data.parts) {
-        messages.push(data)
-      }
-    }
-  } catch {
-    return []
-  }
-
-  return messages
 }
 
 /**
@@ -137,13 +83,16 @@ export function executeClearResults(
     return 0
   }
 
+  // Filter to only tools from older turns, then sort by size descending
+  // This maximizes token savings per pruning operation
+  const toPrune = toolInfos
+    .filter(info => info.turn < cutoffTurn)
+    .sort((a, b) => b.outputSize - a.outputSize)
+
   let prunedCount = 0
   let tokensSaved = 0
 
-  for (const info of toolInfos) {
-    // Only prune tools from turns older than cutoff
-    if (info.turn >= cutoffTurn) continue
-
+  for (const info of toPrune) {
     state.toolIdsToPrune.add(info.callID)
     prunedCount++
     tokensSaved += info.outputSize

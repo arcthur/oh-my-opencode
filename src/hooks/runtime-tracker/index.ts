@@ -42,6 +42,9 @@ export function createRuntimeTrackerHook(ctx: PluginInput, userConfig?: Partial<
   // Track in-progress tool calls
   const pendingCalls = new Map<string, { tool: string; startTime: number }>()
 
+  // Track last hint time per session+tool to implement cooldown
+  const lastHintTime = new Map<string, number>()
+
   function getSessionStats(sessionID: string): RuntimeStats {
     if (!sessionStats.has(sessionID)) {
       sessionStats.set(sessionID, {})
@@ -141,15 +144,39 @@ export function createRuntimeTrackerHook(ctx: PluginInput, userConfig?: Partial<
       sessionID: input.sessionID,
     })
 
-    // Inject hint if tool was slow
+    // Inject hint if tool was slow (with cooldown throttling)
     if (config.inject_hints && duration >= config.threshold_ms) {
-      const stats = getSessionStats(input.sessionID)
-      const toolStats = stats[input.tool]
+      const hintKey = `${input.sessionID}:${input.tool}`
+      const lastHint = lastHintTime.get(hintKey) || 0
+      const now = Date.now()
 
-      if (toolStats && toolStats.callCount >= 2) {
-        output.output += `\n\n[Runtime: ${formatDuration(duration)} - Tool "${input.tool}" averaged ${formatDuration(toolStats.avgDuration)} over ${toolStats.callCount} calls. Consider optimizing or caching.]`
+      // Only inject hint if cooldown has passed
+      if (now - lastHint >= config.hint_cooldown_ms) {
+        const stats = getSessionStats(input.sessionID)
+        const toolStats = stats[input.tool]
+
+        if (toolStats && toolStats.callCount >= 2) {
+          output.output += `\n\n[Runtime: ${formatDuration(duration)} - Tool "${input.tool}" averaged ${formatDuration(toolStats.avgDuration)} over ${toolStats.callCount} calls. Consider optimizing or caching.]`
+        } else {
+          output.output += `\n\n[Runtime: ${formatDuration(duration)} - This tool call was slow.]`
+        }
+
+        lastHintTime.set(hintKey, now)
       } else {
-        output.output += `\n\n[Runtime: ${formatDuration(duration)} - This tool call was slow.]`
+        log("[runtime-tracker] hint throttled (cooldown)", {
+          tool: input.tool,
+          sessionID: input.sessionID,
+          cooldownRemaining: config.hint_cooldown_ms - (now - lastHint),
+        })
+      }
+    }
+  }
+
+  function clearSessionHintTimes(sessionID: string): void {
+    // Clear all hint times for this session
+    for (const key of lastHintTime.keys()) {
+      if (key.startsWith(`${sessionID}:`)) {
+        lastHintTime.delete(key)
       }
     }
   }
@@ -162,6 +189,7 @@ export function createRuntimeTrackerHook(ctx: PluginInput, userConfig?: Partial<
       const sessionInfo = props?.info as { id?: string } | undefined
       if (sessionInfo?.id) {
         sessionStats.delete(sessionInfo.id)
+        clearSessionHintTimes(sessionInfo.id)
       }
     }
 
@@ -171,6 +199,7 @@ export function createRuntimeTrackerHook(ctx: PluginInput, userConfig?: Partial<
         (props?.info as { id?: string } | undefined)?.id) as string | undefined
       if (sessionID) {
         sessionStats.delete(sessionID)
+        clearSessionHintTimes(sessionID)
       }
     }
   }

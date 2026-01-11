@@ -52,6 +52,8 @@ export async function executeDynamicContextPruning(
   let purgeCount = 0
   let clearResultsCount = 0
 
+  // Strategy execution order: lowest risk → highest risk
+  // 1. Deduplication: Safe - identical calls, agent can re-fetch
   if (config.strategies?.deduplication?.enabled !== false) {
     dedupCount = executeDeduplication(
       sessionID,
@@ -61,6 +63,20 @@ export async function executeDynamicContextPruning(
     )
   }
 
+  // 2. Clear tool results: Safe - old results from deep history, agent can re-fetch
+  if (config.strategies?.clear_tool_results?.enabled !== false) {
+    clearResultsCount = executeClearResults(
+      sessionID,
+      state,
+      {
+        enabled: true,
+        keep_recent_turns: config.strategies?.clear_tool_results?.keep_recent_turns || 5,
+      },
+      protectedTools
+    )
+  }
+
+  // 3. Supersede writes: Medium risk - writes that have been re-read
   if (config.strategies?.supersede_writes?.enabled !== false) {
     supersedeCount = executeSupersedeWrites(
       sessionID,
@@ -73,6 +89,7 @@ export async function executeDynamicContextPruning(
     )
   }
 
+  // 4. Purge errors: Lower priority - old errors might still be informative
   if (config.strategies?.purge_errors?.enabled !== false) {
     purgeCount = executePurgeErrors(
       sessionID,
@@ -80,19 +97,6 @@ export async function executeDynamicContextPruning(
       {
         enabled: true,
         turns: config.strategies?.purge_errors?.turns || 5,
-      },
-      protectedTools
-    )
-  }
-
-  // Clear tool results from older turns - one of the safest forms of compaction
-  if (config.strategies?.clear_tool_results?.enabled !== false) {
-    clearResultsCount = executeClearResults(
-      sessionID,
-      state,
-      {
-        enabled: true,
-        keep_recent_turns: config.strategies?.clear_tool_results?.keep_recent_turns || 5,
       },
       protectedTools
     )

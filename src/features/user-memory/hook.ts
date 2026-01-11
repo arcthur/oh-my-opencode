@@ -40,11 +40,20 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
   const injectedSessions = new Set<string>()
 
   // Patterns to detect "remember" requests
+  // More precise to avoid matching imperative commands like "remember to run tests"
   const REMEMBER_PATTERNS = [
-    /remember\s+(?:that\s+)?(.+)/i,
-    /(?:please\s+)?save\s+(?:this|that)?\s*:?\s*(.+)/i,
-    /note\s+(?:that\s+)?(.+)/i,
-    /keep\s+in\s+mind\s+(?:that\s+)?(.+)/i,
+    // "remember that X" - declarative statement
+    /\bremember\s+that\s+(.+)/i,
+    // "remember: X" or "remember this: X" - explicit memory marker
+    /\bremember(?:\s+this)?\s*:\s*(.+)/i,
+    // "please save/note X" with explicit marker
+    /\b(?:please\s+)?(?:save|note)\s*:\s*(.+)/i,
+    // "note that X" - declarative statement
+    /\bnote\s+that\s+(.+)/i,
+    // "keep in mind that X" - must have "that" to be declarative
+    /\bkeep\s+in\s+mind\s+that\s+(.+)/i,
+    // "I prefer X" / "I always X" / "I like X" - preference statements
+    /\bi\s+(?:prefer|always|like|use|want)\s+(.+)/i,
   ]
 
   async function injectMemory(sessionID: string, output: ToolExecuteOutput): Promise<void> {
