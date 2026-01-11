@@ -1,6 +1,6 @@
 # Context Management Strategy
 
-oh-my-opencode 的上下文管理策略文档。本文档详细介绍了项目如何高效管理 LLM 上下文窗口，确保在长会话中保持信息完整性和系统稳定性。
+A comprehensive guide to context window management in oh-my-opencode. This document details how the system efficiently manages LLM context windows to maintain information integrity and system stability during extended sessions.
 
 ## Table of Contents
 
@@ -12,6 +12,7 @@ oh-my-opencode 的上下文管理策略文档。本文档详细介绍了项目�
 - [Configuration Guide](#configuration-guide)
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
+- [References](#references)
 
 ---
 
@@ -19,76 +20,86 @@ oh-my-opencode 的上下文管理策略文档。本文档详细介绍了项目�
 
 ### The Context Window Problem
 
-大型语言模型（LLM）具有固定的上下文窗口限制。随着对话的进行，上下文会逐渐填满，导致：
+Large Language Models operate within fixed context window limits. As conversations progress, the context gradually fills, leading to several critical challenges:
 
-1. **性能退化**: 在接近上下文限制时，模型性能会显著下降（"context rot"）
-2. **信息丢失**: 简单截断会丢失重要的历史信息
-3. **连续性中断**: 压缩后可能丢失任务上下文，导致工作中断
+1. **Performance Degradation**: Model performance significantly deteriorates when approaching context limits, a phenomenon known as "context rot"
+2. **Information Loss**: Naive truncation discards important historical information
+3. **Continuity Disruption**: Poor compression can lose task context, interrupting workflow
 
-### Our Approach
+### Design Philosophy
 
-oh-my-opencode 采用**多层次上下文蒸馏**策略，核心理念是：
+oh-my-opencode employs a **multi-layered context distillation** strategy, guided by the principle:
 
 > "Treat context the way operating systems treat memory: as finite resources to be budgeted, compacted, and intelligently paged."
 
+The system implements a hierarchical approach to context management:
+
 ```
 ┌─────────────────────────────────────────────────┐
-│           Raw Context (Original)                │  ← 优先保留
+│           Raw Context (Original)                │  ← Highest Priority
 ├─────────────────────────────────────────────────┤
-│      Compaction (Reversible Pruning)            │  ← 可逆压缩
+│      Compaction (Reversible Pruning)            │  ← Preferred Method
 ├─────────────────────────────────────────────────┤
-│      Summarization (Lossy Compression)          │  ← 最后手段
+│      Summarization (Lossy Compression)          │  ← Last Resort
 └─────────────────────────────────────────────────┘
 ```
 
-**黄金法则**: `Raw > Compaction > Summarization`
+**The Golden Rule**: `Raw > Compaction > Summarization`
 
 ---
 
 ## Core Principles
 
-### 1. Proactive vs Reactive
+### 1. Proactive vs Reactive Management
 
-| 策略 | 时机 | 优点 |
-|------|------|------|
-| **Proactive** | 达到阈值前主动压缩 | 平滑过渡，避免中断 |
-| **Reactive** | API 报错后被动恢复 | 最大化利用上下文 |
+| Strategy | Trigger | Advantages |
+|----------|---------|------------|
+| **Proactive** | Threshold-based (before limits) | Smooth transitions, no interruptions |
+| **Reactive** | Error-based (after API failure) | Maximum context utilization |
 
-oh-my-opencode 同时支持两种策略，推荐使用 Proactive 模式。
+oh-my-opencode supports both strategies, with proactive mode recommended for production use.
 
 ### 2. Preserve Momentum
 
-压缩时始终保留最近的 3-5 轮对话原文，确保模型保持：
-- 格式风格一致性
-- 任务执行"节奏"
-- 工具调用模式
+During compaction, the system always preserves the most recent 3-5 conversation turns in their original form. This ensures the model maintains:
+
+- Consistent formatting style
+- Task execution "rhythm"
+- Tool invocation patterns
+
+Research indicates that keeping recent turns raw significantly improves post-compaction coherence.
 
 ### 3. Structure Forces Preservation
 
-使用结构化摘要模板，每个章节作为检查清单，防止信息静默丢失：
+The system employs structured summary templates where each section acts as a checklist, preventing silent information loss:
 
 ```markdown
 ## 1. User Requests (As-Is)
 ## 2. Final Goal
-## 3. Files Modified
+## 3. Files Modified (with details)
 ## 4. Key Decisions & Rationale
 ## 5. Current Working State
-## 6. Remaining Tasks
-## 7. MUST NOT Do
-...
+## 6. Environment & Tool Outputs Still Needed
+## 7. Remaining Tasks
+## 8. MUST NOT Do (Critical Constraints)
+## 9. Important Context
 ```
+
+This structured approach ensures that critical information categories cannot be inadvertently omitted during summarization.
 
 ### 4. Layered Recovery
 
-采用三层递进恢复策略，从轻量到重量：
+The system implements a three-phase progressive recovery strategy, escalating from lightweight to heavyweight interventions:
 
 ```
 PHASE 1: Dynamic Context Pruning (DCP)
-    ↓ 如果仍超限
+    ↓ If still over limit
 PHASE 2: Aggressive Truncation
-    ↓ 如果仍超限
+    ↓ If still over limit
 PHASE 3: Session Summarization
 ```
+
+This approach minimizes information loss by applying the least destructive method first.
 
 ---
 
@@ -98,27 +109,27 @@ PHASE 3: Session Summarization
 
 ```
 oh-my-opencode Context Management
-├── Preemptive Compaction          # 主动压缩
+├── Preemptive Compaction              # Proactive compression
 │   └── preemptive-compaction/
-├── Error Recovery                 # 错误恢复
+├── Error Recovery                     # Reactive recovery
 │   └── anthropic-context-window-limit-recovery/
-│       ├── pruning-deduplication.ts
-│       ├── pruning-supersede.ts
-│       ├── pruning-purge-errors.ts
-│       ├── pruning-clear-results.ts
-│       └── storage.ts
-├── Context Injection              # 上下文注入
-│   ├── compaction-context-injector/
-│   ├── repo-overview-injector/
-│   └── directory-agents-injector/
-├── Memory Systems                 # 记忆系统
-│   └── user-memory/
-├── Monitoring                     # 监控
-│   ├── context-window-monitor.ts
-│   └── runtime-tracker/
-└── Output Optimization            # 输出优化
-    ├── tool-output-truncator.ts
-    └── dynamic-truncator.ts
+│       ├── pruning-deduplication.ts   # Remove duplicate calls
+│       ├── pruning-supersede.ts       # Remove superseded writes
+│       ├── pruning-purge-errors.ts    # Remove old errors
+│       ├── pruning-clear-results.ts   # Clear old tool results
+│       └── storage.ts                 # Tool output management
+├── Context Injection                  # Context bootstrapping
+│   ├── compaction-context-injector/   # Preserve context during compaction
+│   ├── repo-overview-injector/        # Project context injection
+│   └── directory-agents-injector/     # Directory-level context
+├── Memory Systems                     # Persistent memory
+│   └── user-memory/                   # Cross-session memory
+├── Monitoring                         # Runtime monitoring
+│   ├── context-window-monitor.ts      # Usage tracking
+│   └── runtime-tracker/               # Tool performance tracking
+└── Output Optimization                # Output size management
+    ├── tool-output-truncator.ts       # Tool output truncation
+    └── dynamic-truncator.ts           # Dynamic size adjustment
 ```
 
 ### Data Flow
@@ -131,27 +142,29 @@ oh-my-opencode Context Management
                            │
               ┌────────────▼────────────┐
               │   Bootstrap Injection   │
-              │  - Repo Overview        │
-              │  - User Memory          │
-              │  - AGENTS.md            │
+              │  • Repository Overview  │
+              │  • User Memory          │
+              │  • AGENTS.md Context    │
               └────────────┬────────────┘
                            │
               ┌────────────▼────────────┐
               │    Normal Operation     │◄────────────┐
-              │  - Tool Calls           │             │
-              │  - Runtime Tracking     │             │
+              │  • Tool Invocations     │             │
+              │  • Runtime Tracking     │             │
+              │  • Output Optimization  │             │
               └────────────┬────────────┘             │
                            │                          │
               ┌────────────▼────────────┐             │
               │   Context Monitoring    │             │
-              │   (70% / 85% thresholds)│             │
+              │  • 70% Warning          │             │
+              │  • 85% Compaction       │             │
               └────────────┬────────────┘             │
                            │                          │
             ┌──────────────┴──────────────┐           │
             │                             │           │
    ┌────────▼────────┐         ┌──────────▼─────────┐ │
-   │  Below 85%      │         │  Above 85% or      │ │
-   │  Continue       │         │  Token Error       │ │
+   │  Below Threshold │         │  Above Threshold   │ │
+   │  Continue Normal │         │  or Token Error    │ │
    └────────┬────────┘         └──────────┬─────────┘ │
             │                             │           │
             │              ┌──────────────▼──────────┐│
@@ -170,21 +183,23 @@ oh-my-opencode Context Management
 
 ### 1. Dynamic Context Pruning (DCP)
 
-DCP 是一组可逆的修剪策略，删除冗余信息而不丢失语义。
+DCP comprises a set of reversible pruning strategies that remove redundant information without semantic loss. These operations target content that either duplicates existing information or can be reconstructed from the environment.
 
-#### 1.1 Deduplication (去重)
+#### 1.1 Deduplication
 
-删除完全相同的工具调用（相同工具名 + 相同参数）。
+Removes identical tool invocations (same tool name + identical arguments).
 
 ```typescript
-// 示例：连续读取同一文件
-Read("src/index.ts")  // 保留
-Read("src/index.ts")  // 删除（重复）
-Read("src/utils.ts")  // 保留
-Read("src/index.ts")  // 删除（重复）
+// Example: Consecutive reads of the same file
+Read("src/index.ts")  // Preserved (first occurrence)
+Read("src/index.ts")  // Pruned (duplicate)
+Read("src/utils.ts")  // Preserved (different file)
+Read("src/index.ts")  // Pruned (duplicate)
 ```
 
-**配置**:
+**Rationale**: Duplicate tool calls provide no additional information. The agent can rely on the most recent result.
+
+**Configuration**:
 ```json
 {
   "strategies": {
@@ -193,67 +208,71 @@ Read("src/index.ts")  // 删除（重复）
 }
 ```
 
-#### 1.2 Supersede Writes (超越写入)
+#### 1.2 Supersede Writes
 
-当文件被后续读取时，删除之前的写入工具输入（内容已被读取覆盖）。
+Removes write operation inputs when the file is subsequently read, as the content has been superseded by the current file state.
 
 ```typescript
-// 示例
-Write("config.json", content)  // 删除输入（后续被读取）
-Edit("config.json", ...)       // 删除输入
-Read("config.json")            // 保留（证明之前的写入已完成）
+// Example: Write followed by read
+Write("config.json", content)  // Input pruned (superseded by read)
+Edit("config.json", ...)       // Input pruned (superseded by read)
+Read("config.json")            // Preserved (proves writes completed)
 ```
 
-**配置**:
+**Rationale**: Once a file has been read after modifications, the write inputs are redundant—the read output contains the current state.
+
+**Configuration**:
 ```json
 {
   "strategies": {
     "supersede_writes": {
       "enabled": true,
-      "aggressive": false  // true: 删除任何后续被读取的写入
+      "aggressive": false  // true: prune any write followed by ANY read
     }
   }
 }
 ```
 
-#### 1.3 Purge Errors (清除错误)
+#### 1.3 Purge Errors
 
-删除 N 轮之前的错误工具调用（错误信息已过时）。
+Removes errored tool invocations after N conversation turns, as error context becomes stale.
 
 ```typescript
-// 5 轮之前的错误
-Bash("invalid-cmd")  // Error → 删除
-// 当前轮
-Bash("valid-cmd")    // Success → 保留
+// 5 turns ago
+Bash("invalid-cmd")  // Error → Pruned after threshold
+// Current turn
+Bash("valid-cmd")    // Success → Preserved
 ```
 
-**配置**:
+**Rationale**: Error messages from many turns ago rarely provide actionable information and consume valuable context space.
+
+**Configuration**:
 ```json
 {
   "strategies": {
     "purge_errors": {
       "enabled": true,
-      "turns": 5  // N 轮后清除
+      "turns": 5  // Prune errors older than N turns
     }
   }
 }
 ```
 
-#### 1.4 Clear Tool Results (清除工具结果)
+#### 1.4 Clear Tool Results
 
-**最安全的压缩形式** - 清除旧轮次的工具输出，仅保留最近 N 轮。
-
-原理：深层历史中的工具结果不再需要完整输出，agent 可以通过重新调用工具获取。
+**The safest form of compaction**—clears tool outputs from older turns while preserving the most recent N turns.
 
 ```typescript
-// Turn 1 (old)
-Read("file.ts") → output: "[Content pruned by DCP]"
+// Turn 1 (old) - output cleared
+Read("file.ts") → output: "[Content pruned by Dynamic Context Pruning]"
 
-// Turn 5 (recent, preserved)
+// Turn 5 (recent) - output preserved
 Read("file.ts") → output: "actual file content..."
 ```
 
-**配置**:
+**Rationale**: Tool results deep in conversation history are rarely referenced. If needed, the agent can re-invoke the tool to retrieve current information.
+
+**Configuration**:
 ```json
 {
   "strategies": {
@@ -267,62 +286,78 @@ Read("file.ts") → output: "actual file content..."
 
 ### 2. Aggressive Truncation
 
-当 DCP 不足以释放空间时，主动截断最大的工具输出。
+When DCP fails to release sufficient context space, the system applies aggressive truncation to the largest tool outputs.
 
-**策略**:
-1. 找到当前会话中最大的工具输出
-2. 按比例截断至目标 token 数
-3. 最多重试 20 次
+**Algorithm**:
+1. Identify the largest tool output in the current session
+2. Truncate proportionally to reach target token count
+3. Repeat up to 20 iterations if necessary
 
-**目标**: 将 token 数降至 `maxTokens * 0.5`
+**Target**: Reduce token count to `maxTokens * 0.5`
+
+This phase preserves tool invocation records while removing verbose output content.
 
 ### 3. Session Summarization
 
-最后的回退策略，使用 LLM 生成会话摘要。
+The final fallback strategy employs the LLM to generate a structured session summary.
 
-#### 压缩模板
+#### Compaction Template
+
+The system injects a structured template to guide summarization:
 
 ```markdown
 ## 1. User Requests (As-Is)
-- 原始用户请求的精确措辞
-- 保留用户意图
+- Original user requests with exact wording preserved
+- User intent and clarifications
 
 ## 2. Final Goal
-- 最终目标
-- 成功标准
+- Ultimate objective
+- Success criteria if specified
 
 ## 3. Files Modified (with details)
-- 每个文件的具体修改
-- 行号范围
-- 创建/修改/删除标记
+- Each file path with specific changes
+- Line ranges for significant modifications
+- Creation/modification/deletion indicators
+- Example: "src/utils/helper.ts: Added validateInput function (lines 45-78)"
 
 ## 4. Key Decisions & Rationale
-- 技术决策及原因
-- 被拒绝的替代方案
-- 权衡考量
+- Technical decisions made and WHY
+- Alternatives considered and rejection reasons
+- Trade-offs acknowledged
+- Prevents re-exploration of rejected approaches
 
 ## 5. Current Working State
-- 当前工作状态
-- 测试/构建状态
+- What is currently working/passing
+- Test status if tests were run
+- Build status if relevant
+- Partial implementations in progress
 
 ## 6. Environment & Tool Outputs Still Needed
-- 可能需要重新获取的工具结果
-- 依赖的外部状态
+- Tool results that may require re-fetching
+- File contents that might need re-reading
+- External state dependencies
 
 ## 7. Remaining Tasks
-- 具体待办事项
-- 阻塞项
+- Specific outstanding items
+- Pending items from original request
+- Follow-up tasks identified during work
+- Blockers or dependencies
 
 ## 8. MUST NOT Do (Critical Constraints)
-- 明确禁止的操作
-- 失败的方法（不要重试）
-- 用户限制
+- Explicitly forbidden operations
+- Approaches that FAILED (do not retry)
+- User restrictions and preferences
+- Anti-patterns identified during session
+- Commands that caused errors
 
 ## 9. Important Context
-- 领域知识
-- 组件关系
-- 发现的 quirks
+- Domain-specific knowledge acquired
+- Component relationships discovered
+- Quirks or gotchas encountered
+- User preferences learned
 ```
+
+This structured approach ensures comprehensive information preservation during lossy compression.
 
 ---
 
@@ -330,20 +365,20 @@ Read("file.ts") → output: "actual file content..."
 
 ### 1. Repository Overview
 
-会话开始时自动注入项目概览，减少重复探索。
+Automatically injects project context at session start, reducing redundant exploration.
 
-**内容**:
-- 项目名称和描述
-- 技术栈 (TypeScript, React, etc.)
-- 框架 (Next.js, Express, etc.)
-- 包管理器 (npm, yarn, pnpm, bun)
-- 常用命令 (build, dev, test, lint)
-- 核心文件列表
-- 目录结构树
+**Injected Content**:
+- Project name and description
+- Technology stack (TypeScript, React, Python, etc.)
+- Frameworks (Next.js, Express, Django, etc.)
+- Package manager (npm, yarn, pnpm, bun)
+- Common commands (build, dev, test, lint)
+- Core file listing
+- Directory structure tree
 
-**缓存**: 1 小时（可配置）
+**Caching**: 1 hour default (configurable)
 
-**配置**:
+**Configuration**:
 ```json
 {
   "repo_overview": {
@@ -357,25 +392,27 @@ Read("file.ts") → output: "actual file content..."
 
 ### 2. User Memory
 
-跨会话持久化记忆，存储于 `~/.opencode/memory/user.json`。
+Cross-session persistent memory stored at `~/.opencode/memory/user.json`.
 
-**存储内容**:
+**Stored Information**:
 
-| 类型 | 描述 | 示例 |
-|------|------|------|
-| preferences | 用户偏好 | `{ "style": "concise", "language": "zh" }` |
-| environment | 开发环境 | `{ "os": "macOS", "shell": "zsh" }` |
-| workHistory | 工作历史 | 最近 50 条会话摘要 |
-| customRules | 自定义规则 | `["Always use TypeScript"]` |
-| explicitMemories | 显式记忆 | 用户说 "remember that..." 的内容 |
+| Category | Description | Example |
+|----------|-------------|---------|
+| `preferences` | User preferences | `{ "style": "concise", "language": "en" }` |
+| `environment` | Development environment | `{ "os": "macOS", "shell": "zsh", "editor": "vscode" }` |
+| `workHistory` | Recent work sessions | Last 50 session summaries |
+| `customRules` | Persistent instructions | `["Always use TypeScript", "Prefer functional style"]` |
+| `explicitMemories` | User-requested memories | Content from "remember that..." requests |
 
-**触发记忆**:
+**Memory Triggers**:
 ```
-User: Remember that our API uses snake_case
-→ 自动保存到 explicitMemories
+User: Remember that our API uses snake_case for all endpoints
+→ Automatically saved to explicitMemories
 ```
 
-**配置**:
+The system detects patterns like "remember that", "note that", "keep in mind" and persists the associated content.
+
+**Configuration**:
 ```json
 {
   "user_memory": {
@@ -390,18 +427,48 @@ User: Remember that our API uses snake_case
 
 ### 3. AGENTS.md Injection
 
-自动注入目录级别的 AGENTS.md 文件，提供局部上下文。
+Automatically injects directory-level AGENTS.md files to provide localized context.
 
-**查找逻辑**:
-1. 从当前操作文件的目录开始
-2. 向上遍历至项目根目录
-3. 注入找到的所有 AGENTS.md
+**Discovery Algorithm**:
+1. Start from the directory of the current file operation
+2. Traverse upward to project root
+3. Inject all discovered AGENTS.md files in hierarchical order
+
+This enables project-specific and directory-specific context to be automatically provided without explicit configuration.
+
+### 4. Runtime Tracker
+
+Monitors tool execution times to help the agent avoid repeating slow operations.
+
+**Tracked Metrics**:
+- Average duration (rolling window)
+- Last duration
+- Total call count
+- Recent durations for trend analysis
+
+**Runtime Hints**:
+```
+[Runtime: 5.2s - Tool "grep" averaged 4.8s over 3 calls.
+ Consider narrower queries or caching results.]
+```
+
+**Configuration**:
+```json
+{
+  "runtime_tracker": {
+    "enabled": true,
+    "threshold_ms": 3000,
+    "max_recent": 10,
+    "inject_hints": true
+  }
+}
+```
 
 ---
 
 ## Configuration Guide
 
-### Full Configuration Example
+### Complete Configuration Example
 
 ```json
 {
@@ -418,7 +485,8 @@ User: Remember that our API uses snake_case
       },
       "protected_tools": [
         "task", "todowrite", "todoread",
-        "lsp_rename", "lsp_code_action_resolve"
+        "lsp_rename", "lsp_code_action_resolve",
+        "session_read", "session_write", "session_search"
       ],
       "strategies": {
         "deduplication": { "enabled": true },
@@ -452,127 +520,192 @@ User: Remember that our API uses snake_case
 
 ### Threshold Recommendations
 
-| 模型 | 上下文窗口 | 推荐阈值 | 说明 |
-|------|-----------|---------|------|
-| Claude 3.5 Sonnet | 200K | 0.80 (160K) | 标准配置 |
-| Claude 3 Opus | 200K | 0.75 (150K) | 更保守 |
-| Claude 3.5 Sonnet (1M) | 1M | 0.25 (256K) | 避免 context rot |
-| GPT-4 Turbo | 128K | 0.80 (102K) | 标准配置 |
+| Model | Context Window | Recommended Threshold | Notes |
+|-------|---------------|----------------------|-------|
+| Claude 3.5 Sonnet | 200K | 0.80 (160K) | Standard configuration |
+| Claude 3 Opus | 200K | 0.75 (150K) | More conservative |
+| Claude 3.5 Sonnet (Extended) | 1M | 0.25 (256K) | Avoid context rot zone |
+| GPT-4 Turbo | 128K | 0.80 (102K) | Standard configuration |
+| GPT-4o | 128K | 0.80 (102K) | Standard configuration |
+
+**Key Insight**: For 1M context models, do not wait until 800K+ tokens. Performance degradation begins well before the absolute limit.
 
 ### Protected Tools
 
-某些工具不应被修剪：
+Certain tools should never be pruned as they maintain critical state:
 
 ```json
 {
   "protected_tools": [
-    "task",           // 子任务状态
-    "todowrite",      // 任务列表
-    "todoread",       // 任务读取
-    "lsp_rename",     // LSP 重命名
-    "lsp_code_action_resolve"  // LSP 代码操作
+    "task",                      // Subtask state
+    "todowrite",                 // Task list management
+    "todoread",                  // Task list retrieval
+    "lsp_rename",                // LSP rename operations
+    "lsp_code_action_resolve",   // LSP code actions
+    "session_read",              // Session state
+    "session_write",             // Session state
+    "session_search"             // Session search
   ]
 }
 ```
+
+### Notification Levels
+
+| Level | Output |
+|-------|--------|
+| `"off"` | No notifications |
+| `"minimal"` | `Pruned 12 tool outputs (~8k tokens)` |
+| `"detailed"` | `Pruned 12 tool outputs (~8k tokens). Dedup: 3, Supersede: 5, Purge: 2, ClearResults: 2` |
 
 ---
 
 ## Best Practices
 
-### 1. 阈值设置
+### 1. Threshold Configuration
 
 ```
-✅ 推荐: 0.75 - 0.85
-❌ 避免: > 0.90 (太晚) 或 < 0.60 (太早)
+✅ Recommended: 0.75 - 0.85
+❌ Avoid: > 0.90 (too late) or < 0.60 (too aggressive)
 ```
 
-### 2. 保护关键工具
+Setting the threshold too high risks API errors; setting it too low wastes available context.
 
-确保以下工具始终被保护：
-- 任务管理工具 (task, todo*)
-- LSP 工具 (重命名、重构)
-- 会话管理工具 (session_*)
+### 2. Protect Critical Tools
 
-### 3. 使用结构化摘要
+Always protect tools that maintain important state:
+- Task management tools (task, todo*)
+- LSP tools (rename, refactor, code actions)
+- Session management tools (session_*)
 
-始终使用压缩上下文注入器，确保关键信息保留：
-- 用户原始请求
-- 文件修改记录
-- 决策及理由
-- 待办事项
+### 3. Enable Structured Summarization
 
-### 4. 监控上下文使用
+Always use the compaction context injector to ensure critical information preservation:
+- Original user requests
+- File modification records
+- Decision rationale
+- Remaining tasks
+- Failure constraints
 
-启用 context-window-monitor 在 70% 时提醒：
+### 4. Monitor Context Usage
+
+Enable context-window-monitor for early warnings at 70%:
 
 ```
 [Context Status: 72% used, 28% remaining]
-[SYSTEM REMINDER: You have plenty of context remaining]
+[SYSTEM REMINDER: You have plenty of context remaining - do NOT rush tasks]
 ```
 
-### 5. 利用 Runtime Tracker
+### 5. Leverage Runtime Tracking
 
-启用运行时追踪，避免重复慢操作：
+Enable runtime tracking to identify and optimize slow operations:
 
 ```
 [Runtime: 5.2s - Tool "grep" averaged 4.8s over 3 calls]
 [Consider narrower queries or caching results]
 ```
 
+### 6. Use Repository Overview
+
+Enable repository overview injection to eliminate redundant project exploration at session start. The cached overview provides immediate context about:
+- Project structure
+- Technology stack
+- Build commands
+- Entry points
+
 ---
 
 ## Troubleshooting
 
-### 问题: 压缩后丢失重要信息
+### Issue: Information Loss After Compaction
 
-**症状**: 压缩后 agent 忘记之前的决策或文件修改
+**Symptoms**: Agent forgets previous decisions or file modifications after compaction
 
-**解决方案**:
-1. 启用增强的压缩上下文模板
-2. 增加 `keep_recent_turns` 值
-3. 将关键工具添加到 `protected_tools`
+**Solutions**:
+1. Enable the enhanced compaction context template
+2. Increase `keep_recent_turns` value
+3. Add critical tools to `protected_tools`
+4. Review if `aggressive` mode is appropriate for your use case
 
-### 问题: 压缩触发过于频繁
+### Issue: Excessive Compaction Frequency
 
-**症状**: 频繁看到压缩通知，影响工作流
+**Symptoms**: Frequent compaction notifications disrupting workflow
 
-**解决方案**:
-1. 提高 `preemptive_compaction_threshold`
-2. 启用 `clear_tool_results` 策略减少工具输出
-3. 启用 `tool-output-truncator` hook
+**Solutions**:
+1. Increase `preemptive_compaction_threshold`
+2. Enable `clear_tool_results` strategy to reduce tool output accumulation
+3. Enable `tool-output-truncator` hook for proactive output management
+4. Consider using more concise tool invocations
 
-### 问题: Token 超限错误
+### Issue: Token Limit Exceeded Errors
 
-**症状**: API 返回 token limit exceeded 错误
+**Symptoms**: API returns token limit exceeded errors despite compaction
 
-**解决方案**:
-1. 确保 `anthropic-context-window-limit-recovery` hook 已启用
-2. 启用 `dcp_for_compaction: true`
-3. 降低 `preemptive_compaction_threshold`
+**Solutions**:
+1. Verify `anthropic-context-window-limit-recovery` hook is enabled
+2. Enable `dcp_for_compaction: true`
+3. Lower `preemptive_compaction_threshold`
+4. Check for unusually large tool outputs
 
-### 问题: 工具输出过大
+### Issue: Oversized Tool Outputs
 
-**症状**: 单次工具调用消耗大量 token
+**Symptoms**: Single tool invocations consuming excessive tokens
 
-**解决方案**:
-1. 启用 `tool-output-truncator` hook
-2. 配置 `experimental.truncate_all_tool_outputs: true`
-3. 使用更精确的查询（如更窄的 grep 模式）
+**Solutions**:
+1. Enable `tool-output-truncator` hook
+2. Configure `experimental.truncate_all_tool_outputs: true`
+3. Use more precise queries (narrower grep patterns, specific file paths)
+4. Enable runtime tracking to identify problematic tools
+
+### Issue: Slow Tool Operations
+
+**Symptoms**: Long wait times for tool execution
+
+**Solutions**:
+1. Enable `runtime_tracker` to identify slow tools
+2. Use more targeted queries
+3. Consider caching frequently accessed information
+4. Break large operations into smaller, focused invocations
 
 ---
 
 ## References
 
-- [Factory.ai - The Context Window Problem](https://factory.ai/news/context-window-problem)
-- [Anthropic - Effective Context Engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+### Industry Research
+
+- [Factory.ai - The Context Window Problem: Scaling Agents Beyond Token Limits](https://factory.ai/news/context-window-problem)
+- [Anthropic - Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
 - [Google ADK - Context Compaction](https://google.github.io/adk-docs/context/compaction/)
-- [JetBrains Research - Efficient Context Management](https://blog.jetbrains.com/research/2025/12/efficient-context-management/)
+- [JetBrains Research - Cutting Through the Noise: Smarter Context Management](https://blog.jetbrains.com/research/2025/12/efficient-context-management/)
+- [Jason Liu - Two Experiments on Context Compaction](https://jxnl.co/writing/2025/08/30/context-engineering-compaction/)
+
+### Related Documentation
+
+- [oh-my-opencode Configuration Schema](../src/config/schema.ts)
+- [DCP Implementation](../src/hooks/anthropic-context-window-limit-recovery/)
+- [Preemptive Compaction](../src/hooks/preemptive-compaction/)
+
+---
+
+## Appendix: Glossary
+
+| Term | Definition |
+|------|------------|
+| **Context Window** | The maximum number of tokens an LLM can process in a single request |
+| **Context Rot** | Performance degradation as context approaches capacity limits |
+| **Compaction** | Reversible removal of redundant information from context |
+| **Summarization** | Lossy compression using LLM to generate condensed representation |
+| **DCP** | Dynamic Context Pruning - a set of reversible pruning strategies |
+| **Turn** | A single request-response cycle in the conversation |
+| **Protected Tools** | Tools exempt from pruning due to critical state maintenance |
+| **Bootstrap Injection** | Initial context provided at session start |
 
 ---
 
 ## Changelog
 
-| 版本 | 日期 | 变更 |
-|------|------|------|
-| 3.0.0 | 2026-01 | 新增 clear_tool_results 策略、增强压缩模板、Repo Overview、User Memory、Runtime Tracker |
-| 2.9.0 | - | 初始 DCP 实现 |
+| Version | Date | Changes |
+|---------|------|---------|
+| 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, Repository Overview, User Memory, Runtime Tracker |
+| 2.9.0 | - | Initial DCP implementation with deduplication, supersede_writes, purge_errors |
+| 2.8.0 | - | Preemptive compaction hook |
+| 2.7.0 | - | Context window monitoring |
