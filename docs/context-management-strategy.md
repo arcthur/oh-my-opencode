@@ -227,6 +227,14 @@ oh-my-opencode Context Management
 
 DCP comprises a set of reversible pruning strategies that remove redundant information without semantic loss. These operations target content that either duplicates existing information or can be reconstructed from the environment.
 
+**Execution Order** (lowest risk → highest risk):
+1. Deduplication - Safe: identical calls, agent can re-fetch
+2. Clear Tool Results - Safe: old results from deep history, agent can re-fetch
+3. Supersede Writes - Medium risk: writes that have been re-read
+4. Purge Errors - Lower priority: old errors might still be informative
+
+This order ensures the safest operations are applied first, maximizing token savings with minimal information loss risk.
+
 #### 1.1 Deduplication
 
 Removes duplicate tool invocations (same tool name + identical arguments), **keeping only the most recent occurrence**.
@@ -252,7 +260,33 @@ Read("src/index.ts")  // Preserved (most recent)
 }
 ```
 
-#### 1.2 Supersede Writes
+#### 1.2 Clear Tool Results
+
+**The safest form of compaction**—clears tool outputs from older turns while preserving the most recent N turns.
+
+```typescript
+// Turn 1 (old) - output cleared
+Read("file.ts") → output: "[Content pruned by Dynamic Context Pruning]"
+
+// Turn 5 (recent) - output preserved
+Read("file.ts") → output: "actual file content..."
+```
+
+**Rationale**: Tool results deep in conversation history are rarely referenced. If needed, the agent can re-invoke the tool to retrieve current information. The tool invocation record is preserved, only the verbose output is cleared.
+
+**Configuration**:
+```json
+{
+  "strategies": {
+    "clear_tool_results": {
+      "enabled": true,
+      "keep_recent_turns": 5
+    }
+  }
+}
+```
+
+#### 1.3 Supersede Writes
 
 Removes write operation inputs when the file is subsequently read, as the content has been superseded by the current file state.
 
@@ -281,7 +315,7 @@ Read("config.json")            // Preserved (proves writes completed)
 }
 ```
 
-#### 1.3 Purge Errors
+#### 1.4 Purge Errors
 
 Removes errored tool invocations after N conversation turns, as error context becomes stale.
 
@@ -301,32 +335,6 @@ Bash("valid-cmd")    // Success → Preserved
     "purge_errors": {
       "enabled": true,
       "turns": 5  // Prune errors older than N turns
-    }
-  }
-}
-```
-
-#### 1.4 Clear Tool Results
-
-**The safest form of compaction**—clears tool outputs from older turns while preserving the most recent N turns.
-
-```typescript
-// Turn 1 (old) - output cleared
-Read("file.ts") → output: "[Content pruned by Dynamic Context Pruning]"
-
-// Turn 5 (recent) - output preserved
-Read("file.ts") → output: "actual file content..."
-```
-
-**Rationale**: Tool results deep in conversation history are rarely referenced. If needed, the agent can re-invoke the tool to retrieve current information. The tool invocation record is preserved, only the verbose output is cleared.
-
-**Configuration**:
-```json
-{
-  "strategies": {
-    "clear_tool_results": {
-      "enabled": true,
-      "keep_recent_turns": 5
     }
   }
 }
@@ -1025,6 +1033,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 3.1.0 | 2026-01 | Added Org Memory (project/team-level memory), optimized DCP strategy execution order, added hint throttling to Runtime Tracker |
 | 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, Repository Overview, User Memory, Runtime Tracker |
 | 2.9.0 | - | Initial DCP implementation with deduplication, supersede_writes, purge_errors |
 | 2.8.0 | - | Preemptive compaction hook |
