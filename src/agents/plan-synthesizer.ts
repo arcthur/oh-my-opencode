@@ -215,6 +215,7 @@ For EACH conflict, output this EXACT format. **Use actual model names** (e.g., "
 - \`MERGE\` - Take best elements from multiple models (specify which)
 - \`REJECT ALL\` - All approaches flawed, needs rethinking
 - \`BOTH_VALID\` - Approaches are COMPLEMENTARY, not conflicting (include all)
+- \`PARALLEL_SPIKE\` - Evidence insufficient; schedule validation experiment (see rules below)
 
 **RECOMMENDATION**:
 [Specific action: exactly what to put in the final plan. Be concrete.]
@@ -316,6 +317,7 @@ You MUST produce exactly two files:
 | TODO 1 | {model-A} | ... |
 | TODO 2 | MERGE {model-A}+{model-C} | ... |
 | TODO 3 | BOTH_VALID ({model-A}+{model-B}) | Complementary approaches |
+| TODO 4 | PARALLEL_SPIKE | Evidence insufficient, spike designed |
 | Verification | {model-C} | ... |
 
 ## Final Verdict
@@ -489,6 +491,97 @@ Include ALL three approaches as separate TODO items. They address different perf
 
 **RATIONALE**:
 These are COMPLEMENTARY optimizations, not competing approaches. A performant system typically needs all three. The "conflict" was actually each plan focusing on a different layer of the stack.
+
+---
+
+## PARALLEL_SPIKE Rules
+
+Use \`PARALLEL_SPIKE\` when evidence is genuinely insufficient to decide between plausible approaches.
+
+### When to Use PARALLEL_SPIKE
+
+1. Both approaches are logically sound
+2. The key differentiator is **empirical** (performance, UX, maintainability in practice)
+3. Paper analysis cannot determine the winner
+4. A time-boxed experiment would provide definitive evidence
+
+### PARALLEL_SPIKE Format
+
+\`\`\`markdown
+### CONFLICT: [Brief description]
+
+**{model-a} says**: [Summary]
+**{model-b} says**: [Summary]
+
+---
+
+**Why {model-a} is WRONG**: [Critique - acknowledge uncertainty]
+**Why {model-b} is WRONG**: [Critique - acknowledge uncertainty]
+
+---
+
+**VERDICT**: PARALLEL_SPIKE
+**RATIONALE**: [Why evidence is insufficient - be SPECIFIC]
+
+**SPIKE DESIGN**:
+- **Hypothesis**: [What we're trying to determine]
+- **Approach A Validation**: [Concrete steps to test model-a's approach]
+- **Approach B Validation**: [Concrete steps to test model-b's approach]
+- **Decision Criteria**: [Measurable metrics that determine the winner]
+- **Time-box**: [Max effort, e.g., "4 hours" or "1 day"]
+
+**TEMPORARY DECISION**: {model-name}
+[Which approach to prototype FIRST. Include rationale.]
+\`\`\`
+
+### Anti-Abuse Rules
+
+1. **Must justify why evidence is insufficient** - "Both seem reasonable" is NOT acceptable
+2. **Must define concrete spike** - Vague "we need to test" is NOT acceptable
+3. **Must have measurable criteria** - "See which feels better" is NOT acceptable
+4. **Must have time-box** - Open-ended spikes are NOT acceptable
+5. **Prefer ACCEPT at >70% confidence** - Don't use PARALLEL_SPIKE to avoid decisions
+
+### When NOT to Use
+
+- One approach has clear technical advantages
+- Uncertainty is just lack of research (research more, don't spike)
+- Spike takes longer than just implementing one approach
+- Debate round provided sufficient evidence
+
+### Example: PARALLEL_SPIKE (Data Storage Strategy)
+
+### CONFLICT: How to store user preferences
+
+**strategist says**: Use Redis for fast reads, sync to PostgreSQL periodically
+**pragmatist says**: Store directly in PostgreSQL with aggressive caching headers
+**creative says**: Use localStorage with cloud sync on app start
+
+---
+
+**Why strategist is WRONG** (maybe):
+Adds Redis infrastructure complexity. Sync logic is error-prone. But for high-read workloads, might be justified.
+
+**Why pragmatist is WRONG** (maybe):
+Database round-trips for every preference read. Caching headers only help browser caching. But simplest to implement.
+
+**Why creative is WRONG** (maybe):
+localStorage has size limits and no cross-device sync. But zero latency for reads.
+
+---
+
+**VERDICT**: PARALLEL_SPIKE
+**RATIONALE**: The performance difference between these approaches depends heavily on actual usage patterns (read:write ratio, preference data size, concurrent users). Without profiling real workload, we're guessing.
+
+**SPIKE DESIGN**:
+- **Hypothesis**: PostgreSQL with caching can handle our expected read load (<1000 RPS) without Redis
+- **Approach A Validation**: Implement Redis approach, load test with 1000 concurrent users
+- **Approach B Validation**: Implement PostgreSQL approach, load test same scenario
+- **Decision Criteria**: P99 latency <50ms, memory usage <500MB
+- **Time-box**: 4 hours (2 hours per approach)
+
+**TEMPORARY DECISION**: pragmatist
+Start with PostgreSQL (simpler) since we suspect read load isn't high enough to need Redis.
 
 ---
 

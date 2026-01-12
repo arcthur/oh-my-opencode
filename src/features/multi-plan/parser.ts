@@ -40,8 +40,10 @@ export function parseRejectedModels(
 
     const verdict = parseVerdict(section, modelNames)
 
-    // For BOTH_VALID, no models are rejected
-    if (verdict.type === "both_valid") {
+    // For BOTH_VALID and PARALLEL_SPIKE, no models are rejected
+    // - BOTH_VALID: approaches are complementary, all are accepted
+    // - PARALLEL_SPIKE: decision deferred to validation experiment, no rejection yet
+    if (verdict.type === "both_valid" || verdict.type === "parallel_spike") {
       continue
     }
 
@@ -94,6 +96,7 @@ function parseVerdict(
   // - **VERDICT**: MERGE
   // - **VERDICT**: BOTH_VALID (All three)
   // - **VERDICT**: REJECT ALL
+  // - **VERDICT**: PARALLEL_SPIKE
   const verdictLineMatch = conflictSection.match(
     /\*\*VERDICT\*\*:\s*`?([^\n`]+)`?/i
   )

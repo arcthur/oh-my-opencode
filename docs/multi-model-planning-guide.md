@@ -242,7 +242,7 @@ For each conflict point, the synthesizer outputs (using **actual model names**, 
 
 ---
 
-**VERDICT**: ACCEPT {model-name} | MERGE | REJECT ALL | BOTH_VALID
+**VERDICT**: ACCEPT {model-name} | MERGE | REJECT ALL | BOTH_VALID | PARALLEL_SPIKE
 **RECOMMENDATION**: [Specific action]
 **RATIONALE**: [2-3 sentences]
 ```
@@ -255,11 +255,99 @@ For each conflict point, the synthesizer outputs (using **actual model names**, 
 | `MERGE` | Best elements from multiple models can be combined |
 | `REJECT ALL` | All approaches are flawed, needs rethinking |
 | `BOTH_VALID` | Approaches are **complementary**, not conflicting (rare) |
+| `PARALLEL_SPIKE` | Evidence insufficient; both plausible; needs empirical validation |
 
-### 5.5 BOTH_VALID vs MERGE
+### 5.5 BOTH_VALID vs MERGE vs PARALLEL_SPIKE
 
 - **MERGE**: Mutually exclusive approaches that can be hybridized (e.g., "use JWT for API, sessions for web")
 - **BOTH_VALID**: Genuinely complementary approaches (e.g., "add caching" AND "add indexes" - both should be done)
+- **PARALLEL_SPIKE**: Both approaches are plausible but evidence is insufficient to decide; requires a time-boxed validation experiment
+
+### 5.6 PARALLEL_SPIKE: Validation-First Verdict
+
+Use `PARALLEL_SPIKE` when:
+1. Both approaches are logically sound
+2. The key differentiator is **empirical** (performance, UX, maintainability in practice)
+3. Paper analysis cannot determine the winner
+4. A time-boxed experiment would provide definitive evidence
+
+**PARALLEL_SPIKE format**:
+
+```markdown
+### CONFLICT: [Brief description]
+
+**{model-a} says**: [Summary]
+**{model-b} says**: [Summary]
+
+---
+
+**Why {model-a} is WRONG**: [Critique - but acknowledge it might be right]
+**Why {model-b} is WRONG**: [Critique - but acknowledge it might be right]
+
+---
+
+**VERDICT**: PARALLEL_SPIKE
+**RATIONALE**: [Why evidence is insufficient - be SPECIFIC, not vague]
+
+**SPIKE DESIGN**:
+- **Hypothesis**: [What we're trying to determine]
+- **Approach A Validation**: [Concrete steps to test model-a's approach]
+- **Approach B Validation**: [Concrete steps to test model-b's approach]
+- **Decision Criteria**: [Measurable metrics that will determine the winner]
+- **Time-box**: [Max effort before deciding, e.g., "4 hours" or "1 day"]
+
+**TEMPORARY DECISION**: {model-name}
+[Which approach to prototype FIRST if sequential validation is needed. Include rationale.]
+```
+
+**Anti-abuse rules**:
+1. **Must justify why evidence is insufficient** - "Both seem reasonable" is NOT acceptable
+2. **Must define concrete spike** - Vague "we need to test this" is NOT acceptable
+3. **Must have measurable decision criteria** - "See which feels better" is NOT acceptable
+4. **Must have time-box** - Open-ended spikes are NOT acceptable
+5. **Prefer ACCEPT when one approach has >70% confidence** - Don't use PARALLEL_SPIKE to avoid decisions
+
+**When NOT to use PARALLEL_SPIKE**:
+- One approach has clear technical advantages
+- The "uncertainty" is just lack of domain expertise (research more, don't spike)
+- The spike would take longer than just implementing one approach
+- Debate round already provided sufficient evidence
+
+**Example: PARALLEL_SPIKE (Data Storage Strategy)**:
+
+```markdown
+### CONFLICT: How to store user preferences
+
+**strategist says**: Use Redis for fast reads, sync to PostgreSQL periodically
+**pragmatist says**: Store directly in PostgreSQL with aggressive caching headers
+**creative says**: Use localStorage with cloud sync on app start
+
+---
+
+**Why strategist is WRONG** (maybe):
+Adds Redis infrastructure complexity. Sync logic is error-prone. But for high-read workloads, might be justified.
+
+**Why pragmatist is WRONG** (maybe):
+Database round-trips for every preference read. Caching headers only help browser caching. But simplest to implement.
+
+**Why creative is WRONG** (maybe):
+localStorage has size limits and no cross-device sync. But zero latency for reads.
+
+---
+
+**VERDICT**: PARALLEL_SPIKE
+**RATIONALE**: The performance difference between these approaches depends heavily on actual usage patterns (read:write ratio, preference data size, concurrent users). Without profiling real workload, we're guessing.
+
+**SPIKE DESIGN**:
+- **Hypothesis**: PostgreSQL with caching can handle our expected read load (<1000 RPS) without Redis
+- **Approach A Validation**: Implement Redis approach, load test with 1000 concurrent users
+- **Approach B Validation**: Implement PostgreSQL approach, load test same scenario
+- **Decision Criteria**: P99 latency <50ms, memory usage <500MB
+- **Time-box**: 4 hours (2 hours per approach)
+
+**TEMPORARY DECISION**: pragmatist
+Start with PostgreSQL (simpler) since we suspect read load isn't high enough to need Redis.
+```
 
 ---
 
@@ -272,6 +360,8 @@ The Debate mechanism gives rejected models a chance to argue back, preventing on
 Debate is **optional** and only runs when:
 1. `debate: true` is passed to `multi_plan` tool
 2. At least one model was rejected in a conflict (not the winner)
+
+**Note**: `PARALLEL_SPIKE` and `BOTH_VALID` verdicts do not produce rejections, so conflicts resolved with these verdicts will not trigger rebuttals.
 
 ### 6.2 Rebuttal Format
 

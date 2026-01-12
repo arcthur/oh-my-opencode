@@ -420,6 +420,82 @@ describe("MultiPlanOrchestrator", () => {
 
   // #region runDebateRound
   describe("runDebateRound", () => {
+    test("skips rebuttals for PARALLEL_SPIKE verdicts (decision deferred to spike)", async () => {
+      // #given - PARALLEL_SPIKE means no model is rejected, decision deferred
+      const planName = "test-plan"
+      const mockCtx = createMockCtx(tmpDir)
+      const launchMock = mock(() => Promise.resolve({ id: "bg_123", sessionID: "sess_123" }))
+
+      const mockManager = {
+        launch: launchMock,
+        getTask: mock(() => undefined),
+      } as unknown as BackgroundManager
+
+      const config = {
+        enabled: true,
+        models: [
+          { name: "strategist", model: "anthropic/claude-opus-4-5" },
+          { name: "creative", model: "openai/gpt-5.2" },
+        ],
+      }
+
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+
+      const comparisonReportPath = `.sisyphus/plan-reviews/${planName}-comparison.md`
+      fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plan-reviews"), { recursive: true })
+
+      // PARALLEL_SPIKE verdict - neither model should be rejected
+      fs.writeFileSync(
+        path.join(tmpDir, comparisonReportPath),
+        `### CONFLICT: Data storage strategy
+
+**strategist says**: Use Redis
+**creative says**: Use PostgreSQL with caching
+
+---
+
+**Why strategist is WRONG**: Adds infrastructure complexity
+**Why creative is WRONG**: May not handle high read load
+
+---
+
+**VERDICT**: PARALLEL_SPIKE
+**RATIONALE**: Performance depends on actual usage patterns
+
+**SPIKE DESIGN**:
+- **Hypothesis**: PostgreSQL can handle expected load
+- **Decision Criteria**: P99 latency <50ms
+- **Time-box**: 4 hours
+
+**TEMPORARY DECISION**: creative
+`,
+        "utf-8"
+      )
+
+      const session: MultiPlanSession = {
+        id: "mp_test",
+        planName,
+        requestContext: "Test context",
+        models: config.models,
+        tasks: [],
+        status: "reviewing",
+        startedAt: new Date(),
+        debateEnabled: true,
+        rebuttals: [],
+      }
+
+      // #when
+      const rebuttals = await (orchestrator as any).runDebateRound(
+        session,
+        comparisonReportPath,
+        "parent_123"
+      )
+
+      // #then - no rebuttals should be generated since PARALLEL_SPIKE doesn't reject
+      expect(launchMock).not.toHaveBeenCalled()
+      expect(rebuttals).toHaveLength(0)
+    })
+
     test("generates at most one rebuttal per model (avoids file collisions across multiple conflicts)", async () => {
       // #given
       const planName = "test-plan"

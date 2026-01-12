@@ -1,15 +1,1 @@
-{
-  "multi_plan": {
-    "enabled": true,
-    "models": [
-      {
-        "name": "claude",
-        "model": "anthropic/claude-opus-4-5"
-      },
-      {
-        "name": "gpt",
-        "model": "openai/gpt-5.2"
-      }
-    ]
-  }
-}
+{}

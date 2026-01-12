@@ -165,6 +165,37 @@ describe("parseRejectedModels", () => {
       expect(result).toHaveLength(0)
     })
 
+    test("VERDICT: PARALLEL_SPIKE produces no rejections", () => {
+      // #given - PARALLEL_SPIKE defers decision to validation experiment
+      const report = `### CONFLICT: Data storage strategy
+
+**strategist says**: Use Redis for fast reads
+**creative says**: Use PostgreSQL with caching
+
+---
+
+**Why strategist is WRONG**: Adds infrastructure complexity
+**Why creative is WRONG**: May not handle high read load
+
+---
+
+**VERDICT**: PARALLEL_SPIKE
+**RATIONALE**: Performance depends on actual usage patterns
+
+**SPIKE DESIGN**:
+- **Hypothesis**: PostgreSQL can handle expected load
+- **Decision Criteria**: P99 latency <50ms
+- **Time-box**: 4 hours
+
+**TEMPORARY DECISION**: creative`
+
+      // #when
+      const result = parseRejectedModels(report, ["strategist", "creative"])
+
+      // #then - no rejections since decision is deferred to spike
+      expect(result).toHaveLength(0)
+    })
+
     test("VERDICT: REJECT ALL marks all models as rejected", () => {
       // #given
       const report = `### CONFLICT: Error handling
