@@ -34,6 +34,11 @@ export const BuiltinSkillNameSchema = z.enum([
   "playwright",
   "frontend-ui-ux",
   "git-master",
+  "spec-compliance-review",
+  "code-quality-review",
+  "writing-plans",
+  "systematic-debugging",
+  "code-simplifier",
 ])
 
 export const OverridableAgentNameSchema = z.enum([
@@ -93,6 +98,8 @@ export const HookNameSchema = z.enum([
   "silent-tool-output",
   "repo-overview-injector",
   "runtime-tracker",
+  "anti-slop-enforcer",
+  "pre-completion-verification",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([

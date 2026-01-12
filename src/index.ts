@@ -33,6 +33,8 @@ import {
   createMultiPlanTriggerHook,
   createPlanningWithFilesHook,
   createSilentToolOutputHook,
+  createAntiSlopEnforcerHook,
+  createPreCompletionVerificationHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -248,6 +250,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createTodoContinuationEnforcer(ctx, { backgroundManager })
     : null;
 
+  const antiSlopEnforcer = isHookEnabled("anti-slop-enforcer")
+    ? createAntiSlopEnforcerHook(ctx)
+    : null;
+
+  const preCompletionVerification = isHookEnabled("pre-completion-verification")
+    ? createPreCompletionVerificationHook(ctx)
+    : null;
+
   if (sessionRecovery && todoContinuationEnforcer) {
     sessionRecovery.setOnAbortCallback(todoContinuationEnforcer.markRecovering);
     sessionRecovery.setOnRecoveryCompleteCallback(
@@ -356,6 +366,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await startWork?.["chat.message"]?.(input, output);
       await multiPlanTrigger?.["chat.message"]?.(input, output);
       await planningWithFiles?.["chat.message"]?.(input, output);
+      await preCompletionVerification?.["chat.message"]?.(input, output);
 
       if (ralphLoop) {
         const parts = (
@@ -440,6 +451,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await backgroundNotificationHook?.event(input);
       await sessionNotification?.(input);
       await todoContinuationEnforcer?.handler(input);
+      await preCompletionVerification?.event?.(input);
       await planningWithFiles?.event?.(input);
       await userMemory?.event(input);
       await orgMemory?.event(input);
@@ -565,6 +577,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     "tool.execute.after": async (input, output) => {
       await planningWithFiles?.["tool.execute.after"]?.(input, output);
       await claudeCodeHooks["tool.execute.after"](input, output);
+      await antiSlopEnforcer?.["tool.execute.after"]?.(input, output);
       await silentToolOutput?.["tool.execute.after"]?.(input, output);
       await toolOutputTruncator?.["tool.execute.after"](input, output);
       await userMemory?.["tool.execute.after"]?.(input, output);

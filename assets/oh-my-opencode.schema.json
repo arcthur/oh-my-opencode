@@ -41,7 +41,12 @@
         "enum": [
           "playwright",
           "frontend-ui-ux",
-          "git-master"
+          "git-master",
+          "spec-compliance-review",
+          "code-quality-review",
+          "writing-plans",
+          "systematic-debugging",
+          "code-simplifier"
         ]
       }
     },
@@ -85,7 +90,9 @@
           "planning-with-files",
           "silent-tool-output",
           "repo-overview-injector",
-          "runtime-tracker"
+          "runtime-tracker",
+          "anti-slop-enforcer",
+          "pre-completion-verification"
         ]
       }
     },
@@ -2588,6 +2595,49 @@
         "auto_inject": {
           "default": true,
           "type": "boolean"
+        }
+      }
+    },
+    "org_memory": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "auto_inject": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_conventions": {
+          "default": 10,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "max_decisions": {
+          "default": 5,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "max_patterns": {
+          "default": 5,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "max_terminology": {
+          "default": 10,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "max_custom_rules": {
+          "default": 20,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 200
         }
       }
     }

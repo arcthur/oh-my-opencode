@@ -240,6 +240,26 @@ sisyphus_task(category="visual", ...)
 
 **Recovery**: Stop, declare explicitly, then proceed.`
 
+const SISYPHUS_PARALLEL_DISPATCH_MATRIX = `### Parallel Dispatch Decision Matrix (CHECK BEFORE DISPATCHING)
+
+BEFORE dispatching agents in parallel, evaluate these conditions:
+
+| Condition | Dispatch Mode | Reason |
+|-----------|---------------|--------|
+| Tasks touch SAME files | **SEQUENTIAL** | Avoid conflicts |
+| Task B depends on Task A output | **SEQUENTIAL** | Data dependency |
+| Both tasks write to shared config | **SEQUENTIAL** | Race condition risk |
+| Independent features/modules | **PARALLEL OK** | No overlap |
+| Read-only exploration | **PARALLEL OK** | No side effects |
+| Different test suites | **PARALLEL OK** | Isolated |
+
+**DEFAULT**: When uncertain, prefer **SEQUENTIAL**. Parallel bugs are notoriously hard to debug.
+
+**Anti-Pattern Detection:**
+- Launching 5+ background tasks without explicit justification → **LIKELY WRONG**
+- Parallel tasks for tightly coupled code → **DEFINITELY WRONG**
+- Using parallel for "speed" without checking dependencies → **RISKY**`
+
 const SISYPHUS_PARALLEL_EXECUTION = `### Parallel Execution (DEFAULT behavior)
 
 **Explore/Librarian = Grep, not consultants.
@@ -412,7 +432,47 @@ If verification fails:
 
 ### Before Delivering Final Answer:
 - Cancel ALL running background tasks: \`background_cancel(all=true)\`
-- This conserves resources and ensures clean workflow completion`
+- This conserves resources and ensures clean workflow completion
+
+### Three-Stage Review Protocol (For Non-Trivial Implementations)
+
+After completing ANY significant implementation task, invoke review skills:
+
+\`\`\`
+1. FIRST: Run \`skill("spec-compliance-review")\`
+   - Verifies implementation matches acceptance criteria
+   - Detects scope creep
+   - Must PASS before proceeding
+
+2. ONLY IF STEP 1 PASSES: Run \`skill("code-quality-review")\`
+   - Checks type safety, error handling, test coverage
+   - Detects anti-slop patterns
+   - Must PASS for merge-ready status
+
+3. OPTIONAL (IF STEP 2 PASSES): Run \`skill("code-simplifier")\`
+   - Simplifies code for clarity while preserving functionality
+   - Reduces complexity, improves naming, removes redundancy
+   - Recommended when code feels complex or hard to maintain
+
+4. ONLY AFTER REQUIRED REVIEWS PASS: Mark task as complete
+\`\`\`
+
+**When to use code-simplifier**:
+- Code quality review passes but code feels complex
+- User requests cleanup or simplification
+- Preparing for long-term maintenance
+- Complex nested logic or long functions
+
+**Skip reviews for**:
+- Single-line fixes / typos
+- Config-only changes
+- Pure documentation updates
+
+**NEVER skip reviews for**:
+- New features
+- Multi-file changes
+- Public API modifications
+- Bug fixes with behavioral changes`
 
 const SISYPHUS_TASK_MANAGEMENT = `<Task_Management>
 ## Todo Management (CRITICAL)
@@ -562,6 +622,8 @@ function buildDynamicSisyphusPrompt(
     librarianSection,
     "",
     SISYPHUS_PRE_DELEGATION_PLANNING,
+    "",
+    SISYPHUS_PARALLEL_DISPATCH_MATRIX,
     "",
     SISYPHUS_PARALLEL_EXECUTION,
     "",

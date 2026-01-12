@@ -1,4 +1,6 @@
 import { createBuiltinAgents } from "../agents";
+import { createBuiltinSkills } from "../features/builtin-skills";
+import type { AvailableSkill } from "../agents/sisyphus-prompt-builder";
 import { createSisyphusJuniorAgent } from "../agents/sisyphus-junior";
 import {
   loadUserCommands,
@@ -90,11 +92,19 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       log(`Plugin load errors`, { errors: pluginComponents.errors });
     }
 
+    const builtinSkillsList = createBuiltinSkills();
+    const availableSkills: AvailableSkill[] = builtinSkillsList.map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      location: "builtin" as const,
+    }));
+
     const builtinAgents = createBuiltinAgents(
       pluginConfig.disabled_agents,
       pluginConfig.agents,
       ctx.directory,
-      config.model as string | undefined
+      config.model as string | undefined,
+      availableSkills
     );
 
     // Claude Code agents: Do NOT apply permission migration

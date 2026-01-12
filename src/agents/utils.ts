@@ -11,7 +11,7 @@ import { createMetisAgent } from "./metis"
 import { createOrchestratorSisyphusAgent, orchestratorSisyphusAgent } from "./orchestrator-sisyphus"
 import { createMomusAgent } from "./momus"
 import { createPlanSynthesizerAgent } from "./plan-synthesizer"
-import type { AvailableAgent } from "./sisyphus-prompt-builder"
+import type { AvailableAgent, AvailableSkill } from "./sisyphus-prompt-builder"
 import { deepMerge } from "../shared"
 import { DEFAULT_CATEGORIES } from "../tools/sisyphus-task/constants"
 import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-content"
@@ -120,7 +120,8 @@ export function createBuiltinAgents(
   disabledAgents: BuiltinAgentName[] = [],
   agentOverrides: AgentOverrides = {},
   directory?: string,
-  systemDefaultModel?: string
+  systemDefaultModel?: string,
+  availableSkills: AvailableSkill[] = []
 ): Record<string, AgentConfig> {
   const result: Record<string, AgentConfig> = {}
   const availableAgents: AvailableAgent[] = []
@@ -162,7 +163,7 @@ export function createBuiltinAgents(
     const sisyphusOverride = agentOverrides["Sisyphus"]
     const sisyphusModel = sisyphusOverride?.model ?? systemDefaultModel
 
-    let sisyphusConfig = createSisyphusAgent(sisyphusModel, availableAgents)
+    let sisyphusConfig = createSisyphusAgent(sisyphusModel, availableAgents, undefined, availableSkills)
 
     if (directory && sisyphusConfig.prompt) {
       const envContext = createEnvContext()

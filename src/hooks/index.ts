@@ -35,3 +35,5 @@ export { createPlanningWithFilesHook, type PlanningWithFilesHookOptions } from "
 export { createSilentToolOutputHook } from "./silent-tool-output";
 export { createRepoOverviewInjectorHook } from "./repo-overview-injector";
 export { createRuntimeTrackerHook, type RuntimeTrackerConfig } from "./runtime-tracker";
+export { createAntiSlopEnforcerHook, type AntiSlopEnforcerOptions } from "./anti-slop-enforcer";
+export { createPreCompletionVerificationHook, type PreCompletionVerificationOptions } from "./pre-completion-verification";

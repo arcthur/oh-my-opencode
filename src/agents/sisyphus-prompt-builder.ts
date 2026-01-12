@@ -14,7 +14,7 @@ export interface AvailableTool {
 export interface AvailableSkill {
   name: string
   description: string
-  location: "user" | "project" | "plugin"
+  location: "user" | "project" | "plugin" | "builtin"
 }
 
 export function categorizeTools(toolNames: string[]): AvailableTool[] {
