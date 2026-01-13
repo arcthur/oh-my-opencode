@@ -1,6 +1,19 @@
-import type { MultiPlanConfig, MultiPlanModel } from "../../config/schema"
+/**
+ * Normalized planning model (internal use - always has name and model)
+ */
+export interface NormalizedPlanningModel {
+  /** Display name, auto-derived from model ID (e.g., "claude-opus-4-5", "gpt-5.2") */
+  name: string
+  /** Model ID, e.g., "anthropic/claude-opus-4-5" */
+  model: string
+}
 
-export type { MultiPlanConfig, MultiPlanModel }
+/**
+ * Internal normalized planning config (after processing string/array input)
+ */
+export interface NormalizedPlanningConfig {
+  models: NormalizedPlanningModel[]
+}
 
 /**
  * Status of a plan generation task
@@ -11,7 +24,7 @@ export type PlanGenerationStatus = "pending" | "running" | "completed" | "error"
  * A single plan generation task for one model
  */
 export interface PlanGenerationTask {
-  /** Display name for this model (e.g., "strategist", "creative") */
+  /** Display name for this model (e.g., "claude-opus-4-5", "gpt-5.2") */
   modelName: string
   /** Background task ID */
   taskId: string
@@ -68,8 +81,8 @@ export interface MultiPlanSession {
   planName: string
   /** Original request context from Prometheus interview */
   requestContext: string
-  /** Models participating in this session */
-  models: MultiPlanModel[]
+  /** Models participating in this session (normalized) */
+  models: NormalizedPlanningModel[]
   /** Generation tasks for each model */
   tasks: PlanGenerationTask[]
   /** Path to the comparison report (after synthesis) */
@@ -100,8 +113,8 @@ export interface StartMultiPlanInput {
   requestContext: string
   /** Parent session ID */
   parentSessionId: string
-  /** Configuration */
-  config: MultiPlanConfig
+  /** Normalized configuration with models array */
+  config: NormalizedPlanningConfig
   /** Enable debate mode - rejected plans can rebut */
   debateEnabled?: boolean
 }

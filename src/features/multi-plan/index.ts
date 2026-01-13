@@ -2,8 +2,10 @@ import * as fs from "fs"
 import * as path from "path"
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundManager } from "../background-agent"
+import type { PlanningAgentConfig } from "../../config/schema"
 import type {
-  MultiPlanConfig,
+  NormalizedPlanningConfig,
+  NormalizedPlanningModel,
   MultiPlanSession,
   MultiPlanResult,
   StartMultiPlanInput,
@@ -14,6 +16,48 @@ import { parseRejectedModels } from "./parser"
 import { log } from "../../shared/logger"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 import { getTaskToastManager } from "../task-toast-manager"
+
+/**
+ * Derive a display name from a model ID
+ * e.g., "google/antigravity-gemini-3-pro" → "gemini-3-pro"
+ *       "anthropic/claude-opus-4-5" → "claude-opus-4-5"
+ */
+function deriveNameFromModel(model: string): string {
+  // Take the part after the last slash
+  const lastSlash = model.lastIndexOf("/")
+  const baseName = lastSlash >= 0 ? model.slice(lastSlash + 1) : model
+
+  // Remove common prefixes like "antigravity-gemini-"
+  return baseName
+    .replace(/^antigravity-gemini-/, "")
+    .replace(/^antigravity-/, "")
+}
+
+/**
+ * Normalize planning config to standard format
+ * Supports:
+ * - { model: "xxx" } → single model
+ * - { model: ["xxx", "yyy"] } → multiple models (names auto-derived)
+ * - undefined → empty array
+ */
+export function normalizePlanningConfig(
+  config: PlanningAgentConfig | undefined
+): NormalizedPlanningModel[] {
+  if (!config) return []
+
+  const { model } = config
+
+  // Single model string
+  if (typeof model === "string") {
+    return [{ name: deriveNameFromModel(model), model }]
+  }
+
+  // Array of model strings
+  return model.map((m): NormalizedPlanningModel => ({
+    name: deriveNameFromModel(m),
+    model: m,
+  }))
+}
 
 /**
  * Error thrown when multi-plan fails but intermediate results exist
@@ -41,31 +85,65 @@ export { PlanGenerator, type MultiPlanProgressCallback } from "./plan-generator"
 export class MultiPlanOrchestrator {
   private ctx: PluginInput
   private manager: BackgroundManager
-  private config: MultiPlanConfig
   private generator: PlanGenerator
   private activeSessions: Map<string, MultiPlanSession> = new Map()
 
   constructor(
     ctx: PluginInput,
     manager: BackgroundManager,
-    config: MultiPlanConfig
+    _config?: PlanningAgentConfig  // Validation done by caller; kept for API compatibility
   ) {
     this.ctx = ctx
     this.manager = manager
-    this.config = config
     this.generator = new PlanGenerator(ctx, manager)
   }
 
   /**
    * Start a new multi-plan session
+   *
+   * @throws {MultiPlanError} if planName or modelNames are invalid or duplicated
    */
   async start(input: StartMultiPlanInput): Promise<MultiPlanResult> {
     const sessionId = `mp_${crypto.randomUUID().slice(0, 8)}`
+    const models = input.config.models ?? []
+
+    // === Centralized validation (single source of truth) ===
+    // Validate planName
+    const safePlanName = sanitizePathSegment(input.planName)
+    if (!safePlanName) {
+      throw new MultiPlanError(
+        `Invalid plan name: "${input.planName}". Plan names must be safe for file paths.`,
+        [],
+        { id: sessionId, planName: input.planName, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Invalid plan name" }
+      )
+    }
+
+    // Validate modelNames and check for duplicates after sanitization
+    const sanitizedToOriginal = new Map<string, string>()
+    for (const model of models) {
+      const sanitizedName = sanitizePathSegment(model.name)
+      if (!sanitizedName) {
+        throw new MultiPlanError(
+          `Invalid model name: "${model.name}". Model names must be safe for file paths.`,
+          [],
+          { id: sessionId, planName: input.planName, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Invalid model name" }
+        )
+      }
+      const existingOriginal = sanitizedToOriginal.get(sanitizedName)
+      if (existingOriginal) {
+        throw new MultiPlanError(
+          `Duplicate model name after sanitization: "${existingOriginal}" and "${model.name}" both resolve to "${sanitizedName}".`,
+          [],
+          { id: sessionId, planName: input.planName, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Duplicate model name" }
+        )
+      }
+      sanitizedToOriginal.set(sanitizedName, model.name)
+    }
 
     log("[multi-plan] Starting multi-plan session", {
       sessionId,
       planName: input.planName,
-      modelCount: input.config.models.length,
+      modelCount: models.length,
     })
 
     // Create session
@@ -73,7 +151,7 @@ export class MultiPlanOrchestrator {
       id: sessionId,
       planName: input.planName,
       requestContext: input.requestContext,
-      models: input.config.models,
+      models,
       tasks: [],
       status: "generating",
       startedAt: new Date(),
@@ -249,7 +327,7 @@ export class MultiPlanOrchestrator {
   ): string {
     const fileList = planFiles.map((f) => `- \`${f}\``).join("\n")
     const modelList = session.models
-      .map((m) => `- **${m.name}**: ${m.category || m.model}`)
+      .map((m) => `- **${m.name}**: ${m.model}`)
       .join("\n")
 
     return `## Multi-Model Plan Synthesis Request
@@ -371,13 +449,6 @@ Plan Synthesizer (Momus-style) will:
    */
   getSession(sessionId: string): MultiPlanSession | undefined {
     return this.activeSessions.get(sessionId)
-  }
-
-  /**
-   * Check if multi-plan is enabled
-   */
-  isEnabled(): boolean {
-    return this.config.enabled
   }
 
   /**
@@ -511,14 +582,14 @@ Plan Synthesizer (Momus-style) will:
         const modelConfig = session.models.find((m) => m.name === rejection.modelName)
         const resolvedModelConfig = modelConfig ? this.generator.resolveModelConfig(modelConfig) : {}
 
+        // Use Sisyphus-Junior: executor agent for direct rebuttal generation
         const task = await this.manager.launch({
           description: `Rebuttal: ${rejection.modelName}`,
           prompt,
-          agent: "Sisyphus",
+          agent: "Sisyphus-Junior",
           parentSessionID: parentSessionId,
           parentMessageID: "",
           model: resolvedModelConfig.model,
-          skillContent: resolvedModelConfig.systemPrompt,
           silent: true,
         })
 
@@ -628,6 +699,8 @@ Write ONE rebuttal that addresses EACH conflict above. Be specific and provide e
 3. Address the SPECIFIC criticism made
 4. If the Synthesizer was right for a conflict, say so and concede
 5. Be concise - focus on high-signal technical arguments
+
+**CONTEXT**: This is a REBUTTAL GENERATION task. You are writing to the rebuttals directory, not modifying any plan files. Use the Write tool to create the rebuttal file.
 
 Read your original plan at \`${planPath}\` for context.
 `

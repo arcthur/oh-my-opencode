@@ -26,14 +26,14 @@ graph TD
         MultiPlanTool --> Orchestrator[MultiPlanOrchestrator]
 
         subgraph Parallel Generation
-            Orchestrator --> ModelA[Model A<br>e.g., strategist]
-            Orchestrator --> ModelB[Model B<br>e.g., creative]
-            Orchestrator --> ModelC[Model C<br>e.g., practical]
+            Orchestrator --> ModelA[claude-opus-4-5]
+            Orchestrator --> ModelB[gpt-5.2]
+            Orchestrator --> ModelC[gemini-3-pro]
         end
 
-        ModelA --> PlanA[plan-strategist.md]
-        ModelB --> PlanB[plan-creative.md]
-        ModelC --> PlanC[plan-practical.md]
+        ModelA --> PlanA[plan-claude-opus-4-5.md]
+        ModelB --> PlanB[plan-gpt-5.2.md]
+        ModelC --> PlanC[plan-gemini-3-pro.md]
 
         PlanA --> Synthesizer[Plan Synthesizer<br>4-Criterion Evaluation<br>+ Assumption/Risk Analysis]
         PlanB --> Synthesizer
@@ -60,22 +60,29 @@ graph TD
 
 ## 3. Configuration
 
-Enable multi-model planning in your `oh-my-opencode.json`:
+Configure multi-model planning in your `oh-my-opencode.json` under `agents.planning`:
 
 ```jsonc
 {
-  "multi_plan": {
-    "enabled": true,
-    "models": [
-      {
-        "name": "claude",
-        "model": "anthropic/claude-opus-4-5"
-      },
-      {
-        "name": "gpt",
-        "model": "openai/gpt-5.2"
-      }
-    ]
+  "agents": {
+    "planning": {
+      "model": [
+        "anthropic/claude-opus-4-5",
+        "openai/gpt-5.2"
+      ]
+    }
+  }
+}
+```
+
+Multi-model planning **automatically activates** when 2 or more models are configured. For single-model planning (Prometheus generates directly), use a string:
+
+```jsonc
+{
+  "agents": {
+    "planning": {
+      "model": "anthropic/claude-opus-4-5"
+    }
   }
 }
 ```
@@ -84,25 +91,20 @@ Enable multi-model planning in your `oh-my-opencode.json`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enabled` | boolean | Enable/disable multi-model planning |
-| `models` | array | List of 2-5 models to use (minimum 2 required) |
-| `models[].name` | string | Display name for this model perspective |
-| `models[].model` | string | Model identifier (e.g., `anthropic/claude-opus-4-5`) |
-| `models[].category` | string | Alternative: use predefined category (e.g., `ultrabrain`) |
+| `agents.planning.model` | `string` | Single model - Prometheus generates plan directly |
+| `agents.planning.model` | `string[]` | Multiple models (2-5) - parallel generation + synthesis |
 
-### Predefined Categories
+### Model Names
 
-Instead of specifying a model directly, you can use categories:
+Model display names are **automatically derived** from model IDs:
 
-| Category | Model | Use Case |
-|----------|-------|----------|
-| `ultrabrain` | openai/gpt-5.2 | Strategic, high-reasoning tasks |
-| `most-capable` | anthropic/claude-opus-4-5 | Complex analysis |
-| `general` | anthropic/claude-sonnet-4-5 | Balanced, practical approach |
-| `quick` | anthropic/claude-haiku-4-5 | Fast, simple tasks |
-| `artistry` | google/gemini-3-pro-preview | Creative solutions |
+| Model ID | Derived Name |
+|----------|--------------|
+| `anthropic/claude-opus-4-5` | `claude-opus-4-5` |
+| `openai/gpt-5.2` | `gpt-5.2` |
+| `google/gemini-3-pro` | `gemini-3-pro` |
 
-**Note**: In `multi_plan`, `models[].category` currently affects model selection and applies the category prompt append. Other category-level tuning (temperature, top_p, maxTokens, etc.) is not currently applied.
+The derivation extracts the portion after the last `/` and removes common prefixes like `antigravity-`.
 
 ---
 
@@ -124,7 +126,6 @@ multi_plan({
 
 The `MultiPlanOrchestrator` launches N background tasks, one per configured model. Each model receives:
 - The same base planning prompt
-- Role-specific guidance based on its name (e.g., "strategist" focuses on architecture)
 - The full interview context
 
 **Required plan sections** (all models must include):
@@ -203,10 +204,10 @@ These scores inform conflict resolution - higher-scoring plans generally win.
 ```markdown
 ### ASSUMPTION CONFLICT: Authentication method
 
-**strategist assumes**: JWT tokens (High confidence)
-**creative assumes**: Session cookies (Medium confidence)
+**claude-opus-4-5 assumes**: JWT tokens (High confidence)
+**gpt-5.2 assumes**: Session cookies (Medium confidence)
 
-**VERDICT**: Accept strategist's assumption
+**VERDICT**: Accept claude-opus-4-5's assumption
 **REASON**: Higher confidence, verified via code exploration
 **ACTION**: Validate in first TODO if needed
 ```
@@ -215,7 +216,7 @@ These scores inform conflict resolution - higher-scoring plans generally win.
 ```markdown
 ### UNSHARED RISK: Rate limiting not considered
 
-**Only creative identified this risk**
+**Only gpt-5.2 identified this risk**
 - Probability: Medium
 - Impact: High
 - Mitigation: Add rate limiter middleware
@@ -230,15 +231,15 @@ For each conflict point, the synthesizer outputs (using **actual model names**, 
 ```markdown
 ### CONFLICT: [Brief description]
 
-**{strategist} says**: [Summary]
-**{creative} says**: [Summary]
-**{practical} says**: [Summary]
+**{claude-opus-4-5} says**: [Summary]
+**{gpt-5.2} says**: [Summary]
+**{gemini-3-pro} says**: [Summary]
 
 ---
 
-**Why {strategist} is WRONG**: [Harsh critique]
-**Why {creative} is WRONG**: [Harsh critique]
-**Why {practical} is WRONG**: [Harsh critique]
+**Why {claude-opus-4-5} is WRONG**: [Harsh critique]
+**Why {gpt-5.2} is WRONG**: [Harsh critique]
+**Why {gemini-3-pro} is WRONG**: [Harsh critique]
 
 ---
 
@@ -318,19 +319,19 @@ Use `PARALLEL_SPIKE` when:
 ```markdown
 ### CONFLICT: How to store user preferences
 
-**strategist says**: Use Redis for fast reads, sync to PostgreSQL periodically
-**pragmatist says**: Store directly in PostgreSQL with aggressive caching headers
-**creative says**: Use localStorage with cloud sync on app start
+**claude-opus-4-5 says**: Use Redis for fast reads, sync to PostgreSQL periodically
+**gpt-5.2 says**: Store directly in PostgreSQL with aggressive caching headers
+**gemini-3-pro says**: Use localStorage with cloud sync on app start
 
 ---
 
-**Why strategist is WRONG** (maybe):
+**Why claude-opus-4-5 is WRONG** (maybe):
 Adds Redis infrastructure complexity. Sync logic is error-prone. But for high-read workloads, might be justified.
 
-**Why pragmatist is WRONG** (maybe):
+**Why gpt-5.2 is WRONG** (maybe):
 Database round-trips for every preference read. Caching headers only help browser caching. But simplest to implement.
 
-**Why creative is WRONG** (maybe):
+**Why gemini-3-pro is WRONG** (maybe):
 localStorage has size limits and no cross-device sync. But zero latency for reads.
 
 ---
@@ -345,7 +346,7 @@ localStorage has size limits and no cross-device sync. But zero latency for read
 - **Decision Criteria**: P99 latency <50ms, memory usage <500MB
 - **Time-box**: 4 hours (2 hours per approach)
 
-**TEMPORARY DECISION**: pragmatist
+**TEMPORARY DECISION**: gpt-5.2
 Start with PostgreSQL (simpler) since we suspect read load isn't high enough to need Redis.
 ```
 
@@ -438,7 +439,7 @@ For a 3-model setup where 2 were rejected, expect 3 additional model calls (2 re
 .sisyphus/plans/{name}-{model}.md
 ```
 
-Example: `.sisyphus/plans/auth-strategist.md`, `.sisyphus/plans/auth-creative.md`
+Example: `.sisyphus/plans/auth-claude-opus-4-5.md`, `.sisyphus/plans/auth-gpt-5.2.md`
 
 Each follows the standard plan format:
 - Context
@@ -555,8 +556,8 @@ You can:
 
 **Solutions**:
 - Use models with more diverse architectures (e.g., Claude + GPT + Gemini)
-- Increase temperature for some models
-- Use role-specific names that hint at different perspectives (e.g., "strategist", "pragmatist", "creative")
+- Use agent overrides to increase temperature for specific models
+- Ensure models come from different providers for natural diversity
 
 ### Synthesis takes too long
 
@@ -584,13 +585,14 @@ You can:
 # 1. Configure multi-model planning
 cat > .opencode/oh-my-opencode.json << 'EOF'
 {
-  "multi_plan": {
-    "enabled": true,
-    "models": [
-      { "name": "strategist", "model": "anthropic/claude-opus-4-5" },
-      { "name": "pragmatist", "model": "openai/gpt-5.2" },
-      { "name": "creative", "model": "google/gemini-3-pro" }
-    ]
+  "agents": {
+    "planning": {
+      "model": [
+        "anthropic/claude-opus-4-5",
+        "openai/gpt-5.2",
+        "google/gemini-3-pro"
+      ]
+    }
   }
 }
 EOF
@@ -610,7 +612,7 @@ EOF
 # })
 
 # 5. Pipeline executes:
-# a) Parallel generation: strategist + pragmatist + creative
+# a) Parallel generation: claude-opus-4-5 + gpt-5.2 + gemini-3-pro
 # b) Phase 2: 4-criterion evaluation (C1-C4 scores)
 # c) Phase 3: Assumption/Risk analysis
 # d) Phases 4-6: Conflict detection & synthesis
@@ -618,10 +620,10 @@ EOF
 # f) Phase 7: Final review, may revise
 
 # 6. Output files created:
-# .sisyphus/plans/auth-strategist.md
-# .sisyphus/plans/auth-pragmatist.md
-# .sisyphus/plans/auth-creative.md
-# .sisyphus/rebuttals/auth-pragmatist.md  (if rejected)
+# .sisyphus/plans/auth-claude-opus-4-5.md
+# .sisyphus/plans/auth-gpt-5.2.md
+# .sisyphus/plans/auth-gemini-3-pro.md
+# .sisyphus/rebuttals/auth-gpt-5.2.md  (if rejected)
 # .sisyphus/plan-reviews/auth-comparison.md
 # .sisyphus/plans/auth.md (final)
 

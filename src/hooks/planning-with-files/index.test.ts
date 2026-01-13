@@ -453,6 +453,38 @@ describe("planning-with-files (plugin-native hook)", () => {
     ).toBe(true)
   })
 
+  test("auto_from_multi_plan uses structured result (MULTI_PLAN_RESULT block)", async () => {
+    // #given
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, auto_from_multi_plan: true },
+      collector,
+    })
+
+    // #when - multi_plan completes with structured result (new format)
+    await hook["tool.execute.before"]?.(
+      { tool: "multi_plan", sessionID: "session-mp-struct", callID: "call-mp-struct" },
+      { args: { planName: "structured-plan", context: "ctx" } }
+    )
+    const structuredOutput = `✅ Multi-model planning completed successfully!
+[MULTI_PLAN_RESULT]{"status":"success","planName":"structured-plan","finalPlanPath":".sisyphus/plans/structured-plan.md"}[/MULTI_PLAN_RESULT]
+
+Some summary text...`
+    await hook["tool.execute.after"]?.(
+      { tool: "multi_plan", sessionID: "session-mp-struct", callID: "call-mp-struct" },
+      { title: "multi_plan", output: structuredOutput, metadata: {} }
+    )
+
+    // #then - plan directory scaffold created using planName from structured result
+    expect(
+      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "structured-plan", "task_plan.md"))
+    ).toBe(true)
+    expect(
+      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "structured-plan", ".planning-state.json"))
+    ).toBe(true)
+  })
+
   test("tracks active plan per session (multi_plan -> subsequent tool injection)", async () => {
     // #given
     await initializePlan(tmpDir, "plan-a", "Goal A")

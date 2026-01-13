@@ -1,7 +1,7 @@
 import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin"
 import type { BackgroundManager } from "../../features/background-agent"
-import type { MultiPlanConfig } from "../../config/schema"
-import { MultiPlanOrchestrator, MultiPlanError } from "../../features/multi-plan"
+import type { PlanningAgentConfig } from "../../config/schema"
+import { MultiPlanOrchestrator, MultiPlanError, normalizePlanningConfig, type NormalizedPlanningModel } from "../../features/multi-plan"
 import type { MultiPlanResult, StartMultiPlanInput } from "../../features/multi-plan"
 import { log } from "../../shared/logger"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
@@ -12,6 +12,26 @@ interface MultiPlanArgs {
   debate?: boolean
 }
 
+/**
+ * Validate model names for path safety and uniqueness.
+ * Returns error message if invalid, null if valid.
+ */
+function validateModelNames(models: NormalizedPlanningModel[]): string | null {
+  const sanitizedToOriginal = new Map<string, string>()
+  for (const model of models) {
+    const sanitizedName = sanitizePathSegment(model.name)
+    if (!sanitizedName) {
+      return `Invalid model name in config: "${model.name}". Model names must be safe for file paths.`
+    }
+    const existingOriginal = sanitizedToOriginal.get(sanitizedName)
+    if (existingOriginal) {
+      return `Duplicate model name: "${existingOriginal}" and "${model.name}" both resolve to "${sanitizedName}".`
+    }
+    sanitizedToOriginal.set(sanitizedName, model.name)
+  }
+  return null
+}
+
 type MultiPlanOrchestratorLike = {
   start: (input: StartMultiPlanInput) => Promise<MultiPlanResult>
 }
@@ -19,7 +39,7 @@ type MultiPlanOrchestratorLike = {
 type CreateMultiPlanOrchestrator = (
   ctx: PluginInput,
   backgroundManager: BackgroundManager,
-  config: MultiPlanConfig
+  config: PlanningAgentConfig | undefined
 ) => MultiPlanOrchestratorLike
 
 /**
@@ -31,16 +51,22 @@ type CreateMultiPlanOrchestrator = (
 export function createMultiPlanTool(options: {
   ctx: PluginInput
   backgroundManager: BackgroundManager
-  config: MultiPlanConfig | undefined
+  config: PlanningAgentConfig | undefined
   createOrchestrator?: CreateMultiPlanOrchestrator
 }): ToolDefinition {
   const { ctx, backgroundManager, config, createOrchestrator } = options
+  const models = normalizePlanningConfig(config)
+
+  // Validate model names at tool creation time (config is static)
+  // This catches config errors early, before any tool execution
+  const modelValidationError = validateModelNames(models)
+  const hasModelConfigError = modelValidationError !== null
 
   return tool({
     description: `Orchestrate multi-model planning where multiple AI models generate plans in parallel, followed by Plan Synthesizer review and conflict resolution.
 
 **When to use this tool:**
-- User has requested to generate a work plan AND multi-model planning is enabled
+- User has requested to generate a work plan AND 2+ models are configured in planning.models
 - You want diverse perspectives from different AI models
 - The task is complex enough to benefit from multiple viewpoints
 
@@ -60,28 +86,35 @@ export function createMultiPlanTool(options: {
    - Comparison report: .sisyphus/plan-reviews/{name}-comparison.md
    - Final unified plan: .sisyphus/plans/{name}.md
 
-**IMPORTANT:** Only call this tool if multi-model planning is enabled in configuration. Check for the system context that indicates this capability is available.`,
+**IMPORTANT:** Only call this tool if 2+ models are configured. Check for the system context that indicates this capability is available.`,
     args: {
       planName: tool.schema.string().describe("Name for the plan (used in file paths). Example: 'auth-system', 'dark-mode'"),
       context: tool.schema.string().describe("Complete context from the interview including: user requirements, decisions made, research findings, scope boundaries, and any draft content. This is passed to each model for plan generation."),
       debate: tool.schema.boolean().optional().describe("Enable debate mode. When true, rejected models can submit rebuttals, and the Synthesizer will review them before finalizing. Use for complex/high-stakes plans where you want maximum scrutiny. Default: false"),
     },
     async execute(args: MultiPlanArgs, execCtx) {
-      // Check if multi-plan is enabled
-      if (!config?.enabled) {
+      // Config validation (detected at tool creation time)
+      if (hasModelConfigError) {
         const safePlanName = sanitizePathSegment(args.planName) ?? "work-plan"
-        return `❌ Multi-model planning is not enabled.
+        return `❌ ${modelValidationError}
 
-Generate the plan directly instead using the Write tool to create \`.sisyphus/plans/${safePlanName}.md\``
+Check your oh-my-opencode.json configuration.
+Fallback path: \`.sisyphus/plans/${safePlanName}.md\``
       }
 
-      if (!config.models || config.models.length < 2) {
+      // Multi-plan requires at least 2 models
+      if (models.length < 2) {
+        const safePlanName = sanitizePathSegment(args.planName) ?? "work-plan"
+        const configHint = `Current configuration has ${models.length} model(s).`
         return `❌ Multi-model planning requires at least 2 models configured.
 
-Configure models in oh-my-opencode.json under multi_plan.models`
+${configHint}
+For single-model planning, generate the plan directly using the Write tool.
+
+Fallback path: \`.sisyphus/plans/${safePlanName}.md\``
       }
 
-      // Sanitize planName to prevent path traversal
+      // Validate planName (user input, varies per execution)
       const sanitizedPlanName = sanitizePathSegment(args.planName)
       if (!sanitizedPlanName) {
         return `❌ Invalid plan name: "${args.planName}".
@@ -89,25 +122,8 @@ Configure models in oh-my-opencode.json under multi_plan.models`
 Plan names must be safe for use in file paths. Avoid special characters like: < > : " / \\ | ? *`
       }
 
-      // Validate model names in config
-      const sanitizedToOriginal = new Map<string, string>()
-      for (const model of config.models) {
-        const sanitizedModelName = sanitizePathSegment(model.name)
-        if (!sanitizedModelName) {
-          return `❌ Invalid model name in config: "${model.name}".
-
-Model names must be safe for use in file paths. Check your oh-my-opencode.json configuration.`
-        }
-        const existingOriginal = sanitizedToOriginal.get(sanitizedModelName)
-        if (existingOriginal) {
-          return `❌ Duplicate model name after sanitization.
-
-Both "${existingOriginal}" and "${model.name}" resolve to "${sanitizedModelName}".
-
-Multiple models would write to the same output file. Ensure each model has a unique name in oh-my-opencode.json.`
-        }
-        sanitizedToOriginal.set(sanitizedModelName, model.name)
-      }
+      // Note: Model names are validated at tool creation time (see hasModelConfigError above)
+      // Orchestrator.start() also validates as a defense layer
 
       const { context } = args
       const planName = sanitizedPlanName
@@ -115,21 +131,20 @@ Multiple models would write to the same output file. Ensure each model has a uni
 
       log("[multi_plan] Starting multi-model planning", {
         planName,
-        modelCount: config.models.length,
+        modelCount: models.length,
         sessionID,
       })
 
       try {
-        const enabledConfig = config
         const orchestrator = createOrchestrator
-          ? createOrchestrator(ctx, backgroundManager, enabledConfig)
-          : new MultiPlanOrchestrator(ctx, backgroundManager, enabledConfig)
+          ? createOrchestrator(ctx, backgroundManager, config)
+          : new MultiPlanOrchestrator(ctx, backgroundManager, config)
 
         const result = await orchestrator.start({
           planName,
           requestContext: context,
           parentSessionId: sessionID,
-          config: enabledConfig,
+          config: { models },
           debateEnabled: args.debate ?? false,
         })
 
@@ -147,7 +162,16 @@ Multiple models would write to the same output file. Ensure each model has a uni
           ? `\n**Debate Round:** ${result.session.rebuttals.length} rebuttal(s) reviewed`
           : ""
 
+        // Include structured result for machine parsing (used by planning-with-files hook)
+        const structuredResult = JSON.stringify({
+          status: "success",
+          planName,
+          finalPlanPath: result.finalPlanPath,
+          comparisonReportPath: result.comparisonReportPath,
+        })
+
         return `✅ Multi-model planning completed successfully!
+[MULTI_PLAN_RESULT]${structuredResult}[/MULTI_PLAN_RESULT]
 
 ${result.summary}${debateInfo}
 

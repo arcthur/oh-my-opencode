@@ -141,6 +141,34 @@ describe("parseRejectedModels", () => {
       expect(result.map((r) => r.modelName).sort()).toEqual(["creative", "strategist"])
     })
 
+    test("VERDICT: MERGE with explicit winners only rejects excluded models", () => {
+      // #given - MERGE lists which models are included
+      const report = `### CONFLICT: Authentication token storage
+
+**strategist says**: HttpOnly cookie
+**pragmatist says**: Bearer token in memory
+**creative says**: LocalStorage token
+
+---
+
+**Why strategist is WRONG** (but not fatally): Cookies complicate CSRF
+**Why pragmatist is WRONG** (but not fatally): Memory tokens break refresh flows
+**Why creative is WRONG**: LocalStorage is vulnerable to XSS
+
+---
+
+**VERDICT**: MERGE strategist + pragmatist
+**RECOMMENDATION**: Use cookie for web + memory token for native app`
+
+      // #when
+      const result = parseRejectedModels(report, ["strategist", "pragmatist", "creative"])
+
+      // #then - only creative is excluded from merge
+      expect(result).toHaveLength(1)
+      expect(result[0].modelName).toBe("creative")
+      expect(result[0].conflictId).toBe("Authentication token storage")
+    })
+
     test("VERDICT: BOTH_VALID produces no rejections", () => {
       // #given
       const report = `### CONFLICT: Optimization approach
@@ -240,6 +268,30 @@ describe("parseRejectedModels", () => {
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
       // #then
+      expect(result).toHaveLength(1)
+      expect(result[0].modelName).toBe("creative")
+    })
+
+    test("handles ACCEPT winner with braces and possessive suffix", () => {
+      // #given
+      const report = `### CONFLICT: Cache invalidation
+
+**strategist says**: Write-through
+**creative says**: TTL only
+
+---
+
+**Why strategist is WRONG**: Can cause thundering herd
+**Why creative is WRONG**: Stale data risks
+
+---
+
+**VERDICT**: ACCEPT {strategist}'s approach`
+
+      // #when
+      const result = parseRejectedModels(report, ["strategist", "creative"])
+
+      // #then - strategist is winner, so only creative rejected
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("creative")
     })

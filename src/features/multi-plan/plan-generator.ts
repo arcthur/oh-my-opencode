@@ -2,8 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import * as fs from "fs"
 import * as path from "path"
 import type { BackgroundManager } from "../background-agent"
-import type { MultiPlanModel, PlanGenerationTask, MultiPlanSession } from "./types"
-import { DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS } from "../../tools/sisyphus-task/constants"
+import type { NormalizedPlanningModel, PlanGenerationTask, MultiPlanSession } from "./types"
 import { log } from "../../shared/logger"
 import { getTaskToastManager } from "../task-toast-manager"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
@@ -52,8 +51,12 @@ export class PlanGenerator {
 
     // Launch all tasks in parallel
     const launchPromises = session.models.map(async (model) => {
-      // Defensive: ensure model.name is safe (should be validated at entry point)
-      const safeModelName = sanitizePathSegment(model.name) || "unknown"
+      // model.name is validated by Orchestrator.start() - sanitize for path safety only
+      const safeModelName = sanitizePathSegment(model.name)
+      if (!safeModelName) {
+        // This should never happen if Orchestrator validation is correct
+        throw new Error(`Invalid model name for path: "${model.name}" - validation should have caught this`)
+      }
       const outputPath = `.sisyphus/plans/${session.planName}-${safeModelName}.md`
 
       const task: PlanGenerationTask = {
@@ -70,14 +73,15 @@ export class PlanGenerator {
         const prompt = this.buildModelSpecificPrompt(basePrompt, model, outputPath)
 
         // Launch as background task (silent to avoid notification spam)
+        // Use Sisyphus-Junior: focused executor without delegation capability.
+        // Sisyphus is an orchestrator ("NEVER work alone") - wrong for direct plan generation.
         const bgTask = await this.manager.launch({
           description: `Multi-Plan: ${model.name}`,
           prompt,
-          agent: "Sisyphus", // Use Sisyphus for plan generation
+          agent: "Sisyphus-Junior", // Executor agent - generates plan directly without delegation
           parentSessionID,
           parentMessageID: "",
           model: modelConfig.model,
-          skillContent: modelConfig.systemPrompt,
           silent: true, // Suppress individual task notifications for multi-plan
         })
 
@@ -255,35 +259,17 @@ export class PlanGenerator {
   }
 
   /**
-   * Resolve model configuration from category or direct specification
+   * Resolve model configuration from model ID
    */
-  resolveModelConfig(model: MultiPlanModel): {
+  resolveModelConfig(model: NormalizedPlanningModel): {
     model?: { providerID: string; modelID: string }
-    systemPrompt?: string
   } {
-    // Direct model specification takes priority
-    if (model.model) {
-      const [providerID, ...rest] = model.model.split("/")
-      return {
-        model: { providerID, modelID: rest.join("/") },
-      }
-    }
+    if (!model.model) return {}
 
-    // Use category configuration
-    if (model.category) {
-      const categoryConfig = DEFAULT_CATEGORIES[model.category as keyof typeof DEFAULT_CATEGORIES]
-      if (categoryConfig) {
-        const [providerID, ...rest] = categoryConfig.model.split("/")
-        // Get prompt append from the correct location (CATEGORY_PROMPT_APPENDS, not categoryConfig)
-        const promptAppend = CATEGORY_PROMPT_APPENDS[model.category]
-        return {
-          model: { providerID, modelID: rest.join("/") },
-          systemPrompt: promptAppend,
-        }
-      }
+    const [providerID, ...rest] = model.model.split("/")
+    return {
+      model: { providerID, modelID: rest.join("/") },
     }
-
-    return {}
   }
 
   /**
@@ -355,7 +341,7 @@ Generate a comprehensive work plan following the standard .sisyphus/plans/*.md f
    */
   private buildModelSpecificPrompt(
     basePrompt: string,
-    model: MultiPlanModel,
+    model: NormalizedPlanningModel,
     outputPath: string
   ): string {
     const roleGuidance = this.getModelRoleGuidance(model.name)
@@ -375,59 +361,26 @@ Write your plan to: \`${outputPath}\`
 
 Use the Write tool to create the file. Ensure the plan is complete and follows all format requirements.
 
+**CONTEXT OVERRIDE**: This is a PLAN GENERATION task, not a plan execution task.
+The "NEVER MODIFY THE PLAN FILE" constraint does NOT apply here - you are CREATING a new plan, not modifying an existing one.
+Your job is to WRITE the plan file, not execute it.
+
 **IMPORTANT**: Your plan will be reviewed and compared against other models. Make it your BEST work - be thorough, specific, and actionable.
 `
   }
 
   /**
-   * Get role-specific guidance based on model name
+   * Get guidance text for a model in multi-plan context
+   *
+   * Since model names are auto-derived from model IDs (e.g., "claude-opus-4-5"),
+   * we provide generic guidance that encourages diverse perspectives.
    */
-  private getModelRoleGuidance(roleName: string): string {
-    const guidance: Record<string, string> = {
-      strategist: `**Strategic Perspective**:
-- Focus on high-level architecture decisions
-- Consider long-term maintainability and scalability
-- Identify potential risks and mitigation strategies
-- Define clear boundaries and interfaces
-- Think about the big picture before details`,
+  private getModelRoleGuidance(modelName: string): string {
+    return `As "${modelName}", bring your unique perspective to this plan:
+- What approaches would you prioritize?
+- What edge cases or risks might other models miss?
+- Where can you add specific, actionable detail?
 
-      creative: `**Creative Perspective**:
-- Explore novel approaches and alternatives
-- Consider edge cases others might miss
-- Think about user experience implications
-- Look for elegant solutions over complex ones
-- Challenge conventional approaches when warranted`,
-
-      practical: `**Practical Perspective**:
-- Focus on immediate implementability
-- Prefer minimal changes that achieve the goal
-- Choose low-risk, incremental approaches
-- Provide concrete, step-by-step verification
-- Avoid over-engineering - YAGNI principle`,
-
-      thorough: `**Thorough Perspective**:
-- Cover all possible edge cases
-- Provide comprehensive acceptance criteria
-- Leave nothing undefined or ambiguous
-- Document all assumptions explicitly
-- Include detailed references for everything`,
-
-      fast: `**Fast Execution Perspective**:
-- Prioritize quick wins and MVP approach
-- Identify the critical path to delivery
-- Defer non-essential features
-- Focus on the 80/20 - what delivers most value fastest
-- Keep scope minimal`,
-
-      quality: `**Quality-First Perspective**:
-- Emphasize testing and verification
-- Consider error handling comprehensively
-- Focus on code quality and maintainability
-- Include proper documentation
-- Think about future developers`,
-    }
-
-    return guidance[roleName.toLowerCase()] ||
-      `Bring your unique perspective as "${roleName}" to the plan. What would you prioritize? What might others miss?`
+Your plan will be compared against others - make it your strongest work.`
   }
 }

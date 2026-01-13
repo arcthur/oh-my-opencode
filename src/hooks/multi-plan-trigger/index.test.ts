@@ -4,7 +4,7 @@ import {
   clearAllInjectedSessions,
   clearInjectedSession,
 } from "./index"
-import type { MultiPlanConfig } from "../../config/schema"
+import type { PlanningAgentConfig } from "../../config/schema"
 
 describe("createMultiPlanTriggerHook", () => {
   beforeEach(() => {
@@ -12,24 +12,21 @@ describe("createMultiPlanTriggerHook", () => {
     clearAllInjectedSessions()
   })
 
-  // #region disabled cases
-  test("returns empty object when disabled", () => {
-    const config: MultiPlanConfig = {
-      enabled: false,
-      models: [
-        { name: "claude", model: "anthropic/claude-opus-4-5" },
-        { name: "gpt", model: "openai/gpt-5.2" },
-      ],
-    }
+  // #region inactive cases
+  test("returns empty object when no config provided", () => {
+    const hook = createMultiPlanTriggerHook({ config: undefined })
+    expect(hook).toEqual({})
+  })
 
+  test("returns empty object when config is a single model string", () => {
+    const config: PlanningAgentConfig = { model: "anthropic/claude-opus-4-5" }
     const hook = createMultiPlanTriggerHook({ config })
     expect(hook).toEqual({})
   })
 
-  test("returns empty object when less than 2 models", () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [{ name: "claude", model: "anthropic/claude-opus-4-5" }],
+  test("returns empty object when less than 2 models in array", () => {
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -37,14 +34,10 @@ describe("createMultiPlanTriggerHook", () => {
   })
   // #endregion
 
-  // #region enabled case
-  test("returns chat.message handler when enabled with 2+ models", () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [
-        { name: "claude", model: "anthropic/claude-opus-4-5" },
-        { name: "gpt", model: "openai/gpt-5.2" },
-      ],
+  // #region active case
+  test("returns chat.message handler with 2+ models", () => {
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -55,12 +48,8 @@ describe("createMultiPlanTriggerHook", () => {
 
   // #region injection behavior
   test("injects capability context into message", async () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [
-        { name: "claude", model: "anthropic/claude-opus-4-5" },
-        { name: "gpt", model: "openai/gpt-5.2" },
-      ],
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -73,12 +62,8 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   test("only injects once per session (deduplication)", async () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [
-        { name: "claude", model: "anthropic/claude-opus-4-5" },
-        { name: "gpt", model: "openai/gpt-5.2" },
-      ],
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -97,12 +82,8 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   test("injects separately for different sessions", async () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [
-        { name: "claude", model: "anthropic/claude-opus-4-5" },
-        { name: "gpt", model: "openai/gpt-5.2" },
-      ],
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -122,12 +103,8 @@ describe("createMultiPlanTriggerHook", () => {
 
   // #region clearInjectedSession
   test("clearInjectedSession allows re-injection", async () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [
-        { name: "claude", model: "anthropic/claude-opus-4-5" },
-        { name: "gpt", model: "openai/gpt-5.2" },
-      ],
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -152,12 +129,8 @@ describe("createMultiPlanTriggerHook", () => {
 
   // #region edge cases
   test("handles missing text part gracefully", async () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [
-        { name: "claude", model: "anthropic/claude-opus-4-5" },
-        { name: "gpt", model: "openai/gpt-5.2" },
-      ],
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -169,12 +142,8 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   test("includes model names in capability context", async () => {
-    const config: MultiPlanConfig = {
-      enabled: true,
-      models: [
-        { name: "strategist", model: "anthropic/claude-opus-4-5" },
-        { name: "pragmatist", model: "openai/gpt-5.2" },
-      ],
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
     }
 
     const hook = createMultiPlanTriggerHook({ config })
@@ -182,8 +151,68 @@ describe("createMultiPlanTriggerHook", () => {
 
     await hook["chat.message"]!({ sessionID: "session-1" }, output)
 
-    expect(output.parts[0].text).toContain("strategist")
-    expect(output.parts[0].text).toContain("pragmatist")
+    // Names are auto-derived from model strings
+    expect(output.parts[0].text).toContain("claude-opus-4-5")
+    expect(output.parts[0].text).toContain("gpt-5.2")
+  })
+  // #endregion
+
+  // #region session lifecycle events
+  test("session.deleted clears injection tracking", async () => {
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
+    }
+
+    const hook = createMultiPlanTriggerHook({ config })
+
+    // First injection
+    const output1 = { parts: [{ type: "text", text: "First" }] }
+    await hook["chat.message"]!({ sessionID: "session-del-1" }, output1)
+    expect(output1.parts[0].text).toContain("<multi-plan-capability>")
+
+    // Second message - no injection (already injected)
+    const output2 = { parts: [{ type: "text", text: "Second" }] }
+    await hook["chat.message"]!({ sessionID: "session-del-1" }, output2)
+    expect(output2.parts[0].text).toBe("Second")
+
+    // Session deleted event
+    await hook.event!({
+      event: {
+        type: "session.deleted",
+        properties: { info: { id: "session-del-1" } },
+      },
+    })
+
+    // Now should re-inject
+    const output3 = { parts: [{ type: "text", text: "Third" }] }
+    await hook["chat.message"]!({ sessionID: "session-del-1" }, output3)
+    expect(output3.parts[0].text).toContain("<multi-plan-capability>")
+  })
+
+  test("session.compacted allows re-injection", async () => {
+    const config: PlanningAgentConfig = {
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
+    }
+
+    const hook = createMultiPlanTriggerHook({ config })
+
+    // First injection
+    const output1 = { parts: [{ type: "text", text: "First" }] }
+    await hook["chat.message"]!({ sessionID: "session-compact-1" }, output1)
+    expect(output1.parts[0].text).toContain("<multi-plan-capability>")
+
+    // Session compacted event (context was compressed)
+    await hook.event!({
+      event: {
+        type: "session.compacted",
+        properties: { sessionID: "session-compact-1" },
+      },
+    })
+
+    // Now should re-inject (context was lost during compaction)
+    const output2 = { parts: [{ type: "text", text: "After compaction" }] }
+    await hook["chat.message"]!({ sessionID: "session-compact-1" }, output2)
+    expect(output2.parts[0].text).toContain("<multi-plan-capability>")
   })
   // #endregion
 })

@@ -230,9 +230,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   initTaskToastManager(ctx.client);
 
-  const multiPlanTrigger = isHookEnabled("multi-plan-trigger") && pluginConfig.multi_plan?.enabled
+  const multiPlanTrigger = isHookEnabled("multi-plan-trigger")
     ? createMultiPlanTriggerHook({
-        config: pluginConfig.multi_plan,
+        config: pluginConfig.agents?.planning,
       })
     : null;
 
@@ -281,7 +281,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const multiPlanTool = createMultiPlanTool({
     ctx,
     backgroundManager,
-    config: pluginConfig.multi_plan,
+    config: pluginConfig.agents?.planning,
   });
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();

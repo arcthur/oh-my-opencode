@@ -2,11 +2,20 @@ import { describe, test, expect, beforeEach, mock } from "bun:test"
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundManager } from "../../features/background-agent"
 import { MultiPlanError } from "../../features/multi-plan"
-import type { MultiPlanResult, StartMultiPlanInput } from "../../features/multi-plan"
+import type { MultiPlanResult, StartMultiPlanInput, NormalizedPlanningModel } from "../../features/multi-plan"
+import type { PlanningAgentConfig } from "../../config/schema"
 import { createMultiPlanTool } from "./tools"
 
 let startBehavior: ((input: StartMultiPlanInput) => Promise<MultiPlanResult>) | undefined
 let lastStartInput: StartMultiPlanInput | undefined
+
+// Helper to create config in new format
+function createPlanningConfig(modelIds: string[]): PlanningAgentConfig {
+  if (modelIds.length === 1) {
+    return { model: modelIds[0] }
+  }
+  return { model: modelIds }
+}
 
 describe("createMultiPlanTool", () => {
   beforeEach(() => {
@@ -29,7 +38,8 @@ describe("createMultiPlanTool", () => {
   }
 
   function createStubResult(input: StartMultiPlanInput): MultiPlanResult {
-    const tasks = input.config.models.map((m, idx) => ({
+    const models: NormalizedPlanningModel[] = input.config.models ?? []
+    const tasks = models.map((m, idx) => ({
       modelName: m.name,
       taskId: `bg_${idx}`,
       sessionId: `sess_${idx}`,
@@ -42,7 +52,7 @@ describe("createMultiPlanTool", () => {
         id: "mp_test",
         planName: input.planName,
         requestContext: input.requestContext,
-        models: input.config.models,
+        models,
         tasks,
         status: "complete",
         startedAt: new Date(),
@@ -65,7 +75,7 @@ describe("createMultiPlanTool", () => {
     }
   }
 
-  test("returns an error when multi-model planning is disabled", async () => {
+  test("returns an error when no config provided", async () => {
     // #given
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
@@ -81,20 +91,18 @@ describe("createMultiPlanTool", () => {
     )
 
     // #then
-    expect(result).toContain("Multi-model planning is not enabled")
+    expect(result).toContain("requires at least 2 models configured")
+    expect(result).toContain("0 model(s)")
     expect(result).toContain("`.sisyphus/plans/work-plan.md`")
     expect(result).not.toContain("../escape")
   })
 
   test("returns an error when fewer than 2 models are configured", async () => {
-    // #given
+    // #given - single model string
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: {
-        enabled: true,
-        models: [{ name: "solo", model: "anthropic/claude-opus-4-5" }],
-      } as any,
+      config: createPlanningConfig(["anthropic/claude-opus-4-5"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -106,6 +114,7 @@ describe("createMultiPlanTool", () => {
 
     // #then
     expect(result).toContain("requires at least 2 models configured")
+    expect(result).toContain("1 model(s)")
   })
 
   test("rejects unsafe plan names (path traversal)", async () => {
@@ -113,13 +122,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: {
-        enabled: true,
-        models: [
-          { name: "a", model: "anthropic/claude-opus-4-5" },
-          { name: "b", model: "openai/gpt-5.2" },
-        ],
-      } as any,
+      config: createPlanningConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -133,18 +136,13 @@ describe("createMultiPlanTool", () => {
     expect(result).toContain('Invalid plan name: "../escape"')
   })
 
-  test("rejects unsafe model names in config", async () => {
-    // #given
+  test("rejects unsafe model names derived from config", async () => {
+    // #given - model ID "org/.." derives to ".." which is unsafe
+    // The derived name ".." (parent directory) will be rejected
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: {
-        enabled: true,
-        models: [
-          { name: "good", model: "anthropic/claude-opus-4-5" },
-          { name: "../bad", model: "openai/gpt-5.2" },
-        ],
-      } as any,
+      config: createPlanningConfig(["anthropic/claude-opus-4-5", "org/.."]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -154,22 +152,18 @@ describe("createMultiPlanTool", () => {
       { sessionID: "sess_123" } as any
     )
 
-    // #then
-    expect(result).toContain('Invalid model name in config: "../bad"')
+    // #then - name ".." is derived from model ID "org/.."
+    expect(result).toContain('Invalid model name in config: ".."')
   })
 
   test("rejects duplicate model names after sanitization", async () => {
-    // #given
+    // #given - model IDs that derive to names that sanitize to the same value
+    // "org/a..b" derives to "a..b", "org/a--b" derives to "a--b"
+    // Both sanitize to "a-b"
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: {
-        enabled: true,
-        models: [
-          { name: "a..b", model: "anthropic/claude-opus-4-5" },
-          { name: "a--b", model: "openai/gpt-5.2" },
-        ],
-      } as any,
+      config: createPlanningConfig(["org/a..b", "org/a--b"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -180,14 +174,14 @@ describe("createMultiPlanTool", () => {
     )
 
     // #then
-    expect(result).toContain("Duplicate model name after sanitization")
+    expect(result).toContain("Duplicate model name")
     expect(result).toContain('resolve to "a-b"')
   })
 
   test("renders intermediate files when MultiPlanError is thrown", async () => {
     // #given
     startBehavior = async () => {
-      throw new MultiPlanError("Synthesis failed", [".sisyphus/plans/x-a.md"], {
+      throw new MultiPlanError("Synthesis failed", [".sisyphus/plans/x-claude-opus-4-5.md"], {
         id: "mp_test",
         planName: "x",
         requestContext: "ctx",
@@ -201,13 +195,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: {
-        enabled: true,
-        models: [
-          { name: "a", model: "anthropic/claude-opus-4-5" },
-          { name: "b", model: "openai/gpt-5.2" },
-        ],
-      } as any,
+      config: createPlanningConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -220,7 +208,7 @@ describe("createMultiPlanTool", () => {
     // #then
     expect(result).toContain("Multi-model planning failed")
     expect(result).toContain("some intermediate files were generated successfully")
-    expect(result).toContain("`.sisyphus/plans/x-a.md`")
+    expect(result).toContain("`.sisyphus/plans/x-claude-opus-4-5.md`")
     expect(result).toContain("Fallback path: `.sisyphus/plans/x.md`")
   })
 
@@ -229,13 +217,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: {
-        enabled: true,
-        models: [
-          { name: "a", model: "anthropic/claude-opus-4-5" },
-          { name: "b", model: "openai/gpt-5.2" },
-        ],
-      } as any,
+      config: createPlanningConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 

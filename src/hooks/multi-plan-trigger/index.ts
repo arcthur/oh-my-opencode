@@ -1,4 +1,5 @@
-import type { MultiPlanConfig } from "../../config/schema"
+import type { PlanningAgentConfig } from "../../config/schema"
+import { normalizePlanningConfig, type NormalizedPlanningModel } from "../../features/multi-plan"
 import { log } from "../../shared/logger"
 
 export const HOOK_NAME = "multi-plan-trigger"
@@ -7,7 +8,7 @@ export const HOOK_NAME = "multi-plan-trigger"
  * Hook options
  */
 export interface MultiPlanTriggerHookOptions {
-  config: MultiPlanConfig
+  config: PlanningAgentConfig | undefined
 }
 
 /** Track sessions that have already received capability injection */
@@ -16,9 +17,9 @@ const injectedSessions = new Set<string>()
 /**
  * Builds capability context for Prometheus to know about multi-plan
  */
-function buildCapabilityContext(config: MultiPlanConfig): string {
-  const modelList = config.models
-    .map((m) => `  - **${m.name}**: ${m.category || m.model || "default"}`)
+function buildCapabilityContext(models: NormalizedPlanningModel[]): string {
+  const modelList = models
+    .map((m) => `  - **${m.name}**: ${m.model}`)
     .join("\n")
 
   return `
@@ -41,7 +42,7 @@ When user requests plan generation ("Generate the plan", "Make it into a work pl
    })
    \`\`\`
 3. The tool will:
-   - Launch ${config.models.length} models in parallel
+   - Launch ${models.length} models in parallel
    - Each generates their perspective on the plan
    - Plan Synthesizer reviews and resolves conflicts
    - Produces a unified final plan
@@ -67,25 +68,24 @@ When user requests plan generation ("Generate the plan", "Make it into a work pl
  * This hook injects multi-plan capability information into the context
  * so that Prometheus (or other planners) know to use the multi_plan tool.
  *
+ * The hook is only active when 2+ models are configured in planning.models.
+ * With 0-1 models, Prometheus handles plan generation directly.
+ *
  * Capability is injected once per session to avoid redundant context.
  */
 export function createMultiPlanTriggerHook(options: MultiPlanTriggerHookOptions) {
   const { config } = options
+  const models = normalizePlanningConfig(config)
 
-  // Skip if not enabled
-  if (!config.enabled) {
-    log(`[${HOOK_NAME}] Multi-plan disabled, hook inactive`)
+  // Only activate when 2+ models configured (multi-plan mode)
+  if (models.length < 2) {
+    log(`[${HOOK_NAME}] Less than 2 models configured (${models.length}), hook inactive`)
     return {}
   }
 
-  if (!config.models || config.models.length < 2) {
-    log(`[${HOOK_NAME}] Multi-plan requires at least 2 models, hook inactive`)
-    return {}
-  }
+  log(`[${HOOK_NAME}] Multi-plan active with ${models.length} models`)
 
-  log(`[${HOOK_NAME}] Multi-plan enabled with ${config.models.length} models`)
-
-  const capabilityContext = buildCapabilityContext(config)
+  const capabilityContext = buildCapabilityContext(models)
 
   return {
     /**
@@ -117,6 +117,30 @@ export function createMultiPlanTriggerHook(options: MultiPlanTriggerHookOptions)
           log(`[${HOOK_NAME}] Injected multi-plan capability context`, {
             sessionID: input.sessionID,
           })
+        }
+      }
+    },
+
+    /**
+     * Clean up session tracking on session deletion
+     * Prevents unbounded growth of injectedSessions Set
+     */
+    event: async ({ event }: { event: { type: string; properties?: unknown } }): Promise<void> => {
+      const props = event.properties as Record<string, unknown> | undefined
+
+      if (event.type === "session.deleted") {
+        const sessionInfo = props?.info as { id?: string } | undefined
+        if (sessionInfo?.id) {
+          injectedSessions.delete(sessionInfo.id)
+        }
+      }
+
+      // Also allow re-injection after session compaction (context was compressed)
+      if (event.type === "session.compacted") {
+        const sessionID = (props?.sessionID ??
+          (props?.info as { id?: string } | undefined)?.id) as string | undefined
+        if (sessionID) {
+          injectedSessions.delete(sessionID)
         }
       }
     },

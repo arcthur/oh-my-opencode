@@ -39,12 +39,12 @@ function createPlanGenerator(directory: string, manager: BackgroundManager): Pla
   return new PlanGenerator(createMockCtx(directory), manager)
 }
 
-function createMockSession(planName: string, models: Array<{ name: string; model?: string; category?: string }>): MultiPlanSession {
+function createMockSession(planName: string, models: Array<{ name: string; model?: string }>): MultiPlanSession {
   return {
     id: "mp_test",
     planName,
     requestContext: "Test context for planning",
-    models: models.map((m) => ({ name: m.name, model: m.model || "test/model", category: m.category })),
+    models: models.map((m) => ({ name: m.name, model: m.model || "test/model" })),
     tasks: [],
     status: "generating",
     startedAt: new Date(),
@@ -154,7 +154,7 @@ describe("PlanGenerator.generatePlans", () => {
     expect(launchMock).toHaveBeenCalledTimes(1)
     const launchCall = (launchMock.mock.calls as unknown as Array<[Record<string, unknown>]>)[0][0]
     expect(launchCall.description).toBe("Multi-Plan: strategist")
-    expect(launchCall.agent).toBe("Sisyphus")
+    expect(launchCall.agent).toBe("Sisyphus-Junior")
     expect(launchCall.parentSessionID).toBe("parent_session_id")
     expect(launchCall.silent).toBe(true)
     expect(launchCall.model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4-5" })
@@ -442,14 +442,14 @@ describe("PlanGenerator.resolveModelConfig", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  test("parses direct model specification in provider/model format", () => {
+  test("parses model specification in provider/model format", () => {
     // #given
     const manager = createMockManager()
     const generator = createPlanGenerator(tmpDir, manager)
 
     // #when
     const result = (generator as any).resolveModelConfig({
-      name: "test",
+      name: "claude-opus-4-5",
       model: "anthropic/claude-opus-4-5",
     })
 
@@ -467,7 +467,7 @@ describe("PlanGenerator.resolveModelConfig", () => {
 
     // #when
     const result = (generator as any).resolveModelConfig({
-      name: "test",
+      name: "claude-3-opus",
       model: "openrouter/anthropic/claude-3-opus",
     })
 
@@ -478,41 +478,7 @@ describe("PlanGenerator.resolveModelConfig", () => {
     })
   })
 
-  test("returns empty config for unknown category", () => {
-    // #given
-    const manager = createMockManager()
-    const generator = createPlanGenerator(tmpDir, manager)
-
-    // #when
-    const result = (generator as any).resolveModelConfig({
-      name: "test",
-      category: "nonexistent-category",
-    })
-
-    // #then
-    expect(result.model).toBeUndefined()
-  })
-
-  test("direct model specification takes priority over category", () => {
-    // #given
-    const manager = createMockManager()
-    const generator = createPlanGenerator(tmpDir, manager)
-
-    // #when
-    const result = (generator as any).resolveModelConfig({
-      name: "test",
-      model: "custom/my-model",
-      category: "ultrabrain",
-    })
-
-    // #then
-    expect(result.model).toEqual({
-      providerID: "custom",
-      modelID: "my-model",
-    })
-  })
-
-  test("returns empty config when neither model nor category specified", () => {
+  test("returns empty config when model not specified", () => {
     // #given
     const manager = createMockManager()
     const generator = createPlanGenerator(tmpDir, manager)
@@ -526,7 +492,7 @@ describe("PlanGenerator.resolveModelConfig", () => {
 })
 // #endregion
 
-// #region getModelRoleGuidance - key behaviors only
+// #region getModelRoleGuidance
 describe("PlanGenerator.getModelRoleGuidance", () => {
   let tmpDir: string
   let generator: PlanGenerator
@@ -541,41 +507,23 @@ describe("PlanGenerator.getModelRoleGuidance", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  test("returns distinct guidance for each known role", () => {
-    // #given
-    const knownRoles = ["strategist", "creative", "practical", "thorough", "fast", "quality"]
-
+  test("includes model name in guidance", () => {
     // #when
-    const guidances = knownRoles.map((role) => (generator as any).getModelRoleGuidance(role))
-
-    // #then - all should be different
-    const uniqueGuidances = new Set(guidances)
-    expect(uniqueGuidances.size).toBe(knownRoles.length)
-
-    // Each should contain the role's perspective type
-    expect(guidances[0]).toContain("Strategic")
-    expect(guidances[1]).toContain("Creative")
-    expect(guidances[2]).toContain("Practical")
-  })
-
-  test("returns generic guidance for unknown role including role name", () => {
-    // #when
-    const result = (generator as any).getModelRoleGuidance("my-custom-analyst")
+    const result = (generator as any).getModelRoleGuidance("claude-opus-4-5")
 
     // #then
-    expect(result).toContain("my-custom-analyst")
+    expect(result).toContain("claude-opus-4-5")
     expect(result).toContain("unique perspective")
   })
 
-  test("role matching is case insensitive", () => {
+  test("guidance includes key prompts for diverse perspectives", () => {
     // #when
-    const lowercase = (generator as any).getModelRoleGuidance("strategist")
-    const uppercase = (generator as any).getModelRoleGuidance("STRATEGIST")
-    const mixed = (generator as any).getModelRoleGuidance("Strategist")
+    const result = (generator as any).getModelRoleGuidance("gpt-5.2")
 
     // #then
-    expect(lowercase).toBe(uppercase)
-    expect(lowercase).toBe(mixed)
+    expect(result).toContain("prioritize")
+    expect(result).toContain("edge cases")
+    expect(result).toContain("actionable")
   })
 })
 // #endregion

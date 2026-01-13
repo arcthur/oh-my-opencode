@@ -77,6 +77,20 @@ function extractPlanName(toolArgs: unknown): string | null {
   return sanitizePathSegment(rawPlanName.trim()) ?? null
 }
 
+/**
+ * Parse structured result from multi_plan tool output
+ * Format: [MULTI_PLAN_RESULT]{"status":"success","planName":"..."}[/MULTI_PLAN_RESULT]
+ */
+function parseMultiPlanResult(output: string): { status: string; planName?: string } | null {
+  const match = output.match(/\[MULTI_PLAN_RESULT\]([\s\S]*?)\[\/MULTI_PLAN_RESULT\]/)
+  if (!match) return null
+  try {
+    return JSON.parse(match[1]) as { status: string; planName?: string }
+  } catch {
+    return null
+  }
+}
+
 function extractPromptText(parts: Array<{ type: string; text?: string }>): string {
   return parts
     .filter((p) => p.type === "text")
@@ -234,26 +248,36 @@ export function createPlanningWithFilesHook(
 
     // Auto-create planning files after a successful multi_plan run.
     if (config.auto_from_multi_plan && normalizedTool === "multi_plan") {
-      const isSuccess = output.output.trim().startsWith("✅")
-      const planNameFromArgs = extractPlanName(toolArgs)
+      // Prefer structured result parsing over emoji prefix check
+      const structuredResult = parseMultiPlanResult(output.output)
+      const isSuccess = structuredResult?.status === "success" ||
+        // Fallback to emoji check for backwards compatibility
+        output.output.trim().startsWith("✅")
 
-      if (isSuccess && planNameFromArgs) {
-        activePlanBySessionID.set(input.sessionID, planNameFromArgs)
-        const planDir = getPlanDir(ctx.directory, planNameFromArgs, config)
+      // Prefer planName from structured result, fall back to tool args
+      const planNameFromResult = structuredResult?.planName
+        ? sanitizePathSegment(structuredResult.planName)
+        : null
+      const planNameFromArgs = extractPlanName(toolArgs)
+      const planName = planNameFromResult ?? planNameFromArgs
+
+      if (isSuccess && planName) {
+        activePlanBySessionID.set(input.sessionID, planName)
+        const planDir = getPlanDir(ctx.directory, planName, config)
         const alreadyInitialized = fs.existsSync(path.join(planDir, ".planning-state.json"))
 
         if (!alreadyInitialized) {
-          await initializePlan(ctx.directory, planNameFromArgs, planNameFromArgs, config)
+          await initializePlan(ctx.directory, planName, planName, config)
         }
 
         collector.register(input.sessionID, {
           id: "auto-from-multi-plan",
           source: "planning-with-files",
           priority: "high",
-          content: `<planning-with-files-auto-from-multi-plan plan="${planNameFromArgs}">
-Planning files initialized at \`.sisyphus/${config.directory}/${planNameFromArgs}/\`.
+          content: `<planning-with-files-auto-from-multi-plan plan="${planName}">
+Planning files initialized at \`.sisyphus/${config.directory}/${planName}/\`.
 </planning-with-files-auto-from-multi-plan>`,
-          metadata: { planName: planNameFromArgs, created: !alreadyInitialized },
+          metadata: { planName, created: !alreadyInitialized },
         })
       }
     }

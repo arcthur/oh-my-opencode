@@ -47,20 +47,28 @@ export function parseRejectedModels(
       continue
     }
 
-    const winnerLower = verdict.type === "accept" ? verdict.winnerLower : undefined
+    const winnersLower = new Set(
+      (verdict.type === "accept" || verdict.type === "merge")
+        ? (verdict.winnersLower ?? [])
+        : []
+    )
 
     // For each model, check if it was criticized and NOT the winner
     for (const modelName of modelNames) {
       const modelNameLower = modelName.toLowerCase()
 
-      // Skip if this model won this conflict
-      if (winnerLower && modelNameLower === winnerLower) continue
+      // Skip if this model won / was included as a winner in this conflict
+      if (winnersLower.has(modelNameLower)) continue
 
       // Match "Why {model} is WRONG:" pattern (case insensitive)
       // Handles both `**Why strategist is WRONG**:` and `**Why {strategist} is WRONG**:`
       // The lookahead handles common terminators, and `$` handles end of section/content
       const wrongPattern = new RegExp(
-        `\\*\\*Why\\s+(?:\\{)?${escapeRegExp(modelName)}(?:\\})?\\s+is\\s+WRONG\\*\\*:([\\s\\S]*?)(?=\\*\\*Why|\\*\\*VERDICT|---|\\n\\n|$)`,
+        // Supports:
+        // - **Why strategist is WRONG**:
+        // - **Why strategist is WRONG** (but not fatally):
+        // - **Why {strategist} is WRONG** (maybe):
+        `\\*\\*Why\\s+(?:\\{)?${escapeRegExp(modelName)}(?:\\})?\\s+is\\s+WRONG\\*\\*(?:[^:\\n]*)?:([\\s\\S]*?)(?=\\*\\*Why|\\*\\*VERDICT|---|\\n\\n|$)`,
         "i"
       )
       const wrongMatch = wrongPattern.exec(section)
@@ -87,7 +95,7 @@ export function parseRejectedModels(
 function parseVerdict(
   conflictSection: string,
   modelNames: string[]
-): { type?: string; winnerLower?: string } {
+): { type?: string; winnersLower?: string[] } {
   // Matches patterns like:
   // - **VERDICT**: ACCEPT strategist
   // - **VERDICT**: `ACCEPT strategist`
@@ -107,17 +115,25 @@ function parseVerdict(
 
   const type = verdictText.split(/\s+/)[0].toLowerCase()
 
-  if (type !== "accept") {
-    return { type }
+  const modelNamesLower = modelNames.map((m) => m.toLowerCase())
+  // Prefer longer matches first to reduce substring collisions.
+  const modelNamesLowerByLength = [...modelNamesLower].sort(
+    (a, b) => b.length - a.length
+  )
+
+  if (type === "accept") {
+    const remainder = verdictText.replace(/^accept\s+/i, "").trim().toLowerCase()
+    const winnerLower = modelNamesLowerByLength.find((m) => remainder.includes(m))
+    return { type, winnersLower: winnerLower ? [winnerLower] : [] }
   }
 
-  const winnerRaw = verdictText.replace(/^accept\s+/i, "").trim()
-  const winnerLowerCandidate = winnerRaw.toLowerCase()
-  const winnerLower = modelNames.find(
-    (m) => m.toLowerCase() === winnerLowerCandidate
-  )?.toLowerCase()
+  if (type === "merge") {
+    const remainder = verdictText.replace(/^merge\s+/i, "").trim().toLowerCase()
+    const winners = modelNamesLowerByLength.filter((m) => remainder.includes(m))
+    return { type, winnersLower: winners }
+  }
 
-  return { type, winnerLower }
+  return { type }
 }
 
 /**
