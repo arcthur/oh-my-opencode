@@ -44,7 +44,6 @@ import {
 } from "./features/context-injector";
 import { createUserMemoryHook } from "./features/user-memory";
 import { createOrgMemoryHook } from "./features/org-memory";
-import { createGoogleAntigravityAuthPlugin } from "./auth/antigravity";
 import { applyAgentVariant, resolveAgentVariant } from "./shared/agent-variant";
 import { createFirstMessageVariantGate } from "./shared/first-message-variant";
 import {
@@ -285,6 +284,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const sisyphusTask = createSisyphusTask({
     manager: backgroundManager,
     client: ctx.client,
+    directory: ctx.directory,
     userCategories: pluginConfig.categories,
     gitMasterConfig: pluginConfig.git_master,
   });
@@ -342,10 +342,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createAutoSlashCommandHook({ skills: mergedSkills })
     : null;
 
-  const googleAuthHooks = pluginConfig.google_auth !== false
-    ? await createGoogleAntigravityAuthPlugin(ctx)
-    : null;
-
   const configHandler = createConfigHandler({
     ctx,
     pluginConfig,
@@ -353,8 +349,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   });
 
   return {
-    ...(googleAuthHooks ? { auth: googleAuthHooks.auth } : {}),
-
     tool: {
       ...builtinTools,
       ...backgroundTools,

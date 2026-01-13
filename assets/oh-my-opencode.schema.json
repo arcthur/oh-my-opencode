@@ -2235,9 +2235,6 @@
         }
       }
     },
-    "google_auth": {
-      "type": "boolean"
-    },
     "sisyphus_agent": {
       "type": "object",
       "properties": {
