@@ -153,7 +153,6 @@ export class BackgroundManager {
         system: input.skillContent,
         tools: {
           task: false,
-          call_omo_agent: false,
         },
         parts: [{ type: "text", text: input.prompt }],
       },
@@ -314,7 +313,6 @@ export class BackgroundManager {
         agent: existingTask.agent,
         tools: {
           task: false,
-          call_omo_agent: false,
         },
         parts: [{ type: "text", text: input.prompt }],
       },

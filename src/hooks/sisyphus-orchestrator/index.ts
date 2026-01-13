@@ -660,10 +660,20 @@ export function createSisyphusOrchestratorHook(
             })
           }
 
+          // Preserve original subagent response - critical for debugging failed tasks
+          const originalResponse = output.output
+
           output.output = `
 ## SUBAGENT WORK COMPLETED
 
 ${fileChanges}
+
+---
+
+**Subagent Response:**
+
+${originalResponse}
+
 <system-reminder>
 ${buildOrchestratorReminder(boulderState.plan_name, progress, subagentSessionId)}
 </system-reminder>`

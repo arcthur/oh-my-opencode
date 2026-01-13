@@ -113,6 +113,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       pluginConfig.agents,
       ctx.directory,
       config.model as string | undefined,
+      pluginConfig.categories,
       availableSkills
     );
 
@@ -292,6 +293,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     config.tools = {
       ...(config.tools as Record<string, unknown>),
       "grep_app_*": false,
+      call_omo_agent: false,
     };
 
     if (agentResult.explore) {
