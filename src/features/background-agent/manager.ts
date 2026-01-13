@@ -153,6 +153,8 @@ export class BackgroundManager {
         system: input.skillContent,
         tools: {
           task: false,
+          sisyphus_task: false,
+          call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],
       },
@@ -313,6 +315,8 @@ export class BackgroundManager {
         agent: existingTask.agent,
         tools: {
           task: false,
+          sisyphus_task: false,
+          call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],
       },
@@ -557,6 +561,11 @@ cleanup(): void {
   }
 
 private async notifyParentSession(task: BackgroundTask): Promise<void> {
+    if (task.concurrencyKey) {
+      this.concurrencyManager.release(task.concurrencyKey)
+      task.concurrencyKey = undefined
+    }
+
     const duration = this.formatDuration(task.startedAt, task.completedAt)
     const taskId = task.id
 
@@ -656,10 +665,6 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 
     // Cleanup after retention period
     setTimeout(() => {
-      if (task.concurrencyKey) {
-        this.concurrencyManager.release(task.concurrencyKey)
-        task.concurrencyKey = undefined
-      }
       this.clearNotificationsForTask(taskId)
       this.tasks.delete(taskId)
       log("[background-agent] Removed completed task from memory:", taskId)
