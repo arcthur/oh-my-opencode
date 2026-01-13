@@ -35,6 +35,7 @@ import {
   createSilentToolOutputHook,
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
+  createDelegationValidatorHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -261,6 +262,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const preCompletionVerification = isHookEnabled("pre-completion-verification")
     ? createPreCompletionVerificationHook(ctx)
+    : null;
+
+  const delegationValidator = isHookEnabled("delegation-validator")
+    ? createDelegationValidatorHook(ctx)
     : null;
 
   if (sessionRecovery && todoContinuationEnforcer) {
@@ -555,6 +560,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await rulesInjector?.["tool.execute.before"]?.(input, output);
       await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
       await planningWithFiles?.["tool.execute.before"]?.(input, output);
+      await delegationValidator?.["tool.execute.before"]?.(input, output);
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;

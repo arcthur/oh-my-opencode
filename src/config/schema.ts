@@ -101,6 +101,7 @@ export const HookNameSchema = z.enum([
   "runtime-tracker",
   "anti-slop-enforcer",
   "pre-completion-verification",
+  "delegation-validator",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([

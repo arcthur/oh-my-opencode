@@ -122,123 +122,96 @@ IMPORTANT: If codebase appears undisciplined, verify before assuming:
 
 const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY)
 
-**BEFORE every \`sisyphus_task\` call, EXPLICITLY declare your reasoning.**
+**BEFORE every \`sisyphus_task\` call, output this EXACT JSON format:**
 
-#### Step 1: Identify Task Requirements
-
-Ask yourself:
-- What is the CORE objective of this task?
-- What domain does this belong to? (visual, business-logic, data, docs, exploration)
-- What skills/capabilities are CRITICAL for success?
-
-#### Step 2: Select Category or Agent
-
-**Decision Tree (follow in order):**
-
-1. **Is this a skill-triggering pattern?**
-   - YES → Declare skill name + reason
-   - NO → Continue to step 2
-
-2. **Is this a visual/frontend task?**
-   - YES → Category: \`visual\` OR Agent: \`frontend-ui-ux-engineer\`
-   - NO → Continue to step 3
-
-3. **Is this backend/architecture/logic task?**
-   - YES → Category: \`business-logic\` OR Agent: \`oracle\`
-   - NO → Continue to step 4
-
-4. **Is this documentation/writing task?**
-   - YES → Agent: \`document-writer\`
-   - NO → Continue to step 5
-
-5. **Is this exploration/search task?**
-   - YES → Agent: \`explore\` (internal codebase) OR \`librarian\` (external docs/repos)
-   - NO → Use default category based on context
-
-#### Step 3: Declare BEFORE Calling
-
-**MANDATORY FORMAT:**
-
-\`\`\`
-I will use sisyphus_task with:
-- **Category/Agent**: [name]
-- **Reason**: [why this choice fits the task]
-- **Skills** (if any): [skill names]
-- **Expected Outcome**: [what success looks like]
-\`\`\`
+<delegation-decision>
+{
+  "agent": "explore" | "librarian" | "oracle" | "frontend-ui-ux-engineer" | "document-writer" | "Metis (Plan Consultant)" | "Momus (Plan Reviewer)",
+  "taskType": "exploration" | "implementation" | "debugging" | "refactoring" | "documentation" | "architecture" | "research",
+  "complexity": "trivial" | "simple" | "moderate" | "complex",
+  "domain": "frontend" | "backend" | "external" | "general",
+  "reason": "1-2 sentences explaining WHY this agent is the best choice",
+  "signals": ["signal1", "signal2"]
+}
+</delegation-decision>
 
 **Then** make the sisyphus_task call.
 
+#### Decision Guide
+
+| Domain | Task Type | Recommended Agent |
+|--------|-----------|-------------------|
+| frontend | implementation, refactoring | \`frontend-ui-ux-engineer\` |
+| any | exploration | \`explore\` (internal) or \`librarian\` (external) |
+| any | debugging (after 2+ failures) | \`oracle\` |
+| any | architecture decisions | \`oracle\` or \`Metis\` |
+| any | documentation | \`document-writer\` |
+| external | research | \`librarian\` |
+
+#### Signal Examples
+
+- "external library mentioned" → librarian
+- "visual styling keywords" → frontend-ui-ux-engineer
+- "error/bug + 2+ failed attempts" → oracle
+- "multi-module scope" → explore
+- "documentation request" → document-writer
+
+#### Validation Rules (violations trigger warnings)
+
+| Agent | Valid taskType | Min Complexity |
+|-------|---------------|----------------|
+| explore | exploration, debugging | any |
+| librarian | exploration, research | any |
+| oracle | debugging, architecture | moderate+ |
+| frontend-ui-ux-engineer | implementation, refactoring | any |
+| document-writer | documentation | any |
+| Metis (Plan Consultant) | architecture, research | moderate+ |
+| Momus (Plan Reviewer) | architecture | moderate+ |
+
 #### Examples
 
-**✅ CORRECT: Explicit Pre-Declaration**
+**✅ CORRECT: Structured Decision**
 
-\`\`\`
-I will use sisyphus_task with:
-- **Category**: visual
-- **Reason**: This task requires building a responsive dashboard UI with animations - visual design is the core requirement
-- **Skills**: ["frontend-ui-ux"]
-- **Expected Outcome**: Fully styled, responsive dashboard component with smooth transitions
+<delegation-decision>
+{
+  "agent": "frontend-ui-ux-engineer",
+  "taskType": "implementation",
+  "complexity": "moderate",
+  "domain": "frontend",
+  "reason": "Building a responsive dashboard UI with animations - visual design is the core requirement",
+  "signals": ["visual styling keywords", "responsive layout", "animation"]
+}
+</delegation-decision>
 
-sisyphus_task(
-  category="visual",
-  skills=["frontend-ui-ux"],
-  prompt="Create a responsive dashboard component with..."
-)
-\`\`\`
+sisyphus_task(agent="frontend-ui-ux-engineer", prompt="Create a responsive dashboard...")
 
-**✅ CORRECT: Agent-Specific Delegation**
+**✅ CORRECT: Exploration**
 
-\`\`\`
-I will use sisyphus_task with:
-- **Agent**: oracle
-- **Reason**: This architectural decision involves trade-offs between scalability and complexity - requires high-IQ strategic analysis
-- **Skills**: []
-- **Expected Outcome**: Clear recommendation with pros/cons analysis
+<delegation-decision>
+{
+  "agent": "explore",
+  "taskType": "exploration",
+  "complexity": "simple",
+  "domain": "general",
+  "reason": "Need to find all authentication implementations across the codebase",
+  "signals": ["multi-module scope", "codebase search"]
+}
+</delegation-decision>
 
-sisyphus_task(
-  agent="oracle",
-  skills=[],
-  prompt="Evaluate this microservices architecture proposal..."
-)
-\`\`\`
+sisyphus_task(agent="explore", background=true, prompt="Find all auth implementations...")
 
-**✅ CORRECT: Background Exploration**
+**❌ WRONG: Missing delegation-decision block**
 
-\`\`\`
-I will use sisyphus_task with:
-- **Agent**: explore
-- **Reason**: Need to find all authentication implementations across the codebase - this is contextual grep
-- **Skills**: []
-- **Expected Outcome**: List of files containing auth patterns
-
-sisyphus_task(
-  agent="explore",
-  background=true,
-  prompt="Find all authentication implementations in the codebase"
-)
-\`\`\`
-
-**❌ WRONG: No Pre-Declaration**
-
-\`\`\`
-// Immediately calling without explicit reasoning
-sisyphus_task(category="visual", prompt="Build a dashboard")
-\`\`\`
-
-**❌ WRONG: Vague Reasoning**
-
-\`\`\`
-I'll use visual category because it's frontend work.
-
-sisyphus_task(category="visual", ...)
-\`\`\`
+sisyphus_task(agent="oracle", prompt="...")  // No JSON block before call
 
 #### Enforcement
 
-**BLOCKING VIOLATION**: If you call \`sisyphus_task\` without the 4-part declaration, you have violated protocol.
+**If \`<delegation-decision>\` is missing before sisyphus_task, you will receive a WARNING.**
 
-**Recovery**: Stop, declare explicitly, then proceed.`
+The system validates your decision and will warn you if:
+- Agent doesn't match task type (e.g., oracle for trivial exploration)
+- Expensive agent used for simple tasks (overkill)
+- Domain mismatch (e.g., non-frontend agent for frontend implementation)`
 
 const SISYPHUS_PARALLEL_DISPATCH_MATRIX = `### Parallel Dispatch Decision Matrix (CHECK BEFORE DISPATCHING)
 
