@@ -263,7 +263,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         : {};
 
       const planDemoteConfig = replacePlan
-        ? { mode: "subagent" as const, hidden: true }
+        ? { mode: "subagent" as const }
         : undefined;
 
       config.agent = {
@@ -312,6 +312,12 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       agentResult["orchestrator-sisyphus"].tools = {
         ...agentResult["orchestrator-sisyphus"].tools,
         task: false,
+        call_omo_agent: false,
+      };
+    }
+    if (agentResult["Prometheus (Planner)"]) {
+      (agentResult["Prometheus (Planner)"] as { tools?: Record<string, unknown> }).tools = {
+        ...(agentResult["Prometheus (Planner)"] as { tools?: Record<string, unknown> }).tools,
         call_omo_agent: false,
       };
     }

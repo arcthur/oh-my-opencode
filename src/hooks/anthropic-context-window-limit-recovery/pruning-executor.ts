@@ -12,7 +12,6 @@ const DEFAULT_PROTECTED_TOOLS = new Set([
   "todowrite",
   "todoread",
   "lsp_rename",
-  "lsp_code_action_resolve",
   "session_read",
   "session_write",
   "session_search",

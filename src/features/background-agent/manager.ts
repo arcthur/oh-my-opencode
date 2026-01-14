@@ -11,6 +11,9 @@ import type { BackgroundTaskConfig } from "../../config/schema"
 
 import { subagentSessions } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
+import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../hook-message-injector"
+import { existsSync, readdirSync } from "node:fs"
+import { join } from "node:path"
 
 const TASK_TTL_MS = 30 * 60 * 1000
 const MIN_STABILITY_TIME_MS = 10 * 1000  // Must run at least 10s before stability detection kicks in
@@ -656,13 +659,32 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 </system-reminder>`
     }
 
-    // Inject notification via session.prompt with noReply
+    // Dynamically lookup the parent session's current message context
+    // This ensures we use the CURRENT model/agent, not the stale one from task creation time
+    const messageDir = getMessageDir(task.parentSessionID)
+    const currentMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
+
+    const agent = currentMessage?.agent ?? task.parentAgent
+    const model = currentMessage?.model?.providerID && currentMessage?.model?.modelID
+      ? { providerID: currentMessage.model.providerID, modelID: currentMessage.model.modelID }
+      : undefined
+
+    log("[background-agent] notifyParentSession context:", {
+      taskId: task.id,
+      messageDir: !!messageDir,
+      currentAgent: currentMessage?.agent,
+      currentModel: currentMessage?.model,
+      resolvedAgent: agent,
+      resolvedModel: model,
+    })
+
     try {
       await this.client.session.prompt({
         path: { id: task.parentSessionID },
         body: {
-          noReply: !allComplete,  // Silent unless all complete
-          agent: task.parentAgent,
+          noReply: !allComplete,
+          ...(agent !== undefined ? { agent } : {}),
+          ...(model !== undefined ? { model } : {}),
           parts: [{ type: "text", text: notification }],
         },
       })
@@ -856,4 +878,17 @@ if (lastMessage) {
       this.stopPolling()
     }
   }
+}
+
+function getMessageDir(sessionID: string): string | null {
+  if (!existsSync(MESSAGE_STORAGE)) return null
+
+  const directPath = join(MESSAGE_STORAGE, sessionID)
+  if (existsSync(directPath)) return directPath
+
+  for (const dir of readdirSync(MESSAGE_STORAGE)) {
+    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
+    if (existsSync(sessionPath)) return sessionPath
+  }
+  return null
 }
