@@ -1,12 +1,12 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import type { UserMemoryConfig, PatternStats } from "./types"
+import type { UserMemoryConfig, PatternStats, HierarchicalMemoryConfig } from "./types"
 import type {
   ToolExecuteInput,
   ToolExecuteOutput,
   EventInput,
   MessageInput,
 } from "../../shared/hook-types"
-import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS } from "./types"
+import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS, DEFAULT_HIERARCHICAL_CONFIG } from "./types"
 import {
   getMemorySummary,
   addWorkHistoryEntry,
@@ -15,16 +15,43 @@ import {
   savePatternStats,
   recordToolUsage,
   aggregateFrequentPatterns,
+  loadUserMemory,
+  saveUserMemory,
 } from "./storage"
+import {
+  performAggregations,
+  initializeAggregationTimestamps,
+  type SummarizeFunction,
+} from "./aggregation"
 import { log } from "../../shared/logger"
+
+/**
+ * Extended config including hierarchical memory settings
+ */
+export interface UserMemoryHookConfig extends UserMemoryConfig {
+  hierarchical_memory?: Partial<HierarchicalMemoryConfig>
+}
 
 /**
  * Creates a hook that injects user memory context into sessions
  * and captures explicit "remember" requests.
+ *
+ * Supports RAPTOR-style hierarchical memory aggregation:
+ * - L0: Raw work history entries
+ * - L1: Weekly summaries (aggregated when crossing week boundaries)
+ * - L2: Monthly summaries (aggregated when crossing month boundaries)
+ * - L3: Long-term knowledge (extracted quarterly)
  */
-export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<UserMemoryConfig>) {
+export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<UserMemoryHookConfig>) {
   const config: UserMemoryConfig = { ...DEFAULT_CONFIG, ...userConfig }
+  const hierarchicalConfig: HierarchicalMemoryConfig = {
+    ...DEFAULT_HIERARCHICAL_CONFIG,
+    ...userConfig?.hierarchical_memory,
+  }
   const injectedSessions = new Set<string>()
+
+  // Flag to prevent concurrent aggregations
+  let aggregationInProgress = false
 
   // In-memory pattern stats accumulator (persisted on session end)
   let patternStats: PatternStats = loadPatternStats()
@@ -94,6 +121,72 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
     }
   }
 
+  /**
+   * Create a fallback summarization function that doesn't require LLM
+   * This can be replaced with an LLM-based implementation when available
+   */
+  const createFallbackSummarizer = (): SummarizeFunction => {
+    return async (_prompt: string) => {
+      // For now, return a basic response
+      // The aggregation functions will use the metadata-based fallback
+      return {
+        summary: "",
+        achievements: [],
+        lessons: [],
+      }
+    }
+  }
+
+  /**
+   * Trigger hierarchical memory aggregation if needed
+   */
+  const triggerAggregation = async () => {
+    if (!hierarchicalConfig.enabled || !hierarchicalConfig.auto_aggregate) return
+    if (aggregationInProgress) return
+
+    try {
+      aggregationInProgress = true
+      const memory = loadUserMemory()
+      const now = Date.now()
+
+      // Initialize timestamps if this is a new user
+      if (!memory.lastWeeklyAggregation && memory.workHistory.length > 0) {
+        const initialized = initializeAggregationTimestamps(memory, now)
+        saveUserMemory(initialized)
+        log("[user-memory] initialized aggregation timestamps")
+        return
+      }
+
+      // Perform aggregations using fallback summarizer
+      const summarizer = createFallbackSummarizer()
+      const updated = await performAggregations(memory, now, summarizer, hierarchicalConfig)
+
+      // Check if anything changed (including timestamps and workHistory cleanup)
+      const hasChanges =
+        updated.weeklySummaries?.length !== memory.weeklySummaries?.length ||
+        updated.monthlySummaries?.length !== memory.monthlySummaries?.length ||
+        updated.longTermKnowledge?.length !== memory.longTermKnowledge?.length ||
+        updated.workHistory.length !== memory.workHistory.length ||
+        updated.lastWeeklyAggregation !== memory.lastWeeklyAggregation ||
+        updated.lastMonthlyAggregation !== memory.lastMonthlyAggregation ||
+        updated.lastKnowledgeExtraction !== memory.lastKnowledgeExtraction
+
+      if (hasChanges) {
+        saveUserMemory(updated)
+        log("[user-memory] completed hierarchical aggregation", {
+          weeklySummaries: updated.weeklySummaries?.length ?? 0,
+          monthlySummaries: updated.monthlySummaries?.length ?? 0,
+          longTermKnowledge: updated.longTermKnowledge?.length ?? 0,
+          workHistoryCleaned: memory.workHistory.length - updated.workHistory.length,
+        })
+      }
+    } catch (error) {
+      log("[user-memory] aggregation failed", { error: String(error) })
+    } finally {
+      aggregationInProgress = false
+    }
+  }
+
   const eventHandler = async ({ event }: EventInput) => {
     const props = event.properties as Record<string, unknown> | undefined
 
@@ -107,6 +200,9 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
       // Persist pattern stats and aggregate on session end
       savePatternStats(patternStats)
       aggregateFrequentPatterns()
+
+      // Trigger hierarchical memory aggregation
+      await triggerAggregation()
     }
 
     // Clear session state on compaction (will re-inject on next tool use)
@@ -120,6 +216,9 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
       // Persist pattern stats and aggregate on compaction
       savePatternStats(patternStats)
       aggregateFrequentPatterns()
+
+      // Trigger hierarchical memory aggregation
+      await triggerAggregation()
     }
 
     // Capture work summary on session end/summarize
@@ -139,6 +238,9 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
             config
           )
           log("[user-memory] captured work history", { summary: briefSummary.substring(0, 50) })
+
+          // Trigger hierarchical memory aggregation after adding work history
+          await triggerAggregation()
         }
       }
     }

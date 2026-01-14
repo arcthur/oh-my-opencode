@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
 import type { UserMemory, WorkHistoryEntry, UserMemoryConfig, PatternStats, FrequentPatternConfig, PatternEntry } from "./types"
@@ -13,6 +13,16 @@ function ensureMemoryDir(): void {
   if (!existsSync(MEMORY_DIR)) {
     mkdirSync(MEMORY_DIR, { recursive: true })
   }
+}
+
+/**
+ * Atomic file write: write to temp file then rename
+ * This prevents partial writes from corrupting the file on crash or concurrent access
+ */
+function atomicWriteFileSync(filePath: string, content: string): void {
+  const tempPath = filePath + ".tmp"
+  writeFileSync(tempPath, content, "utf-8")
+  renameSync(tempPath, filePath)  // rename is atomic on POSIX systems
 }
 
 /**
@@ -42,13 +52,14 @@ export function loadUserMemory(): UserMemory {
 
 /**
  * Save user memory to persistent storage
+ * Uses atomic write (temp file + rename) to prevent corruption
  */
 export function saveUserMemory(memory: UserMemory): void {
   try {
     ensureMemoryDir()
     memory.lastUpdated = Date.now()
     memory.schemaVersion = CURRENT_SCHEMA_VERSION
-    writeFileSync(USER_MEMORY_FILE, JSON.stringify(memory, null, 2), "utf-8")
+    atomicWriteFileSync(USER_MEMORY_FILE, JSON.stringify(memory, null, 2))
     log("[user-memory] saved memory")
   } catch (error) {
     log("[user-memory] failed to save memory", { error: String(error) })
@@ -57,11 +68,16 @@ export function saveUserMemory(memory: UserMemory): void {
 
 /**
  * Migrate user memory from older schema versions
+ *
+ * Schema History:
+ * - v1: Original schema with basic fields
+ * - v2: Added RAPTOR hierarchical memory (weeklySummaries, monthlySummaries, longTermKnowledge)
  */
 function migrateUserMemory(data: Partial<UserMemory>): UserMemory {
   log("[user-memory] migrating from schema version", { from: data.schemaVersion, to: CURRENT_SCHEMA_VERSION })
 
-  return {
+  const migrated: UserMemory = {
+    // Core fields (v1)
     preferences: data.preferences || {},
     environment: data.environment || {},
     workHistory: data.workHistory || [],
@@ -70,7 +86,28 @@ function migrateUserMemory(data: Partial<UserMemory>): UserMemory {
     explicitMemories: data.explicitMemories || [],
     lastUpdated: Date.now(),
     schemaVersion: CURRENT_SCHEMA_VERSION,
+
+    // RAPTOR hierarchical memory fields (v2)
+    weeklySummaries: data.weeklySummaries || [],
+    monthlySummaries: data.monthlySummaries || [],
+    longTermKnowledge: data.longTermKnowledge || [],
+    lastWeeklyAggregation: data.lastWeeklyAggregation,
+    lastMonthlyAggregation: data.lastMonthlyAggregation,
+    lastKnowledgeExtraction: data.lastKnowledgeExtraction,
   }
+
+  // V1 -> V2 migration: Initialize aggregation timestamps if workHistory exists
+  // Handle both explicit v1 and undefined (legacy data before versioning)
+  if ((data.schemaVersion === undefined || data.schemaVersion === 1) && migrated.workHistory.length > 0) {
+    const now = Date.now()
+    // Set timestamps to now so we don't immediately try to aggregate old data
+    migrated.lastWeeklyAggregation = migrated.lastWeeklyAggregation ?? now
+    migrated.lastMonthlyAggregation = migrated.lastMonthlyAggregation ?? now
+    migrated.lastKnowledgeExtraction = migrated.lastKnowledgeExtraction ?? now
+    log("[user-memory] initialized aggregation timestamps for v1->v2 migration")
+  }
+
+  return migrated
 }
 
 /**
@@ -168,13 +205,19 @@ export function clearUserMemory(): void {
 
 /**
  * Get memory summary for injection
+ *
+ * Includes hierarchical memory from RAPTOR aggregation:
+ * - L3: Long-term knowledge (high-confidence distilled insights)
+ * - L2: Monthly summary (last month's overview)
+ * - L1: Weekly summary (this week's progress)
+ * - L0: Recent work history (last 3 entries)
  */
 export function getMemorySummary(): string | null {
   const memory = loadUserMemory()
 
   const sections: string[] = []
 
-  // Custom rules
+  // Custom rules (highest priority)
   if (memory.customRules.length > 0) {
     sections.push(`## User Rules\n${memory.customRules.map(r => `- ${r}`).join("\n")}`)
   }
@@ -183,6 +226,39 @@ export function getMemorySummary(): string | null {
   if (memory.explicitMemories.length > 0) {
     const recentMemories = memory.explicitMemories.slice(-10) // Last 10
     sections.push(`## Remembered Context\n${recentMemories.map(m => `- ${m.content}`).join("\n")}`)
+  }
+
+  // L3: Long-term Knowledge (high-confidence only)
+  const highConfidenceKnowledge = memory.longTermKnowledge
+    ?.filter(k => k.confidence >= 0.6)
+    ?.slice(0, 5)
+
+  if (highConfidenceKnowledge && highConfidenceKnowledge.length > 0) {
+    const knowledgeLines = highConfidenceKnowledge.map(k =>
+      `- [${k.category}] ${k.content}`
+    )
+    sections.push(`## Long-term Learnings\n${knowledgeLines.join("\n")}`)
+  }
+
+  // L2: Last Month Summary
+  const recentMonth = memory.monthlySummaries?.[0]
+  if (recentMonth) {
+    sections.push(
+      `## Last Month (${recentMonth.month})\n${recentMonth.summary}` +
+      (recentMonth.projects.length > 0
+        ? `\nProjects: ${recentMonth.projects.slice(0, 3).join(", ")}`
+        : "")
+    )
+  }
+
+  // L1: This Week Summary
+  const recentWeek = memory.weeklySummaries?.[0]
+  if (recentWeek) {
+    const achievements = recentWeek.keyAchievements.slice(0, 2).join("; ")
+    sections.push(
+      `## This Week\n${recentWeek.summary}` +
+      (achievements ? `\nKey: ${achievements}` : "")
+    )
   }
 
   // Preferences
@@ -200,8 +276,8 @@ export function getMemorySummary(): string | null {
     sections.push(`## Environment\n${envParts.join(", ")}`)
   }
 
-  // Recent work (last 3)
-  if (memory.workHistory.length > 0) {
+  // L0: Recent work (last 3) - only if no weekly summary
+  if (!recentWeek && memory.workHistory.length > 0) {
     const recent = memory.workHistory.slice(0, 3)
     const workLines = recent.map(w => {
       const date = new Date(w.timestamp).toLocaleDateString()
@@ -218,7 +294,7 @@ export function getMemorySummary(): string | null {
 
   if (sections.length === 0) return null
 
-  return `[User Memory - Persistent Context]\n${sections.join("\n\n")}\n[End User Memory]`
+  return `[User Memory - Hierarchical Context]\n${sections.join("\n\n")}\n[End User Memory]`
 }
 
 // ============================================================================
@@ -250,7 +326,7 @@ export function loadPatternStats(): PatternStats {
 export function savePatternStats(stats: PatternStats): void {
   try {
     ensureMemoryDir()
-    writeFileSync(PATTERN_STATS_FILE, JSON.stringify(stats, null, 2), "utf-8")
+    atomicWriteFileSync(PATTERN_STATS_FILE, JSON.stringify(stats, null, 2))
   } catch (error) {
     log("[user-memory] failed to save pattern stats", { error: String(error) })
   }
