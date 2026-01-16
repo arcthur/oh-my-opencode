@@ -6,8 +6,8 @@ import type { SisyphusTaskArgs } from "./types"
 import type { CategoryConfig, CategoriesConfig, GitMasterConfig } from "../../config/schema"
 import { SISYPHUS_TASK_DESCRIPTION, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS } from "./constants"
 import { findNearestMessageWithFields, findFirstMessageWithAgent, MESSAGE_STORAGE } from "../../features/hook-message-injector"
-import { resolveMultipleSkills } from "../../features/opencode-skill-loader/skill-content"
-import { createBuiltinSkills } from "../../features/builtin-skills/skills"
+import { resolveMultipleSkillsAsync } from "../../features/opencode-skill-loader/skill-content"
+import { discoverSkills } from "../../features/opencode-skill-loader"
 import { getTaskToastManager } from "../../features/task-toast-manager"
 import type { ModelFallbackInfo } from "../../features/task-toast-manager/types"
 import { subagentSessions, getSessionAgent } from "../../features/claude-code-session-state"
@@ -49,6 +49,54 @@ function formatDuration(start: Date, end?: Date): string {
   if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`
   if (minutes > 0) return `${minutes}m ${seconds % 60}s`
   return `${seconds}s`
+}
+
+interface ErrorContext {
+  operation: string
+  args?: SisyphusTaskArgs
+  sessionID?: string
+  agent?: string
+  category?: string
+}
+
+function formatDetailedError(error: unknown, ctx: ErrorContext): string {
+  const message = error instanceof Error ? error.message : String(error)
+  const stack = error instanceof Error ? error.stack : undefined
+
+  const lines: string[] = [
+    `❌ ${ctx.operation} failed`,
+    "",
+    `**Error**: ${message}`,
+  ]
+
+  if (ctx.sessionID) {
+    lines.push(`**Session ID**: ${ctx.sessionID}`)
+  }
+
+  if (ctx.agent) {
+    lines.push(`**Agent**: ${ctx.agent}${ctx.category ? ` (category: ${ctx.category})` : ""}`)
+  }
+
+  if (ctx.args) {
+    lines.push("", "**Arguments**:")
+    lines.push(`- description: "${ctx.args.description}"`)
+    lines.push(`- category: ${ctx.args.category ?? "(none)"}`)
+    lines.push(`- subagent_type: ${ctx.args.subagent_type ?? "(none)"}`)
+    lines.push(`- run_in_background: ${ctx.args.run_in_background}`)
+    lines.push(`- skills: [${ctx.args.skills?.join(", ") ?? ""}]`)
+    if (ctx.args.resume) {
+      lines.push(`- resume: ${ctx.args.resume}`)
+    }
+  }
+
+  if (stack) {
+    lines.push("", "**Stack Trace**:")
+    lines.push("```")
+    lines.push(stack.split("\n").slice(0, 10).join("\n"))
+    lines.push("```")
+  }
+
+  return lines.join("\n")
 }
 
 type ToolContextWithMetadata = {
@@ -148,9 +196,10 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
 
       let skillContent: string | undefined
       if (args.skills.length > 0) {
-        const { resolved, notFound } = resolveMultipleSkills(args.skills, { gitMasterConfig })
+        const { resolved, notFound } = await resolveMultipleSkillsAsync(args.skills, { gitMasterConfig })
         if (notFound.length > 0) {
-          const available = createBuiltinSkills().map(s => s.name).join(", ")
+          const allSkills = await discoverSkills({ includeClaudeCodePaths: true })
+          const available = allSkills.map(s => s.name).join(", ")
           return `❌ Skills not found: ${notFound.join(", ")}. Available: ${available}`
         }
         skillContent = Array.from(resolved.values()).join("\n\n")
@@ -203,8 +252,11 @@ Status: ${task.status}
 Agent continues with full previous context preserved.
 Use \`background_output\` with task_id="${task.id}" to check progress.`
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error)
-            return `❌ Failed to resume task: ${message}`
+            return formatDetailedError(error, {
+              operation: "Resume background task",
+              args,
+              sessionID: args.resume,
+            })
           }
         }
 
@@ -227,12 +279,30 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         })
 
         try {
-          const resumeMessageDir = getMessageDir(args.resume)
-          const resumeMessage = resumeMessageDir ? findNearestMessageWithFields(resumeMessageDir) : null
-          const resumeAgent = resumeMessage?.agent
-          const resumeModel = resumeMessage?.model?.providerID && resumeMessage?.model?.modelID
-            ? { providerID: resumeMessage.model.providerID, modelID: resumeMessage.model.modelID }
-            : undefined
+          let resumeAgent: string | undefined
+          let resumeModel: { providerID: string; modelID: string } | undefined
+
+          try {
+            const messagesResp = await client.session.messages({ path: { id: args.resume } })
+            const messages = (messagesResp.data ?? []) as Array<{
+              info?: { agent?: string; model?: { providerID: string; modelID: string } }
+            }>
+            for (let i = messages.length - 1; i >= 0; i--) {
+              const info = messages[i].info
+              if (info?.agent || info?.model) {
+                resumeAgent = info.agent
+                resumeModel = info.model
+                break
+              }
+            }
+          } catch {
+            const resumeMessageDir = getMessageDir(args.resume)
+            const resumeMessage = resumeMessageDir ? findNearestMessageWithFields(resumeMessageDir) : null
+            resumeAgent = resumeMessage?.agent
+            resumeModel = resumeMessage?.model?.providerID && resumeMessage?.model?.modelID
+              ? { providerID: resumeMessage.model.providerID, modelID: resumeMessage.model.modelID }
+              : undefined
+          }
 
           await client.session.prompt({
             path: { id: args.resume },
@@ -464,8 +534,12 @@ Status: ${task.status}
 
 System notifies on completion. Use \`background_output\` with task_id="${task.id}" to check.`
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          return `❌ Failed to launch task: ${message}`
+          return formatDetailedError(error, {
+            operation: "Launch background task",
+            args,
+            agent: agentToUse,
+            category: args.category,
+          })
         }
       }
 
@@ -536,9 +610,21 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
           }
           const errorMessage = promptError instanceof Error ? promptError.message : String(promptError)
           if (errorMessage.includes("agent.name") || errorMessage.includes("undefined")) {
-            return `❌ Agent "${agentToUse}" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.\n\nSession ID: ${sessionID}`
+            return formatDetailedError(new Error(`Agent "${agentToUse}" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.`), {
+              operation: "Send prompt to agent",
+              args,
+              sessionID,
+              agent: agentToUse,
+              category: args.category,
+            })
           }
-          return `❌ Failed to send prompt: ${errorMessage}\n\nSession ID: ${sessionID}`
+          return formatDetailedError(promptError, {
+            operation: "Send prompt",
+            args,
+            sessionID,
+            agent: agentToUse,
+            category: args.category,
+          })
         }
 
         // Poll for session completion with stability detection
@@ -659,8 +745,13 @@ ${textContent || "(No text output)"}`
         if (syncSessionID) {
           subagentSessions.delete(syncSessionID)
         }
-        const message = error instanceof Error ? error.message : String(error)
-        return `❌ Task failed: ${message}`
+        return formatDetailedError(error, {
+          operation: "Execute task",
+          args,
+          sessionID: syncSessionID,
+          agent: agentToUse,
+          category: args.category,
+        })
       }
     },
   })

@@ -28,8 +28,10 @@ export interface BackgroundTask {
   progress?: TaskProgress
   parentModel?: { providerID: string; modelID: string }
   model?: { providerID: string; modelID: string; variant?: string }
-  /** Agent name used for concurrency tracking */
+  /** Active concurrency slot key */
   concurrencyKey?: string
+  /** Persistent key for re-acquiring concurrency on resume */
+  concurrencyGroup?: string
   /** Parent session's agent name for notification */
   parentAgent?: string
   /** If true, skip parent session notification on completion (for internal orchestration tasks) */

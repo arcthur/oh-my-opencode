@@ -82,7 +82,7 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
@@ -330,6 +330,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     skills: mergedSkills,
     mcpManager: skillMcpManager,
     getSessionID: getSessionIDForMcp,
+    gitMasterConfig: pluginConfig.git_master,
   });
   const skillMcpTool = createSkillMcpTool({
     manager: skillMcpManager,
@@ -507,6 +508,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         }
         if (sessionInfo?.id) {
           clearSessionAgent(sessionInfo.id);
+          resetMessageCursor(sessionInfo.id);
           firstMessageVariantGate.clear(sessionInfo.id);
           await skillMcpManager.disconnectSession(sessionInfo.id);
           await lspManager.cleanupTempDirectoryClients();

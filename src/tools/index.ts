@@ -1,9 +1,5 @@
 import {
-  lsp_goto_definition,
-  lsp_find_references,
-  lsp_symbols,
   lsp_diagnostics,
-  lsp_servers,
   lsp_prepare_rename,
   lsp_rename,
   lspManager,
@@ -57,11 +53,7 @@ export function createBackgroundTools(manager: BackgroundManager, client: Openco
 }
 
 export const builtinTools: Record<string, ToolDefinition> = {
-  lsp_goto_definition,
-  lsp_find_references,
-  lsp_symbols,
   lsp_diagnostics,
-  lsp_servers,
   lsp_prepare_rename,
   lsp_rename,
   ast_grep_search,
