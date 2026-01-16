@@ -93,7 +93,8 @@
           "repo-overview-injector",
           "runtime-tracker",
           "anti-slop-enforcer",
-          "pre-completion-verification"
+          "pre-completion-verification",
+          "delegation-validator"
         ]
       }
     },
@@ -2006,6 +2007,9 @@
             "model": {
               "type": "string"
             },
+            "variant": {
+              "type": "string"
+            },
             "category": {
               "type": "string"
             },
@@ -2122,6 +2126,28 @@
               }
             }
           }
+        },
+        "planning": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "maxItems": 5,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          },
+          "required": [
+            "model"
+          ]
         }
       }
     },
@@ -2580,41 +2606,6 @@
           "type": "boolean"
         }
       }
-    },
-    "multi_plan": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "default": false,
-          "type": "boolean"
-        },
-        "models": {
-          "minItems": 2,
-          "maxItems": 5,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1
-              },
-              "category": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "name"
-            ]
-          }
-        }
-      },
-      "required": [
-        "models"
-      ]
     },
     "planning_with_files": {
       "type": "object",
