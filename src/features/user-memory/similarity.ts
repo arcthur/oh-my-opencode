@@ -22,6 +22,10 @@ export interface SimilarityConfig {
   synonymWeight: number
   /** Weight for bigram overlap (default: 0.2) */
   ngramWeight: number
+  /** Enable synonym canonicalization + expansion (default: true) */
+  useSynonyms: boolean
+  /** Enable Porter stemming (default: true) */
+  useStemming: boolean
   /** Threshold for high confidence match */
   highConfidenceThreshold: number
   /** Threshold for candidate selection */
@@ -32,6 +36,8 @@ export const DEFAULT_SIMILARITY_CONFIG: SimilarityConfig = {
   baseWeight: 0.5,
   synonymWeight: 0.3,
   ngramWeight: 0.2,
+  useSynonyms: true,
+  useStemming: true,
   highConfidenceThreshold: 0.6,
   candidateThreshold: 0.25,
 }
@@ -93,16 +99,22 @@ export function calculateSimilarity(
   config: SimilarityConfig = DEFAULT_SIMILARITY_CONFIG
 ): SimilarityResult {
   // Preprocess both texts
-  const words1 = preprocessText(text1)
-  const words2 = preprocessText(text2)
+  const words1 = preprocessText(text1, {
+    useStemming: config.useStemming,
+    useSynonyms: config.useSynonyms,
+  })
+  const words2 = preprocessText(text2, {
+    useStemming: config.useStemming,
+    useSynonyms: config.useSynonyms,
+  })
 
   // Base word overlap
   const baseOverlap = jaccardSimilarity(words1, words2)
 
   // Synonym-expanded overlap
-  const expanded1 = expandWithSynonyms(words1)
-  const expanded2 = expandWithSynonyms(words2)
-  const synonymOverlap = jaccardSimilarity(expanded1, expanded2)
+  const synonymOverlap = config.useSynonyms
+    ? jaccardSimilarity(expandWithSynonyms(words1), expandWithSynonyms(words2))
+    : 0
 
   // Bigram overlap for phrase matching
   const ngrams1 = extractNgrams(text1, 2)
@@ -135,4 +147,3 @@ export function calculateSimilarity(
     },
   }
 }
-

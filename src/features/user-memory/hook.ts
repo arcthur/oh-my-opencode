@@ -1,12 +1,29 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import type { UserMemoryConfig, PatternStats, HierarchicalMemoryConfig, EntityMemoryConfig } from "./types"
+import type {
+  UserMemoryConfig,
+  PatternStats,
+  HierarchicalMemoryConfig,
+  EntityMemoryConfig,
+  TemporalValidityConfig,
+  ConsolidationConfig,
+  SemanticClusteringConfig,
+} from "./types"
 import type {
   ToolExecuteInput,
   ToolExecuteOutput,
   EventInput,
   MessageInput,
 } from "../../shared/hook-types"
-import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS, DEFAULT_HIERARCHICAL_CONFIG, DEFAULT_ENTITY_MEMORY_CONFIG, DEFAULT_ENTITY_GRAPH } from "./types"
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_PATTERN_STATS,
+  DEFAULT_HIERARCHICAL_CONFIG,
+  DEFAULT_ENTITY_MEMORY_CONFIG,
+  DEFAULT_ENTITY_GRAPH,
+  DEFAULT_TEMPORAL_VALIDITY_CONFIG,
+  DEFAULT_CONSOLIDATION_CONFIG,
+  DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
+} from "./types"
 import {
   getMemorySummary,
   addWorkHistoryEntry,
@@ -33,6 +50,10 @@ import { log } from "../../shared/logger"
 export interface UserMemoryHookConfig extends UserMemoryConfig {
   hierarchical_memory?: Partial<HierarchicalMemoryConfig>
   entity_memory?: Partial<EntityMemoryConfig>
+  temporal_validity?: Partial<TemporalValidityConfig>
+  consolidation?: Partial<ConsolidationConfig>
+  semantic_clustering?: Partial<SemanticClusteringConfig>
+  disclosure_level?: "minimal" | "standard" | "full"
 }
 
 /**
@@ -55,6 +76,19 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
     ...DEFAULT_ENTITY_MEMORY_CONFIG,
     ...userConfig?.entity_memory,
   }
+  const temporalConfig: TemporalValidityConfig = {
+    ...DEFAULT_TEMPORAL_VALIDITY_CONFIG,
+    ...userConfig?.temporal_validity,
+  }
+  const consolidationConfig: ConsolidationConfig = {
+    ...DEFAULT_CONSOLIDATION_CONFIG,
+    ...userConfig?.consolidation,
+  }
+  const semanticClusteringConfig: SemanticClusteringConfig = {
+    ...DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
+    ...userConfig?.semantic_clustering,
+  }
+  const disclosureLevel = userConfig?.disclosure_level ?? "standard"
   const injectedSessions = new Set<string>()
 
   // Flag to prevent concurrent aggregations
@@ -84,7 +118,7 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
     if (!config.enabled || !config.auto_inject) return
     if (injectedSessions.has(sessionID)) return
 
-    const memorySummary = getMemorySummary()
+    const memorySummary = getMemorySummary(temporalConfig, disclosureLevel, entityConfig)
     if (memorySummary) {
       output.output += `\n\n${memorySummary}`
       log("[user-memory] injected memory context", { sessionID })
@@ -166,7 +200,14 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
 
       // Perform aggregations using fallback summarizer
       const summarizer = createFallbackSummarizer()
-      const updated = await performAggregations(memory, now, summarizer, hierarchicalConfig)
+      const updated = await performAggregations(
+        memory,
+        now,
+        summarizer,
+        hierarchicalConfig,
+        consolidationConfig,
+        semanticClusteringConfig
+      )
 
       // Check if anything changed (including timestamps and workHistory cleanup)
       const hasChanges =

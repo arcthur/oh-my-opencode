@@ -59,15 +59,6 @@ export function calculateStaleness(
     return 1.0 // Not valid at this time
   }
 
-  // If explicitly expired before query time, it's completely stale
-  if (
-    fact.valid_until !== null &&
-    fact.valid_until !== undefined &&
-    queryTime > fact.valid_until
-  ) {
-    return 1.0
-  }
-
   // Get half-life based on staleness category
   const category = fact.staleness_category ?? "medium-term"
   const halfLifeMs = STALENESS_HALF_LIFE_MS[category]
@@ -238,7 +229,7 @@ export function getValidityStatus(
   if (
     fact.valid_until !== null &&
     fact.valid_until !== undefined &&
-    queryTime > fact.valid_until
+    queryTime >= fact.valid_until
   ) {
     return "expired"
   }
@@ -447,8 +438,22 @@ export function filterWorkHistoryForInjection(
         },
         queryTime
       ),
+      validityStatus: getValidityStatus(
+        {
+          timestamp: entry.timestamp,
+          valid_from: entry.valid_from,
+          valid_until: entry.valid_until,
+          staleness_category: entry.staleness_category ?? "short-term",
+        },
+        queryTime,
+        config.staleness_threshold
+      ),
     }))
-    .filter((r) => r.staleness < config.staleness_threshold)
+    .filter((r) => {
+      if (r.validityStatus === "future") return false
+      if (!config.include_expired && r.validityStatus === "expired") return false
+      return r.staleness < config.staleness_threshold
+    })
     .sort((a, b) => a.staleness - b.staleness)
     .slice(0, limit)
     .map((r) => r.entry)

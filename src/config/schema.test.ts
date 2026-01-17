@@ -151,6 +151,20 @@ describe("user_memory schema", () => {
           max_entities: 10,
           extract_types: ["person", "project"],
         },
+        temporal_validity: {
+          enabled: true,
+          staleness_threshold: 0.6,
+        },
+        consolidation: {
+          enabled: true,
+          work_history_threshold: 10,
+        },
+        semantic_clustering: {
+          enabled: true,
+          use_synonyms: false,
+          use_stemming: false,
+        },
+        disclosure_level: "full",
       },
     }
 
@@ -170,6 +184,20 @@ describe("user_memory schema", () => {
         max_entities: 10,
         extract_types: ["person", "project"],
       })
+      expect(result.data.user_memory?.temporal_validity).toEqual({
+        enabled: true,
+        staleness_threshold: 0.6,
+      })
+      expect(result.data.user_memory?.consolidation).toEqual({
+        enabled: true,
+        work_history_threshold: 10,
+      })
+      expect(result.data.user_memory?.semantic_clustering).toEqual({
+        enabled: true,
+        use_synonyms: false,
+        use_stemming: false,
+      })
+      expect(result.data.user_memory?.disclosure_level).toBe("full")
     }
   })
 })

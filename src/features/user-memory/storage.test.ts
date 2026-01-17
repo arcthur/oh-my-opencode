@@ -1,7 +1,129 @@
 import { describe, test, expect } from "bun:test"
-import { normalizeArgsToPattern } from "./storage"
+import { buildMemorySummary, normalizeArgsToPattern } from "./storage"
+import { DEFAULT_ENTITY_MEMORY_CONFIG, DEFAULT_TEMPORAL_VALIDITY_CONFIG, type UserMemory } from "./types"
 
 describe("user-memory storage", () => {
+  describe("buildMemorySummary", () => {
+    test("filters entity injection using injection_confidence_threshold and min_mentions", () => {
+      //#given
+      const now = 1_700_000_000_000
+      const memory: UserMemory = {
+        preferences: {},
+        environment: {},
+        workHistory: [],
+        customRules: [],
+        frequentPatterns: [],
+        explicitMemories: [],
+        lastUpdated: now,
+        schemaVersion: 3,
+        weeklySummaries: [],
+        monthlySummaries: [],
+        longTermKnowledge: [],
+        entityGraph: {
+          nodes: {
+            "person:alice": {
+              id: "person:alice",
+              name: "Alice",
+              type: "person",
+              aliases: [],
+              aliasConfidence: {},
+              mentions: [],
+              mentionCount: 1,
+              firstSeen: now,
+              lastSeen: now,
+              metadata: {},
+            },
+            "person:bob": {
+              id: "person:bob",
+              name: "Bob",
+              type: "person",
+              aliases: [],
+              aliasConfidence: {},
+              mentions: [],
+              mentionCount: 2,
+              firstSeen: now,
+              lastSeen: now,
+              metadata: {},
+            },
+            "project:proj": {
+              id: "project:proj",
+              name: "proj",
+              type: "project",
+              aliases: [],
+              aliasConfidence: {},
+              mentions: [],
+              mentionCount: 2,
+              firstSeen: now,
+              lastSeen: now,
+              metadata: {},
+            },
+            "technology:typescript": {
+              id: "technology:typescript",
+              name: "TypeScript",
+              type: "technology",
+              aliases: [],
+              aliasConfidence: {},
+              mentions: [],
+              mentionCount: 1,
+              firstSeen: now,
+              lastSeen: now,
+              metadata: {},
+            },
+          },
+          relationships: [
+            {
+              id: "rel:person:bob|works_on|project:proj",
+              subject: "person:bob",
+              predicate: "works_on",
+              object: "project:proj",
+              confidence: 0.4,
+              observationCount: 2,
+              firstObserved: now,
+              lastObserved: now,
+              contextSamples: ["pairing"],
+            },
+            {
+              id: "rel:project:proj|uses|technology:typescript",
+              subject: "project:proj",
+              predicate: "uses",
+              object: "technology:typescript",
+              confidence: 0.4,
+              observationCount: 2,
+              firstObserved: now,
+              lastObserved: now,
+              contextSamples: ["build"],
+            },
+          ],
+          aliasIndex: {},
+          lastExtraction: now,
+          graphVersion: 1,
+        },
+      }
+
+      const entityConfig = {
+        ...DEFAULT_ENTITY_MEMORY_CONFIG,
+        enabled: true,
+        min_mentions: 2,
+        injection_confidence_threshold: 0.4,
+      }
+
+      //#when
+      const summary = buildMemorySummary(memory, {
+        temporalConfig: { ...DEFAULT_TEMPORAL_VALIDITY_CONFIG, enabled: false },
+        disclosureLevel: "full",
+        entityConfig,
+      })
+
+      //#then
+      expect(summary).not.toBeNull()
+      expect(summary).toContain("Bob")
+      expect(summary).not.toContain("Alice")
+      expect(summary).toContain("Bob works on proj")
+      // TypeScript node is below threshold => relationship should not be injected
+      expect(summary).not.toContain("uses TypeScript")
+    })
+  })
+
   describe("normalizeArgsToPattern", () => {
     describe("Read tool", () => {
       test("extracts directory pattern from absolute path", () => {

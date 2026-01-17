@@ -426,10 +426,16 @@ interface LessonCluster {
 export async function extractLongTermKnowledge(
   monthlySummaries: MonthlySummary[],
   existingKnowledge: LongTermKnowledge[],
-  summarize: SummarizeFunction
+  summarize: SummarizeFunction,
+  config: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
+  knowledgeLimit: number = DEFAULT_HIERARCHICAL_CONFIG.long_term_knowledge_limit
 ): Promise<LongTermKnowledge[]> {
+  // Apply limit even when no new knowledge is extracted
+  const applyLimit = (arr: LongTermKnowledge[]) =>
+    arr.length <= knowledgeLimit ? arr : arr.slice(0, knowledgeLimit)
+
   if (monthlySummaries.length === 0) {
-    return existingKnowledge
+    return applyLimit(existingKnowledge)
   }
 
   // Collect all lessons with their source months
@@ -438,11 +444,11 @@ export async function extractLongTermKnowledge(
   )
 
   if (allLessons.length === 0) {
-    return existingKnowledge
+    return applyLimit(existingKnowledge)
   }
 
   // Cluster similar lessons using enhanced semantic similarity
-  const clusters = await clusterSimilarLessons(allLessons, summarize)
+  const clusters = await clusterSimilarLessons(allLessons, summarize, config)
 
   // Filter to clusters that appeared in at least 2 DIFFERENT months
   // This ensures we capture stable cross-month patterns, not single-month noise
@@ -466,7 +472,7 @@ export async function extractLongTermKnowledge(
   })
 
   // Merge with existing knowledge
-  return mergeKnowledge(existingKnowledge, newKnowledge)
+  return mergeKnowledge(existingKnowledge, newKnowledge, knowledgeLimit)
 }
 
 /**
@@ -498,6 +504,8 @@ async function clusterSimilarLessons(
         ...DEFAULT_SIMILARITY_CONFIG,
         highConfidenceThreshold: config.high_confidence_threshold,
         candidateThreshold: config.candidate_threshold,
+        useSynonyms: config.use_synonyms,
+        useStemming: config.use_stemming,
       })
 
       // Track best match for potential LLM decision
@@ -629,8 +637,11 @@ function categorizeKnowledge(
  */
 export function mergeKnowledge(
   existing: LongTermKnowledge[],
-  newKnowledge: LongTermKnowledge[]
+  newKnowledge: LongTermKnowledge[],
+  limit: number
 ): LongTermKnowledge[] {
+  const maxEntries = Math.max(0, Math.floor(limit))
+  const now = Date.now()
   const merged = [...existing]
 
   for (const newItem of newKnowledge) {
@@ -639,7 +650,11 @@ export function mergeKnowledge(
 
     for (const existingItem of merged) {
       // Skip already superseded items
-      if (existingItem.valid_until && existingItem.valid_until < Date.now()) {
+      if (
+        existingItem.valid_until !== null &&
+        existingItem.valid_until !== undefined &&
+        existingItem.valid_until < now
+      ) {
         continue
       }
 
@@ -669,19 +684,36 @@ export function mergeKnowledge(
 
     // Handle supersession
     if (supersededItem) {
-      supersededItem.valid_until = newItem.firstSeen
-      supersededItem.superseded_by = newItem.id
+      supersededItem.valid_until = newItem.valid_from ?? newItem.firstSeen
+      if (newItem.id) {
+        supersededItem.superseded_by = newItem.id
+      }
       merged.push(newItem)
     } else if (!foundMatch) {
       merged.push(newItem)
     }
   }
 
-  // Filter out expired knowledge and sort by confidence
-  return merged
-    .filter((k) => !k.valid_until || k.valid_until > Date.now())
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 50)
+  // Keep expired items for history, but always prioritize active items.
+  const active = merged.filter(
+    (k) => k.valid_until === null || k.valid_until === undefined || k.valid_until > now
+  )
+  const expired = merged.filter(
+    (k) => k.valid_until !== null && k.valid_until !== undefined && k.valid_until <= now
+  )
+
+  active.sort((a, b) => {
+    if (b.confidence !== a.confidence) return b.confidence - a.confidence
+    return b.lastReinforced - a.lastReinforced
+  })
+  expired.sort((a, b) => {
+    const aUntil = a.valid_until ?? 0
+    const bUntil = b.valid_until ?? 0
+    if (bUntil !== aUntil) return bUntil - aUntil
+    return b.confidence - a.confidence
+  })
+
+  return [...active, ...expired].slice(0, maxEntries)
 }
 
 /**
@@ -747,7 +779,6 @@ export function checkConsolidationTriggers(
   const workHistorySize = memory.workHistory?.length ?? 0
   const weeklySummariesSize = memory.weeklySummaries?.length ?? 0
   const monthlySummariesSize = memory.monthlySummaries?.length ?? 0
-  // Note: Entity pruning happens at extraction time in hook.ts, not during aggregation
 
   return {
     needsL0toL1: workHistorySize > config.work_history_threshold,
@@ -773,7 +804,8 @@ export async function performAggregations(
   now: number,
   summarize: SummarizeFunction,
   config: HierarchicalMemoryConfig = DEFAULT_HIERARCHICAL_CONFIG,
-  consolidationConfig: ConsolidationConfig = DEFAULT_CONSOLIDATION_CONFIG
+  consolidationConfig: ConsolidationConfig = DEFAULT_CONSOLIDATION_CONFIG,
+  semanticClusteringConfig: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG
 ): Promise<UserMemory> {
   if (!config.enabled) {
     return memory
@@ -892,12 +924,8 @@ export async function performAggregations(
     updated.longTermKnowledge = await extractLongTermKnowledge(
       updated.monthlySummaries,
       updated.longTermKnowledge,
-      summarize
-    )
-
-    // Limit knowledge entries
-    updated.longTermKnowledge = updated.longTermKnowledge.slice(
-      0,
+      summarize,
+      semanticClusteringConfig,
       config.long_term_knowledge_limit
     )
 

@@ -89,7 +89,7 @@ export interface WorkHistoryEntry {
    */
   valid_from?: number
   /**
-   * When this fact stopped being valid.
+   * First timestamp when this fact is no longer valid (exclusive upper bound).
    * null/undefined = ongoing (still valid today).
    */
   valid_until?: number | null
@@ -192,7 +192,7 @@ export interface LongTermKnowledge {
    */
   valid_from?: number
   /**
-   * When this knowledge expired/was superseded.
+   * First timestamp when this knowledge is no longer valid (exclusive upper bound).
    * null/undefined = ongoing/still valid
    */
   valid_until?: number | null
@@ -542,7 +542,10 @@ export interface EntityMemoryConfig {
   max_entities: number
   /** Maximum relationships to track (default: 500) */
   max_relationships: number
-  /** Minimum mentions to persist entity (default: 2) */
+  /**
+   * Minimum mentions threshold used for retention priority and injection gating (default: 2).
+   * Note: Entities below this may still be retained if the graph is under capacity.
+   */
   min_mentions: number
   /** Minimum confidence to include in injection (default: 0.4) */
   injection_confidence_threshold: number

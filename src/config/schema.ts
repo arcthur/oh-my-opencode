@@ -407,6 +407,8 @@ const UserMemoryEntityTypeSchema = z.enum([
   "concept",
 ])
 
+const UserMemoryDisclosureLevelSchema = z.enum(["minimal", "standard", "full"])
+
 /** Hierarchical Memory override configuration */
 export const HierarchicalMemoryConfigOverrideSchema = z.object({
   enabled: z.boolean(),
@@ -427,6 +429,32 @@ export const EntityMemoryConfigOverrideSchema = z.object({
   extract_types: z.array(UserMemoryEntityTypeSchema),
 }).partial()
 
+/** Temporal Validity override configuration */
+export const TemporalValidityConfigOverrideSchema = z.object({
+  enabled: z.boolean(),
+  staleness_threshold: z.number().min(0).max(1),
+  decay_factor: z.number().min(0).max(1),
+  include_expired: z.boolean(),
+}).partial()
+
+/** Size-based consolidation override configuration */
+export const ConsolidationConfigOverrideSchema = z.object({
+  enabled: z.boolean(),
+  work_history_threshold: z.number().min(0).max(100000),
+  weekly_summaries_threshold: z.number().min(0).max(100000),
+  monthly_summaries_threshold: z.number().min(0).max(100000),
+}).partial()
+
+/** Semantic clustering override configuration */
+export const SemanticClusteringConfigOverrideSchema = z.object({
+  enabled: z.boolean(),
+  high_confidence_threshold: z.number().min(0).max(1),
+  candidate_threshold: z.number().min(0).max(1),
+  max_llm_calls: z.number().min(0).max(1000),
+  use_synonyms: z.boolean(),
+  use_stemming: z.boolean(),
+}).partial()
+
 /** User Memory Configuration - persistent memory across sessions */
 export const UserMemoryConfigSchema = z.object({
   /** Enable user memory persistence (default: true) */
@@ -441,6 +469,10 @@ export const UserMemoryConfigSchema = z.object({
   auto_inject: z.boolean().default(true),
   hierarchical_memory: HierarchicalMemoryConfigOverrideSchema.optional(),
   entity_memory: EntityMemoryConfigOverrideSchema.optional(),
+  temporal_validity: TemporalValidityConfigOverrideSchema.optional(),
+  consolidation: ConsolidationConfigOverrideSchema.optional(),
+  semantic_clustering: SemanticClusteringConfigOverrideSchema.optional(),
+  disclosure_level: UserMemoryDisclosureLevelSchema.optional(),
 })
 
 /** Org Memory Configuration - project/team memory shared via repo */

@@ -1,10 +1,11 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
-import type { UserMemory, WorkHistoryEntry, UserMemoryConfig, PatternStats, FrequentPatternConfig, TemporalValidityConfig } from "./types"
-import { DEFAULT_USER_MEMORY, CURRENT_SCHEMA_VERSION, DEFAULT_PATTERN_STATS, DEFAULT_PATTERN_CONFIG, DEFAULT_TEMPORAL_VALIDITY_CONFIG } from "./types"
+import type { UserMemory, WorkHistoryEntry, UserMemoryConfig, PatternStats, FrequentPatternConfig, TemporalValidityConfig, EntityMemoryConfig } from "./types"
+import { DEFAULT_USER_MEMORY, CURRENT_SCHEMA_VERSION, DEFAULT_PATTERN_STATS, DEFAULT_PATTERN_CONFIG, DEFAULT_TEMPORAL_VALIDITY_CONFIG, DEFAULT_ENTITY_MEMORY_CONFIG } from "./types"
 import { log } from "../../shared/logger"
 import { filterKnowledgeForInjection, filterWorkHistoryForInjection } from "./temporal-validity"
+import { calculateEntityNodeConfidence } from "./entity-confidence"
 
 const MEMORY_DIR = join(homedir(), ".opencode", "memory")
 const USER_MEMORY_FILE = join(MEMORY_DIR, "user.json")
@@ -188,6 +189,12 @@ export function clearUserMemory(): void {
  */
 export type DisclosureLevel = "minimal" | "standard" | "full"
 
+export interface MemorySummaryOptions {
+  temporalConfig?: TemporalValidityConfig
+  disclosureLevel?: DisclosureLevel
+  entityConfig?: EntityMemoryConfig
+}
+
 /**
  * Get memory summary for injection
  *
@@ -202,11 +209,13 @@ export type DisclosureLevel = "minimal" | "standard" | "full"
  * - L1: Weekly summary (this week's progress)
  * - L0: Recent work history (last 3 entries)
  */
-export function getMemorySummary(
-  temporalConfig: TemporalValidityConfig = DEFAULT_TEMPORAL_VALIDITY_CONFIG,
-  disclosureLevel: DisclosureLevel = "standard"
+export function buildMemorySummary(
+  memory: UserMemory,
+  options: MemorySummaryOptions = {}
 ): string | null {
-  const memory = loadUserMemory()
+  const temporalConfig = options.temporalConfig ?? DEFAULT_TEMPORAL_VALIDITY_CONFIG
+  const disclosureLevel = options.disclosureLevel ?? "standard"
+  const entityConfig = options.entityConfig ?? DEFAULT_ENTITY_MEMORY_CONFIG
   const sections: string[] = []
 
   // ============================================================================
@@ -308,12 +317,29 @@ export function getMemorySummary(
   }
 
   // Entity Graph (full disclosure only)
-  if (memory.entityGraph && Object.keys(memory.entityGraph.nodes).length > 0) {
+  if (
+    entityConfig.enabled &&
+    memory.entityGraph &&
+    Object.keys(memory.entityGraph.nodes).length > 0
+  ) {
     const entityLines: string[] = []
     const nodesByType: Record<string, string[]> = {}
+    const allowedTypes = new Set(entityConfig.extract_types)
+    const nodeThreshold = entityConfig.injection_confidence_threshold
+    const minMentions = entityConfig.min_mentions
+
+    const eligibleNodes = Object.values(memory.entityGraph.nodes)
+      .filter((node) => allowedTypes.has(node.type))
+      .filter((node) => node.mentionCount >= minMentions)
+      .filter((node) => calculateEntityNodeConfidence(node) >= nodeThreshold)
+      .sort((a, b) => {
+        if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount
+        return b.lastSeen - a.lastSeen
+      })
+    const eligibleNodeIds = new Set(eligibleNodes.map((n) => n.id))
 
     // Group entities by type
-    for (const node of Object.values(memory.entityGraph.nodes)) {
+    for (const node of eligibleNodes) {
       if (!nodesByType[node.type]) nodesByType[node.type] = []
       const aliases = node.aliases.length > 0 ? ` (aka ${node.aliases.slice(0, 2).join(", ")})` : ""
       nodesByType[node.type].push(`${node.name}${aliases}`)
@@ -335,6 +361,8 @@ export function getMemorySummary(
 
     // Add key relationships
     const topRelations = memory.entityGraph.relationships
+      .filter((r) => eligibleNodeIds.has(r.subject) && eligibleNodeIds.has(r.object))
+      .filter((r) => r.confidence >= nodeThreshold)
       .sort((a, b) => b.confidence - a.confidence)
       .slice(0, 5)  // More relations in full mode
     if (topRelations.length > 0) {
@@ -360,6 +388,15 @@ export function getMemorySummary(
   if (sections.length === 0) return null
 
   return `[User Memory - Full Context]\n${sections.join("\n\n")}\n[End User Memory]`
+}
+
+export function getMemorySummary(
+  temporalConfig: TemporalValidityConfig = DEFAULT_TEMPORAL_VALIDITY_CONFIG,
+  disclosureLevel: DisclosureLevel = "standard",
+  entityConfig: EntityMemoryConfig = DEFAULT_ENTITY_MEMORY_CONFIG
+): string | null {
+  const memory = loadUserMemory()
+  return buildMemorySummary(memory, { temporalConfig, disclosureLevel, entityConfig })
 }
 
 // ============================================================================

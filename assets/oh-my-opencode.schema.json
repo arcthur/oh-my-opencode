@@ -2750,6 +2750,162 @@
         "auto_inject": {
           "default": true,
           "type": "boolean"
+        },
+        "hierarchical_memory": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "weekly_summaries_limit": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 520
+            },
+            "monthly_summaries_limit": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 120
+            },
+            "long_term_knowledge_limit": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5000
+            },
+            "aggregation_model": {
+              "type": "string",
+              "enum": [
+                "haiku",
+                "sonnet",
+                "opus"
+              ]
+            },
+            "auto_aggregate": {
+              "type": "boolean"
+            }
+          }
+        },
+        "entity_memory": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "max_entities": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 20000
+            },
+            "max_relationships": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "min_mentions": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "injection_confidence_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "extract_types": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "project",
+                  "technology",
+                  "organization",
+                  "concept"
+                ]
+              }
+            }
+          }
+        },
+        "temporal_validity": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "staleness_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "decay_factor": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "include_expired": {
+              "type": "boolean"
+            }
+          }
+        },
+        "consolidation": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "work_history_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "weekly_summaries_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "monthly_summaries_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            }
+          }
+        },
+        "semantic_clustering": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "high_confidence_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "candidate_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "max_llm_calls": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "use_synonyms": {
+              "type": "boolean"
+            },
+            "use_stemming": {
+              "type": "boolean"
+            }
+          }
+        },
+        "disclosure_level": {
+          "type": "string",
+          "enum": [
+            "minimal",
+            "standard",
+            "full"
+          ]
         }
       }
     },

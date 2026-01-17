@@ -341,7 +341,7 @@ describe("aggregation", () => {
         },
       ]
 
-      const merged = mergeKnowledge(existing, newKnowledge)
+      const merged = mergeKnowledge(existing, newKnowledge, 50)
 
       expect(merged).toHaveLength(2)
     })
@@ -372,7 +372,7 @@ describe("aggregation", () => {
         },
       ]
 
-      const merged = mergeKnowledge(existing, newKnowledge)
+      const merged = mergeKnowledge(existing, newKnowledge, 50)
 
       expect(merged).toHaveLength(1)
       // Now 3 unique months: 2024-11, 2024-12, 2025-01 => confidence = 3/5 = 0.6
@@ -381,28 +381,85 @@ describe("aggregation", () => {
       expect(merged[0].sourceMonths).toContain("2025-01")
     })
 
-    test("limits to 50 entries", () => {
+    test("respects caller-provided limit", () => {
+      //#given
+      const now = Date.now()
+      const existing: LongTermKnowledge[] = []
+      const newKnowledge: LongTermKnowledge[] = Array.from({ length: 60 }, (_, i) => ({
+        category: "lesson",
+        content: `insight-${i}-token`,
+        confidence: 0.6,
+        firstSeen: now,
+        lastReinforced: now,
+        sourceMonths: ["2025-01"],
+      }))
+
+      //#when
+      const merged = mergeKnowledge(existing, newKnowledge, 100)
+
+      //#then
+      expect(merged).toHaveLength(60)
+    })
+
+    test("enforces limit to avoid unbounded growth", () => {
+      //#given
+      const now = Date.now()
       const existing: LongTermKnowledge[] = Array.from({ length: 45 }, (_, i) => ({
-        category: "lesson" as const,
-        content: `Knowledge item ${i}`,
-        confidence: 0.5,
-        firstSeen: Date.now(),
-        lastReinforced: Date.now(),
+        category: "lesson",
+        content: `existing-${i}`,
+        confidence: 0.6,
+        firstSeen: now,
+        lastReinforced: now,
         sourceMonths: ["2025-01"],
       }))
-
       const newKnowledge: LongTermKnowledge[] = Array.from({ length: 10 }, (_, i) => ({
-        category: "pattern" as const,
-        content: `New knowledge ${i}`,
-        confidence: 0.4,
-        firstSeen: Date.now(),
-        lastReinforced: Date.now(),
-        sourceMonths: ["2025-01"],
+        category: "pattern",
+        content: `new-${i}`,
+        confidence: 0.6,
+        firstSeen: now,
+        lastReinforced: now,
+        sourceMonths: ["2025-02"],
       }))
 
-      const merged = mergeKnowledge(existing, newKnowledge)
+      //#when
+      const merged = mergeKnowledge(existing, newKnowledge, 50)
 
-      expect(merged.length).toBeLessThanOrEqual(50)
+      //#then
+      expect(merged).toHaveLength(50)
+    })
+
+    test("retains expired knowledge items for history (not injected by default)", () => {
+      //#given
+      const now = Date.now()
+      const existing: LongTermKnowledge[] = [
+        {
+          category: "lesson",
+          content: "Old preference that was superseded",
+          confidence: 1.0,
+          firstSeen: now - 100_000,
+          lastReinforced: now - 90_000,
+          valid_until: now - 1,
+          sourceMonths: ["2025-01"],
+        },
+        {
+          category: "lesson",
+          content: "Active preference",
+          confidence: 0.8,
+          firstSeen: now - 50_000,
+          lastReinforced: now - 10_000,
+          sourceMonths: ["2025-02"],
+        },
+      ]
+
+      const newKnowledge: LongTermKnowledge[] = []
+
+      //#when
+      const merged = mergeKnowledge(existing, newKnowledge, 50)
+
+      //#then
+      expect(merged).toHaveLength(2)
+      expect(merged[0]?.content).toBe("Active preference")
+      expect(merged.some((k) => k.content === "Old preference that was superseded")).toBe(true)
     })
   })
 
@@ -620,6 +677,46 @@ describe("aggregation", () => {
       // Should have 3 monthly summaries (Dec, Jan, Feb)
       expect(result.monthlySummaries?.length).toBe(3)
       expect(result.lastMonthlyAggregation).toBe(mar2025)
+    })
+
+    test("trims long-term knowledge to long_term_knowledge_limit on extraction", async () => {
+      //#given
+      const day = 24 * 60 * 60 * 1000
+      const now = new Date("2025-04-15T00:00:00Z").getTime()
+      const memory: UserMemory = {
+        preferences: {},
+        environment: {},
+        workHistory: [],
+        customRules: [],
+        frequentPatterns: [],
+        explicitMemories: [],
+        lastUpdated: now,
+        schemaVersion: 3,
+        weeklySummaries: [],
+        monthlySummaries: [],
+        longTermKnowledge: Array.from({ length: 55 }, (_, i) => ({
+          category: "lesson",
+          content: `insight-${i}-token`,
+          confidence: 0.6,
+          firstSeen: now,
+          lastReinforced: now,
+          sourceMonths: ["2025-01"],
+        })),
+        lastKnowledgeExtraction: now - 100 * day, // force extraction boundary
+      }
+
+      //#when
+      const result = await performAggregations(memory, now, mockSummarizer, {
+        enabled: true,
+        weekly_summaries_limit: 12,
+        monthly_summaries_limit: 12,
+        long_term_knowledge_limit: 50,
+        aggregation_model: "haiku",
+        auto_aggregate: true,
+      })
+
+      //#then
+      expect(result.longTermKnowledge).toHaveLength(50)
     })
   })
 })

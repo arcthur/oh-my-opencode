@@ -24,6 +24,11 @@ export const STOPWORDS = new Set([
   "so", "than", "too", "very", "just", "also", "now", "here", "there",
 ])
 
+export interface TextPreprocessOptions {
+  useStemming?: boolean
+  useSynonyms?: boolean
+}
+
 // ============================================================================
 // Minimal Porter Stemmer
 // ============================================================================
@@ -225,21 +230,43 @@ export function getCanonicalForm(word: string): string {
 /**
  * Preprocess text for comparison:
  * 1. Lowercase
- * 2. Replace underscores/hyphens with spaces
- * 3. Tokenize
+ * 2. Tokenize by whitespace
+ * 3. Preserve compound tokens (snake_case, kebab-case) and also add split parts
  * 4. Remove stopwords
  * 5. Stem each word
  * 6. Map to canonical synonyms
  */
-export function preprocessText(text: string): Set<string> {
+export function preprocessText(
+  text: string,
+  options: TextPreprocessOptions = {}
+): Set<string> {
+  const useStemming = options.useStemming ?? true
+  const useSynonyms = options.useSynonyms ?? true
+
+  const rawTokens = text
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9_+#-]/g, ""))
+    .filter(Boolean)
+
+  const tokens: string[] = []
+  for (const token of rawTokens) {
+    tokens.push(token)
+
+    // For snake_case / kebab-case, also add split parts so "snake case" matches "snake_case".
+    // Keep the original compound token to preserve domain-specific variants (e.g., snake_case).
+    if (token.includes("_") || token.includes("-")) {
+      for (const part of token.split(/[_-]+/g)) {
+        if (part && part !== token) tokens.push(part)
+      }
+    }
+  }
+
   return new Set(
-    text
-      .toLowerCase()
-      .replace(/[_-]/g, " ")
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !STOPWORDS.has(w))
-      .map(stem)
-      .map(getCanonicalForm)
+    tokens
+      .filter((w) => w.length > 1 && !STOPWORDS.has(w))
+      .map((w) => (useSynonyms ? getCanonicalForm(w) : w.toLowerCase()))
+      .map((w) => (useStemming && /^[a-z]+$/.test(w) ? stem(w) : w))
   )
 }
 
@@ -249,12 +276,15 @@ export function preprocessText(text: string): Set<string> {
 export function expandWithSynonyms(words: Set<string>): Set<string> {
   const expanded = new Set(words)
 
+  const normalize = (word: string): string => word.toLowerCase().replace(/[_-]/g, "")
+
   for (const word of words) {
+    const normalizedWord = normalize(word)
     // Find all words in the same synonym group
     for (const group of SYNONYM_GROUPS) {
-      const lowerGroup = group.map((s) => s.toLowerCase().replace(/[_-]/g, ""))
-      if (lowerGroup.includes(word.toLowerCase())) {
-        for (const synonym of lowerGroup) {
+      const normalizedGroup = group.map(normalize)
+      if (normalizedGroup.includes(normalizedWord)) {
+        for (const synonym of normalizedGroup) {
           expanded.add(synonym)
         }
         break

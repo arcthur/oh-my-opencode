@@ -7,6 +7,7 @@
 
 import type { EntityType, EntityNode, EntityGraph, EntityRelationship, RelationshipPredicate } from "./types"
 import { normalizeEntityName, generateEntityId, type ExtractedEntity, mergeIntoEntityNode } from "./entity-extraction"
+import { calculateCountBasedConfidence } from "./entity-confidence"
 
 // ============================================================================
 // Similarity Configuration
@@ -292,10 +293,6 @@ function buildRelationshipId(
   return `rel:${subject}|${predicate}|${object}`
 }
 
-function calculateRelationshipConfidence(observationCount: number): number {
-  return Math.min(1, observationCount / 5)
-}
-
 function addOrUpdateRelationship(
   graph: EntityGraph,
   subject: string,
@@ -313,7 +310,7 @@ function addOrUpdateRelationship(
       subject,
       predicate,
       object,
-      confidence: calculateRelationshipConfidence(1),
+      confidence: calculateCountBasedConfidence(1, 5),
       observationCount: 1,
       firstObserved: observation.timestamp,
       lastObserved: observation.timestamp,
@@ -335,7 +332,7 @@ function addOrUpdateRelationship(
   const updatedRelationship: EntityRelationship = {
     ...existing,
     observationCount: nextCount,
-    confidence: calculateRelationshipConfidence(nextCount),
+    confidence: calculateCountBasedConfidence(nextCount, 5),
     firstObserved: Math.min(existing.firstObserved, observation.timestamp),
     lastObserved: Math.max(existing.lastObserved, observation.timestamp),
     contextSamples: nextContextSamples,

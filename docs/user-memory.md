@@ -109,6 +109,16 @@ interface FactsValidRange {
 }
 ```
 
+### Validity Semantics
+
+`valid_from` is **inclusive** and `valid_until` is **exclusive** (half-open interval):
+
+```text
+valid at time t  <=>  t >= valid_from  &&  (valid_until is null/undefined || t < valid_until)
+```
+
+This avoids overlap during supersession (e.g., `old.valid_until = new.valid_from`).
+
 ### Configuration
 
 ```typescript
@@ -119,6 +129,13 @@ interface TemporalValidityConfig {
   include_expired: boolean   // default: false
 }
 ```
+
+Recommended ranges:
+- `staleness_threshold`: 0.6–0.8 (lower = stricter injection)
+- `decay_factor`: 0.3–0.7 (higher = stronger decay penalty)
+- `include_expired`: keep `false` unless you explicitly want historical context
+
+Configured via `user_memory.temporal_validity`.
 
 ---
 
@@ -211,11 +228,19 @@ interface EntityMemoryConfig {
   enabled: boolean                    // default: false (opt-in)
   max_entities: number                // default: 200
   max_relationships: number           // default: 500
-  min_mentions: number                // default: 2
+  min_mentions: number                // default: 2 (retention priority + injection gating)
   injection_confidence_threshold: number  // default: 0.4
   extract_types: EntityType[]         // default: all
 }
 ```
+
+Recommended ranges:
+- `min_mentions`: 2–5 (higher = less noisy injection)
+- `injection_confidence_threshold`: 0.3–0.7 (higher = fewer entities/relations injected)
+- `max_entities`: 100–500 (depends on how many repos/projects you work on)
+- `max_relationships`: 300–2000 (keep proportional to `max_entities`)
+
+Configured via `user_memory.entity_memory`.
 
 **Note**:
 - Entity Memory is **disabled by default** (`enabled: false`). Must be explicitly enabled.
@@ -262,6 +287,14 @@ interface SemanticClusteringConfig {
 }
 ```
 
+Recommended ranges:
+- `high_confidence_threshold`: 0.55–0.7 (lower = more aggressive auto-merge)
+- `candidate_threshold`: 0.2–0.35 (lower = more LLM calls / merge attempts)
+- `max_llm_calls`: 0–50 (set to 0 to disable LLM-assisted merges entirely)
+- `use_synonyms` / `use_stemming`: keep `true` unless you see false positives
+
+Configured via `user_memory.semantic_clustering`.
+
 ### Domain Synonyms
 
 ```typescript
@@ -290,6 +323,13 @@ interface ConsolidationConfig {
 }
 ```
 
+Recommended ranges:
+- `work_history_threshold`: 20–80 (lower = more frequent weekly aggregation)
+- `weekly_summaries_threshold`: 4–16
+- `monthly_summaries_threshold`: 3–12
+
+Configured via `user_memory.consolidation`.
+
 ### Trigger Logic
 
 ```typescript
@@ -312,13 +352,15 @@ Memory injection supports three levels to optimize token usage:
 type DisclosureLevel = "minimal" | "standard" | "full"
 ```
 
+Configured via `user_memory.disclosure_level`.
+
 | Level | ~Tokens | Includes |
 |-------|---------|----------|
 | minimal | ~50 | Rules + Top 3 Knowledge + Top 5 Explicit Memories |
 | standard | ~150 | + Weekly/Monthly + Preferences + Environment + Top 10 Explicit Memories |
 | full | ~300 | + Entity Graph + All Work History (max 5) + Frequent Patterns |
 
-**Note**: Currently `hook.ts` always uses `"standard"` level. The `disclosureLevel` parameter is not configurable.
+**Note**: The injection level is configurable via `user_memory.disclosure_level` (`minimal` / `standard` / `full`).
 
 ### Injection Order (Standard Level)
 
@@ -689,12 +731,12 @@ src/features/user-memory/
 
 ### Configuration
 
-| Issue | Current State |
-|-------|---------------|
-| `ConsolidationConfig` not configurable | Uses `DEFAULT_CONSOLIDATION_CONFIG` hardcoded |
-| `TemporalValidityConfig` not configurable | Uses `DEFAULT_TEMPORAL_VALIDITY_CONFIG` hardcoded |
-| `SemanticClusteringConfig` not configurable | Uses `DEFAULT_SEMANTIC_CLUSTERING_CONFIG` hardcoded |
-| `DisclosureLevel` not configurable | Always uses `"standard"` in `hook.ts:87` |
+The following settings are configurable under `user_memory`:
+
+- `user_memory.temporal_validity`
+- `user_memory.consolidation`
+- `user_memory.semantic_clustering`
+- `user_memory.disclosure_level`
 
 ### Entity Extraction
 
