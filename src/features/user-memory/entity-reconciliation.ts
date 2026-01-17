@@ -5,7 +5,7 @@
  * "JS" -> "John Smith", "React" -> "ReactJS"
  */
 
-import type { EntityType, EntityNode, EntityGraph } from "./types"
+import type { EntityType, EntityNode, EntityGraph, EntityRelationship, RelationshipPredicate } from "./types"
 import { normalizeEntityName, generateEntityId, type ExtractedEntity, mergeIntoEntityNode } from "./entity-extraction"
 
 // ============================================================================
@@ -275,6 +275,153 @@ export function addEntityToGraph(
   }
 }
 
+// ============================================================================
+// Relationship Inference (Co-occurrence)
+// ============================================================================
+
+export interface RelationshipObservation {
+  timestamp: number
+  context: string
+}
+
+function buildRelationshipId(
+  subject: string,
+  predicate: RelationshipPredicate,
+  object: string
+): string {
+  return `rel:${subject}|${predicate}|${object}`
+}
+
+function calculateRelationshipConfidence(observationCount: number): number {
+  return Math.min(1, observationCount / 5)
+}
+
+function addOrUpdateRelationship(
+  graph: EntityGraph,
+  subject: string,
+  predicate: RelationshipPredicate,
+  object: string,
+  observation: RelationshipObservation
+): EntityGraph {
+  const id = buildRelationshipId(subject, predicate, object)
+  const context = observation.context.trim().slice(0, 200)
+
+  const existingIndex = graph.relationships.findIndex((r) => r.id === id)
+  if (existingIndex < 0) {
+    const relationship: EntityRelationship = {
+      id,
+      subject,
+      predicate,
+      object,
+      confidence: calculateRelationshipConfidence(1),
+      observationCount: 1,
+      firstObserved: observation.timestamp,
+      lastObserved: observation.timestamp,
+      contextSamples: context ? [context] : [],
+    }
+    return {
+      ...graph,
+      lastExtraction: Math.max(graph.lastExtraction, observation.timestamp),
+      relationships: [...graph.relationships, relationship],
+    }
+  }
+
+  const existing = graph.relationships[existingIndex]
+  const nextCount = existing.observationCount + 1
+  const nextContextSamples = context
+    ? [context, ...existing.contextSamples.filter((c) => c !== context)].slice(0, 3)
+    : existing.contextSamples
+
+  const updatedRelationship: EntityRelationship = {
+    ...existing,
+    observationCount: nextCount,
+    confidence: calculateRelationshipConfidence(nextCount),
+    firstObserved: Math.min(existing.firstObserved, observation.timestamp),
+    lastObserved: Math.max(existing.lastObserved, observation.timestamp),
+    contextSamples: nextContextSamples,
+  }
+
+  const nextRelationships = [...graph.relationships]
+  nextRelationships[existingIndex] = updatedRelationship
+
+  return {
+    ...graph,
+    lastExtraction: Math.max(graph.lastExtraction, observation.timestamp),
+    relationships: nextRelationships,
+  }
+}
+
+function uniqueIds(ids: string[]): string[] {
+  return Array.from(new Set(ids))
+}
+
+/**
+ * Add extracted entities and inferred relationships from a single observation.
+ * Relationships are inferred via simple type-aware co-occurrence rules:
+ * - person + project => works_on
+ * - project + technology => uses
+ * - person + person => collaborates_with (canonical ordering)
+ */
+export function addEntitiesAndCooccurrenceRelationships(
+  graph: EntityGraph,
+  extractedEntities: ExtractedEntity[],
+  observation: RelationshipObservation
+): EntityGraph {
+  let updated = graph
+
+  for (const entity of extractedEntities) {
+    updated = addEntityToGraph(updated, entity)
+  }
+
+  const people = uniqueIds(
+    extractedEntities
+      .filter((e) => e.type === "person")
+      .map((e) => findCanonicalEntity(updated, e.name, e.type) ?? e.id)
+  )
+  const projects = uniqueIds(
+    extractedEntities
+      .filter((e) => e.type === "project")
+      .map((e) => findCanonicalEntity(updated, e.name, e.type) ?? e.id)
+  )
+  const technologies = uniqueIds(
+    extractedEntities
+      .filter((e) => e.type === "technology")
+      .map((e) => findCanonicalEntity(updated, e.name, e.type) ?? e.id)
+  )
+
+  // person -> project
+  for (const person of people) {
+    for (const project of projects) {
+      updated = addOrUpdateRelationship(updated, person, "works_on", project, observation)
+    }
+  }
+
+  // project -> technology
+  for (const project of projects) {
+    for (const technology of technologies) {
+      updated = addOrUpdateRelationship(updated, project, "uses", technology, observation)
+    }
+  }
+
+  // person <-> person (canonicalized)
+  if (people.length >= 2) {
+    for (let i = 0; i < people.length; i++) {
+      for (let j = i + 1; j < people.length; j++) {
+        const [a, b] = [people[i], people[j]].sort()
+        updated = addOrUpdateRelationship(updated, a, "collaborates_with", b, observation)
+      }
+    }
+  }
+
+  // Keep graphVersion stable; lastExtraction handled by relationship updates above.
+  // Ensure lastExtraction still advances when no relationships were inferred.
+  if (updated.lastExtraction < observation.timestamp) {
+    return { ...updated, lastExtraction: observation.timestamp }
+  }
+
+  return updated
+}
+
 /**
  * Prune entity graph to stay within limits
  */
@@ -284,29 +431,40 @@ export function pruneEntityGraph(
   maxRelationships: number = 500,
   minMentions: number = 2
 ): EntityGraph {
-  // Filter nodes by minimum mentions
-  const qualifiedNodes = Object.values(graph.nodes)
-    .filter(n => n.mentionCount >= minMentions)
-    .sort((a, b) => b.lastSeen - a.lastSeen) // Most recent first
+  const sortedNodes = Object.values(graph.nodes)
+    .sort((a, b) => {
+      const aQualified = a.mentionCount >= minMentions
+      const bQualified = b.mentionCount >= minMentions
+      if (aQualified !== bQualified) return aQualified ? -1 : 1
+
+      if (a.mentionCount !== b.mentionCount) {
+        return b.mentionCount - a.mentionCount
+      }
+
+      return b.lastSeen - a.lastSeen
+    })
     .slice(0, maxEntities)
 
-  const qualifiedIds = new Set(qualifiedNodes.map(n => n.id))
+  const keptIds = new Set(sortedNodes.map(n => n.id))
 
   // Rebuild nodes
   const prunedNodes: Record<string, EntityNode> = {}
-  for (const node of qualifiedNodes) {
+  for (const node of sortedNodes) {
     prunedNodes[node.id] = node
   }
 
   // Filter relationships
   const prunedRelationships = graph.relationships
-    .filter(r => qualifiedIds.has(r.subject) && qualifiedIds.has(r.object))
-    .sort((a, b) => b.confidence - a.confidence)
+    .filter(r => keptIds.has(r.subject) && keptIds.has(r.object))
+    .sort((a, b) => {
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence
+      return b.lastObserved - a.lastObserved
+    })
     .slice(0, maxRelationships)
 
   // Rebuild alias index
   const prunedAliasIndex: Record<string, string> = {}
-  for (const node of qualifiedNodes) {
+  for (const node of sortedNodes) {
     prunedAliasIndex[`${node.type}:${normalizeEntityName(node.name)}`] = node.id
     for (const alias of node.aliases) {
       prunedAliasIndex[`${node.type}:${normalizeEntityName(alias)}`] = node.id

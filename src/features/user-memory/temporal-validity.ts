@@ -27,10 +27,13 @@ import {
 /**
  * Calculate staleness score for a fact at a given query time.
  *
- * Uses exponential decay: staleness = 1 - exp(-t/halfLife)
- * At t=halfLife, staleness ≈ 0.5
- * At t=2*halfLife, staleness ≈ 0.75
- * At t=3*halfLife, staleness ≈ 0.875
+ * Uses half-life based exponential decay:
+ * staleness = 1 - exp(-ln(2) * t / halfLife)
+ *
+ * Properties:
+ * - At t=halfLife, staleness = 0.5
+ * - At t=2*halfLife, staleness = 0.75
+ * - At t=3*halfLife, staleness = 0.875
  *
  * @param fact - The fact with temporal validity
  * @param queryTime - The time point to evaluate at (default: now)
@@ -82,8 +85,9 @@ export function calculateStaleness(
     return 0.0 // Fresh
   }
 
-  // Exponential decay: staleness = 1 - exp(-t/halfLife)
-  const staleness = 1 - Math.exp(-timeSinceActive / halfLifeMs)
+  // Half-life based decay:
+  // staleness = 1 - exp(-ln(2) * t / halfLife)
+  const staleness = 1 - Math.exp(-Math.LN2 * timeSinceActive / halfLifeMs)
 
   return Math.min(staleness, 1.0)
 }

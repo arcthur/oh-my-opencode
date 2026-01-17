@@ -399,6 +399,34 @@ export const RuntimeTrackerConfigSchema = z.object({
   hint_cooldown_ms: z.number().min(0).default(60000),
 })
 
+const UserMemoryEntityTypeSchema = z.enum([
+  "person",
+  "project",
+  "technology",
+  "organization",
+  "concept",
+])
+
+/** Hierarchical Memory override configuration */
+export const HierarchicalMemoryConfigOverrideSchema = z.object({
+  enabled: z.boolean(),
+  weekly_summaries_limit: z.number().min(0).max(520),
+  monthly_summaries_limit: z.number().min(0).max(120),
+  long_term_knowledge_limit: z.number().min(0).max(5000),
+  aggregation_model: z.enum(["haiku", "sonnet", "opus"]),
+  auto_aggregate: z.boolean(),
+}).partial()
+
+/** Entity Memory override configuration */
+export const EntityMemoryConfigOverrideSchema = z.object({
+  enabled: z.boolean(),
+  max_entities: z.number().min(0).max(20000),
+  max_relationships: z.number().min(0).max(100000),
+  min_mentions: z.number().min(1).max(1000),
+  injection_confidence_threshold: z.number().min(0).max(1),
+  extract_types: z.array(UserMemoryEntityTypeSchema),
+}).partial()
+
 /** User Memory Configuration - persistent memory across sessions */
 export const UserMemoryConfigSchema = z.object({
   /** Enable user memory persistence (default: true) */
@@ -411,6 +439,8 @@ export const UserMemoryConfigSchema = z.object({
   max_history_entries: z.number().min(10).max(200).default(50),
   /** Auto-inject memory context on session start (default: true) */
   auto_inject: z.boolean().default(true),
+  hierarchical_memory: HierarchicalMemoryConfigOverrideSchema.optional(),
+  entity_memory: EntityMemoryConfigOverrideSchema.optional(),
 })
 
 /** Org Memory Configuration - project/team memory shared via repo */

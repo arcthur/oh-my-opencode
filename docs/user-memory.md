@@ -69,11 +69,11 @@ type StalenessCategory =
 ### Staleness Calculation
 
 ```typescript
-// Exponential decay: staleness = 1 - exp(-t / halfLife)
+// Half-life based decay: staleness = 1 - exp(-ln(2) * t / halfLife)
 function calculateStaleness(fact, queryTime): number {
   const halfLife = STALENESS_HALF_LIFE_MS[fact.staleness_category]
   const timeSinceActive = queryTime - (fact.lastReinforced ?? fact.valid_from)
-  return 1 - Math.exp(-timeSinceActive / halfLife)
+  return 1 - Math.exp(-Math.LN2 * timeSinceActive / halfLife)
 }
 
 // Half-life values
@@ -191,6 +191,18 @@ const SIMILARITY_THRESHOLDS = {
   concept: 0.80
 }
 ```
+
+### Relationship Inference (Co-occurrence)
+
+Relationships are inferred from a single `session.summarized` observation (i.e., one work entry) using type-aware co-occurrence rules:
+
+| Entities | Predicate | Direction |
+|----------|-----------|-----------|
+| person + project | `works_on` | person → project |
+| project + technology | `uses` | project → technology |
+| person + person | `collaborates_with` | canonical ordering (undirected) |
+
+Each observation increments `observationCount` and updates `confidence = min(1, observationCount / 5)`.
 
 ### Entity Configuration
 

@@ -135,6 +135,45 @@ describe("disabled_mcps schema", () => {
   })
 })
 
+describe("user_memory schema", () => {
+  test("should accept hierarchical_memory/entity_memory overrides", () => {
+    //#given
+    const config = {
+      user_memory: {
+        enabled: true,
+        hierarchical_memory: {
+          enabled: false,
+          weekly_summaries_limit: 5,
+          aggregation_model: "sonnet",
+        },
+        entity_memory: {
+          enabled: true,
+          max_entities: 10,
+          extract_types: ["person", "project"],
+        },
+      },
+    }
+
+    //#when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.user_memory?.hierarchical_memory).toEqual({
+        enabled: false,
+        weekly_summaries_limit: 5,
+        aggregation_model: "sonnet",
+      })
+      expect(result.data.user_memory?.entity_memory).toEqual({
+        enabled: true,
+        max_entities: 10,
+        extract_types: ["person", "project"],
+      })
+    }
+  })
+})
+
 describe("AgentOverrideConfigSchema", () => {
   describe("category field", () => {
     test("accepts category as optional string", () => {

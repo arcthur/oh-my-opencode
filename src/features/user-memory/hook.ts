@@ -6,7 +6,7 @@ import type {
   EventInput,
   MessageInput,
 } from "../../shared/hook-types"
-import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS, DEFAULT_HIERARCHICAL_CONFIG, DEFAULT_ENTITY_MEMORY_CONFIG } from "./types"
+import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS, DEFAULT_HIERARCHICAL_CONFIG, DEFAULT_ENTITY_MEMORY_CONFIG, DEFAULT_ENTITY_GRAPH } from "./types"
 import {
   getMemorySummary,
   addWorkHistoryEntry,
@@ -24,7 +24,7 @@ import {
   type SummarizeFunction,
 } from "./aggregation"
 import { extractEntitiesFromWorkHistory } from "./entity-extraction"
-import { addEntityToGraph, pruneEntityGraph } from "./entity-reconciliation"
+import { addEntitiesAndCooccurrenceRelationships, pruneEntityGraph } from "./entity-reconciliation"
 import { log } from "../../shared/logger"
 
 /**
@@ -252,22 +252,33 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
           // Extract entities if enabled
           if (entityConfig.enabled) {
             const memory = loadUserMemory()
-            let graph = memory.entityGraph ?? {
-              nodes: {},
-              relationships: [],
-              aliasIndex: {},
-              lastExtraction: 0,
-              graphVersion: 1,
-            }
+            let graph = memory.entityGraph
+              ? {
+                  ...DEFAULT_ENTITY_GRAPH,
+                  ...memory.entityGraph,
+                  nodes: memory.entityGraph.nodes ?? {},
+                  relationships: memory.entityGraph.relationships ?? [],
+                  aliasIndex: memory.entityGraph.aliasIndex ?? {},
+                }
+              : {
+                  ...DEFAULT_ENTITY_GRAPH,
+                  nodes: {},
+                  relationships: [],
+                  aliasIndex: {},
+                }
 
-            const entities = extractEntitiesFromWorkHistory({
+            const allEntities = extractEntitiesFromWorkHistory({
               summary: briefSummary,
               project,
               timestamp: now,
             })
+            const entities = allEntities.filter((e) => entityConfig.extract_types.includes(e.type))
 
-            for (const entity of entities) {
-              graph = addEntityToGraph(graph, entity)
+            if (entities.length > 0) {
+              graph = addEntitiesAndCooccurrenceRelationships(graph, entities, {
+                timestamp: now,
+                context: `${project ?? "unknown"} - ${briefSummary.slice(0, 120)}`,
+              })
             }
 
             // Prune if too large
