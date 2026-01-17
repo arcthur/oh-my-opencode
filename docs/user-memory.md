@@ -2,25 +2,364 @@
 
 ## Overview
 
-User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing for Tree-Organized Retrieval) hierarchical memory system that enables long-term knowledge retention across sessions.
+User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing for Tree-Organized Retrieval) hierarchical memory system with three enhancement layers:
+
+1. **Temporal Validity** - Facts have valid_from/valid_until with staleness decay
+2. **Entity Memory** - Person/project/technology relationship graph (opt-in)
+3. **Semantic Clustering** - LLM-assisted knowledge deduplication
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Memory Hierarchy                                     │
+│                      Enhanced Memory Architecture                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  L3: LongTermKnowledge[]     │ Permanent │ Distilled insights, patterns     │
-│      (max 50 entries)        │           │ Extracted quarterly              │
-├──────────────────────────────┼───────────┼──────────────────────────────────┤
-│  L2: MonthlySummary[]        │ ~1 year   │ Monthly work overview            │
-│      (max 12 months)         │           │ Aggregated at month boundary     │
-├──────────────────────────────┼───────────┼──────────────────────────────────┤
-│  L1: WeeklySummary[]         │ ~3 months │ Weekly progress snapshots        │
-│      (max 12 weeks)          │           │ Aggregated at week boundary      │
-├──────────────────────────────┼───────────┼──────────────────────────────────┤
-│  L0: WorkHistoryEntry[]      │ ~7 days   │ Raw session summaries            │
-│      (max 50 entries)        │           │ Captured on session.summarized   │
+│                                                                              │
+│  RAPTOR Axis (Time)              Entity Axis (Relationships)                │
+│  ─────────────────               ───────────────────────────                │
+│                                                                              │
+│  L3: LongTermKnowledge[]  ◄────► EntityGraph                                │
+│      + valid_from/until          ├─ EntityNode[] (person/project)           │
+│      + staleness_category        └─ EntityRelationship[]                    │
+│      + effective_confidence                                                  │
+│                                                                              │
+│  L2: MonthlySummary[]                                                       │
+│      + facts_valid_range                                                    │
+│                                                                              │
+│  L1: WeeklySummary[]      ◄────── Entity extraction source                  │
+│      + facts_valid_range                                                    │
+│                                                                              │
+│  L0: WorkHistoryEntry[]   ◄────── Entity extraction source                  │
+│      + valid_from/until                                                     │
+│      + staleness_category                                                   │
+│                                                                              │
+│  ──────────────────────────────────────────────────────────────────────     │
+│  Semantic Clustering Layer                                                   │
+│  ─────────────────────────                                                  │
+│  Enhanced word overlap + LLM-assisted borderline decisions                  │
+│  (Stemming, synonyms, 0.6 high / 0.25 candidate thresholds)                │
+│                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Memory Hierarchy Limits
+
+| Level | Name | Retention | Max Entries | Time Trigger | Size Trigger |
+|-------|------|-----------|-------------|--------------|--------------|
+| L3 | LongTermKnowledge | Permanent | 50 | Every 3 months | >6 monthly summaries |
+| L2 | MonthlySummary | ~1 year | 12 | Month boundary crossed | >8 weekly summaries |
+| L1 | WeeklySummary | ~3 months | 12 | Week boundary crossed (ISO Mon-Sun) | >30 work entries |
+| L0 | WorkHistoryEntry | ~1 week | 50 | `session.summarized` event | N/A (trimmed to 50) |
+
+---
+
+## Part 1: Temporal Validity System
+
+### Staleness Categories
+
+Facts decay at different rates based on their nature:
+
+```typescript
+type StalenessCategory =
+  | "ephemeral"    // 3 days: current task, active debugging
+  | "short-term"   // 2 weeks: project state, current focus
+  | "medium-term"  // 3 months: preferences, patterns
+  | "long-term"    // 1 year: skills, fundamental preferences
+  | "permanent"    // Never: explicit rules, core identity
+```
+
+### Staleness Calculation
+
+```typescript
+// Exponential decay: staleness = 1 - exp(-t / halfLife)
+function calculateStaleness(fact, queryTime): number {
+  const halfLife = STALENESS_HALF_LIFE_MS[fact.staleness_category]
+  const timeSinceActive = queryTime - (fact.lastReinforced ?? fact.valid_from)
+  return 1 - Math.exp(-timeSinceActive / halfLife)
+}
+
+// Half-life values
+const STALENESS_HALF_LIFE_MS = {
+  ephemeral: 3 * DAY,
+  "short-term": 14 * DAY,
+  "medium-term": 90 * DAY,
+  "long-term": 365 * DAY,
+  permanent: Infinity
+}
+```
+
+### Effective Confidence
+
+Knowledge confidence decays with staleness:
+
+```typescript
+function calculateEffectiveConfidence(knowledge, queryTime): number {
+  const staleness = calculateStaleness(knowledge, queryTime)
+  const decayFactor = config.decay_factor  // default: 0.5
+  return knowledge.confidence * (1 - staleness * decayFactor)
+}
+```
+
+### Facts Valid Range
+
+Aggregated summaries (L1/L2) track the validity range of their contained facts:
+
+```typescript
+interface FactsValidRange {
+  earliest_valid_from: number    // Earliest valid_from among entries
+  latest_valid_until?: number | null  // Latest valid_until (null = ongoing)
+}
+```
+
+### Configuration
+
+```typescript
+interface TemporalValidityConfig {
+  enabled: boolean           // default: true
+  staleness_threshold: number // default: 0.7 (max staleness to include)
+  decay_factor: number       // default: 0.5
+  include_expired: boolean   // default: false
+}
+```
+
+---
+
+## Part 2: Entity Memory Layer
+
+### Entity Types
+
+```typescript
+type EntityType =
+  | "person"       // Colleagues, reviewers
+  | "project"      // Codebases, repos
+  | "technology"   // Languages, frameworks
+  | "organization" // Companies, teams
+  | "concept"      // Patterns, methodologies
+```
+
+### Entity Graph Structure
+
+```typescript
+interface EntityGraph {
+  nodes: Record<string, EntityNode>      // Keyed by ID
+  relationships: EntityRelationship[]
+  aliasIndex: Record<string, string>     // alias -> canonical ID
+  lastExtraction: number
+  graphVersion: number  // Currently: 1
+}
+
+interface EntityNode {
+  id: string          // "person:john_smith"
+  name: string        // "John Smith"
+  type: EntityType
+  aliases: string[]   // ["JS", "John"]
+  aliasConfidence: Record<string, number>
+  mentions: EntityMention[]  // Last 10
+  mentionCount: number
+  firstSeen: number
+  lastSeen: number
+  metadata: Record<string, string>
+}
+
+interface EntityRelationship {
+  id: string
+  subject: string     // Entity ID
+  predicate: RelationshipPredicate  // works_on, uses, etc.
+  object: string      // Entity ID
+  confidence: number  // Based on co-occurrence
+  observationCount: number
+  firstObserved: number
+  lastObserved: number
+  contextSamples: string[]  // Last 3
+}
+```
+
+### Alias Reconciliation
+
+```typescript
+function shouldMergeAsAlias(name1, name2, type): { shouldMerge, confidence } {
+  // 1. Exact match after normalization -> confidence: 1.0
+  // 2. Known aliases (js->javascript, ts->typescript) -> 0.95
+  // 3. Abbreviation (JS -> John Smith) -> 0.85
+  // 4. Edit distance > threshold -> similarity score
+}
+
+// Similarity thresholds by entity type
+const SIMILARITY_THRESHOLDS = {
+  person: 0.85,       // Strict for names
+  project: 0.80,
+  technology: 0.90,   // Very strict
+  organization: 0.85,
+  concept: 0.80
+}
+```
+
+### Entity Configuration
+
+```typescript
+interface EntityMemoryConfig {
+  enabled: boolean                    // default: false (opt-in)
+  max_entities: number                // default: 200
+  max_relationships: number           // default: 500
+  min_mentions: number                // default: 2
+  injection_confidence_threshold: number  // default: 0.4
+  extract_types: EntityType[]         // default: all
+}
+```
+
+**Note**:
+- Entity Memory is **disabled by default** (`enabled: false`). Must be explicitly enabled.
+- Entity pruning happens at extraction time in `hook.ts`, not during RAPTOR aggregation.
+- Entity extraction runs on every `session.summarized` event when enabled.
+
+---
+
+## Part 3: Semantic Clustering
+
+### Two-Phase Clustering
+
+**Phase 1: Candidate Selection (Word Overlap)**
+```typescript
+function calculateSimilarity(text1, text2): SimilarityResult {
+  // 1. Preprocess: lowercase, normalize separators, remove stopwords
+  // 2. Apply Porter stemmer (optional)
+  // 3. Expand with domain synonyms (optional)
+  // 4. Calculate weighted score:
+  //    score = 0.5*baseOverlap + 0.3*synonymScore + 0.2*ngramScore
+  return { score, confidence: "high" | "medium" | "low" }
+}
+```
+
+**Phase 2: LLM-Assisted Merge (Borderline Cases)**
+```typescript
+// Only for medium confidence (0.25-0.6), limited to max_llm_calls
+if (similarity.confidence === "medium" && llmCallsUsed < config.max_llm_calls) {
+  const decision = await askLLMToMerge(cluster.content, lesson.content)
+  // { same_insight: boolean, merged_content: string }
+}
+```
+
+### Configuration
+
+```typescript
+interface SemanticClusteringConfig {
+  enabled: boolean                   // default: true
+  high_confidence_threshold: number  // default: 0.6 (auto-merge)
+  candidate_threshold: number        // default: 0.25 (consider for merge)
+  max_llm_calls: number              // default: 20
+  use_synonyms: boolean              // default: true
+  use_stemming: boolean              // default: true
+}
+```
+
+### Domain Synonyms
+
+```typescript
+const SYNONYM_GROUPS = [
+  ["api", "endpoint", "route", "rest"],
+  ["snake_case", "underscore", "snake-case"],
+  ["camelCase", "camel_case", "camel"],
+  ["test", "spec", "unittest"],
+  ["config", "configuration", "settings"],
+  // ... more groups
+]
+```
+
+---
+
+## Consolidation Triggers
+
+Aggregation is triggered by **time boundaries** OR **size thresholds** (whichever comes first).
+
+```typescript
+interface ConsolidationConfig {
+  enabled: boolean                    // default: true
+  work_history_threshold: number      // default: 30 -> trigger L0->L1
+  weekly_summaries_threshold: number  // default: 8 -> trigger L1->L2
+  monthly_summaries_threshold: number // default: 6 -> trigger L2->L3
+}
+```
+
+### Trigger Logic
+
+```typescript
+const needsWeeklyAggregation =
+  lastWeeklyAggregation !== undefined &&
+  (crossedWeekBoundary(lastWeeklyAggregation, now) || workHistory.length > 30)
+
+const needsMonthlyAggregation =
+  lastMonthlyAggregation !== undefined &&
+  (crossedMonthBoundary(lastMonthlyAggregation, now) || weeklySummaries.length > 8)
+```
+
+---
+
+## Progressive Disclosure
+
+Memory injection supports three levels to optimize token usage:
+
+```typescript
+type DisclosureLevel = "minimal" | "standard" | "full"
+```
+
+| Level | ~Tokens | Includes |
+|-------|---------|----------|
+| minimal | ~50 | Rules + Top 3 Knowledge + Top 5 Explicit Memories |
+| standard | ~150 | + Weekly/Monthly + Preferences + Environment + Top 10 Explicit Memories |
+| full | ~300 | + Entity Graph + All Work History (max 5) + Frequent Patterns |
+
+**Note**: Currently `hook.ts` always uses `"standard"` level. The `disclosureLevel` parameter is not configurable.
+
+### Injection Order (Standard Level)
+
+```
+[User Memory - Hierarchical Context]
+
+## User Rules                    <- Highest priority
+- ...
+
+## Remembered Context            <- Explicit "remember X"
+- ...
+
+## Long-term Learnings           <- L3: max 5, confidence >= 0.6
+- [lesson] ...
+- [pattern] ...
+
+## Last Month (2025-01)          <- L2: most recent only
+...
+Projects: a, b, c (max 3)
+
+## This Week                     <- L1: most recent only
+...
+Key: achievement1; achievement2
+
+## User Preferences
+- key: value
+
+## Environment
+OS: darwin, Shell: zsh, Editor: vscode
+
+[End User Memory]
+```
+
+### Full Level Additions
+
+```
+## Recent Work                   <- L0: max 5, filtered by staleness threshold
+- [date] summary (project)
+
+## Known Entities                <- Entity Graph (if enabled and non-empty)
+People: John Smith (aka JS), Alice (max 5)
+Projects: oh-my-opencode (max 5)
+Technologies: TypeScript, React (max 5)
+Organizations: Acme Inc (max 3)
+Relations: John works on oh-my-opencode (max 5, sorted by confidence)
+
+## Frequent Operations           <- Tool patterns (max 10)
+- Read: src/features/* (15 uses)
+```
+
+**Note**: L0 "Recent Work" only appears in `full` level, not in `standard`.
+
+---
 
 ## Data Flow
 
@@ -28,426 +367,376 @@ User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing f
 ┌──────────────┐    session.summarized    ┌──────────────┐
 │   Session    │ ───────────────────────► │ WorkHistory  │ (L0)
 │   Summary    │                          │   Entry      │
-└──────────────┘                          └──────┬───────┘
-                                                 │
-                                                 │ crossedWeekBoundary?
-                                                 ▼
-                                          ┌──────────────┐
-                                          │   Weekly     │ (L1)
-                                          │   Summary    │
+└──────────────┘                          │ + validity   │
                                           └──────┬───────┘
                                                  │
-                                                 │ crossedMonthBoundary?
-                                                 ▼
-                                          ┌──────────────┐
-                                          │   Monthly    │ (L2)
-                                          │   Summary    │
-                                          └──────┬───────┘
-                                                 │
-                                                 │ crossedKnowledgeBoundary?
-                                                 │ (every 3 months)
-                                                 ▼
-                                          ┌──────────────┐
-                                          │  Long-term   │ (L3)
-                                          │  Knowledge   │
-                                          └──────────────┘
+                        ┌────────────────────────┼─────────────────────┐
+                        │                        │                     │
+                        ▼                        ▼                     ▼
+                 Entity Extraction     Week Boundary?          Size > 30?
+                 (if enabled)          OR Size Trigger
+                        │                        │
+                        ▼                        ▼
+                 ┌──────────────┐        ┌──────────────┐
+                 │ EntityGraph  │        │   Weekly     │ (L1)
+                 │  + prune     │        │   Summary    │
+                 └──────────────┘        │ + validity   │
+                                         └──────┬───────┘
+                                                │
+                                  Month Boundary? OR Size > 8?
+                                                │
+                                                ▼
+                                         ┌──────────────┐
+                                         │   Monthly    │ (L2)
+                                         │   Summary    │
+                                         │ + validity   │
+                                         └──────┬───────┘
+                                                │
+                                    Quarterly? OR Size > 6?
+                                                │
+                                                ▼
+                                         ┌──────────────┐
+                                         │  Long-term   │ (L3)
+                                         │  Knowledge   │
+                                         │ + staleness  │
+                                         │ + supersession│
+                                         └──────────────┘
+                                                │
+                                       Semantic Clustering
+                                       (stemmer + synonyms + LLM)
 ```
 
-## Complete Lifecycle
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           SESSION LIFECYCLE                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌──────────────┐                                                           │
-│  │ Session Start│                                                           │
-│  └──────┬───────┘                                                           │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌──────────────┐    tool.execute.after    ┌──────────────┐                │
-│  │ First Tool   │ ───────────────────────► │ Inject Memory│                │
-│  │    Use       │                          │  (once/session)               │
-│  └──────────────┘                          └──────────────┘                │
-│         │                                         │                         │
-│         │                                         ▼                         │
-│         │                                  getMemorySummary()               │
-│         │                                  L3→L2→L1→L0 priority             │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌──────────────┐                                                           │
-│  │   Session    │                                                           │
-│  │   Working    │ ◄─── user.prompt.submit ─── detect "remember X"          │
-│  └──────┬───────┘                              → addExplicitMemory()        │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌──────────────┐    session.summarized    ┌──────────────┐                │
-│  │   Session    │ ───────────────────────► │    Add L0    │                │
-│  │  Compaction  │                          │ WorkHistory  │                │
-│  └──────┬───────┘                          └──────┬───────┘                │
-│         │                                         │                         │
-│         │ session.compacted                       │                         │
-│         │ session.deleted                         │                         │
-│         ▼                                         ▼                         │
-│  ┌─────────────────────────────────────────────────────────────┐           │
-│  │                    triggerAggregation()                      │           │
-│  ├─────────────────────────────────────────────────────────────┤           │
-│  │  1. Check: lastWeeklyAggregation undefined?                  │           │
-│  │     → Yes: Initialize timestamps, return (skip this time)    │           │
-│  │                                                              │           │
-│  │  2. Check: crossedWeekBoundary?                              │           │
-│  │     → Yes: Loop ALL missed weeks, aggregate L0→L1            │           │
-│  │            Clean workHistory (keep current week only)        │           │
-│  │                                                              │           │
-│  │  3. Check: crossedMonthBoundary?                             │           │
-│  │     → Yes: Loop ALL missed months, aggregate L1→L2           │           │
-│  │                                                              │           │
-│  │  4. Check: crossedKnowledgeBoundary? (every 3 months)        │           │
-│  │     → Yes: Extract L2→L3, cluster & merge knowledge          │           │
-│  │                                                              │           │
-│  │  5. Save if any changes detected                             │           │
-│  └─────────────────────────────────────────────────────────────┘           │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+---
 
 ## Trigger Points
 
-Aggregation is triggered on these events:
-
-| Event | Action |
-|-------|--------|
-| `session.summarized` | Add WorkHistoryEntry (L0), then trigger aggregation |
+| Event | Actions |
+|-------|---------|
+| `session.summarized` | Add L0 entry + Extract entities (if enabled) + Trigger aggregation |
 | `session.deleted` | Trigger aggregation only |
 | `session.compacted` | Trigger aggregation only |
+| `tool.execute.after` | Inject memory (once per session, on first tool call) |
+| `user.prompt.submit` | Detect "remember X" patterns → `addExplicitMemory()` |
 
-**Note**: `session.summarized` is fired when the session summary is generated (during compaction). This is when work history is captured.
+### "Remember" Detection Patterns
 
-## Boundary Detection
-
-### Week Boundary (ISO Week: Monday-Sunday)
-
-```typescript
-function crossedWeekBoundary(lastAggregation: number | undefined, now: number): boolean {
-  if (!lastAggregation) return false  // New user, skip until initialized
-  const lastWeekStart = getWeekStart(lastAggregation)
-  const currentWeekStart = getWeekStart(now)
-  return currentWeekStart > lastWeekStart
-}
-```
-
-**Key behavior**: Returns `false` if `lastAggregation` is undefined. This prevents premature aggregation for new users before timestamps are initialized.
-
-### Month Boundary
+The following patterns in user prompts trigger explicit memory storage:
 
 ```typescript
-function crossedMonthBoundary(lastAggregation: number | undefined, now: number): boolean {
-  if (!lastAggregation) return false
-  return formatMonth(lastAggregation) !== formatMonth(now)  // "YYYY-MM" comparison
-}
+const REMEMBER_PATTERNS = [
+  /\bremember\s+that\s+(.+)/i,           // "remember that X"
+  /\bremember(?:\s+this)?\s*:\s*(.+)/i,  // "remember: X" or "remember this: X"
+  /\b(?:please\s+)?(?:save|note)\s*:\s*(.+)/i,  // "please save: X" or "note: X"
+  /\bnote\s+that\s+(.+)/i,               // "note that X"
+  /\bkeep\s+in\s+mind\s+that\s+(.+)/i,   // "keep in mind that X"
+  /\bi\s+(?:prefer|always|like|use|want)\s+(.+)/i,  // "I prefer X", "I always X"
+]
 ```
 
-### Knowledge Extraction Boundary
+**Note**: Patterns require declarative form (e.g., "remember that X") to avoid matching imperative commands like "remember to run tests".
 
-```typescript
-function crossedKnowledgeExtractionBoundary(
-  lastExtraction: number | undefined,
-  now: number,
-  intervalMonths: number = 3
-): boolean {
-  if (!lastExtraction) return false
-  const monthsSince = (now - lastExtraction) / (30 * 24 * 60 * 60 * 1000)
-  return monthsSince >= intervalMonths
-}
-```
+---
 
 ## Multi-Period Gap Handling
 
-**Critical design decision**: When users skip multiple periods (e.g., 2 weeks vacation), ALL intermediate periods are aggregated, not just the last one.
-
-### Weekly Gap Example
+When users skip multiple periods (e.g., vacation), **all intermediate periods are aggregated**:
 
 ```
 User last active: Jan 6 (Week 1)
 User returns: Jan 20 (Week 3)
 
-Old behavior (BUG):
-  - Only aggregates Week 1
-  - Week 2 data LOST
-
-New behavior (CORRECT):
-  - Loop: Week 1 → Week 2 → stop at Week 3
-  - Both Week 1 and Week 2 aggregated
-  - No data loss
+Aggregation sequence:
+  Week 1 → aggregate → WeeklySummary
+  Week 2 → aggregate → WeeklySummary (empty if no entries)
+  Week 3 → current week (not aggregated yet)
 ```
 
 ### Implementation
 
 ```typescript
-// L0 → L1: Aggregate ALL missed weeks
-if (crossedWeekBoundary(lastWeeklyAggregation, now)) {
-  const currentWeekStart = getWeekStart(now)
-  let iterWeekStart = getWeekStart(lastWeeklyAggregation)
+while (iterWeekStart < currentWeekStart) {
+  const weeklySummary = await aggregateToWeekly(...)
 
-  while (iterWeekStart < currentWeekStart) {
-    const iterWeekEnd = getWeekEnd(iterWeekStart)
-    const weeklySummary = await aggregateToWeekly(workHistory, iterWeekStart, iterWeekEnd, summarize)
-
-    if (weeklySummary.entryCount > 0) {
-      weeklySummaries.unshift(weeklySummary)
-    }
-
-    // DST-safe: recalculate week start instead of adding milliseconds
-    const nextWeekApprox = iterWeekStart + 7 * 24 * 60 * 60 * 1000
-    iterWeekStart = getWeekStart(nextWeekApprox)
+  // Only add non-empty summaries
+  if (weeklySummary.entryCount > 0) {
+    weeklySummaries.unshift(weeklySummary)
   }
 
-  // Clean up: keep only current week's entries
-  workHistory = workHistory.filter(e => e.timestamp >= currentWeekStart)
-
-  // Update timestamp AFTER all aggregations complete
-  lastWeeklyAggregation = now
+  // DST-safe: use getWeekStart() instead of +7 days
+  const nextWeekApprox = iterWeekStart + 7 * DAY_MS
+  iterWeekStart = getWeekStart(nextWeekApprox)
 }
 ```
 
-**DST handling**: Simple `+7 days` in milliseconds can land on wrong time during DST transitions (23:00 or 01:00 instead of 00:00). Using `getWeekStart()` ensures we always land on Monday 00:00:00 local time.
-
-## Summarization Strategy
-
-### LLM Summarization
-
-When available, LLM generates rich summaries with:
-- Summary text
-- Key achievements
-- Lessons learned
-- Tech stack evolution (monthly)
-
-### Fallback Strategy
-
-When LLM returns empty/invalid response OR throws error:
-
-```typescript
-const createFallbackSummary = (): WeeklySummary => ({
-  summary: `Completed ${entries.length} work sessions across ${projects.length} project(s).`,
-  projects,
-  keyAchievements: entries
-    .filter(e => e.outcome === "success")
-    .slice(0, 3)
-    .map(e => e.summary),
-  lessonsLearned: [],
-  techStack,
-  entryCount: entries.length,
-})
-
-// Check for empty LLM response
-if (!response.summary || response.summary.trim().length === 0) {
-  return createFallbackSummary()  // Use fallback instead of empty string
-}
-```
-
-**Key insight**: Empty string check is critical because fallback summarizer returns `{ summary: "" }` which doesn't throw an error.
+---
 
 ## Knowledge Extraction (L2 → L3)
 
 ### Clustering Algorithm
 
-Similar lessons are clustered using word overlap:
-
 ```typescript
-function clusterSimilarLessons(lessons: Array<{content: string, month: string}>): LessonCluster[] {
-  const threshold = 0.4  // 40% word overlap
-
+function clusterSimilarLessons(lessons): LessonCluster[] {
   for (const lesson of lessons) {
-    const words = new Set(lesson.content.toLowerCase().split(/\s+/).filter(w => w.length > 3))
+    const similarity = calculateSimilarity(lesson, cluster)
 
-    // Find matching cluster
-    for (const cluster of clusters) {
-      const similarity = calculateWordOverlap(words, cluster.words)
-      if (similarity >= threshold) {
-        cluster.occurrences++
-        cluster.lastMonth = lesson.month
-        // Keep longer content as representative
-        if (lesson.content.length > cluster.representativeContent.length) {
-          cluster.representativeContent = lesson.content
-        }
-        break
-      }
+    if (similarity.confidence === "high") {
+      // Auto-merge: >= 0.6 threshold
+      mergeIntoCluster(cluster, lesson)
+    } else if (similarity.confidence === "medium" && llmCallsUsed < 20) {
+      // Ask LLM for borderline cases
+      const decision = await askLLMToMerge(...)
+      if (decision.same_insight) mergeIntoCluster(...)
+    } else {
+      // Create new cluster
+      clusters.push(createCluster(lesson))
     }
   }
 }
 ```
 
-### Confidence Scoring
+### Confidence Formula
 
-Two-stage filtering ensures only **stable cross-month patterns** are retained:
+Based on **unique source months**, not total occurrences:
 
-**Stage 1: Extraction Threshold** (in `extractLongTermKnowledge`)
 ```typescript
-// Must appear in at least 2 DIFFERENT months to be extracted
-// This filters out single-month noise
-const stablePatterns = clusters.filter(c => c.months.length >= 2)
+confidence = Math.min(sourceMonths.length / 5, 1.0)
 ```
 
-**Stage 2: Injection Threshold** (in `getMemorySummary`)
-```typescript
-// Must have confidence >= 0.6 to be injected
-const highConfidenceKnowledge = memory.longTermKnowledge?.filter(k => k.confidence >= 0.6)
-```
+| Unique Months | Confidence | Extracted? (≥2 months) | Injected? (≥0.6 confidence) |
+|---------------|------------|------------------------|----------------------------|
+| 1 | 0.2 | ❌ No | ❌ No |
+| 2 | 0.4 | ✅ Yes | ❌ No |
+| 3 | 0.6 | ✅ Yes | ✅ Yes |
+| 4 | 0.8 | ✅ Yes | ✅ Yes |
+| 5+ | 1.0 | ✅ Yes | ✅ Yes |
 
-**Confidence formula** (based on unique months, NOT total occurrences):
-```typescript
-confidence = Math.min(months.length / 5, 1.0)  // Based on unique months
-```
+**Key insight**: Same-month repetitions do NOT increase confidence. A lesson appearing 10 times in January still has confidence 0.2.
 
-**Practical implication**:
-| Unique Months | Confidence | Extracted? | Injected? |
-|---------------|------------|------------|-----------|
-| 1 | 0.2 | No | No |
-| 2 | 0.4 | Yes | No |
-| 3 | 0.6 | Yes | Yes |
-| 4 | 0.8 | Yes | Yes |
-| 5+ | 1.0 | Yes | Yes |
+### Supersession Detection
 
-**Key insight**: A lesson must appear in at least **3 different months** to be injected. Same-month repetitions do NOT increase confidence - this ensures we capture stable long-term patterns, not temporary noise.
-
-### Knowledge Categories
+New knowledge can supersede old knowledge when patterns change:
 
 ```typescript
-type Category = "lesson" | "pattern" | "preference" | "skill"
-
-function categorizeKnowledge(content: string): Category {
-  const lower = content.toLowerCase()
-  if (lower.includes("prefer") || lower.includes("style")) return "preference"
-  if (lower.includes("pattern") || lower.includes("approach")) return "pattern"
-  if (lower.includes("learned") || lower.includes("skill")) return "skill"
-  return "lesson"
+// Detected patterns: "I prefer X" vs "I prefer Y"
+if (detectsPreferenceChange(oldKnowledge, newKnowledge)) {
+  oldKnowledge.valid_until = newKnowledge.valid_from
+  oldKnowledge.superseded_by = newKnowledge.id
 }
 ```
 
-## Injection Strategy
-
-Memory is injected into context with priority ordering (matches code in `getMemorySummary`):
-
-```
-[User Memory - Hierarchical Context]
-
-## User Rules                    ← Highest priority: explicit user rules
-- ...
-
-## Remembered Context            ← Explicit "remember X" requests (last 10)
-- ...
-
-## Long-term Learnings           ← L3: High-confidence knowledge (≥0.6, max 5)
-- [lesson] ...
-- [pattern] ...
-
-## Last Month (2025-01)          ← L2: Most recent month only
-...
-Projects: proj-a, proj-b, proj-c (max 3)
-
-## This Week                     ← L1: Most recent week only
-...
-Key: achievement1; achievement2 (max 2)
-
-## User Preferences              ← Static preferences
-- key: value
-
-## Environment                   ← OS, Shell, Editor
-OS: darwin, Shell: zsh, Editor: vscode
-
-## Recent Work                   ← L0: Only if NO weekly summary exists
-- [date] summary (project)       (max 3 entries)
-
-## Frequent Operations           ← Tool usage patterns (max 10)
-- Read: src/features/* (15 uses)
-
-[End User Memory]
-```
-
-**Key designs**:
-1. L0 (Recent Work) is only shown when L1 (Weekly Summary) doesn't exist, avoiding redundancy
-2. L3 limited to 5 entries to control token usage
-3. L2/L1 only show the most recent period (not all stored summaries)
-
-## Timestamp Initialization
-
-### For New Users
-
-```typescript
-// In hook.ts - triggerAggregation
-if (!memory.lastWeeklyAggregation && memory.workHistory.length > 0) {
-  // Initialize timestamps to NOW
-  // This prevents immediate aggregation of first entry
-  memory.lastWeeklyAggregation = now
-  memory.lastMonthlyAggregation = now
-  memory.lastKnowledgeExtraction = now
-  return  // Skip aggregation this time
-}
-```
-
-### For Migrated Users (v1 → v2)
-
-```typescript
-// In storage.ts - migrateUserMemory
-if ((data.schemaVersion === undefined || data.schemaVersion === 1) && workHistory.length > 0) {
-  // Set timestamps to NOW to avoid retroactive aggregation
-  migrated.lastWeeklyAggregation = now
-  migrated.lastMonthlyAggregation = now
-  migrated.lastKnowledgeExtraction = now
-}
-```
-
-## Configuration
-
-```typescript
-interface HierarchicalMemoryConfig {
-  enabled: boolean                    // Default: true
-  weekly_summaries_limit: number      // Default: 12 (3 months)
-  monthly_summaries_limit: number     // Default: 12 (1 year)
-  long_term_knowledge_limit: number   // Default: 50
-  aggregation_model: "haiku" | "sonnet" | "opus"  // Default: haiku
-  auto_aggregate: boolean             // Default: true
-}
-```
+---
 
 ## Storage
 
-All memory is stored in `~/.opencode/memory/`:
+All memory stored in `~/.opencode/memory/`:
 
 ```
 ~/.opencode/memory/
-├── user.json          # Main memory file (UserMemory)
-└── pattern-stats.json # Tool usage patterns (PatternStats)
+├── user.json          # Main memory (UserMemory)
+└── pattern-stats.json # Tool usage patterns
 ```
 
-### Atomic Write
+### Estimated Storage Size
 
-File writes use atomic write pattern to prevent corruption:
+| Component | Size per Entry | Max Entries | Total |
+|-----------|---------------|-------------|-------|
+| L0 WorkHistoryEntry | ~200 bytes | 50 | ~10 KB |
+| L1 WeeklySummary | ~500 bytes | 12 | ~6 KB |
+| L2 MonthlySummary | ~800 bytes | 12 | ~10 KB |
+| L3 LongTermKnowledge | ~150 bytes | 50 | ~8 KB |
+| EntityNode | ~200 bytes | 200 | ~40 KB |
+| EntityRelationship | ~150 bytes | 500 | ~75 KB |
+| **Total (typical)** | | | **~150 KB** |
+
+### Atomic Write
 
 ```typescript
 function atomicWriteFileSync(filePath: string, content: string): void {
   const tempPath = filePath + ".tmp"
   writeFileSync(tempPath, content, "utf-8")
-  renameSync(tempPath, filePath)  // rename is atomic on POSIX systems
+  renameSync(tempPath, filePath)  // atomic on POSIX
 }
 ```
 
-This prevents:
-- Partial writes on crash/interrupt
-- Corrupted JSON from concurrent writes (last-write-wins, but always valid JSON)
+**Behavior**:
+- Prevents partial writes on crash/interrupt
+- File is always valid JSON (never corrupted mid-write)
+- Does NOT provide file locking (multiple processes may still overwrite each other, but always with valid JSON)
 
-**Note**: This does not provide file locking. Multiple processes may still overwrite each other's changes, but the file will never be corrupted.
+---
 
 ## Schema Migration
 
-Current schema version: **2**
+Current schema version: **3**
 
 | Version | Changes |
 |---------|---------|
-| 1 | Original: preferences, workHistory, customRules, etc. |
-| 2 | Added RAPTOR fields: weeklySummaries, monthlySummaries, longTermKnowledge, timestamps |
+| 1 | Original: preferences, workHistory, customRules |
+| 2 | RAPTOR: weeklySummaries, monthlySummaries, longTermKnowledge, timestamps |
+| 3 | Enhanced: temporal validity fields, entityGraph, semantic clustering config |
 
 Migration is automatic and non-destructive.
+
+---
+
+## Configuration Summary
+
+### HierarchicalMemoryConfig
+
+```typescript
+{
+  enabled: true,
+  weekly_summaries_limit: 12,
+  monthly_summaries_limit: 12,
+  long_term_knowledge_limit: 50,
+  aggregation_model: "haiku",
+  auto_aggregate: true
+}
+```
+
+### ConsolidationConfig
+
+```typescript
+{
+  enabled: true,
+  work_history_threshold: 30,
+  weekly_summaries_threshold: 8,
+  monthly_summaries_threshold: 6
+}
+```
+
+### TemporalValidityConfig
+
+```typescript
+{
+  enabled: true,
+  staleness_threshold: 0.7,
+  decay_factor: 0.5,
+  include_expired: false
+}
+```
+
+### EntityMemoryConfig
+
+```typescript
+{
+  enabled: false,  // opt-in
+  max_entities: 200,
+  max_relationships: 500,
+  min_mentions: 2,
+  injection_confidence_threshold: 0.4,
+  extract_types: ["person", "project", "technology", "organization", "concept"]
+}
+```
+
+### SemanticClusteringConfig
+
+```typescript
+{
+  enabled: true,
+  high_confidence_threshold: 0.6,
+  candidate_threshold: 0.25,
+  max_llm_calls: 20,
+  use_synonyms: true,
+  use_stemming: true
+}
+```
+
+---
+
+## File Structure
+
+```
+src/features/user-memory/
+├── types.ts              # All type definitions, defaults, schema version
+├── storage.ts            # Load/save, migration, injection, progressive disclosure
+├── aggregation.ts        # RAPTOR algorithms, consolidation triggers
+├── temporal-validity.ts  # Staleness calculation, filtering
+├── entity-extraction.ts  # Pattern-based entity extraction
+├── entity-reconciliation.ts  # Alias detection, graph operations
+├── similarity.ts         # Semantic similarity calculation
+├── text-processing.ts    # Stemmer, synonyms, preprocessing
+├── prompts.ts            # LLM prompt templates
+├── hook.ts               # Event handlers, trigger orchestration
+├── index.ts              # Public exports
+├── aggregation.test.ts   # Core test suite
+├── storage.test.ts       # Storage tests
+└── hook.test.ts          # Hook tests
+```
+
+---
+
+## Known Limitations
+
+### Concurrency
+
+| Issue | Impact | Mitigation |
+|-------|--------|------------|
+| `aggregationInProgress` flag is per-process | Multiple terminal windows can run concurrent aggregations | Atomic write prevents file corruption, but last-write-wins for data |
+| No file locking | Multi-process writes may overwrite each other | Use single OpenCode instance per user |
+
+### Configuration
+
+| Issue | Current State |
+|-------|---------------|
+| `ConsolidationConfig` not configurable | Uses `DEFAULT_CONSOLIDATION_CONFIG` hardcoded |
+| `TemporalValidityConfig` not configurable | Uses `DEFAULT_TEMPORAL_VALIDITY_CONFIG` hardcoded |
+| `SemanticClusteringConfig` not configurable | Uses `DEFAULT_SEMANTIC_CLUSTERING_CONFIG` hardcoded |
+| `DisclosureLevel` not configurable | Always uses `"standard"` in `hook.ts:87` |
+
+### Entity Extraction
+
+| Limitation | Details |
+|------------|---------|
+| Pattern-based only | Regex patterns may produce false positives/negatives |
+| English-only | Patterns designed for English text |
+| No context awareness | Cannot infer entities from implicit mentions |
+| Limited technology list | Hardcoded list of ~50 technologies |
+| Stopword filtering | May incorrectly filter valid names (e.g., "March" as month vs person) |
+
+### Semantic Clustering
+
+| Limitation | Details |
+|------------|---------|
+| Simplified Porter stemmer | Not linguistically perfect, English-only |
+| Hardcoded synonyms | ~20 domain-specific groups, not extensible |
+| LLM call budget | Max 20 calls per aggregation, borderline cases may be missed |
+| LLM failures | Falls back to word overlap only if LLM unavailable |
+
+### Temporal Validity
+
+| Limitation | Details |
+|------------|---------|
+| Manual `valid_from` | Only L0 entries auto-set `valid_from = timestamp` |
+| Manual `staleness_category` | Inferred heuristically, may be incorrect |
+| No explicit expiration | `valid_until` rarely set automatically |
+
+### Cold Start
+
+| Issue | Delay |
+|-------|-------|
+| L3 injection requires 3 unique months | Knowledge won't appear until ~3 months of use |
+| L2→L3 extraction is quarterly | New patterns take 3+ months to become L3 |
+| Confidence threshold 0.6 | Needs 3 source months minimum |
+
+### Storage
+
+| Limitation | Details |
+|------------|---------|
+| Single JSON file | All data in `~/.opencode/memory/user.json` |
+| No compression | Large history may grow to several MB |
+| No backup | Corruption risk on disk failure |
+| Local timezone | Week/month boundaries use local time; cross-timezone migration may cause issues |
+
+### Memory Injection
+
+| Limitation | Details |
+|------------|---------|
+| Once per session | Memory injected on first tool call only |
+| Appended to tool output | May be truncated if output is long |
+| No dynamic refresh | Changes during session not reflected |
+
+---
 
 ## Edge Cases
 
@@ -460,24 +749,24 @@ When a week spans two months (e.g., Jan 27 - Feb 2):
 const monthWeeks = weeklySummaries.filter(w => formatMonth(w.weekStart) === month)
 ```
 
-This week would be assigned to January.
+This week would be assigned to **January**, not February.
 
 ### Week Entry Filtering
 
-Entries are filtered using inclusive bounds:
+Entries use **inclusive** bounds:
 
 ```typescript
 // In aggregateToWeekly
 const weekEntries = entries.filter(
-  (e) => e.timestamp >= weekStart && e.timestamp <= weekEnd  // Note: <= not <
+  (e) => e.timestamp >= weekStart && e.timestamp <= weekEnd  // Note: <=
 )
 ```
 
-**Why `<=`**: `weekEnd` is Sunday 23:59:59.999. Using `<` would exclude entries at exactly that millisecond. Using `<=` ensures the boundary is inclusive.
+`weekEnd` is Sunday 23:59:59.999. Using `<=` ensures entries at exactly that millisecond are included.
 
 ### Empty Weeks/Months
 
-Empty periods (no work entries) are NOT added to summaries:
+Empty periods (no work entries) are **NOT** added to summaries:
 
 ```typescript
 if (weeklySummary.entryCount > 0) {
@@ -485,50 +774,56 @@ if (weeklySummary.entryCount > 0) {
 }
 ```
 
-### Concurrent Access
+### First-Time User
 
-A flag prevents concurrent aggregations within the same process:
+New users skip aggregation until timestamps are initialized:
 
 ```typescript
-let aggregationInProgress = false
-
-const triggerAggregation = async () => {
-  if (aggregationInProgress) return
-  aggregationInProgress = true
-  try {
-    // ... aggregation logic
-  } finally {
-    aggregationInProgress = false
-  }
+if (!memory.lastWeeklyAggregation && memory.workHistory.length > 0) {
+  memory.lastWeeklyAggregation = now
+  memory.lastMonthlyAggregation = now
+  memory.lastKnowledgeExtraction = now
+  return  // Skip aggregation this time
 }
 ```
 
-**Note**: This does not protect against multi-process concurrent access (e.g., multiple terminal windows).
+### DST Transitions
+
+Week iteration uses `getWeekStart()` recalculation instead of `+7 days` to handle Daylight Saving Time:
+
+```typescript
+// Wrong: +7 days can land on 23:00 or 01:00 during DST transition
+// Correct: recalculate Monday 00:00:00
+const nextWeekApprox = iterWeekStart + 7 * DAY_MS
+iterWeekStart = getWeekStart(nextWeekApprox)
+```
+
+---
 
 ## Testing
 
-Key test scenarios:
-
-1. **Multi-week gap**: Verify all intermediate weeks are aggregated
-2. **Empty summarizer response**: Verify fallback is used
-3. **Multi-month gap**: Verify all intermediate months are aggregated
-4. **Boundary detection**: Verify week/month boundaries are correctly identified
-5. **Knowledge clustering**: Verify similar lessons are merged
-
-Run tests:
 ```bash
 bun test src/features/user-memory/
 ```
 
-## File Structure
+### Test Coverage
 
-```
-src/features/user-memory/
-├── types.ts           # Type definitions, defaults, schema version
-├── storage.ts         # Load/save, migration, injection
-├── aggregation.ts     # Core RAPTOR algorithms
-├── prompts.ts         # LLM prompt templates
-├── hook.ts            # Event handlers, trigger logic
-├── index.ts           # Public exports
-└── aggregation.test.ts # Test suite
-```
+| File | Tests | Coverage |
+|------|-------|----------|
+| `aggregation.test.ts` | 40+ | Core RAPTOR algorithms |
+| `storage.test.ts` | 10+ | Load/save, pattern normalization |
+| `hook.test.ts` | 5+ | Event handling |
+| `entity-extraction.ts` | ❌ | No dedicated tests |
+| `entity-reconciliation.ts` | ❌ | No dedicated tests |
+| `similarity.ts` | ❌ | No dedicated tests |
+| `temporal-validity.ts` | ❌ | No dedicated tests |
+
+### Key Test Scenarios
+
+1. Multi-week/month gap aggregation
+2. Empty summarizer fallback
+3. Staleness calculation at various time points
+4. Entity extraction patterns (manual verification)
+5. Alias reconciliation (manual verification)
+6. Semantic similarity thresholds (manual verification)
+7. Schema migration v2→v3

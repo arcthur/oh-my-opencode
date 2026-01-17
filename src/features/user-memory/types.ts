@@ -9,7 +9,51 @@
  * - L1: WeeklySummary[] (~3 months, 12 weeks)
  * - L2: MonthlySummary[] (~1 year, 12 months)
  * - L3: LongTermKnowledge[] (permanent, distilled insights)
+ *
+ * Enhanced with:
+ * - Temporal Validity: valid_from/valid_until for facts
+ * - Staleness Categories: exponential decay based on fact type
+ * - Entity Memory: person/project/technology tracking (opt-in)
+ * - Semantic Clustering: LLM-assisted knowledge merging
  */
+
+// ============================================================================
+// Temporal Validity Types
+// ============================================================================
+
+/**
+ * Staleness category determines the decay rate for facts.
+ * Different types of knowledge become stale at different rates.
+ */
+export type StalenessCategory =
+  | "ephemeral" // 3 days: current task, active debugging
+  | "short-term" // 2 weeks: project state, current focus
+  | "medium-term" // 3 months: preferences, patterns
+  | "long-term" // 1 year: skills, fundamental preferences
+  | "permanent" // Never: explicit rules, core identity
+
+/**
+ * Validity range for aggregated facts (L1/L2 summaries).
+ * Represents the union of all contained facts' validity periods.
+ */
+export interface FactsValidRange {
+  /** Earliest valid_from among contained facts */
+  earliest_valid_from: number
+  /** Latest valid_until among contained facts (null = contains ongoing facts) */
+  latest_valid_until?: number | null
+}
+
+/**
+ * Half-life values in milliseconds for each staleness category.
+ * At t=halfLife, staleness ≈ 0.5; at t=2*halfLife, staleness ≈ 0.75
+ */
+export const STALENESS_HALF_LIFE_MS: Record<StalenessCategory, number> = {
+  ephemeral: 3 * 24 * 60 * 60 * 1000, // 3 days
+  "short-term": 14 * 24 * 60 * 60 * 1000, // 2 weeks
+  "medium-term": 90 * 24 * 60 * 60 * 1000, // 3 months
+  "long-term": 365 * 24 * 60 * 60 * 1000, // 1 year
+  permanent: Infinity, // Never decays
+}
 
 export interface EnvironmentInfo {
   /** Operating system */
@@ -37,6 +81,23 @@ export interface WorkHistoryEntry {
   filesModified?: string[]
   /** Outcome (success, partial, failed) */
   outcome?: "success" | "partial" | "failed"
+
+  // Temporal validity fields (v3)
+  /**
+   * When this fact became valid. Usually same as timestamp.
+   * Different when user says "I've been using X for 2 years" - valid_from would be 2 years ago.
+   */
+  valid_from?: number
+  /**
+   * When this fact stopped being valid.
+   * null/undefined = ongoing (still valid today).
+   */
+  valid_until?: number | null
+  /**
+   * Staleness category for decay calculation.
+   * Default: 'short-term' (work history decays over weeks)
+   */
+  staleness_category?: StalenessCategory
 }
 
 // ============================================================================
@@ -64,6 +125,13 @@ export interface WeeklySummary {
   techStack: string[]
   /** Number of raw entries aggregated */
   entryCount: number
+
+  // Temporal validity fields (v3)
+  /**
+   * Validity range of facts contained in this summary.
+   * Union of all entry validity ranges for time-range queries.
+   */
+  facts_valid_range?: FactsValidRange
 }
 
 /**
@@ -85,6 +153,13 @@ export interface MonthlySummary {
   techStackEvolution: string
   /** Number of weeks aggregated */
   weekCount: number
+
+  // Temporal validity fields (v3)
+  /**
+   * Validity range of facts contained in this summary.
+   * Union of all weekly summary validity ranges.
+   */
+  facts_valid_range?: FactsValidRange
 }
 
 /**
@@ -104,6 +179,33 @@ export interface LongTermKnowledge {
   lastReinforced: number
   /** Source months that contributed to this knowledge */
   sourceMonths: string[]
+
+  // Temporal validity fields (v3)
+  /**
+   * Unique identifier for cross-referencing and supersession tracking.
+   * Format: "k_{hash}_{timestamp_base36}"
+   */
+  id?: string
+  /**
+   * When this knowledge became valid.
+   * Default: firstSeen (when first observed)
+   */
+  valid_from?: number
+  /**
+   * When this knowledge expired/was superseded.
+   * null/undefined = ongoing/still valid
+   */
+  valid_until?: number | null
+  /**
+   * Staleness category determines decay rate.
+   * Inferred from content or explicitly set.
+   */
+  staleness_category?: StalenessCategory
+  /**
+   * ID of knowledge entry that superseded this one.
+   * Used to track knowledge evolution.
+   */
+  superseded_by?: string
 }
 
 /**
@@ -131,6 +233,29 @@ export const DEFAULT_HIERARCHICAL_CONFIG: HierarchicalMemoryConfig = {
   long_term_knowledge_limit: 50,
   aggregation_model: "haiku",
   auto_aggregate: true,
+}
+
+/**
+ * Consolidation trigger configuration.
+ * Determines when to force aggregation based on data size, not just time boundaries.
+ */
+export interface ConsolidationConfig {
+  /** Enable size-based consolidation triggers (default: true) */
+  enabled: boolean
+  /** Trigger L0->L1 when work history exceeds this (default: 30) */
+  work_history_threshold: number
+  /** Trigger L1->L2 when weekly summaries exceed this (default: 8) */
+  weekly_summaries_threshold: number
+  /** Trigger L2->L3 when monthly summaries exceed this (default: 6) */
+  monthly_summaries_threshold: number
+  // Note: Entity pruning uses EntityMemoryConfig.max_entities/max_relationships in hook.ts
+}
+
+export const DEFAULT_CONSOLIDATION_CONFIG: ConsolidationConfig = {
+  enabled: true,
+  work_history_threshold: 30,
+  weekly_summaries_threshold: 8,
+  monthly_summaries_threshold: 6,
 }
 
 export interface UserMemory {
@@ -172,6 +297,12 @@ export interface UserMemory {
   lastMonthlyAggregation?: number
   /** Timestamp of last yearly/knowledge extraction */
   lastKnowledgeExtraction?: number
+
+  // Entity Memory fields (v3)
+  /** Entity graph for relationship tracking */
+  entityGraph?: EntityGraph
+  /** Last entity extraction timestamp */
+  lastEntityExtraction?: number
 }
 
 export interface UserMemoryConfig {
@@ -195,7 +326,7 @@ export const DEFAULT_USER_MEMORY: UserMemory = {
   frequentPatterns: [],
   explicitMemories: [],
   lastUpdated: Date.now(),
-  schemaVersion: 2,
+  schemaVersion: 3,
   // RAPTOR hierarchical memory defaults
   weeklySummaries: [],
   monthlySummaries: [],
@@ -203,6 +334,9 @@ export const DEFAULT_USER_MEMORY: UserMemory = {
   lastWeeklyAggregation: undefined,
   lastMonthlyAggregation: undefined,
   lastKnowledgeExtraction: undefined,
+  // Entity Memory defaults (v3)
+  entityGraph: undefined, // Not initialized until enabled
+  lastEntityExtraction: undefined,
 }
 
 export const DEFAULT_CONFIG: UserMemoryConfig = {
@@ -214,7 +348,32 @@ export const DEFAULT_CONFIG: UserMemoryConfig = {
 }
 
 /** Current schema version - increment when making breaking changes */
-export const CURRENT_SCHEMA_VERSION = 2
+export const CURRENT_SCHEMA_VERSION = 3
+
+// ============================================================================
+// Temporal Validity Configuration
+// ============================================================================
+
+/**
+ * Configuration for temporal validity system
+ */
+export interface TemporalValidityConfig {
+  /** Enable temporal validity filtering (default: true) */
+  enabled: boolean
+  /** Maximum staleness score to include in injection (0-1, default: 0.7) */
+  staleness_threshold: number
+  /** Decay factor for effective confidence calculation (default: 0.5) */
+  decay_factor: number
+  /** Include explicitly expired facts in queries (default: false) */
+  include_expired: boolean
+}
+
+export const DEFAULT_TEMPORAL_VALIDITY_CONFIG: TemporalValidityConfig = {
+  enabled: true,
+  staleness_threshold: 0.7,
+  decay_factor: 0.5,
+  include_expired: false,
+}
 
 /**
  * Pattern Statistics for tracking frequent tool usage
@@ -263,4 +422,178 @@ export const DEFAULT_PATTERN_CONFIG: FrequentPatternConfig = {
 export const DEFAULT_PATTERN_STATS: PatternStats = {
   patterns: {},
   lastAggregated: 0,
+}
+
+// ============================================================================
+// Entity Memory Types (Phase 2)
+// ============================================================================
+
+/**
+ * Entity type classification.
+ * Deliberately coarse-grained to reduce misclassification.
+ */
+export type EntityType =
+  | "person" // Human entities: colleagues, reviewers
+  | "project" // Codebases, repos, products
+  | "technology" // Languages, frameworks, tools
+  | "organization" // Companies, teams, departments
+  | "concept" // Abstract: patterns, methodologies
+
+/**
+ * Relationship predicate types.
+ * Intentionally limited set for reliability.
+ */
+export type RelationshipPredicate =
+  | "works_on" // person -> project
+  | "collaborates_with" // person -> person
+  | "uses" // project -> technology
+  | "part_of" // project -> organization
+  | "reviewed_by" // code/PR -> person
+  | "depends_on" // project -> project/technology
+  | "mentioned_with" // generic co-occurrence
+
+/**
+ * A mention of an entity in context
+ */
+export interface EntityMention {
+  /** Source text snippet (max 100 chars for context) */
+  context: string
+  /** Timestamp of the mention */
+  timestamp: number
+  /** Source type: workHistory summary or weekly summary */
+  source: "L0" | "L1"
+  /** Optional: source identifier (weekStart for L1) */
+  sourceId?: string
+}
+
+/**
+ * An entity node in the graph
+ */
+export interface EntityNode {
+  /** Unique entity identifier (normalized canonical name) */
+  id: string
+  /** Display name (most common form) */
+  name: string
+  /** Entity type classification */
+  type: EntityType
+  /** Known aliases that resolve to this entity */
+  aliases: string[]
+  /** Confidence that aliases are correct (0-1) */
+  aliasConfidence: Record<string, number>
+  /** Recent mentions (limited to last 10 for context) */
+  mentions: EntityMention[]
+  /** Total mention count across all time */
+  mentionCount: number
+  /** First time this entity was seen */
+  firstSeen: number
+  /** Last time this entity was mentioned */
+  lastSeen: number
+  /** Free-form metadata extracted from context */
+  metadata: Record<string, string>
+}
+
+/**
+ * A relationship between two entities
+ */
+export interface EntityRelationship {
+  /** Unique relationship identifier */
+  id: string
+  /** Subject entity ID */
+  subject: string
+  /** Relationship type */
+  predicate: RelationshipPredicate
+  /** Object entity ID */
+  object: string
+  /** Confidence score (0-1) based on co-occurrence frequency */
+  confidence: number
+  /** Number of times this relationship was observed */
+  observationCount: number
+  /** First observation timestamp */
+  firstObserved: number
+  /** Last observation timestamp */
+  lastObserved: number
+  /** Optional context snippets (last 3) */
+  contextSamples: string[]
+}
+
+/**
+ * The complete entity graph
+ */
+export interface EntityGraph {
+  /** All entity nodes, keyed by ID */
+  nodes: Record<string, EntityNode>
+  /** All relationships */
+  relationships: EntityRelationship[]
+  /** Alias resolution index: alias -> canonical ID */
+  aliasIndex: Record<string, string>
+  /** Last entity extraction timestamp */
+  lastExtraction: number
+  /** Schema version for entity graph */
+  graphVersion: number
+}
+
+/**
+ * Entity Memory configuration
+ */
+export interface EntityMemoryConfig {
+  /** Enable entity extraction (default: false - opt-in) */
+  enabled: boolean
+  /** Maximum entities to track (default: 200) */
+  max_entities: number
+  /** Maximum relationships to track (default: 500) */
+  max_relationships: number
+  /** Minimum mentions to persist entity (default: 2) */
+  min_mentions: number
+  /** Minimum confidence to include in injection (default: 0.4) */
+  injection_confidence_threshold: number
+  /** Entity types to extract (default: all) */
+  extract_types: EntityType[]
+}
+
+export const DEFAULT_ENTITY_MEMORY_CONFIG: EntityMemoryConfig = {
+  enabled: false, // Opt-in by default
+  max_entities: 200,
+  max_relationships: 500,
+  min_mentions: 2,
+  injection_confidence_threshold: 0.4,
+  extract_types: ["person", "project", "technology", "organization", "concept"],
+}
+
+export const DEFAULT_ENTITY_GRAPH: EntityGraph = {
+  nodes: {},
+  relationships: [],
+  aliasIndex: {},
+  lastExtraction: 0,
+  graphVersion: 1,
+}
+
+// ============================================================================
+// Semantic Clustering Configuration (Phase 3)
+// ============================================================================
+
+/**
+ * Configuration for semantic clustering with LLM-assisted merging
+ */
+export interface SemanticClusteringConfig {
+  /** Enable LLM-assisted clustering (default: true) */
+  enabled: boolean
+  /** Word overlap threshold for definite match (default: 0.6) */
+  high_confidence_threshold: number
+  /** Word overlap threshold for candidate selection (default: 0.25) */
+  candidate_threshold: number
+  /** Maximum LLM calls per aggregation (default: 20) */
+  max_llm_calls: number
+  /** Enable synonym expansion (default: true) */
+  use_synonyms: boolean
+  /** Enable Porter stemming (default: true) */
+  use_stemming: boolean
+}
+
+export const DEFAULT_SEMANTIC_CLUSTERING_CONFIG: SemanticClusteringConfig = {
+  enabled: true,
+  high_confidence_threshold: 0.6,
+  candidate_threshold: 0.25,
+  max_llm_calls: 20,
+  use_synonyms: true,
+  use_stemming: true,
 }

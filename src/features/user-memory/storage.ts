@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
-import type { UserMemory, WorkHistoryEntry, UserMemoryConfig, PatternStats, FrequentPatternConfig, PatternEntry } from "./types"
-import { DEFAULT_USER_MEMORY, CURRENT_SCHEMA_VERSION, DEFAULT_PATTERN_STATS, DEFAULT_PATTERN_CONFIG } from "./types"
+import type { UserMemory, WorkHistoryEntry, UserMemoryConfig, PatternStats, FrequentPatternConfig, TemporalValidityConfig } from "./types"
+import { DEFAULT_USER_MEMORY, CURRENT_SCHEMA_VERSION, DEFAULT_PATTERN_STATS, DEFAULT_PATTERN_CONFIG, DEFAULT_TEMPORAL_VALIDITY_CONFIG } from "./types"
 import { log } from "../../shared/logger"
+import { filterKnowledgeForInjection, filterWorkHistoryForInjection } from "./temporal-validity"
 
 const MEMORY_DIR = join(homedir(), ".opencode", "memory")
 const USER_MEMORY_FILE = join(MEMORY_DIR, "user.json")
@@ -36,14 +37,8 @@ export function loadUserMemory(): UserMemory {
       return { ...DEFAULT_USER_MEMORY }
     }
 
-    const data = JSON.parse(readFileSync(USER_MEMORY_FILE, "utf-8")) as UserMemory
-
-    // Migrate if needed
-    if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-      return migrateUserMemory(data)
-    }
-
-    return data
+    const data = JSON.parse(readFileSync(USER_MEMORY_FILE, "utf-8")) as Partial<UserMemory>
+    return normalizeUserMemory(data)
   } catch (error) {
     log("[user-memory] failed to load memory", { error: String(error) })
     return { ...DEFAULT_USER_MEMORY }
@@ -67,17 +62,10 @@ export function saveUserMemory(memory: UserMemory): void {
 }
 
 /**
- * Migrate user memory from older schema versions
- *
- * Schema History:
- * - v1: Original schema with basic fields
- * - v2: Added RAPTOR hierarchical memory (weeklySummaries, monthlySummaries, longTermKnowledge)
+ * Ensure user memory has all required fields with defaults
  */
-function migrateUserMemory(data: Partial<UserMemory>): UserMemory {
-  log("[user-memory] migrating from schema version", { from: data.schemaVersion, to: CURRENT_SCHEMA_VERSION })
-
-  const migrated: UserMemory = {
-    // Core fields (v1)
+function normalizeUserMemory(data: Partial<UserMemory>): UserMemory {
+  return {
     preferences: data.preferences || {},
     environment: data.environment || {},
     workHistory: data.workHistory || [],
@@ -86,28 +74,15 @@ function migrateUserMemory(data: Partial<UserMemory>): UserMemory {
     explicitMemories: data.explicitMemories || [],
     lastUpdated: Date.now(),
     schemaVersion: CURRENT_SCHEMA_VERSION,
-
-    // RAPTOR hierarchical memory fields (v2)
     weeklySummaries: data.weeklySummaries || [],
     monthlySummaries: data.monthlySummaries || [],
     longTermKnowledge: data.longTermKnowledge || [],
     lastWeeklyAggregation: data.lastWeeklyAggregation,
     lastMonthlyAggregation: data.lastMonthlyAggregation,
     lastKnowledgeExtraction: data.lastKnowledgeExtraction,
+    entityGraph: data.entityGraph,
+    lastEntityExtraction: data.lastEntityExtraction,
   }
-
-  // V1 -> V2 migration: Initialize aggregation timestamps if workHistory exists
-  // Handle both explicit v1 and undefined (legacy data before versioning)
-  if ((data.schemaVersion === undefined || data.schemaVersion === 1) && migrated.workHistory.length > 0) {
-    const now = Date.now()
-    // Set timestamps to now so we don't immediately try to aggregate old data
-    migrated.lastWeeklyAggregation = migrated.lastWeeklyAggregation ?? now
-    migrated.lastMonthlyAggregation = migrated.lastMonthlyAggregation ?? now
-    migrated.lastKnowledgeExtraction = migrated.lastKnowledgeExtraction ?? now
-    log("[user-memory] initialized aggregation timestamps for v1->v2 migration")
-  }
-
-  return migrated
 }
 
 /**
@@ -204,7 +179,22 @@ export function clearUserMemory(): void {
 }
 
 /**
+ * Disclosure level for progressive context loading.
+ * Higher levels include more detail but consume more tokens.
+ *
+ * - minimal: ~50 tokens - Rules + top knowledge only
+ * - standard: ~150 tokens - + summaries + preferences (default)
+ * - full: ~300 tokens - + entity graph + all work history
+ */
+export type DisclosureLevel = "minimal" | "standard" | "full"
+
+/**
  * Get memory summary for injection
+ *
+ * Supports progressive disclosure to optimize token usage:
+ * - minimal: Just rules and top 3 knowledge items (~50 tokens)
+ * - standard: + weekly/monthly summaries + preferences (~150 tokens)
+ * - full: + entity graph + all work history (~300 tokens)
  *
  * Includes hierarchical memory from RAPTOR aggregation:
  * - L3: Long-term knowledge (high-confidence distilled insights)
@@ -212,33 +202,52 @@ export function clearUserMemory(): void {
  * - L1: Weekly summary (this week's progress)
  * - L0: Recent work history (last 3 entries)
  */
-export function getMemorySummary(): string | null {
+export function getMemorySummary(
+  temporalConfig: TemporalValidityConfig = DEFAULT_TEMPORAL_VALIDITY_CONFIG,
+  disclosureLevel: DisclosureLevel = "standard"
+): string | null {
   const memory = loadUserMemory()
-
   const sections: string[] = []
 
-  // Custom rules (highest priority)
+  // ============================================================================
+  // MINIMAL LEVEL: Rules + Top Knowledge (~50 tokens)
+  // Always included regardless of disclosure level
+  // ============================================================================
+
+  // Custom rules (highest priority - always include)
   if (memory.customRules.length > 0) {
     sections.push(`## User Rules\n${memory.customRules.map(r => `- ${r}`).join("\n")}`)
   }
 
-  // Explicit memories
+  // Explicit memories (always include)
   if (memory.explicitMemories.length > 0) {
-    const recentMemories = memory.explicitMemories.slice(-10) // Last 10
+    const limit = disclosureLevel === "minimal" ? 5 : 10
+    const recentMemories = memory.explicitMemories.slice(-limit)
     sections.push(`## Remembered Context\n${recentMemories.map(m => `- ${m.content}`).join("\n")}`)
   }
 
-  // L3: Long-term Knowledge (high-confidence only)
-  const highConfidenceKnowledge = memory.longTermKnowledge
-    ?.filter(k => k.confidence >= 0.6)
-    ?.slice(0, 5)
+  // L3: Long-term Knowledge (with temporal filtering)
+  const knowledgeLimit = disclosureLevel === "minimal" ? 3 : 5
+  const validKnowledge = memory.longTermKnowledge
+    ? filterKnowledgeForInjection(memory.longTermKnowledge, temporalConfig, knowledgeLimit)
+    : []
 
-  if (highConfidenceKnowledge && highConfidenceKnowledge.length > 0) {
-    const knowledgeLines = highConfidenceKnowledge.map(k =>
+  if (validKnowledge.length > 0) {
+    const knowledgeLines = validKnowledge.map(k =>
       `- [${k.category}] ${k.content}`
     )
     sections.push(`## Long-term Learnings\n${knowledgeLines.join("\n")}`)
   }
+
+  // Early return for minimal disclosure
+  if (disclosureLevel === "minimal") {
+    if (sections.length === 0) return null
+    return `[User Memory - Minimal]\n${sections.join("\n\n")}\n[End User Memory]`
+  }
+
+  // ============================================================================
+  // STANDARD LEVEL: + Summaries + Preferences (~150 tokens)
+  // ============================================================================
 
   // L2: Last Month Summary
   const recentMonth = memory.monthlySummaries?.[0]
@@ -276,14 +285,70 @@ export function getMemorySummary(): string | null {
     sections.push(`## Environment\n${envParts.join(", ")}`)
   }
 
-  // L0: Recent work (last 3) - only if no weekly summary
-  if (!recentWeek && memory.workHistory.length > 0) {
-    const recent = memory.workHistory.slice(0, 3)
-    const workLines = recent.map(w => {
-      const date = new Date(w.timestamp).toLocaleDateString()
-      return `- [${date}] ${w.summary}${w.project ? ` (${w.project})` : ""}`
-    })
-    sections.push(`## Recent Work\n${workLines.join("\n")}`)
+  // Early return for standard disclosure
+  if (disclosureLevel === "standard") {
+    if (sections.length === 0) return null
+    return `[User Memory - Hierarchical Context]\n${sections.join("\n\n")}\n[End User Memory]`
+  }
+
+  // ============================================================================
+  // FULL LEVEL: + Entity Graph + All Work History (~300 tokens)
+  // ============================================================================
+
+  // L0: Recent work (with temporal filtering)
+  if (memory.workHistory.length > 0) {
+    const recent = filterWorkHistoryForInjection(memory.workHistory, temporalConfig, 5)
+    if (recent.length > 0) {
+      const workLines = recent.map(w => {
+        const date = new Date(w.timestamp).toLocaleDateString()
+        return `- [${date}] ${w.summary}${w.project ? ` (${w.project})` : ""}`
+      })
+      sections.push(`## Recent Work\n${workLines.join("\n")}`)
+    }
+  }
+
+  // Entity Graph (full disclosure only)
+  if (memory.entityGraph && Object.keys(memory.entityGraph.nodes).length > 0) {
+    const entityLines: string[] = []
+    const nodesByType: Record<string, string[]> = {}
+
+    // Group entities by type
+    for (const node of Object.values(memory.entityGraph.nodes)) {
+      if (!nodesByType[node.type]) nodesByType[node.type] = []
+      const aliases = node.aliases.length > 0 ? ` (aka ${node.aliases.slice(0, 2).join(", ")})` : ""
+      nodesByType[node.type].push(`${node.name}${aliases}`)
+    }
+
+    // Format by type
+    if (nodesByType.person?.length) {
+      entityLines.push(`People: ${nodesByType.person.slice(0, 5).join(", ")}`)
+    }
+    if (nodesByType.project?.length) {
+      entityLines.push(`Projects: ${nodesByType.project.slice(0, 5).join(", ")}`)
+    }
+    if (nodesByType.technology?.length) {
+      entityLines.push(`Technologies: ${nodesByType.technology.slice(0, 5).join(", ")}`)
+    }
+    if (nodesByType.organization?.length) {
+      entityLines.push(`Organizations: ${nodesByType.organization.slice(0, 3).join(", ")}`)
+    }
+
+    // Add key relationships
+    const topRelations = memory.entityGraph.relationships
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 5)  // More relations in full mode
+    if (topRelations.length > 0) {
+      const relLines = topRelations.map(r => {
+        const subj = memory.entityGraph!.nodes[r.subject]?.name ?? r.subject
+        const obj = memory.entityGraph!.nodes[r.object]?.name ?? r.object
+        return `${subj} ${r.predicate.replace(/_/g, " ")} ${obj}`
+      })
+      entityLines.push(`Relations: ${relLines.join("; ")}`)
+    }
+
+    if (entityLines.length > 0) {
+      sections.push(`## Known Entities\n${entityLines.join("\n")}`)
+    }
   }
 
   // Frequent operations
@@ -294,7 +359,7 @@ export function getMemorySummary(): string | null {
 
   if (sections.length === 0) return null
 
-  return `[User Memory - Hierarchical Context]\n${sections.join("\n\n")}\n[End User Memory]`
+  return `[User Memory - Full Context]\n${sections.join("\n\n")}\n[End User Memory]`
 }
 
 // ============================================================================

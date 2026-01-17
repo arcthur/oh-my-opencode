@@ -12,10 +12,14 @@ import type {
   LongTermKnowledge,
   UserMemory,
   HierarchicalMemoryConfig,
+  SemanticClusteringConfig,
+  ConsolidationConfig,
 } from "./types"
-import { DEFAULT_HIERARCHICAL_CONFIG } from "./types"
-import { buildWeeklySummaryPrompt, buildMonthlySummaryPrompt } from "./prompts"
+import { DEFAULT_HIERARCHICAL_CONFIG, DEFAULT_SEMANTIC_CLUSTERING_CONFIG, DEFAULT_CONSOLIDATION_CONFIG } from "./types"
+import { buildWeeklySummaryPrompt, buildMonthlySummaryPrompt, buildMergeDecisionPrompt, parseMergeDecisionResponse } from "./prompts"
 import { log } from "../../shared/logger"
+import { calculateSimilarity, DEFAULT_SIMILARITY_CONFIG } from "./similarity"
+import { generateKnowledgeId, inferStalenessCategory, calculateValidityRange } from "./temporal-validity"
 
 // ============================================================================
 // Time Boundary Utilities
@@ -29,8 +33,8 @@ export function getWeekStart(timestamp: number): number {
   const day = date.getDay()
   // Adjust for Monday start (ISO week)
   const diff = date.getDate() - day + (day === 0 ? -6 : 1)
-  const weekStart = new Date(date.setDate(diff))
-  weekStart.setHours(0, 0, 0, 0)
+  // Create new Date to avoid mutating the original
+  const weekStart = new Date(date.getFullYear(), date.getMonth(), diff, 0, 0, 0, 0)
   return weekStart.getTime()
 }
 
@@ -262,6 +266,7 @@ export async function aggregateToWeekly(
   // Extract metadata
   const projects = extractProjects(weekEntries)
   const techStack = extractTechStack(weekEntries)
+  const factsValidRange = calculateValidityRange(weekEntries)
 
   // Build prompt for LLM
   const prompt = buildWeeklySummaryPrompt(weekEntries)
@@ -279,6 +284,7 @@ export async function aggregateToWeekly(
     lessonsLearned: [],
     techStack,
     entryCount: weekEntries.length,
+    facts_valid_range: factsValidRange,
   })
 
   try {
@@ -301,6 +307,7 @@ export async function aggregateToWeekly(
       lessonsLearned: response.lessons,
       techStack,
       entryCount: weekEntries.length,
+      facts_valid_range: factsValidRange,
     }
   } catch (error) {
     log("[aggregation] failed to summarize weekly", { error: String(error) })
@@ -343,6 +350,16 @@ export async function aggregateToMonthly(
   const allLessons = monthWeeks.flatMap((w) => w.lessonsLearned)
   const allTechStack = [...new Set(monthWeeks.flatMap((w) => w.techStack))]
 
+  // Combine validity ranges from weekly summaries
+  const weeksWithValidity = monthWeeks
+    .filter((w) => w.facts_valid_range)
+    .map((w) => ({
+      timestamp: w.weekStart,
+      valid_from: w.facts_valid_range!.earliest_valid_from,
+      valid_until: w.facts_valid_range!.latest_valid_until,
+    }))
+  const factsValidRange = calculateValidityRange(weeksWithValidity)
+
   // Build prompt for LLM
   const prompt = buildMonthlySummaryPrompt(monthWeeks)
 
@@ -355,6 +372,7 @@ export async function aggregateToMonthly(
     lessonsLearned: allLessons.slice(0, 3),
     techStackEvolution: allTechStack.join(", "),
     weekCount: monthWeeks.length,
+    facts_valid_range: factsValidRange,
   })
 
   try {
@@ -378,6 +396,7 @@ export async function aggregateToMonthly(
         : allLessons.slice(0, 3),
       techStackEvolution: response.techEvolution || allTechStack.join(", "),
       weekCount: monthWeeks.length,
+      facts_valid_range: factsValidRange,
     }
   } catch (error) {
     log("[aggregation] failed to summarize monthly", { error: String(error) })
@@ -422,8 +441,8 @@ export async function extractLongTermKnowledge(
     return existingKnowledge
   }
 
-  // Cluster similar lessons
-  const clusters = clusterSimilarLessons(allLessons)
+  // Cluster similar lessons using enhanced semantic similarity
+  const clusters = await clusterSimilarLessons(allLessons, summarize)
 
   // Filter to clusters that appeared in at least 2 DIFFERENT months
   // This ensures we capture stable cross-month patterns, not single-month noise
@@ -431,58 +450,106 @@ export async function extractLongTermKnowledge(
 
   // Convert clusters to knowledge entries
   // Confidence is based on number of unique months, not total occurrences
-  const newKnowledge: LongTermKnowledge[] = stablePatterns.map((c) => ({
-    category: categorizeKnowledge(c.content),
-    content: c.representativeContent,
-    confidence: Math.min(c.months.length / 5, 1.0),  // Based on unique months
-    firstSeen: new Date(c.firstMonth + "-01").getTime(),
-    lastReinforced: new Date(c.lastMonth + "-01").getTime(),
-    sourceMonths: c.months,
-  }))
+  const newKnowledge: LongTermKnowledge[] = stablePatterns.map((c) => {
+    const category = categorizeKnowledge(c.content)
+    const entry: LongTermKnowledge = {
+      id: generateKnowledgeId(c.representativeContent),
+      category,
+      content: c.representativeContent,
+      confidence: Math.min(c.months.length / 5, 1.0),  // Based on unique months
+      firstSeen: new Date(c.firstMonth + "-01").getTime(),
+      lastReinforced: new Date(c.lastMonth + "-01").getTime(),
+      sourceMonths: c.months,
+      staleness_category: inferStalenessCategory({ category, content: c.representativeContent }),
+    }
+    return entry
+  })
 
   // Merge with existing knowledge
   return mergeKnowledge(existingKnowledge, newKnowledge)
 }
 
 /**
- * Simple similarity-based clustering for lessons
- * Uses word overlap as a proxy for semantic similarity
+ * Enhanced semantic clustering for lessons
+ *
+ * Uses hybrid approach:
+ * 1. Enhanced word overlap with stemming and synonyms for candidate selection
+ * 2. LLM-assisted merge decisions for borderline cases (when available)
+ *
+ * @param lessons - Lessons to cluster
+ * @param summarize - Optional LLM summarize function for borderline decisions
+ * @param config - Semantic clustering configuration
  */
-function clusterSimilarLessons(
-  lessons: Array<{ content: string; month: string }>
-): LessonCluster[] {
+async function clusterSimilarLessons(
+  lessons: Array<{ content: string; month: string }>,
+  summarize?: SummarizeFunction,
+  config: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG
+): Promise<LessonCluster[]> {
   const clusters: LessonCluster[] = []
-  const threshold = 0.4 // Word overlap threshold
+  let llmCallsUsed = 0
 
   for (const lesson of lessons) {
-    const words = new Set(
-      lesson.content.toLowerCase().split(/\s+/).filter((w) => w.length > 3)
-    )
-
-    // Find matching cluster
     let matched = false
-    for (const cluster of clusters) {
-      const clusterWords = new Set(
-        cluster.content.toLowerCase().split(/\s+/).filter((w) => w.length > 3)
-      )
-      const overlap = [...words].filter((w) => clusterWords.has(w)).length
-      const similarity = overlap / Math.max(words.size, clusterWords.size)
+    let bestMatch: { cluster: LessonCluster; similarity: ReturnType<typeof calculateSimilarity> } | null = null
 
-      if (similarity >= threshold) {
-        cluster.occurrences++
-        cluster.lastMonth = lesson.month
-        if (!cluster.months.includes(lesson.month)) {
-          cluster.months.push(lesson.month)
-        }
-        // Keep the longer content as representative
-        if (lesson.content.length > cluster.representativeContent.length) {
-          cluster.representativeContent = lesson.content
-        }
+    // Find matching cluster using enhanced similarity
+    for (const cluster of clusters) {
+      const similarity = calculateSimilarity(lesson.content, cluster.content, {
+        ...DEFAULT_SIMILARITY_CONFIG,
+        highConfidenceThreshold: config.high_confidence_threshold,
+        candidateThreshold: config.candidate_threshold,
+      })
+
+      // Track best match for potential LLM decision
+      if (!bestMatch || similarity.score > bestMatch.similarity.score) {
+        bestMatch = { cluster, similarity }
+      }
+
+      // High confidence: auto-merge
+      if (similarity.confidence === "high") {
+        mergeIntoCluster(cluster, lesson)
         matched = true
         break
       }
     }
 
+    // Medium confidence: use LLM if available and within budget
+    if (
+      !matched &&
+      bestMatch &&
+      bestMatch.similarity.confidence === "medium" &&
+      summarize &&
+      config.enabled &&
+      llmCallsUsed < config.max_llm_calls
+    ) {
+      try {
+        const prompt = buildMergeDecisionPrompt(
+          bestMatch.cluster.representativeContent,
+          lesson.content
+        )
+        const response = await summarize(prompt)
+        llmCallsUsed++
+
+        // Parse as merge decision
+        const decision = parseMergeDecisionResponse(
+          typeof response === "string" ? response : response.summary || ""
+        )
+
+        if (decision.same_insight) {
+          mergeIntoCluster(bestMatch.cluster, lesson, decision.merged_content)
+          matched = true
+          log("[aggregation] LLM merged lessons", {
+            reason: decision.reason,
+            similarity: bestMatch.similarity.score,
+          })
+        }
+      } catch (error) {
+        log("[aggregation] LLM merge decision failed", { error: String(error) })
+        // Fall through to create new cluster
+      }
+    }
+
+    // No match: create new cluster
     if (!matched) {
       clusters.push({
         content: lesson.content,
@@ -496,6 +563,27 @@ function clusterSimilarLessons(
   }
 
   return clusters
+}
+
+/**
+ * Helper to merge a lesson into an existing cluster
+ */
+function mergeIntoCluster(
+  cluster: LessonCluster,
+  lesson: { content: string; month: string },
+  mergedContent?: string
+): void {
+  cluster.occurrences++
+  cluster.lastMonth = lesson.month
+  if (!cluster.months.includes(lesson.month)) {
+    cluster.months.push(lesson.month)
+  }
+  // Use LLM-merged content or keep the longer content as representative
+  if (mergedContent) {
+    cluster.representativeContent = mergedContent
+  } else if (lesson.content.length > cluster.representativeContent.length) {
+    cluster.representativeContent = lesson.content
+  }
 }
 
 /**
@@ -544,47 +632,128 @@ export function mergeKnowledge(
   newKnowledge: LongTermKnowledge[]
 ): LongTermKnowledge[] {
   const merged = [...existing]
-  const threshold = 0.4
 
   for (const newItem of newKnowledge) {
-    const newWords = new Set(
-      newItem.content.toLowerCase().split(/\s+/).filter((w) => w.length > 3)
-    )
-
     let foundMatch = false
-    for (const existingItem of merged) {
-      const existingWords = new Set(
-        existingItem.content
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length > 3)
-      )
-      const overlap = [...newWords].filter((w) => existingWords.has(w)).length
-      const similarity =
-        overlap / Math.max(newWords.size, existingWords.size)
+    let supersededItem: LongTermKnowledge | null = null
 
-      if (similarity >= threshold) {
-        // Reinforce existing knowledge - merge source months first
-        existingItem.sourceMonths = [
-          ...new Set([...existingItem.sourceMonths, ...newItem.sourceMonths]),
-        ]
-        // Recalculate confidence based on total unique months
-        existingItem.confidence = Math.min(existingItem.sourceMonths.length / 5, 1.0)
-        existingItem.lastReinforced = newItem.lastReinforced
-        foundMatch = true
-        break
+    for (const existingItem of merged) {
+      // Skip already superseded items
+      if (existingItem.valid_until && existingItem.valid_until < Date.now()) {
+        continue
+      }
+
+      const similarity = calculateSimilarity(newItem.content, existingItem.content)
+
+      if (similarity.confidence === "high") {
+        // Check for supersession (preference/version updates)
+        const { supersedes } = checkSupersessionPattern(existingItem.content, newItem.content)
+
+        if (supersedes) {
+          // Mark old as superseded, add new
+          supersededItem = existingItem
+          foundMatch = false // Will add as new
+          break
+        } else {
+          // Reinforce existing knowledge - merge source months
+          existingItem.sourceMonths = [
+            ...new Set([...existingItem.sourceMonths, ...newItem.sourceMonths]),
+          ]
+          existingItem.confidence = Math.min(existingItem.sourceMonths.length / 5, 1.0)
+          existingItem.lastReinforced = newItem.lastReinforced
+          foundMatch = true
+          break
+        }
       }
     }
 
-    if (!foundMatch) {
+    // Handle supersession
+    if (supersededItem) {
+      supersededItem.valid_until = newItem.firstSeen
+      supersededItem.superseded_by = newItem.id
+      merged.push(newItem)
+    } else if (!foundMatch) {
       merged.push(newItem)
     }
   }
 
-  // Sort by confidence and limit
+  // Filter out expired knowledge and sort by confidence
   return merged
+    .filter((k) => !k.valid_until || k.valid_until > Date.now())
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, 50)
+}
+
+/**
+ * Check for supersession patterns without LLM
+ * Detects version updates and preference changes
+ */
+function checkSupersessionPattern(
+  oldContent: string,
+  newContent: string
+): { supersedes: boolean; reason?: string } {
+  const oldLower = oldContent.toLowerCase()
+  const newLower = newContent.toLowerCase()
+
+  // Check for version changes
+  const versionPattern = /(?:v|version\s*)?\d+(?:\.\d+)*/gi
+  const oldVersions: string[] = oldContent.match(versionPattern) ?? []
+  const newVersions: string[] = newContent.match(versionPattern) ?? []
+
+  if (oldVersions.length > 0 && newVersions.length > 0) {
+    // If versions differ in similar content, likely supersession
+    const hasVersionChange = oldVersions.some((v) => !newVersions.includes(v))
+    if (hasVersionChange) {
+      return { supersedes: true, reason: "Version update" }
+    }
+  }
+
+  // Check for preference pattern changes
+  const preferPatterns = [
+    /\b(?:i\s+)?prefer\s+(\w+)/i,
+    /\b(?:i\s+)?use\s+(\w+)/i,
+    /\b(?:switched?\s+to)\s+(\w+)/i,
+    /\b(?:migrated?\s+to)\s+(\w+)/i,
+  ]
+
+  for (const pattern of preferPatterns) {
+    const oldMatch = oldLower.match(pattern)
+    const newMatch = newLower.match(pattern)
+
+    if (oldMatch && newMatch && oldMatch[1] !== newMatch[1]) {
+      return { supersedes: true, reason: "Preference changed" }
+    }
+  }
+
+  return { supersedes: false }
+}
+
+// ============================================================================
+// Consolidation Triggers
+// ============================================================================
+
+/**
+ * Check if size-based consolidation is needed.
+ * Returns which levels need consolidation based on thresholds.
+ */
+export function checkConsolidationTriggers(
+  memory: UserMemory,
+  config: ConsolidationConfig = DEFAULT_CONSOLIDATION_CONFIG
+): { needsL0toL1: boolean; needsL1toL2: boolean; needsL2toL3: boolean } {
+  if (!config.enabled) {
+    return { needsL0toL1: false, needsL1toL2: false, needsL2toL3: false }
+  }
+
+  const workHistorySize = memory.workHistory?.length ?? 0
+  const weeklySummariesSize = memory.weeklySummaries?.length ?? 0
+  const monthlySummariesSize = memory.monthlySummaries?.length ?? 0
+  // Note: Entity pruning happens at extraction time in hook.ts, not during aggregation
+
+  return {
+    needsL0toL1: workHistorySize > config.work_history_threshold,
+    needsL1toL2: weeklySummariesSize > config.weekly_summaries_threshold,
+    needsL2toL3: monthlySummariesSize > config.monthly_summaries_threshold,
+  }
 }
 
 // ============================================================================
@@ -596,12 +765,15 @@ export function mergeKnowledge(
  *
  * Handles gaps correctly: if user skips multiple weeks/months, all intermediate
  * periods are aggregated to prevent data loss.
+ *
+ * Now also supports size-based consolidation triggers (not just time boundaries).
  */
 export async function performAggregations(
   memory: UserMemory,
   now: number,
   summarize: SummarizeFunction,
-  config: HierarchicalMemoryConfig = DEFAULT_HIERARCHICAL_CONFIG
+  config: HierarchicalMemoryConfig = DEFAULT_HIERARCHICAL_CONFIG,
+  consolidationConfig: ConsolidationConfig = DEFAULT_CONSOLIDATION_CONFIG
 ): Promise<UserMemory> {
   if (!config.enabled) {
     return memory
@@ -614,9 +786,18 @@ export async function performAggregations(
   updated.monthlySummaries = updated.monthlySummaries ?? []
   updated.longTermKnowledge = updated.longTermKnowledge ?? []
 
-  // L0 -> L1: Aggregate ALL missed weeks (not just the last one)
-  if (crossedWeekBoundary(updated.lastWeeklyAggregation, now)) {
+  // Check size-based consolidation triggers
+  const consolidation = checkConsolidationTriggers(updated, consolidationConfig)
+
+  // L0 -> L1: Aggregate on week boundary OR size threshold
+  // Skip if no lastWeeklyAggregation (first-time user should be initialized first)
+  const needsWeeklyAggregation =
+    updated.lastWeeklyAggregation !== undefined &&
+    (crossedWeekBoundary(updated.lastWeeklyAggregation, now) || consolidation.needsL0toL1)
+
+  if (needsWeeklyAggregation) {
     const currentWeekStart = getWeekStart(now)
+    // Safe: needsWeeklyAggregation is only true when lastWeeklyAggregation !== undefined
     let iterWeekStart = getWeekStart(updated.lastWeeklyAggregation!)
 
     // Loop through all weeks between lastAggregation and now
@@ -659,9 +840,15 @@ export async function performAggregations(
     updated.lastWeeklyAggregation = now
   }
 
-  // L1 -> L2: Aggregate ALL missed months (not just the last one)
-  if (crossedMonthBoundary(updated.lastMonthlyAggregation, now)) {
+  // L1 -> L2: Aggregate on month boundary OR size threshold
+  // Skip if no lastMonthlyAggregation (first-time user should be initialized first)
+  const needsMonthlyAggregation =
+    updated.lastMonthlyAggregation !== undefined &&
+    (crossedMonthBoundary(updated.lastMonthlyAggregation, now) || consolidation.needsL1toL2)
+
+  if (needsMonthlyAggregation) {
     const currentMonth = formatMonth(now)
+    // Safe: needsMonthlyAggregation is only true when lastMonthlyAggregation !== undefined
     let iterMonth = formatMonth(updated.lastMonthlyAggregation!)
 
     // Loop through all months between lastAggregation and now
@@ -694,8 +881,12 @@ export async function performAggregations(
     updated.lastMonthlyAggregation = now
   }
 
-  // L2 -> L3: Check if we need to extract long-term knowledge
-  if (crossedKnowledgeExtractionBoundary(updated.lastKnowledgeExtraction, now)) {
+  // L2 -> L3: Extract knowledge on interval boundary OR size threshold
+  const needsKnowledgeExtraction =
+    crossedKnowledgeExtractionBoundary(updated.lastKnowledgeExtraction, now) ||
+    consolidation.needsL2toL3
+
+  if (needsKnowledgeExtraction) {
     log("[aggregation] extracting long-term knowledge")
 
     updated.longTermKnowledge = await extractLongTermKnowledge(

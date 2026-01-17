@@ -257,3 +257,67 @@ export function fallbackMonthlySummary(
     techEvolution: allTechStack.join(", "),
   }
 }
+
+// ============================================================================
+// Semantic Clustering Prompts
+// ============================================================================
+
+/**
+ * Build prompt to check if two insights should be merged
+ */
+export function buildMergeDecisionPrompt(
+  insight1: string,
+  insight2: string
+): string {
+  return `Determine if these two insights describe the SAME underlying lesson or pattern.
+They may use different words but convey the same idea.
+
+Insight A: "${insight1}"
+
+Insight B: "${insight2}"
+
+Respond with a JSON object:
+{
+  "same_insight": true | false,
+  "reason": "Brief explanation",
+  "merged_content": "If same_insight is true, provide a merged version that captures both"
+}
+
+Examples of insights that SHOULD be merged:
+- "Use snake_case for API fields" and "REST endpoints should use underscores" (same naming convention)
+- "Always write tests first" and "TDD helps catch bugs early" (same testing practice)
+
+Examples of insights that should NOT be merged:
+- "Use TypeScript for type safety" and "Use TypeScript for better IDE support" (different reasons)
+- "Prefer composition over inheritance" and "Use mixins for code reuse" (related but different patterns)`
+}
+
+/**
+ * Parse merge decision response
+ */
+export interface MergeDecisionResponse {
+  same_insight: boolean
+  reason?: string
+  merged_content?: string
+}
+
+export function parseMergeDecisionResponse(
+  response: string
+): MergeDecisionResponse {
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      return { same_insight: false }
+    }
+
+    const parsed = JSON.parse(jsonMatch[0])
+    return {
+      same_insight: Boolean(parsed.same_insight),
+      reason: parsed.reason,
+      merged_content: parsed.merged_content,
+    }
+  } catch {
+    return { same_insight: false }
+  }
+}
+

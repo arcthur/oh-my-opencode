@@ -348,6 +348,7 @@ describe("aggregation", () => {
 
     test("reinforces similar knowledge by merging source months", () => {
       // Existing knowledge from 2 months
+      // Content must be similar enough to get "high" confidence (>= 0.6 similarity score)
       const existing: LongTermKnowledge[] = [
         {
           category: "lesson",
@@ -359,11 +360,11 @@ describe("aggregation", () => {
         },
       ]
 
-      // New knowledge from a different month
+      // New knowledge from a different month - content is nearly identical for high similarity
       const newKnowledge: LongTermKnowledge[] = [
         {
           category: "lesson",
-          content: "Write tests for critical functions to prevent regressions",
+          content: "Always write unit tests for critical functions in your code",
           confidence: 0.4,
           firstSeen: Date.now(),
           lastReinforced: Date.now(),

@@ -1,12 +1,12 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import type { UserMemoryConfig, PatternStats, HierarchicalMemoryConfig } from "./types"
+import type { UserMemoryConfig, PatternStats, HierarchicalMemoryConfig, EntityMemoryConfig } from "./types"
 import type {
   ToolExecuteInput,
   ToolExecuteOutput,
   EventInput,
   MessageInput,
 } from "../../shared/hook-types"
-import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS, DEFAULT_HIERARCHICAL_CONFIG } from "./types"
+import { DEFAULT_CONFIG, DEFAULT_PATTERN_STATS, DEFAULT_HIERARCHICAL_CONFIG, DEFAULT_ENTITY_MEMORY_CONFIG } from "./types"
 import {
   getMemorySummary,
   addWorkHistoryEntry,
@@ -23,13 +23,16 @@ import {
   initializeAggregationTimestamps,
   type SummarizeFunction,
 } from "./aggregation"
+import { extractEntitiesFromWorkHistory } from "./entity-extraction"
+import { addEntityToGraph, pruneEntityGraph } from "./entity-reconciliation"
 import { log } from "../../shared/logger"
 
 /**
- * Extended config including hierarchical memory settings
+ * Extended config including hierarchical memory and entity memory settings
  */
 export interface UserMemoryHookConfig extends UserMemoryConfig {
   hierarchical_memory?: Partial<HierarchicalMemoryConfig>
+  entity_memory?: Partial<EntityMemoryConfig>
 }
 
 /**
@@ -47,6 +50,10 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
   const hierarchicalConfig: HierarchicalMemoryConfig = {
     ...DEFAULT_HIERARCHICAL_CONFIG,
     ...userConfig?.hierarchical_memory,
+  }
+  const entityConfig: EntityMemoryConfig = {
+    ...DEFAULT_ENTITY_MEMORY_CONFIG,
+    ...userConfig?.entity_memory,
   }
   const injectedSessions = new Set<string>()
 
@@ -230,14 +237,55 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
         // Extract a brief summary from the compaction summary
         const briefSummary = extractBriefSummary(summary)
         if (briefSummary) {
+          const project = ctx.directory.split("/").pop()
+          const now = Date.now()
+
           addWorkHistoryEntry(
             {
               summary: briefSummary,
-              project: ctx.directory.split("/").pop(),
+              project,
             },
             config
           )
           log("[user-memory] captured work history", { summary: briefSummary.substring(0, 50) })
+
+          // Extract entities if enabled
+          if (entityConfig.enabled) {
+            const memory = loadUserMemory()
+            let graph = memory.entityGraph ?? {
+              nodes: {},
+              relationships: [],
+              aliasIndex: {},
+              lastExtraction: 0,
+              graphVersion: 1,
+            }
+
+            const entities = extractEntitiesFromWorkHistory({
+              summary: briefSummary,
+              project,
+              timestamp: now,
+            })
+
+            for (const entity of entities) {
+              graph = addEntityToGraph(graph, entity)
+            }
+
+            // Prune if too large
+            graph = pruneEntityGraph(
+              graph,
+              entityConfig.max_entities,
+              entityConfig.max_relationships,
+              entityConfig.min_mentions
+            )
+
+            memory.entityGraph = graph
+            memory.lastEntityExtraction = now
+            saveUserMemory(memory)
+
+            if (entities.length > 0) {
+              log("[user-memory] extracted entities", { count: entities.length })
+            }
+          }
 
           // Trigger hierarchical memory aggregation after adding work history
           await triggerAggregation()
