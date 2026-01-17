@@ -128,7 +128,7 @@ oh-my-opencode Context Management
 │       ├── constants.ts               # Thresholds, cooldown
 │       └── types.ts                   # TokenInfo, State
 ├── Error Recovery                     # Reactive recovery
-│   └── anthropic-context-window-limit-recovery/
+│   └── context-window-limit-recovery/
 │       ├── index.ts                   # Hook entry point
 │       ├── executor.ts                # Three-phase orchestration
 │       ├── parser.ts                  # Token error parsing
@@ -215,7 +215,7 @@ oh-my-opencode Context Management
 |-------|---------|--------|
 | `message.updated` | preemptive-compaction | Check usage after assistant response |
 | `session.idle` | preemptive-compaction | Check usage when session becomes idle |
-| `session.error` | anthropic-context-window-limit-recovery | Trigger recovery on token limit error |
+| `session.error` | context-window-limit-recovery | Trigger recovery on token limit error |
 | `session.compacted` | Various | Clear session-specific caches |
 | `session.deleted` | Various | Clean up session state |
 
@@ -922,7 +922,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 - Cooldown preventing timely compaction
 
 **Solutions**:
-1. Verify `anthropic-context-window-limit-recovery` hook is enabled
+1. Verify `context-window-limit-recovery` hook is enabled
 2. Enable `dcp_for_compaction: true` and `dynamic_context_pruning.enabled: true`
 3. Lower `preemptive_compaction_threshold`
 4. Check for unusually large tool outputs
@@ -990,7 +990,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 ### Related Documentation
 
 - [oh-my-opencode Configuration Schema](../src/config/schema.ts)
-- [DCP Implementation](../src/hooks/anthropic-context-window-limit-recovery/)
+- [DCP Implementation](../src/hooks/context-window-limit-recovery/)
 - [Preemptive Compaction](../src/hooks/preemptive-compaction/)
 - [Compaction Context Injector](../src/hooks/compaction-context-injector/)
 

@@ -41,7 +41,7 @@ export const BUILTIN_AGENT_NAMES = new Set([
 // Migration map: old hook names → new hook names (for backward compatibility)
 export const HOOK_NAME_MAP: Record<string, string> = {
   // Legacy names (backward compatibility)
-  "anthropic-auto-compact": "anthropic-context-window-limit-recovery",
+  "anthropic-auto-compact": "context-window-limit-recovery",
 }
 
 // Model to category mapping for auto-migration

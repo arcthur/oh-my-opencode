@@ -18,6 +18,7 @@ import {
   replaceEmptyTextParts,
 } from "../session-recovery/storage";
 import { log } from "../../shared/logger";
+import { executeDynamicContextPruning } from "./pruning-executor";
 
 const PLACEHOLDER_TEXT = "[user interrupted]";
 
@@ -289,7 +290,48 @@ export async function executeCompact(
       errorData?.maxTokens &&
       errorData.currentTokens > errorData.maxTokens;
 
-    // Aggressive Truncation - always try when over limit
+    // PHASE 1: Dynamic Context Pruning (lowest risk, try first)
+    const dcpConfig = experimental?.dynamic_context_pruning
+    if (dcpConfig?.enabled === true && isOverLimit) {
+      log("[auto-compact] PHASE 1: DCP triggered", {
+        currentTokens: errorData.currentTokens,
+        maxTokens: errorData.maxTokens,
+      })
+
+      const dcpResult = await executeDynamicContextPruning(
+        sessionID,
+        dcpConfig,
+        client
+      )
+
+      if (dcpResult.itemsPruned > 0) {
+        const estimatedNewTokens = errorData.currentTokens - dcpResult.totalTokensSaved
+
+        log("[auto-compact] DCP completed", {
+          itemsPruned: dcpResult.itemsPruned,
+          tokensSaved: dcpResult.totalTokensSaved,
+          estimatedNewTokens,
+        })
+
+        // If DCP alone was sufficient, retry the request
+        if (estimatedNewTokens <= errorData.maxTokens) {
+          clearSessionState(autoCompactState, sessionID)
+          setTimeout(async () => {
+            try {
+              await (client as Client).session.prompt_async({
+                path: { id: sessionID },
+                body: { auto: true } as never,
+                query: { directory },
+              })
+            } catch {}
+          }, 500)
+          return
+        }
+        // Otherwise continue to PHASE 2
+      }
+    }
+
+    // PHASE 2: Aggressive Truncation - always try when over limit
     if (
       isOverLimit &&
       truncateState.truncateAttempt < TRUNCATE_CONFIG.maxTruncateAttempts

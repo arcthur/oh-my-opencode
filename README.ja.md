@@ -996,7 +996,7 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 }
 ```
 
-利用可能なフック：`todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`
+利用可能なフック：`todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`
 
 **`auto-update-checker`と`startup-toast`について**: `startup-toast` フックは `auto-update-checker` のサブ機能です。アップデートチェックは有効なまま起動トースト通知のみを無効化するには、`disabled_hooks` に `"startup-toast"` を追加してください。すべてのアップデートチェック機能（トーストを含む）を無効化するには、`"auto-update-checker"` を追加してください。
 

@@ -1,11 +1,11 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { AutoCompactState, ParsedTokenLimitError } from "./types"
 import type { ExperimentalConfig } from "../../config"
-import { parseAnthropicTokenLimitError } from "./parser"
+import { parseTokenLimitError } from "./parser"
 import { executeCompact, getLastAssistant } from "./executor"
 import { log } from "../../shared/logger"
 
-export interface AnthropicContextWindowLimitRecoveryOptions {
+export interface ContextWindowLimitRecoveryOptions {
   experimental?: ExperimentalConfig
 }
 
@@ -20,7 +20,7 @@ function createRecoveryState(): AutoCompactState {
   }
 }
 
-export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, options?: AnthropicContextWindowLimitRecoveryOptions) {
+export function createContextWindowLimitRecoveryHook(ctx: PluginInput, options?: ContextWindowLimitRecoveryOptions) {
   const autoCompactState = createRecoveryState()
   const experimental = options?.experimental
 
@@ -45,7 +45,7 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
       log("[auto-compact] session.error received", { sessionID, error: props?.error })
       if (!sessionID) return
 
-      const parsed = parseAnthropicTokenLimitError(props?.error)
+      const parsed = parseTokenLimitError(props?.error)
       log("[auto-compact] parsed result", { parsed, hasError: !!props?.error })
       if (parsed) {
         autoCompactState.pendingCompact.add(sessionID)
@@ -90,7 +90,7 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
 
       if (sessionID && info?.role === "assistant" && info.error) {
         log("[auto-compact] message.updated with error", { sessionID, error: info.error })
-        const parsed = parseAnthropicTokenLimitError(info.error)
+        const parsed = parseTokenLimitError(info.error)
         log("[auto-compact] message.updated parsed result", { parsed })
         if (parsed) {
           parsed.providerID = info.providerID as string | undefined
@@ -147,5 +147,5 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
 }
 
 export type { AutoCompactState, ParsedTokenLimitError, TruncateState } from "./types"
-export { parseAnthropicTokenLimitError } from "./parser"
+export { parseTokenLimitError } from "./parser"
 export { executeCompact, getLastAssistant } from "./executor"

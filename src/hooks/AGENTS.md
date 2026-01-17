@@ -9,7 +9,7 @@
 ```
 hooks/
 ├── sisyphus-orchestrator/      # Main orchestration & delegation (771 lines)
-├── anthropic-context-window-limit-recovery/  # Auto-summarize at token limit
+├── context-window-limit-recovery/  # Auto-summarize at token limit
 ├── todo-continuation-enforcer.ts # Force TODO completion
 ├── ralph-loop/                 # Self-referential dev loop until done
 ├── claude-code-hooks/          # settings.json hook compat layer (13 files)

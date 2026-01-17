@@ -57,7 +57,7 @@ Droid 采用**渐进式蒸馏**架构，将"公司所有知识"逐层过滤为"�
 | 组件 | 路径 | 功能 |
 |------|------|------|
 | Preemptive Compaction | `src/hooks/preemptive-compaction/` | 85%阈值触发压缩 |
-| Context Window Recovery | `src/hooks/anthropic-context-window-limit-recovery/` | 三层恢复策略 (DCP → Truncate → Summarize) |
+| Context Window Recovery | `src/hooks/context-window-limit-recovery/` | 三层恢复策略 (DCP → Truncate → Summarize) |
 | Compaction Context Injector | `src/hooks/compaction-context-injector/` | 压缩时保留关键上下文 |
 | Directory Agents Injector | `src/hooks/directory-agents-injector/` | 自动注入目录 AGENTS.md |
 | Dynamic Truncator | `src/shared/dynamic-truncator.ts` | 动态截断工具输出 |

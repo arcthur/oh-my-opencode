@@ -7,7 +7,7 @@ export { createToolOutputTruncatorHook } from "./tool-output-truncator";
 export { createDirectoryAgentsInjectorHook } from "./directory-agents-injector";
 export { createDirectoryReadmeInjectorHook } from "./directory-readme-injector";
 export { createEmptyTaskResponseDetectorHook } from "./empty-task-response-detector";
-export { createAnthropicContextWindowLimitRecoveryHook, type AnthropicContextWindowLimitRecoveryOptions } from "./anthropic-context-window-limit-recovery";
+export { createContextWindowLimitRecoveryHook, type ContextWindowLimitRecoveryOptions } from "./context-window-limit-recovery";
 
 export { createCompactionContextInjector } from "./compaction-context-injector";
 export { createThinkModeHook } from "./think-mode";

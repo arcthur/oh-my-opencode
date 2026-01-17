@@ -1,6 +1,6 @@
 import type { ParsedTokenLimitError } from "./types"
 
-interface AnthropicErrorData {
+interface ProviderErrorData {
   type: "error"
   error: {
     type: string
@@ -73,7 +73,7 @@ function isTokenLimitError(text: string): boolean {
   return TOKEN_LIMIT_KEYWORDS.some((kw) => lower.includes(kw.toLowerCase()))
 }
 
-export function parseAnthropicTokenLimitError(err: unknown): ParsedTokenLimitError | null {
+export function parseTokenLimitError(err: unknown): ParsedTokenLimitError | null {
   if (typeof err === "string") {
     if (err.toLowerCase().includes("non-empty content")) {
       return {
@@ -142,7 +142,7 @@ export function parseAnthropicTokenLimitError(err: unknown): ParsedTokenLimitErr
         const dataMatch = responseBody.match(pattern)
         if (dataMatch) {
           try {
-            const jsonData: AnthropicErrorData = JSON.parse(dataMatch[1])
+            const jsonData: ProviderErrorData = JSON.parse(dataMatch[1])
             const message = jsonData.error?.message || ""
             const tokens = extractTokensFromMessage(message)
 

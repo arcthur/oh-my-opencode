@@ -83,7 +83,7 @@ describe("migrateAgentNames", () => {
 })
 
 describe("migrateHookNames", () => {
-  test("migrates anthropic-auto-compact to anthropic-context-window-limit-recovery", () => {
+  test("migrates anthropic-auto-compact to context-window-limit-recovery", () => {
     // #given: Config with legacy hook name
     const hooks = ["anthropic-auto-compact", "comment-checker"]
 
@@ -92,7 +92,7 @@ describe("migrateHookNames", () => {
 
     // #then: Legacy hook name should be migrated
     expect(changed).toBe(true)
-    expect(migrated).toContain("anthropic-context-window-limit-recovery")
+    expect(migrated).toContain("context-window-limit-recovery")
     expect(migrated).toContain("comment-checker")
     expect(migrated).not.toContain("anthropic-auto-compact")
   })
@@ -100,7 +100,7 @@ describe("migrateHookNames", () => {
   test("preserves current hook names unchanged", () => {
     // #given: Config with current hook names
     const hooks = [
-      "anthropic-context-window-limit-recovery",
+      "context-window-limit-recovery",
       "todo-continuation-enforcer",
       "session-recovery",
     ]
@@ -134,7 +134,7 @@ describe("migrateHookNames", () => {
 
     // #then: All legacy names should be migrated
     expect(changed).toBe(true)
-    expect(migrated).toEqual(["anthropic-context-window-limit-recovery"])
+    expect(migrated).toEqual(["context-window-limit-recovery"])
   })
 })
 
@@ -185,7 +185,7 @@ describe("migrateConfigFile", () => {
 
     // #then: Hook names should be migrated
     expect(needsWrite).toBe(true)
-    expect(rawConfig.disabled_hooks).toContain("anthropic-context-window-limit-recovery")
+    expect(rawConfig.disabled_hooks).toContain("context-window-limit-recovery")
     expect(rawConfig.disabled_hooks).not.toContain("anthropic-auto-compact")
   })
 
@@ -196,7 +196,7 @@ describe("migrateConfigFile", () => {
       agents: {
         Sisyphus: { model: "test" },
       },
-      disabled_hooks: ["anthropic-context-window-limit-recovery"],
+      disabled_hooks: ["context-window-limit-recovery"],
     }
 
     // #when: Migrate config file
@@ -227,7 +227,7 @@ describe("migrateConfigFile", () => {
     const agents = rawConfig.agents as Record<string, unknown>
     expect(agents["Sisyphus"]).toBeDefined()
     expect(agents["Prometheus (Planner)"]).toBeDefined()
-    expect(rawConfig.disabled_hooks).toContain("anthropic-context-window-limit-recovery")
+    expect(rawConfig.disabled_hooks).toContain("context-window-limit-recovery")
   })
 })
 
@@ -246,7 +246,7 @@ describe("migration maps", () => {
   test("HOOK_NAME_MAP contains anthropic-auto-compact migration", () => {
     // #given/#when: Check HOOK_NAME_MAP
     // #then: Should contain be legacy hook name mapping
-    expect(HOOK_NAME_MAP["anthropic-auto-compact"]).toBe("anthropic-context-window-limit-recovery")
+    expect(HOOK_NAME_MAP["anthropic-auto-compact"]).toBe("context-window-limit-recovery")
   })
 })
 

@@ -11,7 +11,7 @@ import {
   createEmptyTaskResponseDetectorHook,
   createThinkModeHook,
   createClaudeCodeHooksHook,
-  createAnthropicContextWindowLimitRecoveryHook,
+  createContextWindowLimitRecoveryHook,
 
   createCompactionContextInjector,
   createRulesInjectorHook,
@@ -154,9 +154,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     contextCollector
   );
   const anthropicContextWindowLimitRecovery = isHookEnabled(
-    "anthropic-context-window-limit-recovery"
+    "context-window-limit-recovery"
   )
-    ? createAnthropicContextWindowLimitRecoveryHook(ctx, {
+    ? createContextWindowLimitRecoveryHook(ctx, {
         experimental: pluginConfig.experimental,
       })
     : null;
