@@ -2,6 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { log } from "../../shared/logger"
+import { SYSTEM_DIRECTIVE_PREFIX } from "../../shared/system-directive"
 import { readState, writeState, clearState, incrementIteration } from "./storage"
 import {
   HOOK_NAME,
@@ -42,7 +43,7 @@ interface OpenCodeSessionMessage {
   }>
 }
 
-const CONTINUATION_PROMPT = `[RALPH LOOP - ITERATION {{ITERATION}}/{{MAX}}]
+const CONTINUATION_PROMPT = `${SYSTEM_DIRECTIVE_PREFIX} - RALPH LOOP {{ITERATION}}/{{MAX}}]
 
 Your previous attempt did not output the completion promise. Continue working on the task.
 
@@ -321,13 +322,13 @@ export function createRalphLoopHook(
         try {
           const messagesResp = await ctx.client.session.messages({ path: { id: sessionID } })
           const messages = (messagesResp.data ?? []) as Array<{
-            info?: { agent?: string; model?: { providerID: string; modelID: string } }
+            info?: { agent?: string; model?: { providerID: string; modelID: string }; modelID?: string; providerID?: string }
           }>
           for (let i = messages.length - 1; i >= 0; i--) {
             const info = messages[i].info
-            if (info?.agent || info?.model) {
+            if (info?.agent || info?.model || (info?.modelID && info?.providerID)) {
               agent = info.agent
-              model = info.model
+              model = info.model ?? (info.providerID && info.modelID ? { providerID: info.providerID, modelID: info.modelID } : undefined)
               break
             }
           }

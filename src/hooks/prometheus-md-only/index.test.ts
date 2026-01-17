@@ -4,6 +4,8 @@ import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { createPrometheusMdOnlyHook } from "./index"
 import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
+import { SYSTEM_DIRECTIVE_PREFIX, createSystemDirective, SystemDirectiveTypes } from "../../shared/system-directive"
+import { clearSessionAgent } from "../../features/claude-code-session-state"
 
 describe("prometheus-md-only", () => {
   const TEST_SESSION_ID = "test-session-prometheus"
@@ -32,6 +34,7 @@ describe("prometheus-md-only", () => {
   }
 
   afterEach(() => {
+    clearSessionAgent(TEST_SESSION_ID)
     if (testMessageDir) {
       try {
         rmSync(testMessageDir, { recursive: true, force: true })
@@ -154,11 +157,11 @@ describe("prometheus-md-only", () => {
       ).resolves.toBeUndefined()
     })
 
-    test("should inject read-only warning when Prometheus calls sisyphus_task", async () => {
+    test("should inject read-only warning when Prometheus calls delegate_task", async () => {
       // #given
       const hook = createPrometheusMdOnlyHook(createMockPluginInput())
       const input = {
-        tool: "sisyphus_task",
+        tool: "delegate_task",
         sessionID: TEST_SESSION_ID,
         callID: "call-1",
       }
@@ -170,7 +173,7 @@ describe("prometheus-md-only", () => {
       await hook["tool.execute.before"](input, output)
 
       // #then
-      expect(output.args.prompt).toContain("[SYSTEM DIRECTIVE - READ-ONLY PLANNING CONSULTATION]")
+      expect(output.args.prompt).toContain(SYSTEM_DIRECTIVE_PREFIX)
       expect(output.args.prompt).toContain("DO NOT modify any files")
     })
 
@@ -190,7 +193,7 @@ describe("prometheus-md-only", () => {
       await hook["tool.execute.before"](input, output)
 
       // #then
-      expect(output.args.prompt).toContain("[SYSTEM DIRECTIVE - READ-ONLY PLANNING CONSULTATION]")
+      expect(output.args.prompt).toContain(SYSTEM_DIRECTIVE_PREFIX)
     })
 
     test("should inject read-only warning when Prometheus calls call_omo_agent", async () => {
@@ -209,18 +212,18 @@ describe("prometheus-md-only", () => {
       await hook["tool.execute.before"](input, output)
 
       // #then
-      expect(output.args.prompt).toContain("[SYSTEM DIRECTIVE - READ-ONLY PLANNING CONSULTATION]")
+      expect(output.args.prompt).toContain(SYSTEM_DIRECTIVE_PREFIX)
     })
 
     test("should not double-inject warning if already present", async () => {
       // #given
       const hook = createPrometheusMdOnlyHook(createMockPluginInput())
       const input = {
-        tool: "sisyphus_task",
+        tool: "delegate_task",
         sessionID: TEST_SESSION_ID,
         callID: "call-1",
       }
-      const promptWithWarning = "Some prompt [SYSTEM DIRECTIVE - READ-ONLY PLANNING CONSULTATION] already here"
+      const promptWithWarning = `Some prompt ${SYSTEM_DIRECTIVE_PREFIX} already here`
       const output = {
         args: { prompt: promptWithWarning },
       }
@@ -229,7 +232,7 @@ describe("prometheus-md-only", () => {
       await hook["tool.execute.before"](input, output)
 
       // #then
-      const occurrences = (output.args.prompt as string).split("[SYSTEM DIRECTIVE - READ-ONLY PLANNING CONSULTATION]").length - 1
+      const occurrences = (output.args.prompt as string).split(SYSTEM_DIRECTIVE_PREFIX).length - 1
       expect(occurrences).toBe(1)
     })
   })
@@ -257,11 +260,11 @@ describe("prometheus-md-only", () => {
       ).resolves.toBeUndefined()
     })
 
-    test("should not inject warning for non-Prometheus agents calling sisyphus_task", async () => {
+    test("should not inject warning for non-Prometheus agents calling delegate_task", async () => {
       // #given
       const hook = createPrometheusMdOnlyHook(createMockPluginInput())
       const input = {
-        tool: "sisyphus_task",
+        tool: "delegate_task",
         sessionID: TEST_SESSION_ID,
         callID: "call-1",
       }
@@ -275,7 +278,7 @@ describe("prometheus-md-only", () => {
 
       // #then
       expect(output.args.prompt).toBe(originalPrompt)
-      expect(output.args.prompt).not.toContain("[SYSTEM DIRECTIVE - READ-ONLY PLANNING CONSULTATION]")
+      expect(output.args.prompt).not.toContain(SYSTEM_DIRECTIVE_PREFIX)
     })
   })
 

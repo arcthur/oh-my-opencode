@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { ALLOWED_AGENTS, CALL_OMO_AGENT_DESCRIPTION } from "./constants"
 import type { CallOmoAgentArgs } from "./types"
 import type { BackgroundManager } from "../../features/background-agent"
-import { log } from "../../shared/logger"
+import { log, getAgentToolRestrictions } from "../../shared"
 import { consumeNewMessages } from "../../shared/session-cursor"
 import { findFirstMessageWithAgent, findNearestMessageWithFields, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 import { getSessionAgent } from "../../features/claude-code-session-state"
@@ -188,8 +188,9 @@ async function executeSync(
       body: {
         agent: args.subagent_type,
         tools: {
+          ...getAgentToolRestrictions(args.subagent_type),
           task: false,
-          sisyphus_task: false,
+          delegate_task: false,
         },
         parts: [{ type: "text", text: args.prompt }],
       },

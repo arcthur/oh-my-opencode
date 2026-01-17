@@ -14,7 +14,7 @@ import { createMomusAgent } from "./momus"
 import { createPlanSynthesizerAgent } from "./plan-synthesizer"
 import type { AvailableAgent, AvailableSkill } from "./sisyphus-prompt-builder"
 import { deepMerge } from "../shared"
-import { DEFAULT_CATEGORIES } from "../tools/sisyphus-task/constants"
+import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants"
 import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-content"
 
 type AgentSource = AgentFactory | AgentConfig

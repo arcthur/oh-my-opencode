@@ -86,12 +86,12 @@ export const HookNameSchema = z.enum([
   "empty-message-sanitizer",
   "thinking-block-validator",
   "ralph-loop",
-  "preemptive-compaction",
+
   "compaction-context-injector",
   "claude-code-hooks",
   "auto-slash-command",
   "edit-error-recovery",
-  "sisyphus-task-retry",
+  "delegate-task-retry",
   "prometheus-md-only",
   "start-work",
   "sisyphus-orchestrator",
@@ -270,8 +270,6 @@ export const ExperimentalConfigSchema = z.object({
   truncate_all_tool_outputs: z.boolean().optional(),
   /** Dynamic context pruning configuration */
   dynamic_context_pruning: DynamicContextPruningConfigSchema.optional(),
-  /** Enable DCP (Dynamic Context Pruning) for compaction - runs first when token limit exceeded (default: false) */
-  dcp_for_compaction: z.boolean().optional(),
 })
 
 export const SkillSourceSchema = z.union([

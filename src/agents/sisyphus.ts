@@ -122,7 +122,7 @@ IMPORTANT: If codebase appears undisciplined, verify before assuming:
 
 const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY)
 
-**BEFORE every \`sisyphus_task\` call, output this EXACT JSON format:**
+**BEFORE every \`delegate_task\` call, output this EXACT JSON format:**
 
 <delegation-decision>
 {
@@ -135,7 +135,7 @@ const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY
 }
 </delegation-decision>
 
-**Then** make the sisyphus_task call.
+**Then** make the delegate_task call.
 
 #### Decision Guide
 
@@ -183,7 +183,7 @@ const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY
 }
 </delegation-decision>
 
-sisyphus_task(agent="frontend-ui-ux-engineer", prompt="Create a responsive dashboard...")
+delegate_task(agent="frontend-ui-ux-engineer", prompt="Create a responsive dashboard...")
 
 **✅ CORRECT: Exploration**
 
@@ -198,15 +198,15 @@ sisyphus_task(agent="frontend-ui-ux-engineer", prompt="Create a responsive dashb
 }
 </delegation-decision>
 
-sisyphus_task(agent="explore", background=true, prompt="Find all auth implementations...")
+delegate_task(agent="explore", background=true, prompt="Find all auth implementations...")
 
 **❌ WRONG: Missing delegation-decision block**
 
-sisyphus_task(agent="oracle", prompt="...")  // No JSON block before call
+delegate_task(agent="oracle", prompt="...")  // No JSON block before call
 
 #### Enforcement
 
-**If \`<delegation-decision>\` is missing before sisyphus_task, you will receive a WARNING.**
+**If \`<delegation-decision>\` is missing before delegate_task, you will receive a WARNING.**
 
 The system validates your decision and will warn you if:
 - Agent doesn't match task type (e.g., oracle for trivial exploration)
@@ -240,11 +240,11 @@ const SISYPHUS_PARALLEL_EXECUTION = `### Parallel Execution (DEFAULT behavior)
 \`\`\`typescript
 // CORRECT: Always background, always parallel
 // Contextual Grep (internal)
-sisyphus_task(agent="explore", prompt="Find auth implementations in our codebase...")
-sisyphus_task(agent="explore", prompt="Find error handling patterns here...")
+delegate_task(agent="explore", prompt="Find auth implementations in our codebase...")
+delegate_task(agent="explore", prompt="Find error handling patterns here...")
 // Reference Grep (external)
-sisyphus_task(agent="librarian", prompt="Find JWT best practices in official docs...")
-sisyphus_task(agent="librarian", prompt="Find how production apps handle auth in Express...")
+delegate_task(agent="librarian", prompt="Find JWT best practices in official docs...")
+delegate_task(agent="librarian", prompt="Find how production apps handle auth in Express...")
 // Continue working immediately. Collect with background_output when needed.
 
 // WRONG: Sequential or blocking
@@ -267,7 +267,7 @@ Pass \`resume=session_id\` to continue previous agent with FULL CONTEXT PRESERVE
 
 **Example:**
 \`\`\`
-sisyphus_task(resume="ses_abc123", prompt="The previous search missed X. Also look for Y.")
+delegate_task(resume="ses_abc123", prompt="The previous search missed X. Also look for Y.")
 \`\`\`
 
 ### Search Stop Conditions
@@ -653,9 +653,7 @@ export function createSisyphusAgent(
     ? buildDynamicSisyphusPrompt(availableAgents, tools, skills)
     : buildDynamicSisyphusPrompt([], tools, skills)
 
-  // Note: question permission allows agent to ask user questions via OpenCode's QuestionTool
-  // SDK type doesn't include 'question' yet, but OpenCode runtime supports it
-  const permission = { question: "allow" } as AgentConfig["permission"]
+  const permission = { question: "allow", call_omo_agent: "deny" } as AgentConfig["permission"]
   const base = {
     description:
       "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically to specialized agents. Uses explore for internal code (parallel-friendly), librarian only for external docs, and always delegates UI work to frontend engineer.",
@@ -665,7 +663,6 @@ export function createSisyphusAgent(
     prompt,
     color: "#00CED1",
     permission,
-    tools: { call_omo_agent: false },
   }
 
   if (isGptModel(model)) {

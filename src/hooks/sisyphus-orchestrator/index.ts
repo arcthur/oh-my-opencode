@@ -10,6 +10,7 @@ import {
 import { getMainSessionID, subagentSessions } from "../../features/claude-code-session-state"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
+import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
 import type { BackgroundManager } from "../../features/background-agent"
 
 export const HOOK_NAME = "sisyphus-orchestrator"
@@ -28,14 +29,14 @@ const DIRECT_WORK_REMINDER = `
 
 ---
 
-[SYSTEM REMINDER - DELEGATION REQUIRED]
+${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)}
 
 You just performed direct file modifications outside \`.sisyphus/\`.
 
 **You are an ORCHESTRATOR, not an IMPLEMENTER.**
 
 As an orchestrator, you should:
-- **DELEGATE** implementation work to subagents via \`sisyphus_task\`
+- **DELEGATE** implementation work to subagents via \`delegate_task\`
 - **VERIFY** the work done by subagents
 - **COORDINATE** multiple tasks and ensure completion
 
@@ -45,14 +46,14 @@ You should NOT:
 - Implement features yourself
 
 **If you need to make changes:**
-1. Use \`sisyphus_task\` to delegate to an appropriate subagent
+1. Use \`delegate_task\` to delegate to an appropriate subagent
 2. Provide clear instructions in the prompt
 3. Verify the subagent's work after completion
 
 ---
 `
 
-const BOULDER_CONTINUATION_PROMPT = `[SYSTEM REMINDER - BOULDER CONTINUATION]
+const BOULDER_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.BOULDER_CONTINUATION)}
 
 You have an active work plan with incomplete tasks. Continue working.
 
@@ -100,14 +101,13 @@ todowrite([
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**BLOCKING: DO NOT proceed to next task until Steps 1-3 are complete.**
-**FAILURE TO DO QA = INCOMPLETE WORK = USER WILL REJECT.**`
+**BLOCKING: DO NOT proceed to Step 4 until Steps 1-3 are VERIFIED.**`
 
 const ORCHESTRATOR_DELEGATION_REQUIRED = `
 
 ---
 
-⚠️⚠️⚠️ [CRITICAL SYSTEM DIRECTIVE - DELEGATION REQUIRED] ⚠️⚠️⚠️
+⚠️⚠️⚠️ ${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)} ⚠️⚠️⚠️
 
 **STOP. YOU ARE VIOLATING ORCHESTRATOR PROTOCOL.**
 
@@ -120,7 +120,7 @@ You (orchestrator-sisyphus) are attempting to directly modify a file outside \`.
 🚫 **THIS IS FORBIDDEN** (except for VERIFICATION purposes)
 
 As an ORCHESTRATOR, you MUST:
-1. **DELEGATE** all implementation work via \`sisyphus_task\`
+1. **DELEGATE** all implementation work via \`delegate_task\`
 2. **VERIFY** the work done by subagents (reading files is OK)
 3. **COORDINATE** - you orchestrate, you don't implement
 
@@ -138,11 +138,11 @@ As an ORCHESTRATOR, you MUST:
 
 **IF THIS IS FOR VERIFICATION:**
 Proceed if you are verifying subagent work by making a small fix.
-But for any substantial changes, USE \`sisyphus_task\`.
+But for any substantial changes, USE \`delegate_task\`.
 
 **CORRECT APPROACH:**
 \`\`\`
-sisyphus_task(
+delegate_task(
   category="...",
   prompt="[specific single task with clear acceptance criteria]"
 )
@@ -155,7 +155,7 @@ sisyphus_task(
 
 const SINGLE_TASK_DIRECTIVE = `
 
-[SYSTEM DIRECTIVE - SINGLE TASK ONLY]
+${createSystemDirective(SystemDirectiveTypes.SINGLE_TASK_ONLY)}
 
 **STOP. READ THIS BEFORE PROCEEDING.**
 
@@ -185,7 +185,7 @@ function buildVerificationReminder(sessionId: string): string {
 
 **If ANY verification fails, use this immediately:**
 \`\`\`
-sisyphus_task(resume="${sessionId}", prompt="fix: [describe the specific failure]")
+delegate_task(resume="${sessionId}", prompt="fix: [describe the specific failure]")
 \`\`\``
 }
 
@@ -194,21 +194,35 @@ function buildOrchestratorReminder(planName: string, progress: { total: number; 
   return `
 ---
 
-**BOULDER STATE:** Plan: \`${planName}\` | ✅ ${progress.completed}/${progress.total} done | ⏳ ${remaining} remaining
+**BOULDER STATE:** Plan: \`${planName}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
 
 ---
 
 ${buildVerificationReminder(sessionId)}
 
+**STEP 4: MARK COMPLETION IN PLAN FILE (IMMEDIATELY)**
+
+RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
+
+Update the plan file \`.sisyphus/tasks/${planName}.yaml\`:
+- Change \`[ ]\` to \`[x]\` for the completed task
+- Use \`Edit\` tool to modify the checkbox
+
+**DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
+
+**STEP 5: COMMIT ATOMIC UNIT**
+
+- Stage ONLY the verified changes
+- Commit with clear message describing what was done
+
+**STEP 6: PROCEED TO NEXT TASK**
+
+- Read the plan file to identify the next \`[ ]\` task
+- Start immediately - DO NOT STOP
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**AFTER VERIFICATION PASSES - YOUR NEXT ACTIONS (IN ORDER):**
-
-1. **COMMIT** atomic unit (only verified changes)
-2. **MARK** \`[x]\` in plan file for completed task
-3. **PROCEED** to next task immediately
-
-**DO NOT STOP. ${remaining} tasks remain. Keep bouldering.**`
+**${remaining} tasks remain. Keep bouldering.**`
 }
 
 function buildStandaloneVerificationReminder(sessionId: string): string {
@@ -217,13 +231,27 @@ function buildStandaloneVerificationReminder(sessionId: string): string {
 
 ${buildVerificationReminder(sessionId)}
 
+**STEP 4: UPDATE TODO STATUS (IMMEDIATELY)**
+
+RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
+
+1. Run \`todoread\` to see your todo list
+2. Mark the completed task as \`completed\` using \`todowrite\`
+
+**DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
+
+**STEP 5: EXECUTE QA TASKS (IF ANY)**
+
+If QA tasks exist in your todo list:
+- Execute them BEFORE proceeding
+- Mark each QA task complete after successful verification
+
+**STEP 6: PROCEED TO NEXT PENDING TASK**
+
+- Identify the next \`pending\` task from your todo list
+- Start immediately - DO NOT STOP
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**AFTER VERIFICATION - CHECK YOUR TODO LIST:**
-
-1. Run \`todoread\` to see remaining tasks
-2. If QA tasks exist → execute them BEFORE marking complete
-3. Mark completed tasks → proceed to next pending task
 
 **NO TODO = NO TRACKING = INCOMPLETE WORK. Use todowrite aggressively.**`
 }
@@ -394,7 +422,10 @@ function isCallerOrchestrator(sessionID?: string): boolean {
 
 interface SessionState {
   lastEventWasAbortError?: boolean
+  lastContinuationInjectedAt?: number
 }
+
+const CONTINUATION_COOLDOWN_MS = 5000
 
 export interface SisyphusOrchestratorHookOptions {
   directory: string
@@ -460,12 +491,17 @@ export function createSisyphusOrchestratorHook(
       try {
         const messagesResp = await ctx.client.session.messages({ path: { id: sessionID } })
         const messages = (messagesResp.data ?? []) as Array<{
-          info?: { model?: { providerID: string; modelID: string } }
+          info?: { model?: { providerID: string; modelID: string }; modelID?: string; providerID?: string }
         }>
         for (let i = messages.length - 1; i >= 0; i--) {
-          const msgModel = messages[i].info?.model
+          const info = messages[i].info
+          const msgModel = info?.model
           if (msgModel?.providerID && msgModel?.modelID) {
             model = { providerID: msgModel.providerID, modelID: msgModel.modelID }
+            break
+          }
+          if (info?.providerID && info?.modelID) {
+            model = { providerID: info.providerID, modelID: info.modelID }
             break
           }
         }
@@ -563,6 +599,13 @@ export function createSisyphusOrchestratorHook(
           return
         }
 
+        const now = Date.now()
+        if (state.lastContinuationInjectedAt && now - state.lastContinuationInjectedAt < CONTINUATION_COOLDOWN_MS) {
+          log(`[${HOOK_NAME}] Skipped: continuation cooldown active`, { sessionID, cooldownRemaining: CONTINUATION_COOLDOWN_MS - (now - state.lastContinuationInjectedAt) })
+          return
+        }
+
+        state.lastContinuationInjectedAt = now
         const remaining = progress.total - progress.completed
         injectContinuation(sessionID, boulderState.plan_name, remaining, progress.total)
         return
@@ -643,12 +686,12 @@ export function createSisyphusOrchestratorHook(
         return
       }
 
-      // Check sisyphus_task - inject single-task directive
-      if (input.tool === "sisyphus_task") {
+      // Check delegate_task - inject single-task directive
+      if (input.tool === "delegate_task") {
         const prompt = output.args.prompt as string | undefined
-        if (prompt && !prompt.includes("[SYSTEM DIRECTIVE - SINGLE TASK ONLY]")) {
+        if (prompt && !prompt.includes(SYSTEM_DIRECTIVE_PREFIX)) {
           output.args.prompt = prompt + `\n<system-reminder>${SINGLE_TASK_DIRECTIVE}</system-reminder>`
-          log(`[${HOOK_NAME}] Injected single-task directive to sisyphus_task`, {
+          log(`[${HOOK_NAME}] Injected single-task directive to delegate_task`, {
             sessionID: input.sessionID,
           })
         }
@@ -682,7 +725,7 @@ export function createSisyphusOrchestratorHook(
         return
       }
 
-      if (input.tool !== "sisyphus_task") {
+      if (input.tool !== "delegate_task") {
         return
       }
 

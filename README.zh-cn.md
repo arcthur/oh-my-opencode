@@ -580,7 +580,7 @@ gh repo star code-yeongyu/oh-my-opencode
 - **ast_grep_search**：AST 感知的代码模式搜索（25 种语言）
 - **ast_grep_replace**：AST 感知的代码替换
 - **call_omo_agent**：生成专业的 explore/librarian 智能体。支持 `run_in_background` 参数进行异步执行。
-- **sisyphus_task**：基于类别的任务委派，使用专业智能体。支持预配置的类别（visual、business-logic）或直接指定智能体。使用 `background_output` 检索结果，使用 `background_cancel` 取消任务。参见[类别](#类别)。
+- **delegate_task**：基于类别的任务委派，使用专业智能体。支持预配置的类别（visual、business-logic）或直接指定智能体。使用 `background_output` 检索结果，使用 `background_cancel` 取消任务。参见[类别](#类别)。
 
 #### 会话管理
 
@@ -931,7 +931,7 @@ Oh My OpenCode 从以下位置读取和执行钩子：
 Oh My OpenCode 包含提供额外功能的内置技能：
 
 - **playwright**：使用 Playwright MCP 进行浏览器自动化。用于网页抓取、测试、截图和浏览器交互。
-- **git-master**：Git 专家，用于原子提交、rebase/squash 和历史搜索（blame、bisect、log -S）。**强烈推荐**：与 `sisyphus_task(category='quick', skills=['git-master'], ...)` 一起使用以节省上下文。
+- **git-master**：Git 专家，用于原子提交、rebase/squash 和历史搜索（blame、bisect、log -S）。**强烈推荐**：与 `delegate_task(category='quick', skills=['git-master'], ...)` 一起使用以节省上下文。
 
 通过 `~/.config/opencode/oh-my-opencode.json` 或 `.opencode/oh-my-opencode.json` 中的 `disabled_skills` 禁用内置技能：
 
@@ -1070,7 +1070,7 @@ Oh My OpenCode 包含提供额外功能的内置技能：
 
 ### 类别
 
-类别通过 `sisyphus_task` 工具实现领域特定的任务委派。每个类别预配置一个专业的 `Sisyphus-Junior-{category}` 智能体，带有优化的模型设置和提示。
+类别通过 `delegate_task` 工具实现领域特定的任务委派。每个类别预配置一个专业的 `Sisyphus-Junior-{category}` 智能体，带有优化的模型设置和提示。
 
 **默认类别：**
 
@@ -1082,12 +1082,12 @@ Oh My OpenCode 包含提供额外功能的内置技能：
 **使用方法：**
 
 ```
-// 通过 sisyphus_task 工具
-sisyphus_task(category="visual", prompt="创建一个响应式仪表板组件")
-sisyphus_task(category="business-logic", prompt="设计支付处理流程")
+// 通过 delegate_task 工具
+delegate_task(category="visual", prompt="创建一个响应式仪表板组件")
+delegate_task(category="business-logic", prompt="设计支付处理流程")
 
 // 或直接指定特定智能体
-sisyphus_task(agent="oracle", prompt="审查这个架构")
+delegate_task(agent="oracle", prompt="审查这个架构")
 ```
 
 **自定义类别：**
@@ -1174,7 +1174,6 @@ Oh My OpenCode 添加了重构工具（重命名、代码操作）。
 ```json
 {
   "experimental": {
-    "preemptive_compaction_threshold": 0.85,
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
     "auto_resume": true
@@ -1182,13 +1181,11 @@ Oh My OpenCode 添加了重构工具（重命名、代码操作）。
 }
 ```
 
-| 选项                              | 默认    | 描述                                                                                                                                                                                          |
-| --------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `preemptive_compaction_threshold` | `0.85`  | 触发预防性压缩的阈值百分比（0.5-0.95）。`preemptive-compaction` 钩子默认启用；此选项自定义阈值。                                                                                              |
-| `truncate_all_tool_outputs`       | `false` | 截断所有工具输出而不仅仅是白名单工具（Grep、Glob、LSP、AST-grep）。工具输出截断器默认启用——通过 `disabled_hooks` 禁用。                                                                       |
-| `aggressive_truncation`           | `false` | 当超过 token 限制时，积极截断工具输出以适应限制。比默认截断行为更激进。如果不足以满足，则回退到总结/恢复。                                                                                    |
-| `auto_resume`                     | `false` | 从思考块错误或禁用思考违规成功恢复后自动恢复会话。提取最后一条用户消息并继续。                                                                                                                |
-| `dcp_for_compaction`              | `false` | 为压缩启用 DCP（动态上下文修剪）——当超过 token 限制时首先运行。在运行压缩之前修剪重复的工具调用和旧的工具输出。                                                                               |
+| 选项                        | 默认    | 描述                                                                                                                                                       |
+| --------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `truncate_all_tool_outputs` | `false` | 截断所有工具输出而不仅仅是白名单工具（Grep、Glob、LSP、AST-grep）。工具输出截断器默认启用——通过 `disabled_hooks` 禁用。                                    |
+| `aggressive_truncation`     | `false` | 当超过 token 限制时，积极截断工具输出以适应限制。比默认截断行为更激进。如果不足以满足，则回退到总结/恢复。                                                 |
+| `auto_resume`               | `false` | 从思考块错误或禁用思考违规成功恢复后自动恢复会话。提取最后一条用户消息并继续。                                                                             |
 
 **警告**：这些功能是实验性的，可能导致意外行为。只有在理解其影响后才启用。
 

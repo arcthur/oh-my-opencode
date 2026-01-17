@@ -5,7 +5,7 @@ import type {
   LaunchInput,
   ResumeInput,
 } from "./types"
-import { log } from "../../shared/logger"
+import { log, getAgentToolRestrictions } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
 import type { BackgroundTaskConfig } from "../../config/schema"
 
@@ -179,8 +179,9 @@ export class BackgroundManager {
         ...(input.model ? { model: input.model } : {}),
         system: input.skillContent,
         tools: {
+          ...getAgentToolRestrictions(input.agent),
           task: false,
-          sisyphus_task: false,
+          delegate_task: false,
           call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],
@@ -249,7 +250,7 @@ export class BackgroundManager {
   }
 
   /**
-   * Track a task created elsewhere (e.g., from sisyphus_task) for notification tracking.
+   * Track a task created elsewhere (e.g., from delegate_task) for notification tracking.
    * This allows tasks created by other tools to receive the same toast/prompt notifications.
    */
   async trackTask(input: {
@@ -296,7 +297,7 @@ export class BackgroundManager {
       return existingTask
     }
 
-    const concurrencyGroup = input.concurrencyKey ?? input.agent ?? "sisyphus_task"
+    const concurrencyGroup = input.concurrencyKey ?? input.agent ?? "delegate_task"
 
     // Acquire concurrency slot if a key is provided
     if (input.concurrencyKey) {
@@ -310,7 +311,7 @@ export class BackgroundManager {
       parentMessageID: "",
       description: input.description,
       prompt: "",
-      agent: input.agent || "sisyphus_task",
+      agent: input.agent || "delegate_task",
       status: "running",
       startedAt: new Date(),
       progress: {
@@ -407,8 +408,9 @@ export class BackgroundManager {
       body: {
         agent: existingTask.agent,
         tools: {
+          ...getAgentToolRestrictions(existingTask.agent),
           task: false,
-          sisyphus_task: false,
+          delegate_task: false,
           call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],
@@ -844,13 +846,13 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     try {
       const messagesResp = await this.client.session.messages({ path: { id: task.parentSessionID } })
       const messages = (messagesResp.data ?? []) as Array<{
-        info?: { agent?: string; model?: { providerID: string; modelID: string } }
+        info?: { agent?: string; model?: { providerID: string; modelID: string }; modelID?: string; providerID?: string }
       }>
       for (let i = messages.length - 1; i >= 0; i--) {
         const info = messages[i].info
-        if (info?.agent || info?.model) {
+        if (info?.agent || info?.model || (info?.modelID && info?.providerID)) {
           agent = info.agent ?? task.parentAgent
-          model = info.model
+          model = info.model ?? (info.providerID && info.modelID ? { providerID: info.providerID, modelID: info.modelID } : undefined)
           break
         }
       }

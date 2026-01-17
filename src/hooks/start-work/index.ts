@@ -10,6 +10,7 @@ import {
   clearBoulderState,
 } from "../../features/boulder-state"
 import { log } from "../../shared/logger"
+import { clearSessionAgent } from "../../features/claude-code-session-state"
 
 export const HOOK_NAME = "start-work"
 
@@ -58,9 +59,9 @@ export function createStartWorkHook(ctx: PluginInput) {
         .join("\n")
         .trim() || ""
 
-      const isStartWorkCommand =
-        promptText.includes("Start Sisyphus work session") ||
-        promptText.includes("<session-context>")
+      // Only trigger on actual command execution (contains <session-context> tag)
+      // NOT on description text like "Start Sisyphus work session from Prometheus plan"
+      const isStartWorkCommand = promptText.includes("<session-context>")
 
       if (!isStartWorkCommand) {
         return
@@ -69,6 +70,9 @@ export function createStartWorkHook(ctx: PluginInput) {
       log(`[${HOOK_NAME}] Processing start-work command`, {
         sessionID: input.sessionID,
       })
+
+      // Clear previous session agent (e.g., Prometheus) to allow mode transition
+      clearSessionAgent(input.sessionID)
 
       const existingState = readBoulderState(ctx.directory)
       const sessionId = input.sessionID

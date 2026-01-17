@@ -9,6 +9,7 @@ import {
     type ToolPermission,
 } from "../features/hook-message-injector"
 import { log } from "../shared/logger"
+import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
 
 const HOOK_NAME = "todo-continuation-enforcer"
 
@@ -40,7 +41,7 @@ interface SessionState {
   abortDetectedAt?: number
 }
 
-const CONTINUATION_PROMPT = `[SYSTEM REMINDER - TODO CONTINUATION]
+const CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.TODO_CONTINUATION)}
 
 Incomplete tasks remain in your todo list. Continue working on the next pending task.
 
@@ -380,15 +381,17 @@ export function createTodoContinuationEnforcer(
           info?: {
             agent?: string
             model?: { providerID: string; modelID: string }
+            modelID?: string
+            providerID?: string
             tools?: Record<string, ToolPermission>
           }
         }>
         for (let i = messages.length - 1; i >= 0; i--) {
           const info = messages[i].info
-          if (info?.agent || info?.model) {
+          if (info?.agent || info?.model || (info?.modelID && info?.providerID)) {
             resolvedInfo = {
               agent: info.agent,
-              model: info.model,
+              model: info.model ?? (info.providerID && info.modelID ? { providerID: info.providerID, modelID: info.modelID } : undefined),
               tools: info.tools,
             }
             break

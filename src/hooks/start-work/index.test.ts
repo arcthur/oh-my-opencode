@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test"
+import { describe, expect, test, beforeEach, afterEach, spyOn } from "bun:test"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir, homedir } from "node:os"
@@ -8,6 +8,7 @@ import {
   clearBoulderState,
 } from "../../features/boulder-state"
 import type { BoulderState } from "../../features/boulder-state"
+import * as sessionState from "../../features/claude-code-session-state"
 
 describe("start-work hook", () => {
   const TEST_DIR = join(tmpdir(), "start-work-test-" + Date.now())
@@ -92,7 +93,7 @@ describe("start-work hook", () => {
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: "Start Sisyphus work session" }],
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
 
       // #when
@@ -113,7 +114,7 @@ describe("start-work hook", () => {
         parts: [
           {
             type: "text",
-            text: "Start Sisyphus work session\nSession: $SESSION_ID",
+            text: "<session-context>Session: $SESSION_ID</session-context>",
           },
         ],
       }
@@ -136,7 +137,7 @@ describe("start-work hook", () => {
         parts: [
           {
             type: "text",
-            text: "Start Sisyphus work session\nTime: $TIMESTAMP",
+            text: "<session-context>Time: $TIMESTAMP</session-context>",
           },
         ],
       }
@@ -167,7 +168,7 @@ describe("start-work hook", () => {
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: "Start Sisyphus work session" }],
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
 
       // #when
@@ -195,7 +196,7 @@ describe("start-work hook", () => {
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: "Start Sisyphus work session" }],
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
 
       // #when
@@ -223,7 +224,7 @@ describe("start-work hook", () => {
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: "Start Sisyphus work session" }],
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
 
       // #when
@@ -264,10 +265,9 @@ describe("start-work hook", () => {
         parts: [
           {
             type: "text",
-            text: `Start Sisyphus work session
-<user-request>
-new-plan
-</user-request>`,
+            text: `<session-context>
+<user-request>new-plan</user-request>
+</session-context>`,
           },
         ],
       }
@@ -297,10 +297,9 @@ new-plan
         parts: [
           {
             type: "text",
-            text: `Start Sisyphus work session
-<user-request>
-my-feature-plan ultrawork
-</user-request>`,
+            text: `<session-context>
+<user-request>my-feature-plan ultrawork</user-request>
+</session-context>`,
           },
         ],
       }
@@ -329,10 +328,9 @@ my-feature-plan ultrawork
         parts: [
           {
             type: "text",
-            text: `Start Sisyphus work session
-<user-request>
-api-refactor ulw
-</user-request>`,
+            text: `<session-context>
+<user-request>api-refactor ulw</user-request>
+</session-context>`,
           },
         ],
       }
@@ -361,10 +359,9 @@ api-refactor ulw
         parts: [
           {
             type: "text",
-            text: `Start Sisyphus work session
-<user-request>
-feature-implementation
-</user-request>`,
+            text: `<session-context>
+<user-request>feature-implementation</user-request>
+</session-context>`,
           },
         ],
       }
@@ -378,6 +375,28 @@ feature-implementation
       // #then - should find plan by partial match
       expect(output.parts[0].text).toContain("2026-01-15-feature-implementation")
       expect(output.parts[0].text).toContain("Auto-Selected Plan")
+    })
+  })
+
+  describe("session agent management", () => {
+    test("should clear session agent when start-work command is triggered", async () => {
+      // #given - spy on clearSessionAgent
+      const clearSpy = spyOn(sessionState, "clearSessionAgent")
+      
+      const hook = createStartWorkHook(createMockPluginInput())
+      const output = {
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
+      }
+
+      // #when - start-work command is processed
+      await hook["chat.message"](
+        { sessionID: "ses-prometheus-to-sisyphus" },
+        output
+      )
+
+      // #then - clearSessionAgent should be called with the sessionID
+      expect(clearSpy).toHaveBeenCalledWith("ses-prometheus-to-sisyphus")
+      clearSpy.mockRestore()
     })
   })
 })

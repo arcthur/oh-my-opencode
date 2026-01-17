@@ -71,8 +71,8 @@ describe("sisyphus-orchestrator hook", () => {
   })
 
   describe("tool.execute.after handler", () => {
-    test("should ignore non-sisyphus_task tools", async () => {
-      // #given - hook and non-sisyphus_task tool
+    test("should ignore non-delegate_task tools", async () => {
+      // #given - hook and non-delegate_task tool
       const hook = createSisyphusOrchestratorHook(createMockPluginInput())
       const output = {
         title: "Test Tool",
@@ -115,7 +115,7 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -139,14 +139,14 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // #then - standalone verification reminder appended
       expect(output.output).toContain("Task completed successfully")
       expect(output.output).toContain("MANDATORY:")
-      expect(output.output).toContain("sisyphus_task(resume=")
+      expect(output.output).toContain("delegate_task(resume=")
       
       cleanupMessageStorage(sessionID)
     })
@@ -176,7 +176,7 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -185,7 +185,7 @@ describe("sisyphus-orchestrator hook", () => {
       expect(output.output).toContain("SUBAGENT WORK COMPLETED")
       expect(output.output).toContain("test-plan")
       expect(output.output).toContain("LIE")
-      expect(output.output).toContain("sisyphus_task(resume=")
+      expect(output.output).toContain("delegate_task(resume=")
       
       cleanupMessageStorage(sessionID)
     })
@@ -215,7 +215,7 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -252,7 +252,7 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -288,7 +288,7 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -325,7 +325,7 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -362,12 +362,12 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #when
       await hook["tool.execute.after"](
-        { tool: "sisyphus_task", sessionID },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // #then - should include resume instructions and verification
-      expect(output.output).toContain("sisyphus_task(resume=")
+      expect(output.output).toContain("delegate_task(resume=")
       expect(output.output).toContain("[x]")
       expect(output.output).toContain("MANDATORY:")
       
@@ -403,7 +403,7 @@ describe("sisyphus-orchestrator hook", () => {
         // #then
         expect(output.output).toContain("DELEGATION REQUIRED")
         expect(output.output).toContain("ORCHESTRATOR, not an IMPLEMENTER")
-        expect(output.output).toContain("sisyphus_task")
+        expect(output.output).toContain("delegate_task")
       })
 
       test("should append delegation reminder when orchestrator edits outside .sisyphus/", async () => {
@@ -865,6 +865,46 @@ describe("sisyphus-orchestrator hook", () => {
 
       // #then - should NOT call prompt because agent is not orchestrator-sisyphus
       expect(mockInput._promptMock).not.toHaveBeenCalled()
+    })
+
+    test("should debounce rapid continuation injections (prevent infinite loop)", async () => {
+      // #given - boulder state with incomplete plan
+      const planPath = join(TEST_DIR, "test-plan.md")
+      writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
+
+      const state: BoulderState = {
+        active_plan: planPath,
+        started_at: "2026-01-02T10:00:00Z",
+        session_ids: [MAIN_SESSION_ID],
+        plan_name: "test-plan",
+      }
+      writeBoulderState(TEST_DIR, state)
+
+      const mockInput = createMockPluginInput()
+      const hook = createSisyphusOrchestratorHook(mockInput)
+
+      // #when - fire multiple idle events in rapid succession (simulating infinite loop bug)
+      await hook.handler({
+        event: {
+          type: "session.idle",
+          properties: { sessionID: MAIN_SESSION_ID },
+        },
+      })
+      await hook.handler({
+        event: {
+          type: "session.idle",
+          properties: { sessionID: MAIN_SESSION_ID },
+        },
+      })
+      await hook.handler({
+        event: {
+          type: "session.idle",
+          properties: { sessionID: MAIN_SESSION_ID },
+        },
+      })
+
+      // #then - should only call prompt ONCE due to debouncing
+      expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
     })
 
     test("should cleanup on session.deleted", async () => {
