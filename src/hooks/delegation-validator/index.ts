@@ -33,9 +33,9 @@ interface ToolExecuteBeforeOutput {
 
 const MISSING_DECISION_WARNING = `
 <system-reminder type="delegation-warning">
-**No \`<delegation-decision>\` block found before this sisyphus_task call.**
+**No \`<delegation-decision>\` block found before this delegate_task call.**
 
-Please output the structured JSON decision block BEFORE calling sisyphus_task:
+Please output the structured JSON decision block BEFORE calling delegate_task:
 
 \`\`\`
 <delegation-decision>
@@ -57,7 +57,7 @@ This helps validate your delegation choice and provides traceability.
 /**
  * Delegation Validator Hook
  *
- * Validates sisyphus_task delegation decisions by:
+ * Validates delegate_task delegation decisions by:
  * 1. Checking for <delegation-decision> JSON block in recent assistant output
  * 2. Validating the decision against agent capabilities
  * 3. Injecting warnings if decision seems suboptimal
@@ -103,8 +103,8 @@ export function createDelegationValidatorHook(ctx: PluginInput) {
       input: ToolExecuteBeforeInput,
       output: ToolExecuteBeforeOutput
     ): Promise<void> => {
-      // Only validate sisyphus_task calls
-      if (input.tool !== "sisyphus_task") {
+      // Only validate delegate_task calls
+      if (input.tool !== "delegate_task") {
         return
       }
 

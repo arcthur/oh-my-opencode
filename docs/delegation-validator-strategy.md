@@ -4,7 +4,7 @@
 
 | Problem | Solution |
 |---------|----------|
-| Sisyphus delegation decisions are opaque | Require structured JSON output before every `sisyphus_task` |
+| Sisyphus delegation decisions are opaque | Require structured JSON output before every `delegate_task` |
 | Cannot verify if agent choice is optimal | Validate decisions against rules matrix, inject warnings |
 | No traceability for debugging | Log all decisions with agent, taskType, complexity, domain |
 
@@ -57,7 +57,7 @@ This is compiled into a delegation table in the Sisyphus prompt. The problem: **
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Hook: tool.execute.before (sisyphus_task only)                  │
+│ Hook: tool.execute.before (delegate_task only)                  │
 │ 1. Fetch last assistant message                                 │
 │ 2. Extract <delegation-decision> JSON                           │
 │ 3. Validate against VALIDATION_RULES                            │
@@ -79,7 +79,7 @@ This is compiled into a delegation table in the Sisyphus prompt. The problem: **
 
 ## 3. The Delegation Decision Format
 
-Sisyphus must output this JSON **before** every `sisyphus_task` call:
+Sisyphus must output this JSON **before** every `delegate_task` call:
 
 ```xml
 <delegation-decision>
@@ -246,7 +246,7 @@ log("[delegation-validator] Delegation decision has warnings", {
 // Missing decision block
 log("[delegation-validator] No delegation-decision block found", {
   sessionID,
-  tool: "sisyphus_task",
+  tool: "delegate_task",
 })
 ```
 

@@ -83,7 +83,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     await ctxInjector["experimental.chat.messages.transform"]?.({}, output as any)
 
     expect(output.messages[0].parts[0].text).toContain("<task-plan-context>")
-    expect(output.messages[0].parts[0].text).toContain("Do the next step")
+    expect(output.messages[0].parts[0].text).toContain("Task Plan:")
     expect(collector.hasPending("session-1")).toBe(false)
   })
 

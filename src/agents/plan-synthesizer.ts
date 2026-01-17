@@ -597,7 +597,7 @@ Your output is what actually gets executed. Make it count.
 export function createPlanSynthesizerAgent(model: string = DEFAULT_MODEL): AgentConfig {
   const restrictions = createAgentToolRestrictions([
     "task",
-    "sisyphus_task",
+    "delegate_task",
     "call_omo_agent",
   ])
 

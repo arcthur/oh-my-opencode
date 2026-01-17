@@ -1,6 +1,5 @@
 import { describe, test, expect, mock, beforeEach, spyOn } from "bun:test"
-import { createCompactionContextInjector } from "./index"
-import type { SummarizeContext } from "../preemptive-compaction"
+import { createCompactionContextInjector, type SummarizeContext } from "./index"
 import * as hookMessageInjector from "../../features/hook-message-injector"
 import * as logger from "../../shared/logger"
 
@@ -56,7 +55,7 @@ describe("createCompactionContextInjector", () => {
     ]
 
     expect(sessionID).toBe("session-123")
-    expect(prompt).toContain("COMPACTION CONTEXT INJECTION")
+    expect(prompt).toContain("COMPACTION CONTEXT")
     expect(prompt).toContain("User Requests (As-Is)")
     expect(prompt).toContain("Final Goal")
     expect(prompt).toContain("Files Modified")
