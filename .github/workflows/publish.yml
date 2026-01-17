@@ -141,7 +141,6 @@ jobs:
           CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
-          SKIP_PLATFORM_PACKAGES: true
 
       - name: Delete draft release
         run: gh release delete next --yes 2>/dev/null || echo "No draft release to delete"
@@ -149,10 +148,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge to master
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           VERSION=$(jq -r '.version' package.json)
+          git stash --include-untracked || true
           git checkout master
           git reset --hard "v${VERSION}"
-          git push -f origin master
+          git push -f origin master || echo "::warning::Failed to push to master. This can happen when workflow files changed. Manually sync master: git checkout master && git reset --hard v${VERSION} && git push -f"

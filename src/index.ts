@@ -21,7 +21,7 @@ import {
   createAgentUsageReminderHook,
   createNonInteractiveEnvHook,
   createInteractiveBashSessionHook,
-  createEmptyMessageSanitizerHook,
+
   createThinkingBlockValidatorHook,
   createRalphLoopHook,
   createAutoSlashCommandHook,
@@ -190,9 +190,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const interactiveBashSession = isHookEnabled("interactive-bash-session")
     ? createInteractiveBashSessionHook(ctx)
     : null;
-  const emptyMessageSanitizer = isHookEnabled("empty-message-sanitizer")
-    ? createEmptyMessageSanitizerHook()
-    : null;
+
   const thinkingBlockValidator = isHookEnabled("thinking-block-validator")
     ? createThinkingBlockValidatorHook()
     : null;
@@ -451,10 +449,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         "experimental.chat.messages.transform"
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ]?.(input, output as any);
-      await emptyMessageSanitizer?.[
-        "experimental.chat.messages.transform"
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ]?.(input, output as any);
+
     },
 
     config: configHandler,
@@ -594,9 +589,30 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               : undefined,
             completionPromise: promiseMatch?.[1],
           });
-        } else if (command === "cancel-ralph" && sessionID) {
-          ralphLoop.cancelLoop(sessionID);
-        }
+         } else if (command === "cancel-ralph" && sessionID) {
+           ralphLoop.cancelLoop(sessionID);
+         } else if (command === "ulw-loop" && sessionID) {
+           const rawArgs =
+             args?.command?.replace(/^\/?(ulw-loop)\s*/i, "") || "";
+           const taskMatch = rawArgs.match(/^["'](.+?)["']/);
+           const prompt =
+             taskMatch?.[1] ||
+             rawArgs.split(/\s+--/)[0]?.trim() ||
+             "Complete the task as instructed";
+
+           const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
+           const promiseMatch = rawArgs.match(
+             /--completion-promise=["']?([^"'\s]+)["']?/i
+           );
+
+           ralphLoop.startLoop(sessionID, prompt, {
+             ultrawork: true,
+             maxIterations: maxIterMatch
+               ? parseInt(maxIterMatch[1], 10)
+               : undefined,
+             completionPromise: promiseMatch?.[1],
+           });
+         }
       }
 
       await silentToolOutput?.["tool.execute.before"]?.(input, output);

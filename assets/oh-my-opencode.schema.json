@@ -75,7 +75,6 @@
           "agent-usage-reminder",
           "non-interactive-env",
           "interactive-bash-session",
-          "empty-message-sanitizer",
           "thinking-block-validator",
           "ralph-loop",
           "compaction-context-injector",
@@ -2579,6 +2578,10 @@
             "type": "number",
             "minimum": 1
           }
+        },
+        "staleTimeoutMs": {
+          "type": "number",
+          "minimum": 60000
         }
       }
     },
