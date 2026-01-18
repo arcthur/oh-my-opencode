@@ -227,6 +227,20 @@ oh-my-opencode Context Management
 
 DCP comprises a set of reversible pruning strategies that remove redundant information without semantic loss. These operations target content that either duplicates existing information or can be reconstructed from the environment.
 
+#### Upstream Compatibility
+
+DCP is designed to coexist with opencode's built-in `SessionCompaction.prune()` mechanism without conflicts. The two systems use different marking conventions but recognize each other's markers:
+
+| System | Marker | Recognition |
+|--------|--------|-------------|
+| **Upstream prune** | `state.time.compacted` (timestamp) | DCP checks and skips parts with this marker |
+| **DCP** | `output = "[Content pruned...]"` + sets `time.compacted` | Upstream recognizes `time.compacted` and breaks loop |
+
+**Conflict Prevention**:
+- When DCP prunes output, it also sets `time.compacted` so upstream will skip the part
+- When DCP encounters a part with `time.compacted` already set, it skips processing
+- This bidirectional recognition ensures no redundant processing regardless of execution order
+
 **Execution Order** (lowest risk → highest risk):
 1. Deduplication - Safe: identical calls, agent can re-fetch
 2. Clear Tool Results - Safe: old results from deep history, agent can re-fetch
@@ -1033,6 +1047,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 3.1.1 | 2026-01 | Added bidirectional compatibility between DCP and upstream `SessionCompaction.prune()` to prevent conflicts |
 | 3.1.0 | 2026-01 | Added Org Memory (project/team-level memory), optimized DCP strategy execution order, added hint throttling to Runtime Tracker |
 | 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, Repository Overview, User Memory, Runtime Tracker |
 | 2.9.0 | TBD | Initial DCP implementation with deduplication, supersede_writes, purge_errors |

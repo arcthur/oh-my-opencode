@@ -14,6 +14,10 @@ interface ToolPart {
     input?: unknown
     output?: string
     status?: string
+    time?: {
+      compacted?: number  // upstream SessionCompaction.prune() marker
+      [key: string]: unknown
+    }
   }
   id?: string
 }
@@ -26,6 +30,15 @@ interface MessageData {
 function isAlreadyPrunedInput(input: unknown): boolean {
   if (!input || typeof input !== "object") return false
   return (input as Record<string, unknown>).__pruned === true
+}
+
+/**
+ * Check if a part was already pruned by upstream SessionCompaction.prune().
+ * Upstream sets `state.time.compacted` timestamp and dynamically replaces
+ * output with "[Old tool result content cleared]" when reading messages.
+ */
+function isUpstreamPruned(part: ToolPart): boolean {
+  return typeof part.state?.time?.compacted === "number"
 }
 
 export async function applyPruning(
@@ -63,6 +76,10 @@ export async function applyPruning(
 
         if (part.type !== "tool" || !part.callID) continue
 
+        // Skip parts already pruned by upstream SessionCompaction.prune()
+        // to avoid redundant processing and potential conflicts
+        if (isUpstreamPruned(part)) continue
+
         const action = state.toolPruneActions.get(part.callID)
         if (!action) continue
 
@@ -82,6 +99,13 @@ export async function applyPruning(
         ) {
           totalTokensSaved += estimateTokens(part.state.output)
           part.state.output = "[Content pruned by Dynamic Context Pruning]"
+          // Also set time.compacted so upstream SessionCompaction.prune() will
+          // recognize this part as already pruned and skip it (break loop)
+          if (part.state.time) {
+            part.state.time.compacted = Date.now()
+          } else {
+            part.state.time = { compacted: Date.now() }
+          }
           modified = true
         }
 
