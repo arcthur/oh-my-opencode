@@ -6,6 +6,10 @@ import { parseFrontmatter } from "../../shared/frontmatter"
 import { sanitizeModelField } from "../../shared/model-sanitizer"
 import { isMarkdownFile, resolveSymlink } from "../../shared/file-utils"
 import { log } from "../../shared/logger"
+import { parseToolsConfig } from "../../shared/tools-parser"
+import { wrapCommandTemplate, wrapSkillTemplate } from "../../shared/template-wrapper"
+import { formatScopedDescription } from "../../shared/description-formatter"
+import { toOpenCodeDefinition } from "../../shared/collection-utils"
 import { expandEnvVarsInObject } from "../claude-code-mcp-loader/env-expander"
 import { transformMcpServer } from "../claude-code-mcp-loader/transformer"
 import type { CommandDefinition, CommandFrontmatter } from "../claude-code-command-loader/types"
@@ -236,17 +240,10 @@ export function loadPluginCommands(
         const content = readFileSync(commandPath, "utf-8")
         const { data, body } = parseFrontmatter<CommandFrontmatter>(content)
 
-        const wrappedTemplate = `<command-instruction>
-${body.trim()}
-</command-instruction>
+        const wrappedTemplate = wrapCommandTemplate(body)
+        const formattedDescription = formatScopedDescription(`plugin: ${plugin.name}`, data.description)
 
-<user-request>
-$ARGUMENTS
-</user-request>`
-
-        const formattedDescription = `(plugin: ${plugin.name}) ${data.description || ""}`
-
-        const definition = {
+        const definition: CommandDefinition = {
           name: namespacedName,
           description: formattedDescription,
           template: wrappedTemplate,
@@ -255,8 +252,7 @@ $ARGUMENTS
           subtask: data.subtask,
           argumentHint: data["argument-hint"],
         }
-        const { name: _name, argumentHint: _argumentHint, ...openCodeCompatible } = definition
-        commands[namespacedName] = openCodeCompatible as CommandDefinition
+        commands[namespacedName] = toOpenCodeDefinition(definition)
 
         log(`Loaded plugin command: ${namespacedName}`, { path: commandPath })
       } catch (error) {
@@ -294,28 +290,16 @@ export function loadPluginSkillsAsCommands(
 
         const skillName = data.name || entry.name
         const namespacedName = `${plugin.name}:${skillName}`
-        const originalDescription = data.description || ""
-        const formattedDescription = `(plugin: ${plugin.name} - Skill) ${originalDescription}`
+        const formattedDescription = formatScopedDescription(`plugin: ${plugin.name} - Skill`, data.description)
+        const wrappedTemplate = wrapSkillTemplate(body, resolvedPath)
 
-        const wrappedTemplate = `<skill-instruction>
-Base directory for this skill: ${resolvedPath}/
-File references (@path) in this skill are relative to this directory.
-
-${body.trim()}
-</skill-instruction>
-
-<user-request>
-$ARGUMENTS
-</user-request>`
-
-        const definition = {
+        const definition: CommandDefinition = {
           name: namespacedName,
           description: formattedDescription,
           template: wrappedTemplate,
           model: sanitizeModelField(data.model),
         }
-        const { name: _name, ...openCodeCompatible } = definition
-        skills[namespacedName] = openCodeCompatible as CommandDefinition
+        skills[namespacedName] = toOpenCodeDefinition(definition)
 
         log(`Loaded plugin skill: ${namespacedName}`, { path: resolvedPath })
       } catch (error) {
@@ -325,19 +309,6 @@ $ARGUMENTS
   }
 
   return skills
-}
-
-function parseToolsConfig(toolsStr?: string): Record<string, boolean> | undefined {
-  if (!toolsStr) return undefined
-
-  const tools = toolsStr.split(",").map((t) => t.trim()).filter(Boolean)
-  if (tools.length === 0) return undefined
-
-  const result: Record<string, boolean> = {}
-  for (const tool of tools) {
-    result[tool.toLowerCase()] = true
-  }
-  return result
 }
 
 export function loadPluginAgents(
@@ -362,8 +333,7 @@ export function loadPluginAgents(
         const { data, body } = parseFrontmatter<AgentFrontmatter>(content)
 
         const name = data.name || agentName
-        const originalDescription = data.description || ""
-        const formattedDescription = `(plugin: ${plugin.name}) ${originalDescription}`
+        const formattedDescription = formatScopedDescription(`plugin: ${plugin.name}`, data.description)
 
         const config: AgentConfig = {
           description: formattedDescription,

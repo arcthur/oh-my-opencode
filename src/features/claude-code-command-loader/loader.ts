@@ -1,11 +1,13 @@
 import { promises as fs, type Dirent } from "fs"
 import { join, basename } from "path"
-import { homedir } from "os"
 import { parseFrontmatter } from "../../shared/frontmatter"
-import { sanitizeModelField } from "../../shared/model-sanitizer"
+import { sanitizeModelField, getCommandSource } from "../../shared/model-sanitizer"
 import { isMarkdownFile } from "../../shared/file-utils"
-import { getClaudeConfigDir } from "../../shared"
 import { log } from "../../shared/logger"
+import { wrapCommandTemplate } from "../../shared/template-wrapper"
+import { formatScopedDescription } from "../../shared/description-formatter"
+import { toDefinitionRecord } from "../../shared/collection-utils"
+import { getCommandDirectories } from "../../shared/paths"
 import type { CommandScope, CommandDefinition, CommandFrontmatter, LoadedCommand } from "./types"
 
 async function loadCommandsFromDir(
@@ -63,23 +65,15 @@ async function loadCommandsFromDir(
       const content = await fs.readFile(commandPath, "utf-8")
       const { data, body } = parseFrontmatter<CommandFrontmatter>(content)
 
-      const wrappedTemplate = `<command-instruction>
-${body.trim()}
-</command-instruction>
+      const wrappedTemplate = wrapCommandTemplate(body)
+      const formattedDescription = formatScopedDescription(scope, data.description)
 
-<user-request>
-$ARGUMENTS
-</user-request>`
-
-      const formattedDescription = `(${scope}) ${data.description || ""}`
-
-      const isOpencodeSource = scope === "opencode" || scope === "opencode-project"
       const definition: CommandDefinition = {
         name: commandName,
         description: formattedDescription,
         template: wrappedTemplate,
         agent: data.agent,
-        model: sanitizeModelField(data.model, isOpencodeSource ? "opencode" : "claude-code"),
+        model: sanitizeModelField(data.model, getCommandSource(scope)),
         subtask: data.subtask,
         argumentHint: data["argument-hint"],
         handoffs: data.handoffs,
@@ -100,37 +94,28 @@ $ARGUMENTS
   return commands
 }
 
-function commandsToRecord(commands: LoadedCommand[]): Record<string, CommandDefinition> {
-  const result: Record<string, CommandDefinition> = {}
-  for (const cmd of commands) {
-    const { name: _name, argumentHint: _argumentHint, ...openCodeCompatible } = cmd.definition
-    result[cmd.name] = openCodeCompatible as CommandDefinition
-  }
-  return result
-}
-
 export async function loadUserCommands(): Promise<Record<string, CommandDefinition>> {
-  const userCommandsDir = join(getClaudeConfigDir(), "commands")
-  const commands = await loadCommandsFromDir(userCommandsDir, "user")
-  return commandsToRecord(commands)
+  const dirs = getCommandDirectories()
+  const commands = await loadCommandsFromDir(dirs.user, "user")
+  return toDefinitionRecord(commands)
 }
 
 export async function loadProjectCommands(): Promise<Record<string, CommandDefinition>> {
-  const projectCommandsDir = join(process.cwd(), ".claude", "commands")
-  const commands = await loadCommandsFromDir(projectCommandsDir, "project")
-  return commandsToRecord(commands)
+  const dirs = getCommandDirectories()
+  const commands = await loadCommandsFromDir(dirs.project, "project")
+  return toDefinitionRecord(commands)
 }
 
 export async function loadOpencodeGlobalCommands(): Promise<Record<string, CommandDefinition>> {
-  const opencodeCommandsDir = join(homedir(), ".config", "opencode", "command")
-  const commands = await loadCommandsFromDir(opencodeCommandsDir, "opencode")
-  return commandsToRecord(commands)
+  const dirs = getCommandDirectories()
+  const commands = await loadCommandsFromDir(dirs.opencodeGlobal, "opencode")
+  return toDefinitionRecord(commands)
 }
 
 export async function loadOpencodeProjectCommands(): Promise<Record<string, CommandDefinition>> {
-  const opencodeProjectDir = join(process.cwd(), ".opencode", "command")
-  const commands = await loadCommandsFromDir(opencodeProjectDir, "opencode-project")
-  return commandsToRecord(commands)
+  const dirs = getCommandDirectories()
+  const commands = await loadCommandsFromDir(dirs.opencodeProject, "opencode-project")
+  return toDefinitionRecord(commands)
 }
 
 export async function loadAllCommands(): Promise<Record<string, CommandDefinition>> {

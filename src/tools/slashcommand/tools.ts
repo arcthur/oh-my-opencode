@@ -1,87 +1,20 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
-import { existsSync, readdirSync, readFileSync } from "fs"
-import { join, basename, dirname } from "path"
-import { parseFrontmatter, resolveCommandsInText, resolveFileReferencesInText, sanitizeModelField } from "../../shared"
-import type { CommandFrontmatter } from "../../features/claude-code-command-loader/types"
-import { isMarkdownFile } from "../../shared/file-utils"
-import { getClaudeConfigDir } from "../../shared"
+import { dirname } from "path"
+import { resolveCommandsInText, resolveFileReferencesInText } from "../../shared"
+import { discoverCommandsFromDir, skillToCommandInfo } from "../../shared/command-discovery"
+import { getCommandDirectories } from "../../shared/paths"
 import { discoverAllSkills, type LoadedSkill } from "../../features/opencode-skill-loader"
-import type { CommandScope, CommandMetadata, CommandInfo, SlashcommandToolOptions } from "./types"
-
-function discoverCommandsFromDir(commandsDir: string, scope: CommandScope): CommandInfo[] {
-  if (!existsSync(commandsDir)) {
-    return []
-  }
-
-  const entries = readdirSync(commandsDir, { withFileTypes: true })
-  const commands: CommandInfo[] = []
-
-  for (const entry of entries) {
-    if (!isMarkdownFile(entry)) continue
-
-    const commandPath = join(commandsDir, entry.name)
-    const commandName = basename(entry.name, ".md")
-
-    try {
-      const content = readFileSync(commandPath, "utf-8")
-      const { data, body } = parseFrontmatter<CommandFrontmatter>(content)
-
-      const isOpencodeSource = scope === "opencode" || scope === "opencode-project"
-      const metadata: CommandMetadata = {
-        name: commandName,
-        description: data.description || "",
-        argumentHint: data["argument-hint"],
-        model: sanitizeModelField(data.model, isOpencodeSource ? "opencode" : "claude-code"),
-        agent: data.agent,
-        subtask: Boolean(data.subtask),
-      }
-
-      commands.push({
-        name: commandName,
-        path: commandPath,
-        metadata,
-        content: body,
-        scope,
-      })
-    } catch {
-      continue
-    }
-  }
-
-  return commands
-}
+import type { CommandScope, CommandInfo, SlashcommandToolOptions } from "./types"
 
 export function discoverCommandsSync(): CommandInfo[] {
-  const { homedir } = require("os")
-  const userCommandsDir = join(getClaudeConfigDir(), "commands")
-  const projectCommandsDir = join(process.cwd(), ".claude", "commands")
-  const opencodeGlobalDir = join(homedir(), ".config", "opencode", "command")
-  const opencodeProjectDir = join(process.cwd(), ".opencode", "command")
+  const dirs = getCommandDirectories()
 
-  const userCommands = discoverCommandsFromDir(userCommandsDir, "user")
-  const opencodeGlobalCommands = discoverCommandsFromDir(opencodeGlobalDir, "opencode")
-  const projectCommands = discoverCommandsFromDir(projectCommandsDir, "project")
-  const opencodeProjectCommands = discoverCommandsFromDir(opencodeProjectDir, "opencode-project")
+  const userCommands = discoverCommandsFromDir<CommandScope>(dirs.user, "user")
+  const opencodeGlobalCommands = discoverCommandsFromDir<CommandScope>(dirs.opencodeGlobal, "opencode")
+  const projectCommands = discoverCommandsFromDir<CommandScope>(dirs.project, "project")
+  const opencodeProjectCommands = discoverCommandsFromDir<CommandScope>(dirs.opencodeProject, "opencode-project")
 
   return [...opencodeProjectCommands, ...projectCommands, ...opencodeGlobalCommands, ...userCommands]
-}
-
-function skillToCommandInfo(skill: LoadedSkill): CommandInfo {
-  return {
-    name: skill.name,
-    path: skill.path,
-    metadata: {
-      name: skill.name,
-      description: skill.definition.description || "",
-      argumentHint: skill.definition.argumentHint,
-      model: skill.definition.model,
-      agent: skill.definition.agent,
-      subtask: skill.definition.subtask,
-    },
-    content: skill.definition.template,
-    scope: skill.scope,
-    lazyContentLoader: skill.lazyContent,
-  }
 }
 
 async function formatLoadedCommand(cmd: CommandInfo): Promise<string> {
@@ -184,7 +117,7 @@ export function createSlashcommandTool(options: SlashcommandToolOptions = {}): T
   const getAllItems = async (): Promise<CommandInfo[]> => {
     const commands = getCommands()
     const skills = await getSkills()
-    return [...commands, ...skills.map(skillToCommandInfo)]
+    return [...commands, ...skills.map(s => skillToCommandInfo<CommandScope>(s))]
   }
 
   const buildDescription = async (): Promise<string> => {

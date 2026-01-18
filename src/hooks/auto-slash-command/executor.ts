@@ -1,118 +1,30 @@
-import { existsSync, readdirSync, readFileSync } from "fs"
-import { join, basename, dirname } from "path"
-import { homedir } from "os"
+import { dirname } from "path"
 import {
-  parseFrontmatter,
   resolveCommandsInText,
   resolveFileReferencesInText,
-  sanitizeModelField,
-  getClaudeConfigDir,
 } from "../../shared"
-import type { CommandFrontmatter } from "../../features/claude-code-command-loader/types"
-import { isMarkdownFile } from "../../shared/file-utils"
-import { discoverAllSkills, type LoadedSkill, type LazyContentLoader } from "../../features/opencode-skill-loader"
+import { discoverCommandsFromDir, skillToCommandInfo, type DiscoveredCommandWithLoader } from "../../shared/command-discovery"
+import { getCommandDirectories } from "../../shared/paths"
+import { discoverAllSkills, type LoadedSkill } from "../../features/opencode-skill-loader"
 import type { ParsedSlashCommand } from "./types"
 
-interface CommandScope {
-  type: "user" | "project" | "opencode" | "opencode-project" | "skill"
-}
-
-interface CommandMetadata {
-  name: string
-  description: string
-  argumentHint?: string
-  model?: string
-  agent?: string
-  subtask?: boolean
-}
-
-interface CommandInfo {
-  name: string
-  path?: string
-  metadata: CommandMetadata
-  content?: string
-  scope: CommandScope["type"]
-  lazyContentLoader?: LazyContentLoader
-}
-
-function discoverCommandsFromDir(commandsDir: string, scope: CommandScope["type"]): CommandInfo[] {
-  if (!existsSync(commandsDir)) {
-    return []
-  }
-
-  const entries = readdirSync(commandsDir, { withFileTypes: true })
-  const commands: CommandInfo[] = []
-
-  for (const entry of entries) {
-    if (!isMarkdownFile(entry)) continue
-
-    const commandPath = join(commandsDir, entry.name)
-    const commandName = basename(entry.name, ".md")
-
-    try {
-      const content = readFileSync(commandPath, "utf-8")
-      const { data, body } = parseFrontmatter<CommandFrontmatter>(content)
-
-      const isOpencodeSource = scope === "opencode" || scope === "opencode-project"
-      const metadata: CommandMetadata = {
-        name: commandName,
-        description: data.description || "",
-        argumentHint: data["argument-hint"],
-        model: sanitizeModelField(data.model, isOpencodeSource ? "opencode" : "claude-code"),
-        agent: data.agent,
-        subtask: Boolean(data.subtask),
-      }
-
-      commands.push({
-        name: commandName,
-        path: commandPath,
-        metadata,
-        content: body,
-        scope,
-      })
-    } catch {
-      continue
-    }
-  }
-
-  return commands
-}
-
-function skillToCommandInfo(skill: LoadedSkill): CommandInfo {
-  return {
-    name: skill.name,
-    path: skill.path,
-    metadata: {
-      name: skill.name,
-      description: skill.definition.description || "",
-      argumentHint: skill.definition.argumentHint,
-      model: skill.definition.model,
-      agent: skill.definition.agent,
-      subtask: skill.definition.subtask,
-    },
-    content: skill.definition.template,
-    scope: "skill",
-    lazyContentLoader: skill.lazyContent,
-  }
-}
+type CommandScope = "user" | "project" | "opencode" | "opencode-project" | "skill"
+type CommandInfo = DiscoveredCommandWithLoader<CommandScope>
 
 export interface ExecutorOptions {
   skills?: LoadedSkill[]
 }
 
 async function discoverAllCommands(options?: ExecutorOptions): Promise<CommandInfo[]> {
-  const userCommandsDir = join(getClaudeConfigDir(), "commands")
-  const projectCommandsDir = join(process.cwd(), ".claude", "commands")
-  const opencodeGlobalDir = join(homedir(), ".config", "opencode", "command")
-  const opencodeProjectDir = join(process.cwd(), ".opencode", "command")
+  const dirs = getCommandDirectories()
 
-  const userCommands = discoverCommandsFromDir(userCommandsDir, "user")
-  const opencodeGlobalCommands = discoverCommandsFromDir(opencodeGlobalDir, "opencode")
-  const projectCommands = discoverCommandsFromDir(projectCommandsDir, "project")
-  const opencodeProjectCommands = discoverCommandsFromDir(opencodeProjectDir, "opencode-project")
+  const userCommands = discoverCommandsFromDir(dirs.user, "user")
+  const opencodeGlobalCommands = discoverCommandsFromDir(dirs.opencodeGlobal, "opencode")
+  const projectCommands = discoverCommandsFromDir(dirs.project, "project")
+  const opencodeProjectCommands = discoverCommandsFromDir(dirs.opencodeProject, "opencode-project")
 
   const skills = options?.skills ?? await discoverAllSkills()
-  const skillCommands = skills.map(skillToCommandInfo)
+  const skillCommands = skills.map(s => skillToCommandInfo(s, "skill" as const))
 
   return [
     ...opencodeProjectCommands,
