@@ -28,8 +28,8 @@ export interface PlanGenerationTask {
   modelName: string
   /** Background task ID */
   taskId: string
-  /** Session ID for the background task */
-  sessionId: string
+  /** Session ID for the background task (undefined while pending) */
+  sessionId?: string
   /** Current status */
   status: PlanGenerationStatus
   /** Output file path for the generated plan */
