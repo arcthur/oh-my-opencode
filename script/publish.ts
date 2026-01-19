@@ -161,9 +161,9 @@ interface PublishResult {
   error?: string
 }
 
-async function publishPackage(cwd: string, distTag: string | null): Promise<PublishResult> {
+async function publishPackage(cwd: string, distTag: string | null, useProvenance = true): Promise<PublishResult> {
   const tagArgs = distTag ? ["--tag", distTag] : []
-  const provenanceArgs = process.env.CI ? ["--provenance"] : []
+  const provenanceArgs = process.env.CI && useProvenance ? ["--provenance"] : []
   
   try {
     await $`npm publish --access public --ignore-scripts ${provenanceArgs} ${tagArgs}`.cwd(cwd)
@@ -171,12 +171,15 @@ async function publishPackage(cwd: string, distTag: string | null): Promise<Publ
   } catch (error: any) {
     const stderr = error?.stderr?.toString() || error?.message || ""
     
-    // E409 = version already exists (idempotent success)
+    // E409/E403 = version already exists (idempotent success)
+    // E404 + "Access token expired" = OIDC token expired while publishing already-published package
     if (
       stderr.includes("EPUBLISHCONFLICT") ||
       stderr.includes("E409") ||
+      stderr.includes("E403") ||
       stderr.includes("cannot publish over") ||
-      stderr.includes("already exists")
+      stderr.includes("already exists") ||
+      (stderr.includes("E404") && stderr.includes("Access token expired"))
     ) {
       return { success: true, alreadyPublished: true }
     }
@@ -192,32 +195,44 @@ async function publishAllPackages(version: string): Promise<void> {
   if (skipPlatform) {
     console.log("\n⏭️  Skipping platform packages (SKIP_PLATFORM_PACKAGES=true)")
   } else {
-    console.log("\n📦 Publishing platform packages in parallel...")
+    console.log("\n📦 Publishing platform packages in batches (to avoid OIDC token expiration)...")
     
-    // Publish platform packages in parallel for speed (avoids OIDC token expiration)
-    const publishPromises = PLATFORM_PACKAGES.map(async (platform) => {
-      const pkgDir = join(process.cwd(), "packages", platform)
-      const pkgName = `oh-my-opencode-${platform}`
-      
-      console.log(`  Starting ${pkgName}...`)
-      const result = await publishPackage(pkgDir, distTag)
-      
-      return { platform, pkgName, result }
-    })
-    
-    const results = await Promise.all(publishPromises)
-    
+    // Publish in batches of 2 to avoid OIDC token expiration
+    // npm processes requests sequentially even when sent in parallel,
+    // so too many parallel requests can cause token expiration
+    const BATCH_SIZE = 2
     const failures: string[] = []
-    for (const { pkgName, result } of results) {
-      if (result.success) {
-        if (result.alreadyPublished) {
-          console.log(`  ✓ ${pkgName}@${version} (already published)`)
+    
+    for (let i = 0; i < PLATFORM_PACKAGES.length; i += BATCH_SIZE) {
+      const batch = PLATFORM_PACKAGES.slice(i, i + BATCH_SIZE)
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1
+      const totalBatches = Math.ceil(PLATFORM_PACKAGES.length / BATCH_SIZE)
+      
+      console.log(`\n  Batch ${batchNum}/${totalBatches}: ${batch.join(", ")}`)
+      
+      const publishPromises = batch.map(async (platform) => {
+        const pkgDir = join(process.cwd(), "packages", platform)
+        const pkgName = `oh-my-opencode-${platform}`
+        
+        console.log(`    Starting ${pkgName}...`)
+        const result = await publishPackage(pkgDir, distTag, false)
+        
+        return { platform, pkgName, result }
+      })
+      
+      const results = await Promise.all(publishPromises)
+      
+      for (const { pkgName, result } of results) {
+        if (result.success) {
+          if (result.alreadyPublished) {
+            console.log(`    ✓ ${pkgName}@${version} (already published)`)
+          } else {
+            console.log(`    ✓ ${pkgName}@${version}`)
+          }
         } else {
-          console.log(`  ✓ ${pkgName}@${version}`)
+          console.error(`    ✗ ${pkgName} failed: ${result.error}`)
+          failures.push(pkgName)
         }
-      } else {
-        console.error(`  ✗ ${pkgName} failed: ${result.error}`)
-        failures.push(pkgName)
       }
     }
     

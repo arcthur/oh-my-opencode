@@ -2222,10 +2222,7 @@
           "prompt_append": {
             "type": "string"
           }
-        },
-        "required": [
-          "model"
-        ]
+        }
       }
     },
     "claude_code": {
