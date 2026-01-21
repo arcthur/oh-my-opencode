@@ -232,51 +232,6 @@ describe("validateDelegationDecision", () => {
     })
   })
 
-  describe("#given frontend-ui-ux-engineer agent", () => {
-    describe("#when used for frontend implementation", () => {
-      it("#then should be valid", () => {
-        const decision = createDecision({
-          agent: "frontend-ui-ux-engineer",
-          taskType: "implementation",
-          domain: "frontend",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(true)
-      })
-    })
-
-    describe("#when used for frontend refactoring", () => {
-      it("#then should be valid", () => {
-        const decision = createDecision({
-          agent: "frontend-ui-ux-engineer",
-          taskType: "refactoring",
-          domain: "frontend",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(true)
-      })
-    })
-
-    describe("#when used for debugging task", () => {
-      it("#then should have task type mismatch warning", () => {
-        const decision = createDecision({
-          agent: "frontend-ui-ux-engineer",
-          taskType: "debugging",
-          domain: "frontend",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(false)
-        expect(result.warnings.some((w) => w.type === "task_type_mismatch")).toBe(true)
-      })
-    })
-  })
-
   describe("#given librarian agent", () => {
     describe("#when used for research task", () => {
       it("#then should be valid", () => {
@@ -307,35 +262,6 @@ describe("validateDelegationDecision", () => {
     })
   })
 
-  describe("#given document-writer agent", () => {
-    describe("#when used for documentation task", () => {
-      it("#then should be valid", () => {
-        const decision = createDecision({
-          agent: "document-writer",
-          taskType: "documentation",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(true)
-      })
-    })
-
-    describe("#when used for implementation task", () => {
-      it("#then should have task type mismatch warning", () => {
-        const decision = createDecision({
-          agent: "document-writer",
-          taskType: "implementation",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(false)
-        expect(result.warnings.some((w) => w.type === "task_type_mismatch")).toBe(true)
-      })
-    })
-  })
-
   describe("#given unknown agent", () => {
     describe("#when agent has no validation rules", () => {
       it("#then should pass validation (no rules to violate)", () => {
@@ -347,40 +273,6 @@ describe("validateDelegationDecision", () => {
         const result = validateDelegationDecision(decision)
 
         expect(result.valid).toBe(true)
-      })
-    })
-  })
-
-  describe("#given frontend domain mismatch", () => {
-    describe("#when using non-frontend agent for frontend implementation", () => {
-      it("#then should have both task_type_mismatch and domain_mismatch warnings", () => {
-        const decision = createDecision({
-          agent: "explore",
-          taskType: "implementation",
-          domain: "frontend",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        // explore is not for implementation, so task_type_mismatch
-        expect(result.warnings.some((w) => w.type === "task_type_mismatch")).toBe(true)
-        // frontend implementation should use frontend-ui-ux-engineer, so domain_mismatch
-        expect(result.warnings.some((w) => w.type === "domain_mismatch")).toBe(true)
-      })
-    })
-
-    describe("#when using librarian for frontend refactoring", () => {
-      it("#then should have domain_mismatch warning", () => {
-        const decision = createDecision({
-          agent: "librarian",
-          taskType: "refactoring",
-          domain: "frontend",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(false)
-        expect(result.warnings.some((w) => w.type === "domain_mismatch")).toBe(true)
       })
     })
   })

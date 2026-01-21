@@ -1,6 +1,6 @@
 import { createBuiltinAgents } from "../agents";
 import { createBuiltinSkills } from "../features/builtin-skills";
-import type { AvailableSkill } from "../agents/sisyphus-prompt-builder";
+import type { AvailableSkill } from "../agents/dynamic-agent-prompt-builder";
 import { createSisyphusJuniorAgentWithOverrides } from "../agents/sisyphus-junior";
 import {
   loadUserCommands,

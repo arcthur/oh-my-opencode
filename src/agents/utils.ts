@@ -14,7 +14,6 @@ import type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynami
 import { deepMerge } from "../shared"
 import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "../tools/delegate-task/constants"
 import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-content"
-import { createBuiltinSkills } from "../features/builtin-skills"
 
 type AgentSource = AgentFactory | AgentConfig
 
@@ -156,13 +155,6 @@ export function createBuiltinAgents(
   const availableCategories: AvailableCategory[] = Object.entries(mergedCategories).map(([name]) => ({
     name,
     description: CATEGORY_DESCRIPTIONS[name] ?? "General tasks",
-  }))
-
-  const builtinSkills = createBuiltinSkills()
-  const availableSkills: AvailableSkill[] = builtinSkills.map((skill) => ({
-    name: skill.name,
-    description: skill.description,
-    location: "plugin" as const,
   }))
 
   for (const [name, source] of Object.entries(agentSources)) {

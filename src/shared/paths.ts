@@ -35,7 +35,7 @@ export function getSkillDirectories(): SkillDirectories {
   return {
     user: join(getClaudeConfigDir(), "skills"),
     project: join(process.cwd(), ".claude", "skills"),
-    opencodeGlobal: join(homedir(), ".config", "opencode", "skill"),
-    opencodeProject: join(process.cwd(), ".opencode", "skill"),
+    opencodeGlobal: join(homedir(), ".config", "opencode", "skills"),
+    opencodeProject: join(process.cwd(), ".opencode", "skills"),
   }
 }

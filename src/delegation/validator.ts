@@ -29,16 +29,6 @@ const VALIDATION_RULES: Partial<Record<BuiltinAgentName, AgentValidationRules>> 
     validDomains: ["backend", "general", "frontend"],
     minComplexity: "moderate",
   },
-  "frontend-ui-ux-engineer": {
-    validTaskTypes: ["implementation", "refactoring"],
-    validComplexity: ["trivial", "simple", "moderate", "complex"],
-    validDomains: ["frontend"],
-  },
-  "document-writer": {
-    validTaskTypes: ["documentation"],
-    validComplexity: ["trivial", "simple", "moderate", "complex"],
-    validDomains: ["frontend", "backend", "general"],
-  },
   "Metis (Plan Consultant)": {
     validTaskTypes: ["architecture", "research"],
     validComplexity: ["moderate", "complex"],
@@ -69,10 +59,10 @@ const COMPLEXITY_ORDER: Record<Complexity, number> = {
 function suggestBetterAgent(taskType: TaskType): string | undefined {
   const suggestions: Partial<Record<TaskType, string>> = {
     exploration: "explore or librarian",
-    implementation: "frontend-ui-ux-engineer (for frontend) or direct implementation",
+    implementation: "direct implementation or delegate via category",
     debugging: "explore first, then oracle if 2+ attempts failed",
-    refactoring: "frontend-ui-ux-engineer (for frontend) or direct implementation",
-    documentation: "document-writer",
+    refactoring: "direct implementation or delegate via category",
+    documentation: "delegate via category with writing skill",
     architecture: "oracle or Metis",
     research: "librarian",
   }
@@ -115,21 +105,6 @@ export function validateDelegationDecision(
         suggestion: "Consider using direct tools or cheaper agents first",
       })
     }
-  }
-
-  // Check frontend implementation/refactoring - should use frontend-ui-ux-engineer
-  // This check is independent of validDomains because even if an agent "supports" frontend domain,
-  // implementation/refactoring in frontend should still prefer the specialized agent
-  if (
-    decision.domain === "frontend" &&
-    decision.agent !== "frontend-ui-ux-engineer" &&
-    (decision.taskType === "implementation" || decision.taskType === "refactoring")
-  ) {
-    warnings.push({
-      type: "domain_mismatch",
-      message: "Frontend implementation/refactoring should typically use frontend-ui-ux-engineer",
-      suggestion: "Delegate visual changes to frontend-ui-ux-engineer",
-    })
   }
 
   return {
