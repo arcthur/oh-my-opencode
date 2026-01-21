@@ -26,6 +26,7 @@ import type { OhMyOpenCodeConfig } from "../config";
 import { log } from "../shared";
 import { getOpenCodeConfigPaths } from "../shared/opencode-config-dir";
 import { migrateAgentConfig } from "../shared/permission-compat";
+import { AGENT_NAME_MAP } from "../shared/migration";
 import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus-prompt";
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
 import type { ModelCacheState } from "../plugin-state";
@@ -119,8 +120,13 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       location: "builtin" as const,
     }));
 
+    // Migrate disabled_agents from old names to new names
+    const migratedDisabledAgents = (pluginConfig.disabled_agents ?? []).map(agent => {
+      return AGENT_NAME_MAP[agent.toLowerCase()] ?? AGENT_NAME_MAP[agent] ?? agent
+    }) as typeof pluginConfig.disabled_agents
+
     const builtinAgents = createBuiltinAgents(
-      pluginConfig.disabled_agents,
+      migratedDisabledAgents,
       pluginConfig.agents,
       ctx.directory,
       config.model as string | undefined,
@@ -164,7 +170,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       explore?: { tools?: Record<string, unknown> };
       librarian?: { tools?: Record<string, unknown> };
       "multimodal-looker"?: { tools?: Record<string, unknown> };
-      "orchestrator-sisyphus"?: { tools?: Record<string, unknown> };
+      Atlas?: { tools?: Record<string, unknown> };
       Sisyphus?: { tools?: Record<string, unknown> };
     };
     const configAgent = config.agent as AgentConfig | undefined;
@@ -323,17 +329,17 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       const agent = agentResult["multimodal-looker"] as AgentWithPermission;
       agent.permission = { ...agent.permission, task: "deny", look_at: "deny" };
     }
-    if (agentResult["orchestrator-sisyphus"]) {
-      const agent = agentResult["orchestrator-sisyphus"] as AgentWithPermission;
+    if (agentResult["Atlas"]) {
+      const agent = agentResult["Atlas"] as AgentWithPermission;
       agent.permission = { ...agent.permission, task: "deny", call_omo_agent: "deny", delegate_task: "allow" };
     }
     if (agentResult.Sisyphus) {
       const agent = agentResult.Sisyphus as AgentWithPermission;
-      agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow" };
+      agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: "allow" };
     }
     if (agentResult["Prometheus (Planner)"]) {
       const agent = agentResult["Prometheus (Planner)"] as AgentWithPermission;
-      agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow" };
+      agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: "allow" };
     }
     if (agentResult["Sisyphus-Junior"]) {
       const agent = agentResult["Sisyphus-Junior"] as AgentWithPermission;

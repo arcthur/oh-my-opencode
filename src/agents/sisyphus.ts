@@ -1,18 +1,18 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 import { isGptModel } from "./types"
-import type { AvailableAgent, AvailableTool, AvailableSkill } from "./sisyphus-prompt-builder"
+import type { AvailableAgent, AvailableTool, AvailableSkill, AvailableCategory } from "./dynamic-agent-prompt-builder"
 import {
   buildKeyTriggersSection,
   buildToolSelectionTable,
   buildExploreSection,
   buildLibrarianSection,
   buildDelegationTable,
-  buildFrontendSection,
+  buildCategorySkillsDelegationGuide,
   buildOracleSection,
   buildHardBlocksSection,
   buildAntiPatternsSection,
   categorizeTools,
-} from "./sisyphus-prompt-builder"
+} from "./dynamic-agent-prompt-builder"
 
 const SISYPHUS_ROLE_SECTION = `<Role>
 You are "Sisyphus" - Powerful AI Agent with orchestration capabilities from OhMyOpenCode.
@@ -238,15 +238,15 @@ const SISYPHUS_PARALLEL_EXECUTION = `### Parallel Execution (DEFAULT behavior)
 \`\`\`typescript
 // CORRECT: Always background, always parallel
 // Contextual Grep (internal)
-delegate_task(agent="explore", prompt="Find auth implementations in our codebase...")
-delegate_task(agent="explore", prompt="Find error handling patterns here...")
+delegate_task(subagent_type="explore", run_in_background=true, skills=[], prompt="Find auth implementations in our codebase...")
+delegate_task(subagent_type="explore", run_in_background=true, skills=[], prompt="Find error handling patterns here...")
 // Reference Grep (external)
-delegate_task(agent="librarian", prompt="Find JWT best practices in official docs...")
-delegate_task(agent="librarian", prompt="Find how production apps handle auth in Express...")
+delegate_task(subagent_type="librarian", run_in_background=true, skills=[], prompt="Find JWT best practices in official docs...")
+delegate_task(subagent_type="librarian", run_in_background=true, skills=[], prompt="Find how production apps handle auth in Express...")
 // Continue working immediately. Collect with background_output when needed.
 
 // WRONG: Sequential or blocking
-result = task(...)  // Never wait synchronously for explore/librarian
+result = delegate_task(...)  // Never wait synchronously for explore/librarian
 \`\`\`
 
 ### Background Result Collection:
@@ -556,17 +556,18 @@ const SISYPHUS_SOFT_GUIDELINES = `## Soft Guidelines
 function buildDynamicSisyphusPrompt(
   availableAgents: AvailableAgent[],
   availableTools: AvailableTool[] = [],
-  availableSkills: AvailableSkill[] = []
+  availableSkills: AvailableSkill[] = [],
+  availableCategories: AvailableCategory[] = []
 ): string {
   const keyTriggers = buildKeyTriggersSection(availableAgents, availableSkills)
   const toolSelection = buildToolSelectionTable(availableAgents, availableTools, availableSkills)
   const exploreSection = buildExploreSection(availableAgents)
   const librarianSection = buildLibrarianSection(availableAgents)
-  const frontendSection = buildFrontendSection(availableAgents)
+  const categorySkillsGuide = buildCategorySkillsDelegationGuide(availableCategories, availableSkills)
   const delegationTable = buildDelegationTable(availableAgents)
   const oracleSection = buildOracleSection(availableAgents)
-  const hardBlocks = buildHardBlocksSection(availableAgents)
-  const antiPatterns = buildAntiPatternsSection(availableAgents)
+  const hardBlocks = buildHardBlocksSection()
+  const antiPatterns = buildAntiPatternsSection()
 
   const sections = [
     SISYPHUS_ROLE_SECTION,
@@ -602,7 +603,7 @@ function buildDynamicSisyphusPrompt(
     "",
     SISYPHUS_PHASE2B_PRE_IMPLEMENTATION,
     "",
-    frontendSection,
+    categorySkillsGuide,
     "",
     delegationTable,
     "",
@@ -643,18 +644,20 @@ export function createSisyphusAgent(
   model: string,
   availableAgents?: AvailableAgent[],
   availableToolNames?: string[],
-  availableSkills?: AvailableSkill[]
+  availableSkills?: AvailableSkill[],
+  availableCategories?: AvailableCategory[]
 ): AgentConfig {
   const tools = availableToolNames ? categorizeTools(availableToolNames) : []
   const skills = availableSkills ?? []
+  const categories = availableCategories ?? []
   const prompt = availableAgents
-    ? buildDynamicSisyphusPrompt(availableAgents, tools, skills)
-    : buildDynamicSisyphusPrompt([], tools, skills)
+    ? buildDynamicSisyphusPrompt(availableAgents, tools, skills, categories)
+    : buildDynamicSisyphusPrompt([], tools, skills, categories)
 
   const permission = { question: "allow", call_omo_agent: "deny" } as AgentConfig["permission"]
   const base = {
     description:
-      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically to specialized agents. Uses explore for internal code (parallel-friendly), librarian only for external docs, and always delegates UI work to frontend engineer.",
+      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically via category+skills combinations. Uses explore for internal code (parallel-friendly), librarian for external docs.",
     mode: "primary" as const,
     model,
     maxTokens: 64000,

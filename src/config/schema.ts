@@ -21,12 +21,10 @@ export const BuiltinAgentNameSchema = z.enum([
   "oracle",
   "librarian",
   "explore",
-  "frontend-ui-ux-engineer",
-  "document-writer",
   "multimodal-looker",
   "Metis (Plan Consultant)",
   "Momus (Plan Reviewer)",
-  "orchestrator-sisyphus",
+  "Atlas",
   "plan-synthesizer",
 ])
 
@@ -53,10 +51,8 @@ export const OverridableAgentNameSchema = z.enum([
   "oracle",
   "librarian",
   "explore",
-  "frontend-ui-ux-engineer",
-  "document-writer",
   "multimodal-looker",
-  "orchestrator-sisyphus",
+  "Atlas",
   "plan-synthesizer",
 ])
 
@@ -94,7 +90,7 @@ export const HookNameSchema = z.enum([
   "delegate-task-retry",
   "prometheus-md-only",
   "start-work",
-  "sisyphus-orchestrator",
+  "atlas",
   "multi-plan-trigger",
   "planning-with-files",
   "silent-tool-output",
@@ -158,10 +154,8 @@ export const AgentOverridesSchema = z.object({
   oracle: AgentOverrideConfigSchema.optional(),
   librarian: AgentOverrideConfigSchema.optional(),
   explore: AgentOverrideConfigSchema.optional(),
-  "frontend-ui-ux-engineer": AgentOverrideConfigSchema.optional(),
-  "document-writer": AgentOverrideConfigSchema.optional(),
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
-  "orchestrator-sisyphus": AgentOverrideConfigSchema.optional(),
+  Atlas: AgentOverrideConfigSchema.optional(),
   "plan-synthesizer": AgentOverrideConfigSchema.optional(),
   /** Planning configuration: string (single model) or array (multi-model) */
   planning: PlanningAgentConfigSchema.optional(),
@@ -198,6 +192,8 @@ export const CategoryConfigSchema = z.object({
   textVerbosity: z.enum(["low", "medium", "high"]).optional(),
   tools: z.record(z.string(), z.boolean()).optional(),
   prompt_append: z.string().optional(),
+  /** Mark agent as unstable - forces background mode for monitoring. Auto-enabled for gemini models. */
+  is_unstable_agent: z.boolean().optional(),
 })
 
 export const BuiltinCategoryNameSchema = z.enum([
@@ -205,9 +201,9 @@ export const BuiltinCategoryNameSchema = z.enum([
   "ultrabrain",
   "artistry",
   "quick",
-  "most-capable",
+  "unspecified-low",
+  "unspecified-high",
   "writing",
-  "general",
 ])
 
 export const CategoriesConfigSchema = z.record(z.string(), CategoryConfigSchema)
