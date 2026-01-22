@@ -308,7 +308,7 @@ curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads
 - **JSONC 支持**: 支持注释和尾随逗号
 - **智能体**: 覆盖任何智能体的模型、温度、提示和权限
 - **内置技能**: `playwright` (浏览器自动化), `git-master` (原子提交)
-- **Sisyphus 智能体**: 带有 Prometheus (Planner) 和 Metis (Plan Consultant) 的主编排器
+- **Sisyphus 智能体**: 带有 Prometheus 和 Metis 的主编排器
 - **后台任务**: 按提供商/模型配置并发限制
 - **类别**: 领域特定的任务委派 (`visual`, `business-logic`, 自定义)
 - **钩子**: 25+ 内置钩子，均可通过 `disabled_hooks` 配置

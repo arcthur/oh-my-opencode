@@ -393,7 +393,7 @@ describe("keyword-detector agent-specific ultrawork messages", () => {
     }
 
     // #when - ultrawork keyword detected with planner agent
-    await hook["chat.message"]({ sessionID, agent: "Prometheus (Planner)" }, output)
+    await hook["chat.message"]({ sessionID, agent: "Prometheus" }, output)
 
     // #then - should use planner-specific message
     const pending = collector.getPending(sessionID)

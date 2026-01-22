@@ -298,7 +298,7 @@ oh-my-opencode を削除するには：
 - **JSONC のサポート**: コメントと末尾のカンマをサポート
 - **エージェント**: 任意のエージェントのモデル、温度、プロンプト、権限をオーバーライド
 - **内蔵スキル**: `playwright` (ブラウザ自動化), `git-master` (アトミックコミット)
-- **Sisyphus エージェント**: Prometheus (Planner) と Metis (Plan Consultant) を備えたメインオーケストレーター
+- **Sisyphus エージェント**: Prometheus と Metis を備えたメインオーケストレーター
 - **バックグラウンドタスク**: プロバイダー/モデルごとの同時実行制限を設定
 - **カテゴリ**: ドメイン固有のタスク委任 (`visual`, `business-logic`, カスタム)
 - **フック**: 25以上の内蔵フック、すべて `disabled_hooks` で設定可能

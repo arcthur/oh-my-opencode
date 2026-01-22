@@ -354,7 +354,7 @@ describe("todo-continuation-enforcer", () => {
 
     // #when - create hook with skipAgents option (should not throw)
     const hook = createTodoContinuationEnforcer(createMockPluginInput(), {
-      skipAgents: ["Prometheus (Planner)", "custom-agent"],
+      skipAgents: ["Prometheus", "custom-agent"],
     })
 
     // #then - handler works without error

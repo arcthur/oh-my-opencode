@@ -29,13 +29,13 @@ const VALIDATION_RULES: Partial<Record<BuiltinAgentName, AgentValidationRules>> 
     validDomains: ["backend", "general", "frontend"],
     minComplexity: "moderate",
   },
-  "Metis (Plan Consultant)": {
+  "Metis": {
     validTaskTypes: ["architecture", "research"],
     validComplexity: ["moderate", "complex"],
     validDomains: ["frontend", "backend", "general"],
     minComplexity: "moderate",
   },
-  "Momus (Plan Reviewer)": {
+  "Momus": {
     validTaskTypes: ["architecture"],
     validComplexity: ["moderate", "complex"],
     validDomains: ["frontend", "backend", "general"],

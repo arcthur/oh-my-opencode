@@ -206,13 +206,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       }
 
       if (plannerEnabled) {
-        const { name: _planName, mode: _planMode, ...planConfigWithoutName } =
-          configAgent?.plan ?? {};
-        const migratedPlanConfig = migrateAgentConfig(
-          planConfigWithoutName as Record<string, unknown>
-        );
         const prometheusOverride =
-          pluginConfig.agents?.["Prometheus (Planner)"] as
+          pluginConfig.agents?.["Prometheus"] as
             | (Record<string, unknown> & { category?: string; model?: string })
             | undefined;
         const defaultModel = config.model as string | undefined;
@@ -259,7 +254,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
             : {}),
         };
 
-        agentConfig["Prometheus (Planner)"] = prometheusOverride
+        agentConfig["Prometheus"] = prometheusOverride
           ? { ...prometheusBase, ...prometheusOverride }
           : prometheusBase;
       }
@@ -337,8 +332,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       const agent = agentResult.Sisyphus as AgentWithPermission;
       agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: "allow" };
     }
-    if (agentResult["Prometheus (Planner)"]) {
-      const agent = agentResult["Prometheus (Planner)"] as AgentWithPermission;
+    if (agentResult["Prometheus"]) {
+      const agent = agentResult["Prometheus"] as AgentWithPermission;
       agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: "allow" };
     }
     if (agentResult["Sisyphus-Junior"]) {

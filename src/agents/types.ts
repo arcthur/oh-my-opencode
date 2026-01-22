@@ -62,8 +62,8 @@ export type BuiltinAgentName =
   | "librarian"
   | "explore"
   | "multimodal-looker"
-  | "Metis (Plan Consultant)"
-  | "Momus (Plan Reviewer)"
+  | "Metis"
+  | "Momus"
   | "Atlas"
   | "plan-synthesizer"
 

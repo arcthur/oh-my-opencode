@@ -46,7 +46,7 @@ describe("prometheus-md-only", () => {
 
   describe("with Prometheus agent in message storage", () => {
     beforeEach(() => {
-      setupMessageStorage(TEST_SESSION_ID, "Prometheus (Planner)")
+      setupMessageStorage(TEST_SESSION_ID, "Prometheus")
     })
 
     test("should block Prometheus from writing non-.md files", async () => {
@@ -304,7 +304,7 @@ describe("prometheus-md-only", () => {
 
   describe("cross-platform path validation", () => {
     beforeEach(() => {
-      setupMessageStorage(TEST_SESSION_ID, "Prometheus (Planner)")
+      setupMessageStorage(TEST_SESSION_ID, "Prometheus")
     })
 
     test("should allow Windows-style backslash paths under .sisyphus/", async () => {

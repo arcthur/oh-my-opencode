@@ -631,7 +631,7 @@ todoWrite([
 
 \`\`\`typescript
 delegate_task(
-  agent="Metis (Plan Consultant)",
+    agent="Metis",
   prompt=\`Review this planning session before I generate the work plan:
 
   **User's Goal**: {summarize what user wants}
@@ -797,7 +797,7 @@ Question({
 // After generating initial plan
 while (true) {
   const result = delegate_task(
-    agent="Momus (Plan Reviewer)",
+    agent="Momus",
     prompt=".sisyphus/plans/{name}.md",
     background=false
   )

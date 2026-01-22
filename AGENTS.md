@@ -110,9 +110,9 @@ oh-my-opencode/
 | librarian | opencode/glm-4.7-free | Multi-repo analysis, docs, GitHub search |
 | explore | opencode/grok-code | Fast codebase exploration (contextual grep) |
 | multimodal-looker | google/gemini-3-flash | PDF/image analysis |
-| Prometheus (Planner) | anthropic/claude-opus-4-5 | Strategic planning, interview mode |
-| Metis (Plan Consultant) | anthropic/claude-sonnet-4-5 | Pre-planning analysis |
-| Momus (Plan Reviewer) | anthropic/claude-sonnet-4-5 | Plan validation |
+| Prometheus | anthropic/claude-opus-4-5 | Strategic planning, interview mode |
+| Metis | anthropic/claude-sonnet-4-5 | Pre-planning analysis |
+| Momus | anthropic/claude-sonnet-4-5 | Plan validation |
 
 ## COMMANDS
 

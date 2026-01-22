@@ -23,13 +23,12 @@ describe("migrateAgentNames", () => {
     // #when: Migrate agent names
     const { migrated, changed } = migrateAgentNames(agents)
 
-    // #then: Legacy names should be migrated to Sisyphus/Prometheus
+    // #then: Legacy names should be migrated to Sisyphus only
     expect(changed).toBe(true)
     expect(migrated["Sisyphus"]).toEqual({ temperature: 0.5 })
-    expect(migrated["Prometheus (Planner)"]).toEqual({ prompt: "custom prompt" })
     expect(migrated["omo"]).toBeUndefined()
     expect(migrated["OmO"]).toBeUndefined()
-    expect(migrated["OmO-Plan"]).toBeUndefined()
+    expect(migrated["OmO-Plan"]).toEqual({ prompt: "custom prompt" })
   })
 
   test("preserves current agent names unchanged", () => {
@@ -63,7 +62,7 @@ describe("migrateAgentNames", () => {
 
     // #then: Case-insensitive lookup should migrate correctly
     expect(migrated["Sisyphus"]).toEqual({ model: "test" })
-    expect(migrated["Prometheus (Planner)"]).toEqual({ prompt: "test" })
+    expect(migrated["planner-sisyphus"]).toEqual({ prompt: "test" })
     expect(migrated["Atlas"]).toEqual({ model: "openai/gpt-5.2" })
   })
 
@@ -256,7 +255,7 @@ describe("migrateConfigFile", () => {
     expect(rawConfig.omo_agent).toBeUndefined()
     const agents = rawConfig.agents as Record<string, unknown>
     expect(agents["Sisyphus"]).toBeDefined()
-    expect(agents["Prometheus (Planner)"]).toBeDefined()
+    expect(agents["OmO-Plan"]).toBeDefined()
     expect(rawConfig.disabled_hooks).toContain("context-window-limit-recovery")
   })
 })
@@ -267,10 +266,9 @@ describe("migration maps", () => {
     // #then: Should contain all legacy → current mappings
     expect(AGENT_NAME_MAP["omo"]).toBe("Sisyphus")
     expect(AGENT_NAME_MAP["OmO"]).toBe("Sisyphus")
-    expect(AGENT_NAME_MAP["OmO-Plan"]).toBe("Prometheus (Planner)")
-    expect(AGENT_NAME_MAP["omo-plan"]).toBe("Prometheus (Planner)")
-    expect(AGENT_NAME_MAP["Planner-Sisyphus"]).toBe("Prometheus (Planner)")
-    expect(AGENT_NAME_MAP["plan-consultant"]).toBe("Metis (Plan Consultant)")
+    expect(AGENT_NAME_MAP["OmO-Plan"]).toBeUndefined()
+    expect(AGENT_NAME_MAP["omo-plan"]).toBeUndefined()
+    expect(AGENT_NAME_MAP["Planner-Sisyphus"]).toBeUndefined()
   })
 
   test("HOOK_NAME_MAP contains anthropic-auto-compact migration", () => {

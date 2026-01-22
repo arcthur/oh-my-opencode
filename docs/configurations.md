@@ -163,8 +163,8 @@ When enabled (default), Sisyphus provides a powerful orchestrator with optional 
 
 - **Sisyphus**: Primary orchestrator agent (Claude Opus 4.5)
 - **OpenCode-Builder**: OpenCode's default build agent, renamed due to SDK limitations (disabled by default)
-- **Prometheus (Planner)**: OpenCode's default plan agent with work-planner methodology (enabled by default)
-- **Metis (Plan Consultant)**: Pre-planning analysis agent that identifies hidden requirements and AI failure points
+- **Prometheus**: OpenCode's default plan agent with work-planner methodology (enabled by default)
+- **Metis**: Pre-planning analysis agent that identifies hidden requirements and AI failure points
 
 **Configuration Options:**
 
@@ -213,10 +213,10 @@ You can also customize Sisyphus agents like other agents:
     "OpenCode-Builder": {
       "model": "anthropic/claude-opus-4"
     },
-    "Prometheus (Planner)": {
+    "Prometheus": {
       "model": "openai/gpt-5.2"
     },
-    "Metis (Plan Consultant)": {
+    "Metis": {
       "model": "anthropic/claude-sonnet-4-5"
     }
   }
@@ -227,8 +227,8 @@ You can also customize Sisyphus agents like other agents:
 | ------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `disabled`                | `false` | When `true`, disables all Sisyphus orchestration and restores original build/plan as primary.                                          |
 | `default_builder_enabled` | `false` | When `true`, enables OpenCode-Builder agent (same as OpenCode build, renamed due to SDK limitations). Disabled by default.             |
-| `planner_enabled`         | `true`  | When `true`, enables Prometheus (Planner) agent with work-planner methodology. Enabled by default.                                     |
-| `replace_plan`            | `true`  | When `true`, demotes default plan agent to subagent mode. Set to `false` to keep both Prometheus (Planner) and default plan available. |
+| `planner_enabled`         | `true`  | When `true`, enables Prometheus agent with work-planner methodology. Enabled by default.                                               |
+| `replace_plan`            | `true`  | When `true`, demotes default plan agent to subagent mode. Set to `false` to keep both Prometheus and default plan available.          |
 
 ## Background Tasks
 
@@ -335,7 +335,7 @@ The installer automatically configures optimal models based on your subscription
 │   │   Claude (anthropic/) ──► OpenAI (openai/) ──► Gemini   │   │
 │   │         │                      │              (google/) │   │
 │   │         ▼                      ▼                   │    │   │
-│   │   Opus/Sonnet/Haiku    GPT-5.2/Codex      Gemini 3 Pro │   │
+│   │   Opus/Sonnet/Haiku    GPT-5.2/Codex      Gemini 3 Pro  │   │
 │   └─────────────────────────────────────────────────────────┘   │
 │                              │                                  │
 │                              ▼ (if no native available)         │

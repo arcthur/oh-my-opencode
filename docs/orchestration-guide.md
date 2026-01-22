@@ -29,7 +29,7 @@ Traditional AI agents often mix planning and execution, leading to context pollu
 
 Oh-My-OpenCode solves this by clearly separating two roles:
 
-1. **Prometheus (Planner)**: A pure strategist who never writes code. Establishes perfect plans through interviews and analysis.
+1. **Prometheus**: A pure strategist who never writes code. Establishes perfect plans through interviews and analysis.
 2. **Sisyphus (Executor)**: An orchestrator who executes plans. Delegates work to specialized agents and never stops until completion.
 
 ---

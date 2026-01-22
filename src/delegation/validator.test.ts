@@ -281,7 +281,7 @@ describe("validateDelegationDecision", () => {
     describe("#when used for architecture task with moderate complexity", () => {
       it("#then should be valid", () => {
         const decision = createDecision({
-          agent: "Metis (Plan Consultant)",
+          agent: "Metis",
           taskType: "architecture",
           complexity: "moderate",
         })
@@ -295,7 +295,7 @@ describe("validateDelegationDecision", () => {
     describe("#when used for simple task", () => {
       it("#then should have overkill warning", () => {
         const decision = createDecision({
-          agent: "Metis (Plan Consultant)",
+          agent: "Metis",
           taskType: "architecture",
           complexity: "simple",
         })

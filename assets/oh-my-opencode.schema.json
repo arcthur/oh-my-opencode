@@ -25,8 +25,8 @@
           "librarian",
           "explore",
           "multimodal-looker",
-          "Metis (Plan Consultant)",
-          "Momus (Plan Reviewer)",
+          "Metis",
+          "Momus",
           "Atlas",
           "plan-synthesizer"
         ]
@@ -737,7 +737,7 @@
             }
           }
         },
-        "Prometheus (Planner)": {
+        "Prometheus": {
           "type": "object",
           "properties": {
             "model": {
@@ -863,7 +863,7 @@
             }
           }
         },
-        "Metis (Plan Consultant)": {
+        "Metis": {
           "type": "object",
           "properties": {
             "model": {
@@ -989,7 +989,7 @@
             }
           }
         },
-        "Momus (Plan Reviewer)": {
+        "Momus": {
           "type": "object",
           "properties": {
             "model": {

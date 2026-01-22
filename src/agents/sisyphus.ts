@@ -124,7 +124,7 @@ const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY
 
 <delegation-decision>
 {
-  "agent": "explore" | "librarian" | "oracle" | "frontend-ui-ux-engineer" | "document-writer" | "Metis (Plan Consultant)" | "Momus (Plan Reviewer)",
+  "agent": "explore" | "librarian" | "oracle" | "frontend-ui-ux-engineer" | "document-writer" | "Metis" | "Momus",
   "taskType": "exploration" | "implementation" | "debugging" | "refactoring" | "documentation" | "architecture" | "research",
   "complexity": "trivial" | "simple" | "moderate" | "complex",
   "domain": "frontend" | "backend" | "external" | "general",
@@ -163,8 +163,8 @@ const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY
 | oracle | debugging, architecture | moderate+ |
 | frontend-ui-ux-engineer | implementation, refactoring | any |
 | document-writer | documentation | any |
-| Metis (Plan Consultant) | architecture, research | moderate+ |
-| Momus (Plan Reviewer) | architecture | moderate+ |
+| Metis | architecture, research | moderate+ |
+| Momus | architecture | moderate+ |
 
 #### Examples
 

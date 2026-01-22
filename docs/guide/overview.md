@@ -10,7 +10,7 @@ Learn about Oh My OpenCode, a plugin that transforms OpenCode into the best agen
 
 **Feeling lazy?** Just include `ultrawork` (or `ulw`) in your prompt. That's it. The agent figures out the rest.
 
-**Need precision?** Press **Tab** to enter Prometheus (Planner) mode, create a work plan through an interview process, then run `/start-work` to execute it with full orchestration.
+**Need precision?** Press **Tab** to enter Prometheus mode, create a work plan through an interview process, then run `/start-work` to execute it with full orchestration.
 
 ---
 
@@ -46,7 +46,7 @@ The agent is already smart enough, so it explores the codebase and make plans it
 
 ### Option 2: Prometheus Mode (For Precise Work)
 
-For complex or critical tasks, press **Tab** to switch to Prometheus (Planner) mode.
+For complex or critical tasks, press **Tab** to switch to Prometheus mode.
 
 **How it works:**
 
