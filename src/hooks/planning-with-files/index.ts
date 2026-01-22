@@ -11,8 +11,10 @@ import {
   getPlanDir,
   getCurrentPhase,
   getStrikeGuidance,
+  generateBlockerPrompt,
   generateErrorRecordingPrompt,
   generateReflectionPrompt,
+  isErrorRecorded,
   initializePlan,
   loadState,
   parsePhases,
@@ -20,6 +22,10 @@ import {
   saveState,
   wasFindingsModified,
 } from "../../features/planning-with-files/manager"
+import {
+  isBlockerLikely,
+  BlockerPromptCache,
+} from "../../features/planning-with-files/blocker-detection"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 
 export interface PlanningWithFilesHookOptions {
@@ -161,6 +167,7 @@ export function createPlanningWithFilesHook(
   const activePlanBySessionID = new Map<string, string>()
   const toolArgsByCallID = new Map<string, unknown>()
   const stopVerificationLastPromptAt = new Map<string, number>()
+  const blockerCache = new BlockerPromptCache({ maxSessions: 100, maxBlockersPerSession: 50 })
   const STOP_VERIFICATION_COOLDOWN_MS = 60_000
   const rereadTriggerTools = new Set(config.reread_trigger_tools.map((t) => t.toLowerCase()))
   const actionCountTools = new Set(config.action_count_tools.map((t) => t.toLowerCase()))
@@ -288,20 +295,25 @@ Planning files initialized at \`.sisyphus/${config.directory}/${planName}/\`.
     const state = await loadState(ctx.directory, planName, config)
     if (!state) return
 
-    // 3-strike protocol (best-effort) based on tool output markers.
-    if (config.three_strike_protocol) {
-      const errorText = extractToolError({ output: output.output })
-      if (errorText) {
+    const errorText = extractToolError({ output: output.output })
+    if (errorText) {
+      const taskPlan = await readTaskPlan(ctx.directory, planName, config)
+      const phases = taskPlan ? parsePhases(taskPlan) : []
+      const currentPhase = getCurrentPhase(phases)
+
+      // 3-strike protocol (best-effort) based on tool output markers.
+      if (config.three_strike_protocol) {
         const errorKey = `${input.tool}:${errorText.slice(0, 80)}`
         state.errorStrikes[errorKey] = (state.errorStrikes[errorKey] ?? 0) + 1
         await saveState(ctx.directory, state, config)
 
         const strikes = state.errorStrikes[errorKey]
-        const requiresRecording = strikes >= 2
+        let requiresRecording = strikes >= 2
 
-        const taskPlan = await readTaskPlan(ctx.directory, planName, config)
-        const phases = taskPlan ? parsePhases(taskPlan) : []
-        const currentPhase = getCurrentPhase(phases)
+        if (requiresRecording) {
+          const recorded = await isErrorRecorded(ctx.directory, planName, errorKey, config)
+          requiresRecording = !recorded
+        }
 
         let content = `<three-strike-protocol strike="${strikes}">
 ${getStrikeGuidance(strikes, requiresRecording)}
@@ -320,6 +332,20 @@ Error: ${errorText.slice(0, 150)}
           content,
           metadata: { planName, errorKey, strikes },
         })
+      }
+
+      if (isBlockerLikely(errorText)) {
+        const blockerKey = `${planName}:${input.tool}:${errorText.slice(0, 80)}`
+        if (!blockerCache.has(input.sessionID, blockerKey)) {
+          blockerCache.add(input.sessionID, blockerKey)
+          collector.register(input.sessionID, {
+            id: `blocker-${blockerKey}`,
+            source: "planning-with-files",
+            priority: "high",
+            content: generateBlockerPrompt(errorText, currentPhase),
+            metadata: { planName, errorText },
+          })
+        }
       }
     }
 
@@ -398,6 +424,7 @@ Counter auto-resets when you modify findings.md.
         injectedSessions.delete(deletedID)
         activePlanBySessionID.delete(deletedID)
         stopVerificationLastPromptAt.delete(deletedID)
+        blockerCache.delete(deletedID)
       }
       return
     }

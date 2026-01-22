@@ -15,6 +15,7 @@
  * - Work history with automatic aggregation
  * - Custom rules and explicit memories
  * - Hierarchical summarization across time scales
+ * - Circuit breaker for LLM resilience
  */
 
 // Type exports
@@ -54,7 +55,39 @@ export {
 } from "./storage"
 
 // Hook exports
-export { createUserMemoryHook, type UserMemoryHookConfig } from "./hook"
+export {
+  createUserMemoryHook,
+  createDefaultUserMemorySummarizer,
+  type UserMemoryHookConfig,
+  type UserMemorySummarizer,
+  type UserMemoryPromptKind,
+} from "./hook"
+
+// Summarizer exports (for advanced use cases)
+export {
+  createUserMemorySummarizer,
+  createAggregationSummarizer,
+  CircuitOpenError,
+  type CircuitState,
+  type SummarizerOptions,
+} from "./summarizer"
+
+// Schema exports (for validation and parsing)
+export {
+  PROMPT_TAGS,
+  detectPromptKind,
+  parseWeeklySummarization,
+  parseMonthlySummarization,
+  parseKnowledgeExtraction,
+  parseMergeDecision,
+  parseMonthToTimestamp,
+  extractAssistantText,
+  type PromptKind,
+  type WeeklySummarizationResponse,
+  type MonthlySummarizationResponse,
+  type KnowledgeExtractionResponse,
+  type MergeDecisionResponse,
+} from "./schemas"
 
 // Aggregation API exports (for advanced use cases)
 export {

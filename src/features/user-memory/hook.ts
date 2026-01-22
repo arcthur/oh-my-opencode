@@ -1,4 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import type { CategoriesConfig } from "../../config/schema"
 import type {
   UserMemoryConfig,
   PatternStats,
@@ -16,7 +17,6 @@ import type {
 } from "../../shared/hook-types"
 import {
   DEFAULT_CONFIG,
-  DEFAULT_PATTERN_STATS,
   DEFAULT_HIERARCHICAL_CONFIG,
   DEFAULT_ENTITY_MEMORY_CONFIG,
   DEFAULT_ENTITY_GRAPH,
@@ -38,11 +38,29 @@ import {
 import {
   performAggregations,
   initializeAggregationTimestamps,
-  type SummarizeFunction,
+  mergeKnowledge,
 } from "./aggregation"
-import { extractEntitiesFromWorkHistory } from "./entity-extraction"
+import { extractEntitiesFromWorkHistory, extractEntitiesFromWeeklySummary } from "./entity-extraction"
 import { addEntitiesAndCooccurrenceRelationships, pruneEntityGraph } from "./entity-reconciliation"
+import { buildKnowledgeExtractionPrompt } from "./prompts"
+import {
+  PROMPT_TAGS,
+  parseKnowledgeExtraction,
+  parseMonthToTimestamp,
+  type PromptKind,
+} from "./schemas"
+import {
+  createUserMemorySummarizer,
+  createAggregationSummarizer,
+  CircuitOpenError,
+  type UserMemorySummarizer,
+} from "./summarizer"
 import { log } from "../../shared/logger"
+import { generateKnowledgeId, inferStalenessCategory } from "./temporal-validity"
+
+// ============================================================================
+// Types
+// ============================================================================
 
 /**
  * Extended config including hierarchical memory and entity memory settings
@@ -56,6 +74,28 @@ export interface UserMemoryHookConfig extends UserMemoryConfig {
   disclosure_level?: "minimal" | "standard" | "full"
 }
 
+// Re-export types
+export type { UserMemorySummarizer, PromptKind as UserMemoryPromptKind }
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create default summarizer using session API
+ */
+export function createDefaultUserMemorySummarizer(
+  ctx: PluginInput,
+  _config?: Partial<UserMemoryHookConfig>,
+  options?: { categories?: CategoriesConfig }
+): UserMemorySummarizer | undefined {
+  return createUserMemorySummarizer(ctx, options)
+}
+
+// ============================================================================
+// Hook Factory
+// ============================================================================
+
 /**
  * Creates a hook that injects user memory context into sessions
  * and captures explicit "remember" requests.
@@ -66,7 +106,11 @@ export interface UserMemoryHookConfig extends UserMemoryConfig {
  * - L2: Monthly summaries (aggregated when crossing month boundaries)
  * - L3: Long-term knowledge (extracted quarterly)
  */
-export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<UserMemoryHookConfig>) {
+export function createUserMemoryHook(
+  ctx: PluginInput,
+  userConfig?: Partial<UserMemoryHookConfig>,
+  deps?: { summarizer?: UserMemorySummarizer }
+) {
   const config: UserMemoryConfig = { ...DEFAULT_CONFIG, ...userConfig }
   const hierarchicalConfig: HierarchicalMemoryConfig = {
     ...DEFAULT_HIERARCHICAL_CONFIG,
@@ -98,21 +142,19 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
   let patternStats: PatternStats = loadPatternStats()
 
   // Patterns to detect "remember" requests
-  // More precise to avoid matching imperative commands like "remember to run tests"
   const REMEMBER_PATTERNS = [
-    // "remember that X" - declarative statement
     /\bremember\s+that\s+(.+)/i,
-    // "remember: X" or "remember this: X" - explicit memory marker
     /\bremember(?:\s+this)?\s*:\s*(.+)/i,
-    // "please save/note X" with explicit marker
     /\b(?:please\s+)?(?:save|note)\s*:\s*(.+)/i,
-    // "note that X" - declarative statement
     /\bnote\s+that\s+(.+)/i,
-    // "keep in mind that X" - must have "that" to be declarative
     /\bkeep\s+in\s+mind\s+that\s+(.+)/i,
-    // "I prefer X" / "I always X" / "I like X" - preference statements
     /\bi\s+(?:prefer|always|like|use|want)\s+(.+)/i,
   ]
+
+  // Create aggregation summarizer with circuit breaker support
+  const aggregationSummarizer = createAggregationSummarizer(deps?.summarizer, {
+    aggregation_model: hierarchicalConfig.aggregation_model,
+  })
 
   async function injectMemory(sessionID: string, output: ToolExecuteOutput): Promise<void> {
     if (!config.enabled || !config.auto_inject) return
@@ -151,29 +193,13 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
     // Check for "remember" patterns
     for (const pattern of REMEMBER_PATTERNS) {
       const match = content.match(pattern)
-      if (match && match[1]) {
+      if (match?.[1]) {
         const toRemember = match[1].trim()
-        if (toRemember.length > 5) { // Avoid saving tiny fragments
+        if (toRemember.length > 5) {
           addExplicitMemory(toRemember)
           log("[user-memory] captured explicit memory", { content: toRemember.substring(0, 50) })
         }
         break
-      }
-    }
-  }
-
-  /**
-   * Create a fallback summarization function that doesn't require LLM
-   * This can be replaced with an LLM-based implementation when available
-   */
-  const createFallbackSummarizer = (): SummarizeFunction => {
-    return async (_prompt: string) => {
-      // For now, return a basic response
-      // The aggregation functions will use the metadata-based fallback
-      return {
-        summary: "",
-        achievements: [],
-        lessons: [],
       }
     }
   }
@@ -189,6 +215,7 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
       aggregationInProgress = true
       const memory = loadUserMemory()
       const now = Date.now()
+      const previousWeekStarts = new Set((memory.weeklySummaries ?? []).map((w) => w.weekStart))
 
       // Initialize timestamps if this is a new user
       if (!memory.lastWeeklyAggregation && memory.workHistory.length > 0) {
@@ -198,18 +225,119 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
         return
       }
 
-      // Perform aggregations using fallback summarizer
-      const summarizer = createFallbackSummarizer()
+      // Perform aggregations
       const updated = await performAggregations(
         memory,
         now,
-        summarizer,
+        aggregationSummarizer,
         hierarchicalConfig,
         consolidationConfig,
         semanticClusteringConfig
       )
 
-      // Check if anything changed (including timestamps and workHistory cleanup)
+      let entityGraphChanged = false
+
+      // L1 entity extraction for newly added weekly summaries
+      if (entityConfig.enabled) {
+        const newWeeklySummaries =
+          updated.weeklySummaries?.filter((w) => !previousWeekStarts.has(w.weekStart)) ?? []
+
+        if (newWeeklySummaries.length > 0) {
+          let graph = updated.entityGraph
+            ? {
+                ...DEFAULT_ENTITY_GRAPH,
+                ...updated.entityGraph,
+                nodes: updated.entityGraph.nodes ?? {},
+                relationships: updated.entityGraph.relationships ?? [],
+                aliasIndex: updated.entityGraph.aliasIndex ?? {},
+              }
+            : {
+                ...DEFAULT_ENTITY_GRAPH,
+                nodes: {},
+                relationships: [],
+                aliasIndex: {},
+              }
+
+          for (const weeklySummary of newWeeklySummaries) {
+            const entities = extractEntitiesFromWeeklySummary(weeklySummary)
+            if (entities.length > 0) {
+              graph = addEntitiesAndCooccurrenceRelationships(graph, entities, {
+                timestamp: weeklySummary.weekStart,
+                context: `Weekly summary - ${weeklySummary.summary.slice(0, 160)}`,
+              })
+              entityGraphChanged = true
+            }
+          }
+
+          if (entityGraphChanged) {
+            graph = pruneEntityGraph(
+              graph,
+              entityConfig.max_entities,
+              entityConfig.max_relationships,
+              entityConfig.min_mentions
+            )
+            updated.entityGraph = graph
+            updated.lastEntityExtraction = now
+          }
+        }
+      }
+
+      // Optional: LLM-based knowledge extraction (augment L2->L3)
+      if (
+        deps?.summarizer &&
+        semanticClusteringConfig.enabled &&
+        semanticClusteringConfig.max_llm_calls > 0 &&
+        updated.lastKnowledgeExtraction !== memory.lastKnowledgeExtraction &&
+        (updated.monthlySummaries?.length ?? 0) > 0
+      ) {
+        try {
+          const knowledgePrompt = buildKnowledgeExtractionPrompt(updated.monthlySummaries ?? [])
+          const raw = await deps.summarizer.summarize(knowledgePrompt, {
+            kind: "knowledge",
+            model: hierarchicalConfig.aggregation_model,
+          })
+          const parsed = parseKnowledgeExtraction(raw)
+
+          if (parsed.knowledge.length > 0) {
+            const enriched = parsed.knowledge
+              .filter((k) => k.content?.trim().length > 0)
+              .map((k) => {
+                const months = k.sourceMonths.filter(Boolean)
+                const firstMonth = months[0] ?? ""
+                const lastMonth = months[months.length - 1] ?? ""
+                return {
+                  id: generateKnowledgeId(k.content),
+                  category: k.category,
+                  content: k.content,
+                  confidence: Math.min(Math.max(k.confidence, 0), 1),
+                  firstSeen: parseMonthToTimestamp(firstMonth) ?? Date.now(),
+                  lastReinforced: parseMonthToTimestamp(lastMonth) ?? Date.now(),
+                  sourceMonths: months,
+                  staleness_category: inferStalenessCategory({
+                    category: k.category,
+                    content: k.content,
+                  }),
+                }
+              })
+
+            if (enriched.length > 0) {
+              updated.longTermKnowledge = mergeKnowledge(
+                updated.longTermKnowledge ?? [],
+                enriched,
+                hierarchicalConfig.long_term_knowledge_limit
+              )
+            }
+          }
+        } catch (error) {
+          if (error instanceof CircuitOpenError) {
+            log("[user-memory] knowledge extraction skipped (circuit open)")
+          } else {
+            log("[user-memory] knowledge extraction failed", { error: String(error) })
+          }
+        }
+      }
+
+      // Check if anything changed
       const hasChanges =
         updated.weeklySummaries?.length !== memory.weeklySummaries?.length ||
         updated.monthlySummaries?.length !== memory.monthlySummaries?.length ||
@@ -217,7 +345,8 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
         updated.workHistory.length !== memory.workHistory.length ||
         updated.lastWeeklyAggregation !== memory.lastWeeklyAggregation ||
         updated.lastMonthlyAggregation !== memory.lastMonthlyAggregation ||
-        updated.lastKnowledgeExtraction !== memory.lastKnowledgeExtraction
+        updated.lastKnowledgeExtraction !== memory.lastKnowledgeExtraction ||
+        entityGraphChanged
 
       if (hasChanges) {
         saveUserMemory(updated)
@@ -275,7 +404,6 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
       const sessionID = props?.sessionID as string | undefined
 
       if (summary && sessionID) {
-        // Extract a brief summary from the compaction summary
         const briefSummary = extractBriefSummary(summary)
         if (briefSummary) {
           const project = ctx.directory.split("/").pop()
@@ -322,7 +450,6 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
               })
             }
 
-            // Prune if too large
             graph = pruneEntityGraph(
               graph,
               entityConfig.max_entities,
@@ -353,6 +480,10 @@ export function createUserMemoryHook(ctx: PluginInput, userConfig?: Partial<User
   }
 }
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /**
  * Extract a brief summary from a longer compaction summary
  */
@@ -361,7 +492,6 @@ function extractBriefSummary(fullSummary: string): string | null {
   const workCompletedMatch = fullSummary.match(/##\s*(?:Work Completed|Completed|Done)[\s\S]*?(?=##|$)/i)
   if (workCompletedMatch) {
     const section = workCompletedMatch[0]
-    // Extract first bullet point or first line
     const bulletMatch = section.match(/[-*]\s*(.+)/)
     if (bulletMatch) return bulletMatch[1].trim().substring(0, 200)
   }
@@ -375,7 +505,7 @@ function extractBriefSummary(fullSummary: string): string | null {
   }
 
   // Fallback: first meaningful line
-  const lines = fullSummary.split("\n").filter(l => l.trim() && !l.startsWith("#"))
+  const lines = fullSummary.split("\n").filter((l) => l.trim() && !l.startsWith("#"))
   if (lines.length > 0) {
     return lines[0].trim().substring(0, 200)
   }

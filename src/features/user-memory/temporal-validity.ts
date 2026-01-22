@@ -402,7 +402,7 @@ export function filterKnowledgeForInjection(
   }
 
   return queryKnowledgeAtTime(knowledge, config, queryTime)
-    .filter((r) => r.effectiveConfidence !== undefined && r.effectiveConfidence >= 0.5)
+    .filter((r) => r.effectiveConfidence !== undefined && r.effectiveConfidence >= 0.6)
     .slice(0, limit)
     .map((r) => r.item)
 }

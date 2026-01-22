@@ -53,6 +53,23 @@ describe("silent-tool-output hook", () => {
     expect(output.output).toContain("<task-plan-context>")
   })
 
+  test("optimizes Read output for findings without task-plan-context hint", async () => {
+    // #given
+    const hook = createSilentToolOutputHook({} as never, { optimize_planning_reads: true })
+    const output = { title: "Read", output: "# Findings", metadata: {} }
+
+    // #when
+    await hook["tool.execute.before"]?.(
+      { tool: "Read", sessionID: "s3b", callID: "c3b" },
+      { args: { path: "findings.md" } }
+    )
+    await hook["tool.execute.after"]?.({ tool: "Read", sessionID: "s3b", callID: "c3b" }, output)
+
+    // #then
+    expect(output.output).toContain("findings.md loaded")
+    expect(output.output).not.toContain("<task-plan-context>")
+  })
+
   test("does not optimize Read output for non-planning files", async () => {
     // #given
     const hook = createSilentToolOutputHook({} as never, { optimize_planning_reads: true })

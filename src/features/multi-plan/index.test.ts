@@ -100,6 +100,51 @@ describe("MultiPlanOrchestrator", () => {
 
   // #region start() - success paths
   describe("start() - success paths", () => {
+    test("sanitizes plan name for output paths", async () => {
+      // #given
+      const mockManager = createMockBackgroundManager({
+        getTaskResults: [{ status: "completed" } as BackgroundTask],
+      })
+      const mockCtx = createMockCtx(tmpDir)
+      const config = createPlanningConfig([
+        "anthropic/claude-opus-4-5",
+        "openai/gpt-5.2",
+      ])
+      const models: NormalizedPlanningModel[] = [
+        { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
+        { name: "gpt-5.2", model: "openai/gpt-5.2" },
+      ]
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+
+      const sanitizedPlanName = "plan-one"
+      const mockTasks = [
+        createCompletedTask("claude-opus-4-5", sanitizedPlanName),
+        createCompletedTask("gpt-5.2", sanitizedPlanName),
+      ]
+      ;(orchestrator as any).generator = {
+        generatePlans: mock(() => Promise.resolve(mockTasks)),
+        waitForCompletion: mock(() => Promise.resolve()),
+      }
+
+      fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plans"), { recursive: true })
+      fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plan-reviews"), { recursive: true })
+      fs.writeFileSync(path.join(tmpDir, `.sisyphus/plans/${sanitizedPlanName}.md`), "# Final Plan")
+      fs.writeFileSync(
+        path.join(tmpDir, `.sisyphus/plan-reviews/${sanitizedPlanName}-comparison.md`),
+        "# Comparison"
+      )
+
+      const input = createStartInput("plan:one", models)
+
+      // #when
+      const result = await orchestrator.start(input)
+
+      // #then
+      expect(result.session.planName).toBe(sanitizedPlanName)
+      expect(result.finalPlanPath).toBe(".sisyphus/plans/plan-one.md")
+      expect(result.comparisonReportPath).toBe(".sisyphus/plan-reviews/plan-one-comparison.md")
+    })
+
     test("completes successfully with 2 models when all plans succeed", async () => {
       // #given
       const mockManager = createMockBackgroundManager({

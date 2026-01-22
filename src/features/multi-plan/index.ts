@@ -142,14 +142,14 @@ export class MultiPlanOrchestrator {
 
     log("[multi-plan] Starting multi-plan session", {
       sessionId,
-      planName: input.planName,
+      planName: safePlanName,
       modelCount: models.length,
     })
 
     // Create session
     const session: MultiPlanSession = {
       id: sessionId,
-      planName: input.planName,
+      planName: safePlanName,
       requestContext: input.requestContext,
       models,
       tasks: [],
@@ -183,7 +183,7 @@ export class MultiPlanOrchestrator {
 
       // Phase 2: Plan Synthesizer initial review
       session.status = "reviewing"
-      const comparisonReportPath = `.sisyphus/plan-reviews/${input.planName}-comparison.md`
+      const comparisonReportPath = `.sisyphus/plan-reviews/${safePlanName}-comparison.md`
       await this.runPlanSynthesis(session, input.parentSessionId)
 
       // Phase 2.5: Debate round (if enabled)
@@ -199,7 +199,7 @@ export class MultiPlanOrchestrator {
       }
 
       // Phase 3: Verify output files exist
-      const finalPlanPath = `.sisyphus/plans/${input.planName}.md`
+      const finalPlanPath = `.sisyphus/plans/${safePlanName}.md`
 
       const verification = this.verifyOutputFiles(finalPlanPath, comparisonReportPath)
       if (!verification.valid) {
@@ -231,7 +231,7 @@ export class MultiPlanOrchestrator {
 
       log("[multi-plan] Multi-plan session completed", {
         sessionId,
-        planName: input.planName,
+        planName: safePlanName,
         successfulPlans: successfulTasks.length,
       })
 

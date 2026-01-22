@@ -2,22 +2,44 @@
  * LLM Prompt Templates for Hierarchical Memory Aggregation
  *
  * These prompts are used to summarize work history at different time scales.
- * The summarization is performed by the hook using the available LLM client.
+ * Response parsing is delegated to schemas.ts for type safety.
  */
 
 import type { WorkHistoryEntry, WeeklySummary, MonthlySummary } from "./types"
-import type { SummarizationResponse } from "./aggregation"
+import {
+  PROMPT_TAGS,
+  parseWeeklySummarization,
+  parseMonthlySummarization,
+  parseKnowledgeExtraction,
+  parseMergeDecision,
+  type WeeklySummarizationResponse,
+  type MonthlySummarizationResponse,
+  type KnowledgeExtractionResponse,
+  type MergeDecisionResponse,
+} from "./schemas"
+
+// Re-export parsing functions from schemas
+export {
+  PROMPT_TAGS,
+  parseWeeklySummarization as parseSummarizationResponse,
+  parseKnowledgeExtraction as parseKnowledgeExtractionResponse,
+  parseMergeDecision as parseMergeDecisionResponse,
+  type WeeklySummarizationResponse as SummarizationResponse,
+  type KnowledgeExtractionResponse,
+  type MergeDecisionResponse,
+}
 
 // ============================================================================
-// Prompt Templates
+// System Prompt
 // ============================================================================
 
-/**
- * System prompt for all summarization tasks
- */
 export const SUMMARIZATION_SYSTEM_PROMPT = `You are a helpful assistant that summarizes work history for developers.
 Your goal is to create concise, actionable summaries that capture key accomplishments and lessons learned.
 Always respond in valid JSON format.`
+
+// ============================================================================
+// Prompt Builders
+// ============================================================================
 
 /**
  * Build prompt for weekly summarization (L0 -> L1)
@@ -28,14 +50,13 @@ export function buildWeeklySummaryPrompt(entries: WorkHistoryEntry[]): string {
       const date = new Date(e.timestamp).toLocaleDateString()
       const outcome = e.outcome ? ` [${e.outcome}]` : ""
       const project = e.project ? ` (${e.project})` : ""
-      const files = e.filesModified?.length
-        ? ` - ${e.filesModified.length} files`
-        : ""
+      const files = e.filesModified?.length ? ` - ${e.filesModified.length} files` : ""
       return `- [${date}]${project}${outcome}: ${e.summary}${files}`
     })
     .join("\n")
 
-  return `Summarize the following work history entries from one week.
+  return `${PROMPT_TAGS.weekly}
+Summarize the following work history entries from one week.
 
 Work entries:
 ${entriesText}
@@ -65,7 +86,8 @@ export function buildMonthlySummaryPrompt(weeks: WeeklySummary[]): string {
     })
     .join("\n\n")
 
-  return `Summarize the following weekly summaries from one month.
+  return `${PROMPT_TAGS.monthly}
+Summarize the following weekly summaries from one month.
 
 ${weeksText}
 
@@ -83,9 +105,7 @@ Focus on trends, major accomplishments, and growth patterns. Identify recurring 
 /**
  * Build prompt for knowledge extraction (L2 -> L3)
  */
-export function buildKnowledgeExtractionPrompt(
-  monthlySummaries: MonthlySummary[]
-): string {
+export function buildKnowledgeExtractionPrompt(monthlySummaries: MonthlySummary[]): string {
   const summariesText = monthlySummaries
     .map((m) => {
       return `${m.month}:
@@ -95,7 +115,8 @@ export function buildKnowledgeExtractionPrompt(
     })
     .join("\n\n")
 
-  return `Analyze the following monthly summaries and extract long-term knowledge.
+  return `${PROMPT_TAGS.knowledge}
+Analyze the following monthly summaries and extract long-term knowledge.
 
 ${summariesText}
 
@@ -123,82 +144,32 @@ Focus on:
 Only include high-confidence insights that appeared in at least 2 months.`
 }
 
-// ============================================================================
-// Response Parsing
-// ============================================================================
-
 /**
- * Parse the LLM response for weekly/monthly summarization
+ * Build prompt to check if two insights should be merged
  */
-export function parseSummarizationResponse(
-  response: string
-): SummarizationResponse {
-  try {
-    // Try to extract JSON from the response
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error("No JSON found in response")
-    }
+export function buildMergeDecisionPrompt(insight1: string, insight2: string): string {
+  return `${PROMPT_TAGS.merge}
+Determine if these two insights describe the SAME underlying lesson or pattern.
+They may use different words but convey the same idea.
 
-    const parsed = JSON.parse(jsonMatch[0])
+Insight A: "${insight1}"
 
-    return {
-      summary: parsed.summary || "",
-      achievements: Array.isArray(parsed.achievements)
-        ? parsed.achievements
-        : [],
-      lessons: Array.isArray(parsed.lessons) ? parsed.lessons : [],
-      techEvolution: parsed.techEvolution,
-    }
-  } catch (error) {
-    // Return a default response if parsing fails
-    return {
-      summary: response.slice(0, 500),
-      achievements: [],
-      lessons: [],
-    }
-  }
+Insight B: "${insight2}"
+
+Respond with a JSON object:
+{
+  "same_insight": true | false,
+  "reason": "Brief explanation",
+  "merged_content": "If same_insight is true, provide a merged version that captures both"
 }
 
-/**
- * Knowledge extraction response structure
- */
-export interface KnowledgeExtractionResponse {
-  knowledge: Array<{
-    category: "lesson" | "pattern" | "preference" | "skill"
-    content: string
-    confidence: number
-    sourceMonths: string[]
-  }>
-}
+Examples of insights that SHOULD be merged:
+- "Use snake_case for API fields" and "REST endpoints should use underscores" (same naming convention)
+- "Always write tests first" and "TDD helps catch bugs early" (same testing practice)
 
-/**
- * Parse the LLM response for knowledge extraction
- */
-export function parseKnowledgeExtractionResponse(
-  response: string
-): KnowledgeExtractionResponse {
-  try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error("No JSON found in response")
-    }
-
-    const parsed = JSON.parse(jsonMatch[0])
-
-    return {
-      knowledge: Array.isArray(parsed.knowledge)
-        ? parsed.knowledge.map((k: Record<string, unknown>) => ({
-            category: k.category || "lesson",
-            content: String(k.content || ""),
-            confidence: Number(k.confidence) || 0.5,
-            sourceMonths: Array.isArray(k.sourceMonths) ? k.sourceMonths : [],
-          }))
-        : [],
-    }
-  } catch (error) {
-    return { knowledge: [] }
-  }
+Examples of insights that should NOT be merged:
+- "Use TypeScript for type safety" and "Use TypeScript for better IDE support" (different reasons)
+- "Prefer composition over inheritance" and "Use mixins for code reuse" (related but different patterns)`
 }
 
 // ============================================================================
@@ -212,7 +183,7 @@ export function fallbackWeeklySummary(
   entries: WorkHistoryEntry[],
   projects: string[],
   techStack: string[]
-): SummarizationResponse {
+): WeeklySummarizationResponse {
   const successfulEntries = entries.filter((e) => e.outcome === "success")
   const achievements = successfulEntries.slice(0, 3).map((e) => e.summary)
 
@@ -239,7 +210,7 @@ export function fallbackMonthlySummary(
   weeks: WeeklySummary[],
   projects: string[],
   allTechStack: string[]
-): SummarizationResponse {
+): MonthlySummarizationResponse {
   const totalEntries = weeks.reduce((sum, w) => sum + w.entryCount, 0)
   const allAchievements = weeks.flatMap((w) => w.keyAchievements)
 
@@ -257,67 +228,3 @@ export function fallbackMonthlySummary(
     techEvolution: allTechStack.join(", "),
   }
 }
-
-// ============================================================================
-// Semantic Clustering Prompts
-// ============================================================================
-
-/**
- * Build prompt to check if two insights should be merged
- */
-export function buildMergeDecisionPrompt(
-  insight1: string,
-  insight2: string
-): string {
-  return `Determine if these two insights describe the SAME underlying lesson or pattern.
-They may use different words but convey the same idea.
-
-Insight A: "${insight1}"
-
-Insight B: "${insight2}"
-
-Respond with a JSON object:
-{
-  "same_insight": true | false,
-  "reason": "Brief explanation",
-  "merged_content": "If same_insight is true, provide a merged version that captures both"
-}
-
-Examples of insights that SHOULD be merged:
-- "Use snake_case for API fields" and "REST endpoints should use underscores" (same naming convention)
-- "Always write tests first" and "TDD helps catch bugs early" (same testing practice)
-
-Examples of insights that should NOT be merged:
-- "Use TypeScript for type safety" and "Use TypeScript for better IDE support" (different reasons)
-- "Prefer composition over inheritance" and "Use mixins for code reuse" (related but different patterns)`
-}
-
-/**
- * Parse merge decision response
- */
-export interface MergeDecisionResponse {
-  same_insight: boolean
-  reason?: string
-  merged_content?: string
-}
-
-export function parseMergeDecisionResponse(
-  response: string
-): MergeDecisionResponse {
-  try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      return { same_insight: false }
-    }
-
-    const parsed = JSON.parse(jsonMatch[0])
-    return {
-      same_insight: Boolean(parsed.same_insight),
-      reason: parsed.reason,
-      merged_content: parsed.merged_content,
-    }
-  } catch {
-    return { same_insight: false }
-  }
-}
-

@@ -5,7 +5,7 @@
  * Entities: person, project, technology, organization
  */
 
-import type { EntityType, EntityNode, EntityMention } from "./types"
+import type { EntityType, EntityNode, EntityMention, WeeklySummary } from "./types"
 
 // ============================================================================
 // Entity Patterns
@@ -45,6 +45,10 @@ const ENTITY_PATTERNS: EntityPattern[] = [
   // Organization patterns: "at Company", "from Org Inc"
   { pattern: /\b(?:at|from|joined)\s+([A-Z][a-zA-Z]+(?:\s+(?:Inc|Corp|Ltd|LLC|Co)\.?)?)\b/g, type: "organization", nameGroup: 1 },
   { pattern: /\b([A-Z][a-zA-Z]+(?:\s+(?:Inc|Corp|Ltd|LLC|Co)\.?)?)\s+(?:team|company|organization)\b/g, type: "organization", nameGroup: 1 },
+
+  // Concept patterns: explicit label to reduce noise
+  { pattern: /\b(?:pattern|concept|principle|methodology|approach|strategy)\s*:\s*([A-Za-z][A-Za-z0-9 _-]{2,60}?)(?=\.|,|;|$)/gi, type: "concept", nameGroup: 1 },
+  { pattern: /\b(?:pattern|concept|principle|methodology|approach|strategy)\s+(?:called|named)?\s*([A-Za-z][A-Za-z0-9 _-]{2,60}?)(?=\.|,|;|$)/gi, type: "concept", nameGroup: 1 },
 ]
 
 /**
@@ -115,7 +119,9 @@ export interface ExtractedEntity {
 export function extractEntitiesFromText(
   text: string,
   timestamp: number,
-  context?: string
+  context?: string,
+  source: EntityMention["source"] = "L0",
+  sourceId?: string
 ): ExtractedEntity[] {
   const entities: ExtractedEntity[] = []
   const seen = new Set<string>()
@@ -146,7 +152,8 @@ export function extractEntitiesFromText(
         mention: {
           timestamp,
           context: context ?? contextSnippet,
-          source: "L0" as const,
+          source,
+          sourceId,
         },
       })
     }
@@ -217,6 +224,77 @@ export function extractEntitiesFromWorkHistory(entry: {
         })
       }
     }
+  }
+
+  return entities
+}
+
+/**
+ * Extract entities from a weekly summary (L1)
+ */
+export function extractEntitiesFromWeeklySummary(summary: WeeklySummary): ExtractedEntity[] {
+  const entities: ExtractedEntity[] = []
+  const seen = new Set<string>()
+  const sourceId = String(summary.weekStart)
+
+  const textBlocks = [
+    summary.summary,
+    summary.keyAchievements.join(". "),
+    summary.lessonsLearned.join(". "),
+    summary.techStack.length > 0 ? `Tech stack: ${summary.techStack.join(", ")}` : "",
+    summary.projects.length > 0 ? `Projects: ${summary.projects.join(", ")}` : "",
+  ].filter(Boolean)
+
+  const text = textBlocks.join("\n")
+  const extracted = extractEntitiesFromText(
+    text,
+    summary.weekStart,
+    "Weekly summary",
+    "L1",
+    sourceId
+  )
+
+  for (const e of extracted) {
+    if (!seen.has(e.id)) {
+      seen.add(e.id)
+      entities.push(e)
+    }
+  }
+
+  for (const project of summary.projects) {
+    if (project.length < 2) continue
+    const projectId = generateEntityId("project", project)
+    if (seen.has(projectId)) continue
+    seen.add(projectId)
+    entities.push({
+      id: projectId,
+      name: project,
+      type: "project",
+      mention: {
+        timestamp: summary.weekStart,
+        context: `Project: ${project} - ${summary.summary.slice(0, 80)}`,
+        source: "L1",
+        sourceId,
+      },
+    })
+  }
+
+  for (const tech of summary.techStack) {
+    if (tech.length < 2) continue
+    const techId = generateEntityId("technology", tech)
+    if (seen.has(techId)) continue
+    seen.add(techId)
+    entities.push({
+      id: techId,
+      name: tech,
+      type: "technology",
+      mention: {
+        timestamp: summary.weekStart,
+        context: `Tech: ${tech} - ${summary.summary.slice(0, 80)}`,
+        source: "L1",
+        sourceId,
+      },
+    })
   }
 
   return entities

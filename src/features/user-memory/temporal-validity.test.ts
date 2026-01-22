@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { calculateStaleness, queryKnowledgeAtTime, filterWorkHistoryForInjection, getValidityStatus } from "./temporal-validity"
+import { calculateStaleness, queryKnowledgeAtTime, filterWorkHistoryForInjection, filterKnowledgeForInjection, getValidityStatus } from "./temporal-validity"
 import { STALENESS_HALF_LIFE_MS, type LongTermKnowledge, type WorkHistoryEntry } from "./types"
 
 describe("temporal-validity", () => {
@@ -145,6 +145,50 @@ describe("temporal-validity", () => {
       //#then
       expect(filtered.some((e) => e.summary === "Expired entry")).toBe(false)
       expect(filtered.some((e) => e.summary === "Active entry")).toBe(true)
+    })
+  })
+
+  describe("filterKnowledgeForInjection", () => {
+    test("requires effective confidence >= 0.6", () => {
+      //#given
+      const now = Date.now()
+      const knowledge: LongTermKnowledge[] = [
+        {
+          category: "lesson",
+          content: "Meets threshold",
+          confidence: 0.6,
+          firstSeen: now,
+          lastReinforced: now,
+          sourceMonths: ["2025-01"],
+          staleness_category: "permanent",
+        },
+        {
+          category: "lesson",
+          content: "Below threshold",
+          confidence: 0.59,
+          firstSeen: now,
+          lastReinforced: now,
+          sourceMonths: ["2025-01"],
+          staleness_category: "permanent",
+        },
+      ]
+
+      //#when
+      const filtered = filterKnowledgeForInjection(
+        knowledge,
+        {
+          enabled: true,
+          staleness_threshold: 0.7,
+          decay_factor: 0.5,
+          include_expired: false,
+        },
+        5,
+        now
+      )
+
+      //#then
+      expect(filtered.some((k) => k.content === "Meets threshold")).toBe(true)
+      expect(filtered.some((k) => k.content === "Below threshold")).toBe(false)
     })
   })
 })

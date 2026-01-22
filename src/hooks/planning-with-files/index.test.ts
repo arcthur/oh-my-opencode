@@ -398,6 +398,95 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(strike2).toContain("MUST record it in task_plan.md")
   })
 
+  test("three-strike protocol skips recording prompt once error is recorded", async () => {
+    // #given
+    await initializePlan(tmpDir, "strike-plan-recorded", "Goal")
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, three_strike_protocol: true },
+      collector,
+    })
+
+    const planDir = path.join(tmpDir, ".sisyphus", "plans", "strike-plan-recorded")
+    const taskPlanPath = path.join(planDir, "task_plan.md")
+
+    // #when - strike 1
+    await hook["tool.execute.after"]?.(
+      { tool: "Bash", sessionID: "session-strike-recorded", callID: "call-1" },
+      { title: "Bash", output: "❌ Connection refused", metadata: {} }
+    )
+    collector.consume("session-strike-recorded")
+
+    // Record error in task_plan.md before strike 2
+    fs.writeFileSync(
+      taskPlanPath,
+      `# Task Plan: strike-plan-recorded
+
+## Errors
+
+| # | Error | Phase | Attempts | Root Cause | Resolution |
+|---|-------|-------|----------|------------|------------|
+| 1 | Bash:Connection refused | Phase 1 | 1 | Network | Retry |
+`
+    )
+
+    // #when - strike 2
+    await hook["tool.execute.after"]?.(
+      { tool: "Bash", sessionID: "session-strike-recorded", callID: "call-2" },
+      { title: "Bash", output: "❌ Connection refused", metadata: {} }
+    )
+
+    // #then - guidance present but no forced recording prompt
+    expect(collector.hasPending("session-strike-recorded")).toBe(true)
+    const strike2 = collector.consume("session-strike-recorded").merged
+    expect(strike2).toContain('strike="2"')
+    expect(strike2).not.toContain("<error-recording-required>")
+  })
+
+  test("emits blocker prompt for likely external dependency errors", async () => {
+    // #given
+    await initializePlan(tmpDir, "blocker-plan", "Goal")
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true },
+      collector,
+    })
+
+    // #when
+    await hook["tool.execute.after"]?.(
+      { tool: "Bash", sessionID: "session-blocker", callID: "call-1" },
+      { title: "Bash", output: "❌ Missing API key for service", metadata: {} }
+    )
+
+    // #then
+    expect(collector.hasPending("session-blocker")).toBe(true)
+    const pending = collector.consume("session-blocker").merged
+    expect(pending).toContain("<blocker-detected>")
+    expect(pending).toContain("Missing API key")
+  })
+
+  test("does not emit blocker prompt for generic errors", async () => {
+    // #given
+    await initializePlan(tmpDir, "blocker-plan-generic", "Goal")
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, three_strike_protocol: false },
+      collector,
+    })
+
+    // #when
+    await hook["tool.execute.after"]?.(
+      { tool: "Bash", sessionID: "session-blocker-generic", callID: "call-1" },
+      { title: "Bash", output: "❌ Connection refused", metadata: {} }
+    )
+
+    // #then
+    expect(collector.hasPending("session-blocker-generic")).toBe(false)
+  })
+
   test("respects custom planning directory for active plan detection", async () => {
     // #given
     await initializePlan(tmpDir, "custom-dir-plan", "Goal", {

@@ -8,36 +8,41 @@ User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing f
 2. **Entity Memory** - Person/project/technology relationship graph (opt-in)
 3. **Semantic Clustering** - LLM-assisted knowledge deduplication
 
+**LLM Summarizer (default)**:
+- A built-in summarizer can call the OpenCode session API to generate weekly/monthly summaries.
+- Sessions are **reused per (kind, model)** with an in-memory LRU cap of **6** to avoid session explosion.
+- Model selection is driven by `aggregation_model` and category config overrides (see Model Selection).
+
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Enhanced Memory Architecture                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  RAPTOR Axis (Time)              Entity Axis (Relationships)                │
-│  ─────────────────               ───────────────────────────                │
-│                                                                              │
-│  L3: LongTermKnowledge[]  ◄────► EntityGraph                                │
-│      + valid_from/until          ├─ EntityNode[] (person/project)           │
-│      + staleness_category        └─ EntityRelationship[]                    │
-│      + effective_confidence                                                  │
-│                                                                              │
-│  L2: MonthlySummary[]                                                       │
-│      + facts_valid_range                                                    │
-│                                                                              │
-│  L1: WeeklySummary[]      ◄────── Entity extraction source                  │
-│      + facts_valid_range                                                    │
-│                                                                              │
-│  L0: WorkHistoryEntry[]   ◄────── Entity extraction source                  │
-│      + valid_from/until                                                     │
-│      + staleness_category                                                   │
-│                                                                              │
-│  ──────────────────────────────────────────────────────────────────────     │
-│  Semantic Clustering Layer                                                   │
-│  ─────────────────────────                                                  │
-│  Enhanced word overlap + LLM-assisted borderline decisions                  │
-│  (Stemming, synonyms, 0.6 high / 0.25 candidate thresholds)                │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                      Enhanced Memory Architecture                         │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  RAPTOR Axis (Time)              Entity Axis (Relationships)              │
+│  ─────────────────               ───────────────────────────              │
+│                                                                           │
+│  L3: LongTermKnowledge[]  ◄────► EntityGraph                              │
+│      + valid_from/until          ├─ EntityNode[] (person/project)         │
+│      + staleness_category        └─ EntityRelationship[]                  │
+│      + effective_confidence                                               │
+│                                                                           │
+│  L2: MonthlySummary[]                                                     │
+│      + facts_valid_range                                                  │
+│                                                                           │
+│  L1: WeeklySummary[]      ◄────── Entity extraction source                │
+│      + facts_valid_range                                                  │
+│                                                                           │
+│  L0: WorkHistoryEntry[]   ◄────── Entity extraction source                │
+│      + valid_from/until                                                   │
+│      + staleness_category                                                 │
+│                                                                           │
+│  ──────────────────────────────────────────────────────────────────────   │
+│  Semantic Clustering Layer                                                │
+│  ─────────────────────────                                                │
+│  Enhanced word overlap + LLM-assisted borderline decisions                │
+│  (Stemming, synonyms, 0.6 high / 0.25 candidate thresholds)               │
+│                                                                           │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Memory Hierarchy Limits
@@ -417,47 +422,23 @@ Relations: John works on oh-my-opencode (max 5, sorted by confidence)
 
 ## Data Flow
 
-```
-┌──────────────┐    session.summarized    ┌──────────────┐
-│   Session    │ ───────────────────────► │ WorkHistory  │ (L0)
-│   Summary    │                          │   Entry      │
-└──────────────┘                          │ + validity   │
-                                          └──────┬───────┘
-                                                 │
-                        ┌────────────────────────┼─────────────────────┐
-                        │                        │                     │
-                        ▼                        ▼                     ▼
-                 Entity Extraction     Week Boundary?          Size > 30?
-                 (if enabled)          OR Size Trigger
-                        │                        │
-                        ▼                        ▼
-                 ┌──────────────┐        ┌──────────────┐
-                 │ EntityGraph  │        │   Weekly     │ (L1)
-                 │  + prune     │        │   Summary    │
-                 └──────────────┘        │ + validity   │
-                                         └──────┬───────┘
-                                                │
-                                  Month Boundary? OR Size > 8?
-                                                │
-                                                ▼
-                                         ┌──────────────┐
-                                         │   Monthly    │ (L2)
-                                         │   Summary    │
-                                         │ + validity   │
-                                         └──────┬───────┘
-                                                │
-                                    Quarterly? OR Size > 6?
-                                                │
-                                                ▼
-                                         ┌──────────────┐
-                                         │  Long-term   │ (L3)
-                                         │  Knowledge   │
-                                         │ + staleness  │
-                                         │ + supersession│
-                                         └──────────────┘
-                                                │
-                                       Semantic Clustering
-                                       (stemmer + synonyms + LLM)
+```mermaid
+flowchart TD
+  SessionSummary["Session Summary"] -->|"session.summarized"| WorkHistory["WorkHistory Entry (L0)"]
+  WorkHistory -->|"validity"| WorkHistoryValidity["valid_from/valid_until"]
+
+  WorkHistory --> EntityExtraction["Entity Extraction (if enabled)"]
+  EntityExtraction --> EntityGraph["EntityGraph + prune"]
+
+  WorkHistory -->|"WeekBoundaryOrSize>30"| WeeklySummary["Weekly Summary (L1)"]
+  WeeklySummary -->|"facts_valid_range"| WeeklyValidity["Facts Valid Range (L1)"]
+
+  WeeklySummary -->|"MonthBoundaryOrSize>8"| MonthlySummary["Monthly Summary (L2)"]
+  MonthlySummary -->|"facts_valid_range"| MonthlyValidity["Facts Valid Range (L2)"]
+
+  MonthlySummary -->|"QuarterlyOrSize>6"| LongTermKnowledge["Long-term Knowledge (L3)"]
+  LongTermKnowledge -->|"staleness and supersession"| KnowledgeValidity["Validity and Supersession"]
+  LongTermKnowledge --> SemanticClustering["Semantic Clustering (stemmer, synonyms, LLM)"]
 ```
 
 ---
@@ -565,6 +546,14 @@ confidence = Math.min(sourceMonths.length / 5, 1.0)
 | 5+ | 1.0 | ✅ Yes | ✅ Yes |
 
 **Key insight**: Same-month repetitions do NOT increase confidence. A lesson appearing 10 times in January still has confidence 0.2.
+
+### Optional LLM Knowledge Extraction
+
+If a summarizer is available and `semantic_clustering.max_llm_calls > 0`, the system can **augment** L2→L3 extraction using a dedicated prompt:
+
+- The prompt extracts candidate knowledge across monthly summaries.
+- Results are merged into L3 via the same `mergeKnowledge()` logic and limits.
+- This augmentation is **additive**, not a replacement for clustering.
 
 ### Supersession Detection
 
@@ -696,6 +685,18 @@ Migration is automatic and non-destructive.
 }
 ```
 
+### Model Selection (Aggregation)
+
+`aggregation_model` maps to built-in category defaults, then user overrides:
+
+| aggregation_model | Category | Default Model |
+|-------------------|----------|---------------|
+| haiku | quick | anthropic/claude-haiku-4-5 |
+| sonnet | unspecified-low | anthropic/claude-sonnet-4-5 |
+| opus | unspecified-high | anthropic/claude-opus-4-5 |
+
+If a user config exists under `categories.<category>.model`, it overrides the default.
+
 ---
 
 ## File Structure
@@ -710,12 +711,22 @@ src/features/user-memory/
 ├── entity-reconciliation.ts  # Alias detection, graph operations
 ├── similarity.ts         # Semantic similarity calculation
 ├── text-processing.ts    # Stemmer, synonyms, preprocessing
+├── schemas.ts            # Zod schemas for LLM response validation
 ├── prompts.ts            # LLM prompt templates
+├── summarizer.ts         # LLM summarizer with circuit breaker
 ├── hook.ts               # Event handlers, trigger orchestration
 ├── index.ts              # Public exports
 ├── aggregation.test.ts   # Core test suite
 ├── storage.test.ts       # Storage tests
-└── hook.test.ts          # Hook tests
+├── hook.test.ts          # Hook tests
+├── schemas.test.ts       # Schema validation tests
+├── entity-extraction.test.ts
+└── summarizer.test.ts
+```
+
+```
+src/shared/
+└── user-memory-model.ts  # Aggregation model → provider/model resolution
 ```
 
 ---
@@ -728,6 +739,14 @@ src/features/user-memory/
 |-------|--------|------------|
 | `aggregationInProgress` flag is per-process | Multiple terminal windows can run concurrent aggregations | Atomic write prevents file corruption, but last-write-wins for data |
 | No file locking | Multi-process writes may overwrite each other | Use single OpenCode instance per user |
+
+### Summarizer Sessions
+
+| Issue | Impact | Mitigation |
+|-------|--------|------------|
+| LLM summarizer sessions are not deleted | Long-lived session list may grow in the UI | In-memory LRU cap (max 6) + session reuse |
+| LRU is in-memory only | Restart loses reuse cache | Acceptable; sessions are re-created on demand |
+| Circuit breaker opens after 3 failures | Summarization falls back to metadata-only for 30 seconds | Prevents cascading failures; auto-recovers |
 
 ### Configuration
 

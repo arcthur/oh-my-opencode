@@ -38,7 +38,8 @@ When user requests plan generation ("Generate the plan", "Make it into a work pl
    \`\`\`
    multi_plan({
      planName: "{plan-name}",
-     context: "{complete interview context, decisions, research findings}"
+     context: "{complete interview context, decisions, research findings}",
+     debate: true  // Optional: enable for high-stakes planning
    })
    \`\`\`
 3. The tool will:

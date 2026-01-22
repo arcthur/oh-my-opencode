@@ -42,7 +42,7 @@ import {
   contextCollector,
   createContextInjectorMessagesTransformHook,
 } from "./features/context-injector";
-import { createUserMemoryHook } from "./features/user-memory";
+import { createDefaultUserMemorySummarizer, createUserMemoryHook } from "./features/user-memory";
 import { createOrgMemoryHook } from "./features/org-memory";
 import { applyAgentVariant, resolveAgentVariant } from "./shared/agent-variant";
 import { createFirstMessageVariantGate } from "./shared/first-message-variant";
@@ -179,7 +179,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const contextInjectorMessagesTransform =
     createContextInjectorMessagesTransformHook(contextCollector);
 
-  const userMemory = createUserMemoryHook(ctx, pluginConfig.user_memory);
+  const userMemory = createUserMemoryHook(ctx, pluginConfig.user_memory, {
+    summarizer: createDefaultUserMemorySummarizer(ctx, pluginConfig.user_memory, {
+      categories: pluginConfig.categories,
+    }),
+  });
   const orgMemory = createOrgMemoryHook(ctx, pluginConfig.org_memory);
   const agentUsageReminder = isHookEnabled("agent-usage-reminder")
     ? createAgentUsageReminderHook(ctx)

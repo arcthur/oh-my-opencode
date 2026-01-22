@@ -59,6 +59,7 @@ describe("createMultiPlanTriggerHook", () => {
 
     expect(output.parts[0].text).toContain("<multi-plan-capability>")
     expect(output.parts[0].text).toContain("multi_plan")
+    expect(output.parts[0].text).toContain("debate: true")
   })
 
   test("only injects once per session (deduplication)", async () => {

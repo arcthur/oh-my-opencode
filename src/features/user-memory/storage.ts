@@ -1,11 +1,28 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
-import type { UserMemory, WorkHistoryEntry, UserMemoryConfig, PatternStats, FrequentPatternConfig, TemporalValidityConfig, EntityMemoryConfig } from "./types"
-import { DEFAULT_USER_MEMORY, CURRENT_SCHEMA_VERSION, DEFAULT_PATTERN_STATS, DEFAULT_PATTERN_CONFIG, DEFAULT_TEMPORAL_VALIDITY_CONFIG, DEFAULT_ENTITY_MEMORY_CONFIG } from "./types"
+import type {
+  UserMemory,
+  WorkHistoryEntry,
+  UserMemoryConfig,
+  PatternStats,
+  FrequentPatternConfig,
+  TemporalValidityConfig,
+  EntityMemoryConfig,
+  LongTermKnowledge,
+} from "./types"
+import {
+  DEFAULT_USER_MEMORY,
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_PATTERN_STATS,
+  DEFAULT_PATTERN_CONFIG,
+  DEFAULT_TEMPORAL_VALIDITY_CONFIG,
+  DEFAULT_ENTITY_MEMORY_CONFIG,
+} from "./types"
 import { log } from "../../shared/logger"
 import { filterKnowledgeForInjection, filterWorkHistoryForInjection } from "./temporal-validity"
 import { calculateEntityNodeConfidence } from "./entity-confidence"
+import { inferStalenessCategory } from "./temporal-validity"
 
 const MEMORY_DIR = join(homedir(), ".opencode", "memory")
 const USER_MEMORY_FILE = join(MEMORY_DIR, "user.json")
@@ -39,7 +56,7 @@ export function loadUserMemory(): UserMemory {
     }
 
     const data = JSON.parse(readFileSync(USER_MEMORY_FILE, "utf-8")) as Partial<UserMemory>
-    return normalizeUserMemory(data)
+    return migrateUserMemory(data)
   } catch (error) {
     log("[user-memory] failed to load memory", { error: String(error) })
     return { ...DEFAULT_USER_MEMORY }
@@ -67,6 +84,8 @@ export function saveUserMemory(memory: UserMemory): void {
  */
 function normalizeUserMemory(data: Partial<UserMemory>): UserMemory {
   return {
+    ...DEFAULT_USER_MEMORY,
+    ...data,
     preferences: data.preferences || {},
     environment: data.environment || {},
     workHistory: data.workHistory || [],
@@ -84,6 +103,32 @@ function normalizeUserMemory(data: Partial<UserMemory>): UserMemory {
     entityGraph: data.entityGraph,
     lastEntityExtraction: data.lastEntityExtraction,
   }
+}
+
+export function migrateUserMemory(data: Partial<UserMemory>): UserMemory {
+  const schemaVersion = data.schemaVersion ?? 1
+  const migrated: Partial<UserMemory> & Record<string, unknown> = { ...data }
+
+  if (schemaVersion < 3) {
+    const workHistory = migrated.workHistory ?? []
+    migrated.workHistory = workHistory.map((entry) => ({
+      ...entry,
+      valid_from: entry.valid_from ?? entry.timestamp,
+      staleness_category: entry.staleness_category ?? "short-term",
+    }))
+
+    const longTermKnowledge = (migrated.longTermKnowledge ?? []) as LongTermKnowledge[]
+    migrated.longTermKnowledge = longTermKnowledge.map((entry) => ({
+      ...entry,
+      valid_from: entry.valid_from ?? entry.firstSeen,
+      staleness_category:
+        entry.staleness_category ?? inferStalenessCategory({ category: entry.category, content: entry.content }),
+    }))
+  }
+
+  const normalized = normalizeUserMemory(migrated)
+  normalized.schemaVersion = CURRENT_SCHEMA_VERSION
+  return normalized
 }
 
 /**
@@ -113,10 +158,13 @@ export function addWorkHistoryEntry(
   if (!config.persist_work_history) return
 
   const memory = loadUserMemory()
+  const timestamp = Date.now()
 
   memory.workHistory.unshift({
     ...entry,
-    timestamp: Date.now(),
+    timestamp,
+    valid_from: entry.valid_from ?? timestamp,
+    staleness_category: entry.staleness_category ?? "short-term",
   })
 
   // Trim to max entries

@@ -104,6 +104,10 @@ function isPlanningFile(filePath: string): boolean {
   return PLANNING_FILE_PATTERNS.some(pattern => pattern.test(filePath))
 }
 
+function isTaskPlanFile(filePath: string): boolean {
+  return /task_plan\.md$/.test(filePath)
+}
+
 /**
  * Count newlines in content to determine line count
  */
@@ -179,7 +183,10 @@ function createOptimizedReadOutput(
   }
 
   const lines = countLines(originalOutput)
-  return `✓ ${filePath} loaded (${lines} lines) - content available in <task-plan-context>`
+  if (isTaskPlanFile(filePath)) {
+    return `✓ ${filePath} loaded (${lines} lines) - content available in <task-plan-context>`
+  }
+  return `✓ ${filePath} loaded (${lines} lines)`
 }
 
 /**

@@ -1,8 +1,19 @@
-import { describe, test, expect } from "bun:test"
-import { buildMemorySummary, normalizeArgsToPattern } from "./storage"
-import { DEFAULT_ENTITY_MEMORY_CONFIG, DEFAULT_TEMPORAL_VALIDITY_CONFIG, type UserMemory } from "./types"
+import { describe, test, expect, spyOn, afterEach, mock } from "bun:test"
+import * as storage from "./storage"
+import { buildMemorySummary, normalizeArgsToPattern, addWorkHistoryEntry, migrateUserMemory } from "./storage"
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_ENTITY_MEMORY_CONFIG,
+  DEFAULT_TEMPORAL_VALIDITY_CONFIG,
+  DEFAULT_USER_MEMORY,
+  type UserMemory,
+} from "./types"
 
 describe("user-memory storage", () => {
+  afterEach(() => {
+    mock.restore()
+  })
+
   describe("buildMemorySummary", () => {
     test("filters entity injection using injection_confidence_threshold and min_mentions", () => {
       //#given
@@ -235,6 +246,59 @@ describe("user-memory storage", () => {
       test("returns null for unknown tool", () => {
         expect(normalizeArgsToPattern("UnknownTool", { some: "args" })).toBeNull()
       })
+    })
+  })
+
+  describe("addWorkHistoryEntry", () => {
+    test("sets temporal validity defaults for new entries", () => {
+      //#given
+      const now = 1_700_000_123_000
+      spyOn(Date, "now").mockReturnValue(now)
+      const loadSpy = spyOn(storage, "loadUserMemory").mockReturnValue({
+        ...DEFAULT_USER_MEMORY,
+      })
+      const saveSpy = spyOn(storage, "saveUserMemory").mockImplementation(() => {})
+
+      //#when
+      addWorkHistoryEntry({ summary: "Test entry", project: "proj-x" }, DEFAULT_CONFIG)
+
+      //#then
+      expect(loadSpy).toHaveBeenCalled()
+      expect(saveSpy).toHaveBeenCalled()
+      const saved = saveSpy.mock.calls[0]?.[0] as UserMemory
+      const entry = saved.workHistory[0]
+      expect(entry.valid_from).toBe(now)
+      expect(entry.staleness_category).toBe("short-term")
+    })
+  })
+
+  describe("migrateUserMemory", () => {
+    test("fills missing temporal fields and preserves unknown fields", () => {
+      //#given
+      const now = 1_700_000_500_000
+      spyOn(Date, "now").mockReturnValue(now)
+      const legacy = {
+        schemaVersion: 2,
+        preferences: { tone: "concise" },
+        environment: {},
+        workHistory: [
+          { timestamp: now - 1000, summary: "Legacy entry" },
+        ],
+        customRules: [],
+        frequentPatterns: [],
+        explicitMemories: [],
+        lastUpdated: now - 1000,
+        customField: "keep-me",
+      } as Partial<UserMemory> & { customField: string }
+
+      //#when
+      const migrated = migrateUserMemory(legacy)
+
+      //#then
+      expect(migrated.schemaVersion).toBe(3)
+      expect(migrated.workHistory[0]?.valid_from).toBe(legacy.workHistory?.[0]?.timestamp)
+      expect(migrated.workHistory[0]?.staleness_category).toBe("short-term")
+      expect((migrated as unknown as Record<string, unknown>).customField).toBe("keep-me")
     })
   })
 })
