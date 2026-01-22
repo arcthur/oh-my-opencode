@@ -41,10 +41,9 @@ flowchart TD
     User[User Request] --> Prometheus
     
     subgraph Planning Phase
-        Prometheus[Prometheus<br>Planner] --> Metis[Metis<br>Consultant]
-        Metis --> Prometheus
-        Prometheus --> Momus[Momus<br>Reviewer]
-        Momus --> Prometheus
+        Prometheus[Prometheus<br>Planner] --> MultiPlan[multi_plan tool<br>(optional)]
+        MultiPlan --> Synth[Plan Synthesizer<br>(plan-synthesizer)]
+        Synth --> Prometheus
         Prometheus --> PlanFile["/.sisyphus/plans/{name}.md"]
     end
     
@@ -69,15 +68,10 @@ flowchart TD
 - **Constraint**: **READ-ONLY**. Can only create/modify markdown files within `.sisyphus/` directory.
 - **Characteristic**: Never writes code directly, focuses solely on "how to do it".
 
-### 🦉 Metis (The Consultant)
-- **Role**: Pre-analysis and gap detection
-- **Function**: Identifies hidden user intent, prevents AI over-engineering, eliminates ambiguity.
-- **Workflow**: Metis consultation is mandatory before plan creation.
-
-### ⚖️ Momus (The Reviewer)
-- **Role**: High-precision plan validation (High Accuracy Mode)
-- **Function**: Rejects and demands revisions until the plan is perfect.
-- **Trigger**: Activated when user requests "high accuracy".
+### 🔀 Multi-Model Planning (Optional)
+- **Tool**: `multi_plan`
+- **Role**: Parallel plan generation + synthesis for complex/high-stakes planning
+- **Mechanism**: Multiple models generate plans → Plan Synthesizer compares/conflict-resolves → unified final plan
 
 ### 🪨 Sisyphus (The Orchestrator)
 - **Model**: `anthropic/claude-opus-4-5` (Extended Thinking 32k)
@@ -98,7 +92,7 @@ Prometheus starts in **interview mode** by default. Instead of immediately creat
 ### Phase 2: Plan Generation
 When the user requests "Make it a plan", plan generation begins.
 
-1. **Metis Consultation**: Confirms any missed requirements or risk factors.
+1. **Optional multi_plan**: For complex work, Prometheus may call `multi_plan` to generate a stronger plan.
 2. **Plan Creation**: Writes a single plan in `.sisyphus/plans/{name}.md` file.
 3. **Handoff**: Once plan creation is complete, guides user to use `/start-work` command.
 

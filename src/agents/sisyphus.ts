@@ -124,7 +124,7 @@ const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY
 
 <delegation-decision>
 {
-  "agent": "explore" | "librarian" | "oracle" | "frontend-ui-ux-engineer" | "document-writer" | "Metis" | "Momus",
+  "agent": "explore" | "librarian" | "oracle" | "frontend-ui-ux-engineer" | "document-writer",
   "taskType": "exploration" | "implementation" | "debugging" | "refactoring" | "documentation" | "architecture" | "research",
   "complexity": "trivial" | "simple" | "moderate" | "complex",
   "domain": "frontend" | "backend" | "external" | "general",
@@ -142,7 +142,7 @@ const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY
 | frontend | implementation, refactoring | \`frontend-ui-ux-engineer\` |
 | any | exploration | \`explore\` (internal) or \`librarian\` (external) |
 | any | debugging (after 2+ failures) | \`oracle\` |
-| any | architecture decisions | \`oracle\` or \`Metis\` |
+| any | architecture decisions | \`oracle\` |
 | any | documentation | \`document-writer\` |
 | external | research | \`librarian\` |
 
@@ -163,8 +163,6 @@ const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY
 | oracle | debugging, architecture | moderate+ |
 | frontend-ui-ux-engineer | implementation, refactoring | any |
 | document-writer | documentation | any |
-| Metis | architecture, research | moderate+ |
-| Momus | architecture | moderate+ |
 
 #### Examples
 

@@ -107,7 +107,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
   
   // Check for conflicting notification plugins before creating session-notification
-  let sessionNotification = null;
+  let sessionNotification: ReturnType<typeof createSessionNotification> | null = null;
   if (isHookEnabled("session-notification")) {
     const forceEnable = pluginConfig.notification?.force_enable ?? false;
     const externalNotifier = detectExternalNotificationPlugin(ctx.directory);
@@ -232,9 +232,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   initTaskToastManager(ctx.client);
 
+  // Get Prometheus model config (string or array for multi-plan)
+  const prometheusModel = pluginConfig.agents?.Prometheus?.model as string | string[] | undefined;
+
   const multiPlanTrigger = isHookEnabled("multi-plan-trigger")
     ? createMultiPlanTriggerHook({
-        config: pluginConfig.agents?.planning,
+        model: prometheusModel,
+        pipelineConfig: pluginConfig.multi_plan_pipeline,
       })
     : null;
 
@@ -288,7 +292,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const multiPlanTool = createMultiPlanTool({
     ctx,
     backgroundManager,
-    config: pluginConfig.agents?.planning,
+    model: prometheusModel,
+    pipelineConfig: pluginConfig.multi_plan_pipeline,
   });
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();

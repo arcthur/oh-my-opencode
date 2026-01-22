@@ -21,8 +21,6 @@ export const BUILTIN_AGENT_NAMES = new Set([
   "librarian",
   "explore",
   "multimodal-looker",
-  "Metis",
-  "Momus",
   "Prometheus",
   "Atlas",
   "build",
@@ -131,6 +129,21 @@ export function migrateConfigFile(configPath: string, rawConfig: Record<string, 
     const { migrated, changed } = migrateAgentNames(rawConfig.agents as Record<string, unknown>)
     if (changed) {
       rawConfig.agents = migrated
+      needsWrite = true
+    }
+
+    // Migrate agents.planning.model → agents.Prometheus.model
+    const agents = rawConfig.agents as Record<string, unknown>
+    const planning = agents.planning as Record<string, unknown> | undefined
+    if (planning?.model) {
+      const prometheus = (agents.Prometheus ?? {}) as Record<string, unknown>
+      // Only migrate if Prometheus.model is not already set
+      if (!prometheus.model) {
+        prometheus.model = planning.model
+        agents.Prometheus = prometheus
+        log(`Migrated agents.planning.model to agents.Prometheus.model`)
+      }
+      delete agents.planning
       needsWrite = true
     }
   }

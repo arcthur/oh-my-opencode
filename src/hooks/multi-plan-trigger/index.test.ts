@@ -4,7 +4,7 @@ import {
   clearAllInjectedSessions,
   clearInjectedSession,
 } from "./index"
-import type { PlanningAgentConfig } from "../../config/schema"
+import type { MultiPlanPipelineConfig } from "../../config/schema"
 
 describe("createMultiPlanTriggerHook", () => {
   beforeEach(() => {
@@ -13,34 +13,27 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   // #region inactive cases
-  test("returns empty object when no config provided", () => {
-    const hook = createMultiPlanTriggerHook({ config: undefined })
+  test("returns empty object when no model provided", () => {
+    const hook = createMultiPlanTriggerHook({ model: undefined })
     expect(hook).toEqual({})
   })
 
-  test("returns empty object when config is a single model string", () => {
-    const config: PlanningAgentConfig = { model: "anthropic/claude-opus-4-5" }
-    const hook = createMultiPlanTriggerHook({ config })
+  test("returns empty object when model is a single string", () => {
+    const hook = createMultiPlanTriggerHook({ model: "anthropic/claude-opus-4-5" })
     expect(hook).toEqual({})
   })
 
   test("returns empty object when less than 2 models in array", () => {
-    const config: PlanningAgentConfig = {
-      model: ["anthropic/claude-opus-4-5"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+    const hook = createMultiPlanTriggerHook({ model: ["anthropic/claude-opus-4-5"] })
     expect(hook).toEqual({})
   })
   // #endregion
 
   // #region active case
   test("returns chat.message handler with 2+ models", () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+    })
     expect(hook["chat.message"]).toBeDefined()
     expect(typeof hook["chat.message"]).toBe("function")
   })
@@ -48,11 +41,9 @@ describe("createMultiPlanTriggerHook", () => {
 
   // #region injection behavior
   test("injects capability context into message", async () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+    })
     const output = { parts: [{ type: "text", text: "Original message" }] }
 
     await hook["chat.message"]!({ sessionID: "session-1" }, output)
@@ -63,11 +54,16 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   test("only injects once per session (deduplication)", async () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+      pipelineConfig: {
+        // Disable routing injection so this test remains a pure capability-dedup check.
+        auto_complexity_detection: false,
+        smart_skip_interview: false,
+        deep_verification: true,
+        adhd_detection: true,
+      } satisfies MultiPlanPipelineConfig,
+    })
 
     // First message
     const output1 = { parts: [{ type: "text", text: "First message" }] }
@@ -83,11 +79,9 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   test("injects separately for different sessions", async () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+    })
 
     // Session 1
     const output1 = { parts: [{ type: "text", text: "Session 1 message" }] }
@@ -104,11 +98,16 @@ describe("createMultiPlanTriggerHook", () => {
 
   // #region clearInjectedSession
   test("clearInjectedSession allows re-injection", async () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+      pipelineConfig: {
+        // Disable routing injection so we only test capability re-injection.
+        auto_complexity_detection: false,
+        smart_skip_interview: false,
+        deep_verification: true,
+        adhd_detection: true,
+      } satisfies MultiPlanPipelineConfig,
+    })
 
     // First injection
     const output1 = { parts: [{ type: "text", text: "First" }] }
@@ -130,11 +129,9 @@ describe("createMultiPlanTriggerHook", () => {
 
   // #region edge cases
   test("handles missing text part gracefully", async () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+    })
     const output = { parts: [{ type: "image", url: "test.png" }] }
 
     // Should not throw
@@ -143,11 +140,9 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   test("includes model names in capability context", async () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+    })
     const output = { parts: [{ type: "text", text: "Test" }] }
 
     await hook["chat.message"]!({ sessionID: "session-1" }, output)
@@ -158,13 +153,60 @@ describe("createMultiPlanTriggerHook", () => {
   })
   // #endregion
 
-  // #region session lifecycle events
-  test("session.deleted clears injection tracking", async () => {
-    const config: PlanningAgentConfig = {
+  // #region routing injection (pipeline unified landing)
+  test("injects per-message routing recommendation when pipeline config enables detectors", async () => {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
+      pipelineConfig: {
+        auto_complexity_detection: true,
+        smart_skip_interview: true,
+        deep_verification: true,
+        adhd_detection: true,
+      } satisfies MultiPlanPipelineConfig,
+    })
+
+    const output = {
+      parts: [{ type: "text", text: "Add a new feature for user authentication with OAuth2" }],
     }
 
-    const hook = createMultiPlanTriggerHook({ config })
+    await hook["chat.message"]!({ sessionID: "session-route-1" }, output)
+
+    expect(output.parts[0].text).toContain("<multi-plan-routing>")
+    expect(output.parts[0].text?.toLowerCase()).toContain("complex")
+    expect(output.parts[0].text?.toLowerCase()).toContain("multi_model")
+  })
+
+  test("does not inject routing recommendation when pipeline config disables detectors", async () => {
+    const hook = createMultiPlanTriggerHook({
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
+      pipelineConfig: {
+        auto_complexity_detection: false,
+        smart_skip_interview: false,
+        deep_verification: true,
+        adhd_detection: true,
+      } satisfies MultiPlanPipelineConfig,
+    })
+
+    const output = { parts: [{ type: "text", text: "Fix typo in README.md" }] }
+
+    await hook["chat.message"]!({ sessionID: "session-route-2" }, output)
+
+    expect(output.parts[0].text).not.toContain("<multi-plan-routing>")
+  })
+  // #endregion
+
+  // #region session lifecycle events
+  test("session.deleted clears injection tracking", async () => {
+    const hook = createMultiPlanTriggerHook({
+      model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
+      pipelineConfig: {
+        // Disable routing injection so we only test capability lifecycle cleanup.
+        auto_complexity_detection: false,
+        smart_skip_interview: false,
+        deep_verification: true,
+        adhd_detection: true,
+      } satisfies MultiPlanPipelineConfig,
+    })
 
     // First injection
     const output1 = { parts: [{ type: "text", text: "First" }] }
@@ -191,11 +233,9 @@ describe("createMultiPlanTriggerHook", () => {
   })
 
   test("session.compacted allows re-injection", async () => {
-    const config: PlanningAgentConfig = {
+    const hook = createMultiPlanTriggerHook({
       model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
-    }
-
-    const hook = createMultiPlanTriggerHook({ config })
+    })
 
     // First injection
     const output1 = { parts: [{ type: "text", text: "First" }] }

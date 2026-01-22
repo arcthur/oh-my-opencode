@@ -2,7 +2,6 @@ import * as fs from "fs"
 import * as path from "path"
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundManager } from "../background-agent"
-import type { PlanningAgentConfig } from "../../config/schema"
 import type {
   NormalizedPlanningConfig,
   NormalizedPlanningModel,
@@ -16,6 +15,13 @@ import { parseRejectedModels } from "./parser"
 import { log } from "../../shared/logger"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 import { getTaskToastManager } from "../task-toast-manager"
+
+const DEFAULT_PIPELINE_CONFIG = {
+  auto_complexity_detection: true,
+  smart_skip_interview: true,
+  deep_verification: true,
+  adhd_detection: true,
+} as const
 
 /**
  * Derive a display name from a model ID
@@ -34,18 +40,16 @@ function deriveNameFromModel(model: string): string {
 }
 
 /**
- * Normalize planning config to standard format
+ * Normalize planning model config to standard format
  * Supports:
- * - { model: "xxx" } → single model
- * - { model: ["xxx", "yyy"] } → multiple models (names auto-derived)
+ * - "xxx" → single model
+ * - ["xxx", "yyy"] → multiple models (names auto-derived)
  * - undefined → empty array
  */
 export function normalizePlanningConfig(
-  config: PlanningAgentConfig | undefined
+  model: string | string[] | undefined
 ): NormalizedPlanningModel[] {
-  if (!config) return []
-
-  const { model } = config
+  if (!model) return []
 
   // Single model string
   if (typeof model === "string") {
@@ -91,7 +95,7 @@ export class MultiPlanOrchestrator {
   constructor(
     ctx: PluginInput,
     manager: BackgroundManager,
-    _config?: PlanningAgentConfig  // Validation done by caller; kept for API compatibility
+    _model?: string | string[]  // Validation done by caller; kept for API compatibility
   ) {
     this.ctx = ctx
     this.manager = manager
@@ -106,6 +110,7 @@ export class MultiPlanOrchestrator {
   async start(input: StartMultiPlanInput): Promise<MultiPlanResult> {
     const sessionId = `mp_${crypto.randomUUID().slice(0, 8)}`
     const models = input.config.models ?? []
+    const pipelineConfig = input.pipelineConfig ?? DEFAULT_PIPELINE_CONFIG
 
     // === Centralized validation (single source of truth) ===
     // Validate planName
@@ -157,6 +162,7 @@ export class MultiPlanOrchestrator {
       startedAt: new Date(),
       debateEnabled: input.debateEnabled ?? false,
       rebuttals: [],
+      pipelineConfig,
     }
 
     this.activeSessions.set(sessionId, session)
@@ -186,7 +192,7 @@ export class MultiPlanOrchestrator {
       const comparisonReportPath = `.sisyphus/plan-reviews/${safePlanName}-comparison.md`
       await this.runPlanSynthesis(session, input.parentSessionId)
 
-      // Phase 2.5: Debate round (if enabled)
+      // Phase 3: Debate round (if enabled)
       if (session.debateEnabled) {
         session.status = "debating"
         const rebuttals = await this.runDebateRound(session, comparisonReportPath, input.parentSessionId)
@@ -198,7 +204,7 @@ export class MultiPlanOrchestrator {
         }
       }
 
-      // Phase 3: Verify output files exist
+      // Phase 4: Verify output files exist
       const finalPlanPath = `.sisyphus/plans/${safePlanName}.md`
 
       const verification = this.verifyOutputFiles(finalPlanPath, comparisonReportPath)
@@ -216,7 +222,7 @@ export class MultiPlanOrchestrator {
         )
       }
 
-      // Phase 4: Mark complete
+      // Phase 5: Mark complete
       session.status = "complete"
       session.completedAt = new Date()
       session.finalPlanPath = finalPlanPath
@@ -330,10 +336,23 @@ export class MultiPlanOrchestrator {
       .map((m) => `- **${m.name}**: ${m.model}`)
       .join("\n")
 
+    const pipeline = session.pipelineConfig ?? DEFAULT_PIPELINE_CONFIG
+    const pipelineBlock = `<multi-plan-pipeline>
+deep_verification: ${pipeline.deep_verification}
+adhd_detection: ${pipeline.adhd_detection}
+</multi-plan-pipeline>`
+
     return `## Multi-Model Plan Synthesis Request
 
 ### Plan Name
 ${session.planName}
+
+### Pipeline Flags (Single Source of Truth)
+
+${pipelineBlock}
+
+**Rule**: If \`deep_verification: false\`, you MUST skip Phase 3 (Deep Verification).
+If \`adhd_detection: false\`, you MUST skip the ADHD-omission scan portion (even if you do other verification).
 
 ### Models Participating
 ${modelList}
@@ -347,13 +366,14 @@ ${session.requestContext}
 ### Your Task
 
 1. Read ALL plan files listed above using the Read tool
-2. Apply your Phase 1-6 process:
+2. Apply your Phase 1-7 process:
    - Phase 1: Read all plans
-   - Phase 2: Critique each plan (Momus style)
-   - Phase 3: Analyze assumptions and risks
-   - Phase 4: Detect conflicts section by section
-   - Phase 5: Resolve each conflict with harsh verdicts
-   - Phase 6: Synthesize the final unified plan
+   - Phase 2: Critique each plan (ruthless, specific, evidence-based)
+   - Phase 3: Deep Verification (if enabled)
+   - Phase 4: Analyze assumptions and risks
+   - Phase 5: Detect conflicts section by section
+   - Phase 6: Resolve each conflict with harsh verdicts
+   - Phase 7: Synthesize the final unified plan
 
 3. Generate TWO files:
    - Comparison report: \`.sisyphus/plan-reviews/${session.planName}-comparison.md\`
@@ -424,7 +444,7 @@ Begin by reading all the plan files.
 
     const message = `Reviewing ${planCount} plans from: ${completedModels}
 
-Plan Synthesizer (Momus-style) will:
+Plan Synthesizer will:
 • Compare all plans section by section
 • Identify and resolve conflicts
 • Generate unified final plan`
@@ -739,7 +759,7 @@ ${rebuttalSummary}
 
 1. Use the Read tool to load the existing files listed below before making any changes
 2. Read each rebuttal carefully
-3. For each rebuttal, apply your Phase 7 (Rebuttal Review) process
+3. For each rebuttal, apply your Phase 8 (Rebuttal Review) process
 4. If any rebuttal is convincing (provides NEW evidence, addresses your criticism technically), REVISE the final plan
 5. Update the comparison report with your rebuttal review decisions
 6. If you revise, add a "Revised after rebuttal" note to the affected section

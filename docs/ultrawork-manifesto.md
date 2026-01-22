@@ -151,8 +151,8 @@ Everything in Oh My OpenCode is designed to make this loop work:
 | Feature | Purpose |
 |---------|---------|
 | Prometheus | Extract intent through intelligent interview |
-| Metis | Catch ambiguities before they become bugs |
-| Momus | Verify plans are complete before execution |
+| Multi-Model Planning | Catch ambiguities and blind spots via plan comparison + synthesis |
+| Plan Synthesizer | Verify plans are complete and actionable before execution |
 | Orchestrator | Coordinate work without human micromanagement |
 | Todo Continuation | Force completion, prevent "I'm done" lies |
 | Category System | Route to optimal model without human decision |

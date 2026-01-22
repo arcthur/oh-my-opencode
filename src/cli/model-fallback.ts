@@ -121,8 +121,6 @@ const AGENT_REQUIREMENTS: Record<string, AgentRequirement> = {
   explore: { capability: "quick" },
   "multimodal-looker": { capability: "visual-engineering" },
   Prometheus: { capability: "unspecified-high" },
-  Metis: { capability: "unspecified-high" },
-  Momus: { capability: "ultrabrain", variant: "medium" },
   Atlas: { capability: "unspecified-high" },
 }
 

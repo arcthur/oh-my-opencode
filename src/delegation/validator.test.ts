@@ -277,36 +277,6 @@ describe("validateDelegationDecision", () => {
     })
   })
 
-  describe("#given Metis agent", () => {
-    describe("#when used for architecture task with moderate complexity", () => {
-      it("#then should be valid", () => {
-        const decision = createDecision({
-          agent: "Metis",
-          taskType: "architecture",
-          complexity: "moderate",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(true)
-      })
-    })
-
-    describe("#when used for simple task", () => {
-      it("#then should have overkill warning", () => {
-        const decision = createDecision({
-          agent: "Metis",
-          taskType: "architecture",
-          complexity: "simple",
-        })
-
-        const result = validateDelegationDecision(decision)
-
-        expect(result.valid).toBe(false)
-        expect(result.warnings.some((w) => w.type === "overkill")).toBe(true)
-      })
-    })
-  })
 })
 
 describe("formatValidationWarnings", () => {

@@ -10,7 +10,7 @@ Traditional single-model planning has inherent blind spots - each model has its 
 2. **Structured Evaluation**: Each plan is scored on 4 criteria (Clarity, Verification, Context, Big Picture)
 3. **Assumption & Risk Analysis**: Detects conflicting assumptions, preserves unshared risks
 4. **Conflict Detection**: Identifies where models disagree on approach
-5. **Momus-Style Synthesis**: A Plan Synthesizer ruthlessly critiques all plans and produces a unified, actionable result
+5. **Ruthless Synthesis**: A Plan Synthesizer ruthlessly critiques all plans and produces a unified, actionable result
 6. **Debate Mechanism** (optional): Rejected models can rebut, Synthesizer may revise
 
 ---
@@ -60,12 +60,12 @@ graph TD
 
 ## 3. Configuration
 
-Configure multi-model planning in your `oh-my-opencode.json` under `agents.planning`:
+Configure multi-model planning in your `oh-my-opencode.json` under `agents.Prometheus.model`:
 
 ```jsonc
 {
   "agents": {
-    "planning": {
+    "Prometheus": {
       "model": [
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2"
@@ -77,10 +77,12 @@ Configure multi-model planning in your `oh-my-opencode.json` under `agents.plann
 
 Multi-model planning **automatically activates** when 2 or more models are configured. For single-model planning (Prometheus generates directly), use a string:
 
+**Note**: If `agents.Prometheus.model` is an array, Prometheus itself uses the **first** model as its own runtime model; the full array is used for parallel plan generation.
+
 ```jsonc
 {
   "agents": {
-    "planning": {
+    "Prometheus": {
       "model": "anthropic/claude-opus-4-5"
     }
   }
@@ -91,8 +93,30 @@ Multi-model planning **automatically activates** when 2 or more models are confi
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agents.planning.model` | `string` | Single model - Prometheus generates plan directly |
-| `agents.planning.model` | `string[]` | Multiple models (2-5) - parallel generation + synthesis |
+| `agents.Prometheus.model` | `string` | Single model - Prometheus generates plan directly |
+| `agents.Prometheus.model` | `string[]` | Multiple models (2-5) - parallel generation + synthesis |
+
+### 3.1 Pipeline Configuration (Unified)
+
+Multi-Model Planning behavior is controlled by `multi_plan_pipeline` (single source of truth for routing + synthesizer verification behavior):
+
+```jsonc
+{
+  "multi_plan_pipeline": {
+    "auto_complexity_detection": true,
+    "smart_skip_interview": true,
+    "deep_verification": true,
+    "adhd_detection": true
+  }
+}
+```
+
+| Field | Default | Description |
+|------|---------|-------------|
+| `multi_plan_pipeline.auto_complexity_detection` | `true` | Enables complexity analysis and injects routing recommendation into planner context |
+| `multi_plan_pipeline.smart_skip_interview` | `true` | Enables clarity analysis and injects interview recommendation (skip/brief/full) into planner context |
+| `multi_plan_pipeline.deep_verification` | `true` | Controls whether Plan Synthesizer must run Phase 3 (deep verification) |
+| `multi_plan_pipeline.adhd_detection` | `true` | Controls whether Plan Synthesizer runs ADHD-omission scan (part of deep verification) |
 
 ### Model Names
 
@@ -112,7 +136,18 @@ The derivation extracts the portion after the last `/` and removes common prefix
 
 ### Step 1: Trigger
 
-When multi-model planning is enabled, Prometheus sees a capability context informing it about the `multi_plan` tool. When the user requests plan generation, Prometheus calls:
+When multi-model planning is enabled (2+ models in `agents.Prometheus.model`), Prometheus sees a capability context informing it about the `multi_plan` tool.
+
+In addition, if `multi_plan_pipeline.auto_complexity_detection` and/or `multi_plan_pipeline.smart_skip_interview` are enabled, the hook injects a lightweight **routing hint** per message:
+
+```text
+<multi-plan-routing>
+Clarity: clear → interview: skip (...)
+Complexity: complex → route: multi_model (...)
+</multi-plan-routing>
+```
+
+When the user requests plan generation, Prometheus calls:
 
 ```typescript
 multi_plan({
@@ -150,10 +185,24 @@ Once all plans are generated, the **Plan Synthesizer** is invoked:
 |-------|--------|
 | **Phase 1** | Read all plans |
 | **Phase 2** | **Structured Evaluation** - Score each plan on 4 criteria (C1-C4) |
-| **Phase 3** | **Assumption & Risk Analysis** - Detect conflicts, preserve unshared risks |
-| **Phase 4** | Section-by-section conflict detection |
-| **Phase 5** | Conflict resolution with harsh verdicts |
-| **Phase 6** | Synthesize final unified plan |
+| **Phase 3** | **Deep Verification** (conditional) - File reference audit + implementation simulation (+ ADHD scan if enabled) |
+| **Phase 4** | **Assumption & Risk Analysis** - Detect conflicts, preserve unshared risks |
+| **Phase 5** | Section-by-section conflict detection |
+| **Phase 6** | Conflict resolution with harsh verdicts |
+| **Phase 7** | Synthesize final unified plan |
+
+The orchestrator injects pipeline flags into the synthesizer input:
+
+```text
+<multi-plan-pipeline>
+deep_verification: true|false
+adhd_detection: true|false
+</multi-plan-pipeline>
+```
+
+**Rule**:
+- If `deep_verification: false` → Synthesizer must skip Phase 3 entirely.
+- If `adhd_detection: false` → Synthesizer must skip ADHD-omission scan, even if it performs other verification.
 
 ### Step 4: Debate Round (Optional)
 
@@ -161,7 +210,7 @@ If `debate: true` was passed, rejected models get a chance to rebut:
 
 1. **Parse rejections**: Identify models that lost conflicts
 2. **Generate rebuttals**: Each rejected model argues why it should be reconsidered
-3. **Final review (Phase 7)**: Synthesizer reviews rebuttals
+3. **Final review (Phase 8)**: Synthesizer reviews rebuttals
 4. **May revise**: If rebuttal provides NEW evidence, plan is updated
 
 ### Step 5: Output
@@ -177,15 +226,15 @@ The following files are generated:
 
 ---
 
-## 5. Plan Synthesizer (Momus-Style)
+## 5. Plan Synthesizer (Ruthless Critique)
 
-The Plan Synthesizer is named after Momus, the Greek god of satire and criticism. Its philosophy:
+The Plan Synthesizer is built around ruthless critique and decisive conflict resolution. Its philosophy:
 
 > "One approach must WIN each conflict. No 'both are good' cop-outs."
 
 ### 5.1 Structured Evaluation (Phase 2)
 
-Each plan is scored on **4 criteria** (adapted from Momus review standards):
+Each plan is scored on **4 criteria**:
 
 | Criterion | What It Measures | Score |
 |-----------|------------------|-------|
@@ -198,7 +247,7 @@ Each plan is scored on **4 criteria** (adapted from Momus review standards):
 
 These scores inform conflict resolution - higher-scoring plans generally win.
 
-### 5.2 Assumption & Risk Analysis (Phase 3)
+### 5.2 Assumption & Risk Analysis (Phase 4)
 
 **Assumption Conflicts**: When models assume different things:
 ```markdown
@@ -224,7 +273,7 @@ These scores inform conflict resolution - higher-scoring plans generally win.
 **VERDICT**: PRESERVE - add to final plan's risk section
 ```
 
-### 5.3 Conflict Resolution Format (Phase 5)
+### 5.3 Conflict Resolution Format (Phase 6)
 
 For each conflict point, the synthesizer outputs (using **actual model names**, not "Plan A/B"):
 
@@ -614,10 +663,11 @@ EOF
 # 5. Pipeline executes:
 # a) Parallel generation: claude-opus-4-5 + gpt-5.2 + gemini-3-pro
 # b) Phase 2: 4-criterion evaluation (C1-C4 scores)
-# c) Phase 3: Assumption/Risk analysis
-# d) Phases 4-6: Conflict detection & synthesis
-# e) Debate round: Rejected models rebut
-# f) Phase 7: Final review, may revise
+# c) Phase 3: Deep Verification (if enabled)
+# d) Phase 4: Assumption/Risk analysis
+# e) Phases 5-7: Conflict detection & synthesis
+# f) Debate round: Rejected models rebut
+# g) Phase 8: Final review, may revise
 
 # 6. Output files created:
 # .sisyphus/plans/auth-claude-opus-4-5.md

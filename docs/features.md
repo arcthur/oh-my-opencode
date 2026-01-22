@@ -21,8 +21,7 @@ Oh-My-OpenCode provides 10 specialized AI agents. Each has distinct expertise, o
 | Agent | Model | Purpose |
 |-------|-------|---------|
 | **Prometheus** | `anthropic/claude-opus-4-5` | Strategic planner with interview mode. Creates detailed work plans through iterative questioning. |
-| **Metis** | `anthropic/claude-sonnet-4-5` | Plan consultant - pre-planning analysis. Identifies hidden intentions, ambiguities, and AI failure points. |
-| **Momus** | `anthropic/claude-sonnet-4-5` | Plan reviewer - validates plans against clarity, verifiability, and completeness standards. |
+| **plan-synthesizer** | `anthropic/claude-opus-4-5` | Multi-model plan arbiter - critiques and synthesizes competing plans into one unified plan. |
 
 ### Invoking Agents
 

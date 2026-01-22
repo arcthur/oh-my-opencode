@@ -6,7 +6,7 @@ import { MultiPlanOrchestrator, MultiPlanError } from "./index"
 import { PlanGenerator } from "./plan-generator"
 import type { BackgroundManager, BackgroundTask } from "../background-agent"
 import type { PluginInput } from "@opencode-ai/plugin"
-import type { PlanningAgentConfig } from "../../config/schema"
+import type { MultiPlanPipelineConfig } from "../../config/schema"
 import type { MultiPlanSession, PlanGenerationTask, StartMultiPlanInput, NormalizedPlanningModel } from "./types"
 
 function createTempDir(): string {
@@ -43,9 +43,9 @@ function createMockCtx(directory: string): PluginInput {
   } as unknown as PluginInput
 }
 
-/** Create planning config from model strings */
-function createPlanningConfig(modelIds: string[]): PlanningAgentConfig {
-  return { model: modelIds }
+/** Create model array for planning */
+function createModelArray(modelIds: string[]): string[] {
+  return modelIds
 }
 
 function createStartInput(planName: string, models: NormalizedPlanningModel[]): StartMultiPlanInput {
@@ -106,7 +106,7 @@ describe("MultiPlanOrchestrator", () => {
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -114,7 +114,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const sanitizedPlanName = "plan-one"
       const mockTasks = [
@@ -151,7 +151,7 @@ describe("MultiPlanOrchestrator", () => {
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -159,17 +159,13 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       // Mock generator methods
       const mockTasks = [
         createCompletedTask("claude-opus-4-5", "test-plan"),
         createCompletedTask("gpt-5.2", "test-plan"),
       ]
-      spyOn(orchestrator as any, "generator").mockReturnValue({
-        generatePlans: mock(() => Promise.resolve(mockTasks)),
-        waitForCompletion: mock(() => Promise.resolve()),
-      })
       // Direct property override for the generator
       ;(orchestrator as any).generator = {
         generatePlans: mock(() => Promise.resolve(mockTasks)),
@@ -199,13 +195,68 @@ describe("MultiPlanOrchestrator", () => {
       expect(result.summary).toContain("test-plan")
     })
 
+    test("includes pipeline flags in Plan Synthesizer prompt (deep_verification / adhd_detection)", async () => {
+      // #given
+      const mockManager = createMockBackgroundManager({
+        // Synthesis loop ends immediately when task is evicted/unknown.
+        getTaskResults: [undefined],
+      })
+      const mockCtx = createMockCtx(tmpDir)
+      const modelArray = createModelArray([
+        "anthropic/claude-opus-4-5",
+        "openai/gpt-5.2",
+      ])
+      const models: NormalizedPlanningModel[] = [
+        { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
+        { name: "gpt-5.2", model: "openai/gpt-5.2" },
+      ]
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
+
+      const mockTasks = [
+        createCompletedTask("claude-opus-4-5", "test-plan"),
+        createCompletedTask("gpt-5.2", "test-plan"),
+      ]
+      ;(orchestrator as any).generator = {
+        generatePlans: mock(() => Promise.resolve(mockTasks)),
+        waitForCompletion: mock(() => Promise.resolve()),
+      }
+
+      fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plans"), { recursive: true })
+      fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plan-reviews"), { recursive: true })
+      fs.writeFileSync(path.join(tmpDir, ".sisyphus/plans/test-plan.md"), "# Final Plan")
+      fs.writeFileSync(
+        path.join(tmpDir, ".sisyphus/plan-reviews/test-plan-comparison.md"),
+        "# Comparison"
+      )
+
+      const input = createStartInput("test-plan", models)
+      input.pipelineConfig = {
+        auto_complexity_detection: true,
+        smart_skip_interview: true,
+                deep_verification: false,
+        adhd_detection: false,
+      } satisfies MultiPlanPipelineConfig
+
+      // #when
+      await orchestrator.start(input)
+
+      // #then
+      const launchMock = (mockManager as unknown as { launch: { mock: { calls: any[] } } }).launch
+      expect(launchMock.mock.calls.length).toBeGreaterThan(0)
+      const launchArgs = launchMock.mock.calls[0][0] as { agent?: string; prompt?: string }
+      expect(launchArgs.agent).toBe("plan-synthesizer")
+      expect(launchArgs.prompt).toContain("<multi-plan-pipeline>")
+      expect(launchArgs.prompt).toContain("deep_verification: false")
+      expect(launchArgs.prompt).toContain("adhd_detection: false")
+    })
+
     test("continues with partial success when 2 of 3 plans succeed", async () => {
       // #given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
         "google/gemini-pro",
@@ -215,7 +266,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
         { name: "gemini-pro", model: "google/gemini-pro" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       // 2 succeed, 1 fails
       const mockTasks = [
@@ -253,7 +304,7 @@ describe("MultiPlanOrchestrator", () => {
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -261,7 +312,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const statusTransitions: string[] = []
       const mockTasks = [
@@ -311,7 +362,7 @@ describe("MultiPlanOrchestrator", () => {
       // #given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -319,7 +370,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       // Only 1 succeeds
       const mockTasks = [
@@ -358,7 +409,7 @@ describe("MultiPlanOrchestrator", () => {
       // #given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -366,7 +417,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const mockTasks = [
         createFailedTask("claude-opus-4-5", "test-plan", "Timeout"),
@@ -397,7 +448,7 @@ describe("MultiPlanOrchestrator", () => {
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -405,7 +456,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const mockTasks = [
         createCompletedTask("claude-opus-4-5", "test-plan"),
@@ -447,7 +498,7 @@ describe("MultiPlanOrchestrator", () => {
       // #given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -455,7 +506,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       ;(orchestrator as any).generator = {
         generatePlans: mock(() => Promise.reject(new Error("Generator crashed"))),
@@ -489,7 +540,7 @@ describe("MultiPlanOrchestrator", () => {
         getTask: mock(() => undefined),
       } as unknown as BackgroundManager
 
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -498,7 +549,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
 
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const comparisonReportPath = `.sisyphus/plan-reviews/${planName}-comparison.md`
       fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plan-reviews"), { recursive: true })
@@ -575,7 +626,7 @@ describe("MultiPlanOrchestrator", () => {
         getTask: mock(() => undefined), // Evicted/unknown -> treated as completed by runDebateRound
       } as unknown as BackgroundManager
 
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -584,7 +635,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
 
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const comparisonReportPath = `.sisyphus/plan-reviews/${planName}-comparison.md`
       fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plan-reviews"), { recursive: true })
@@ -656,7 +707,7 @@ describe("MultiPlanOrchestrator", () => {
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -664,7 +715,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const mockTasks = [
         createCompletedTask("claude-opus-4-5", "test-plan"),
@@ -720,7 +771,7 @@ describe("MultiPlanOrchestrator", () => {
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
       const mockCtx = createMockCtx(tmpDir)
-      const config = createPlanningConfig([
+      const modelArray = createModelArray([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -728,7 +779,7 @@ describe("MultiPlanOrchestrator", () => {
         { name: "claude-opus-4-5", model: "anthropic/claude-opus-4-5" },
         { name: "gpt-5.2", model: "openai/gpt-5.2" },
       ]
-      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, config)
+      const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
       const mockTasks = [
         createCompletedTask("claude-opus-4-5", "test-plan"),

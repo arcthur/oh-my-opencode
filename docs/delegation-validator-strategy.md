@@ -84,7 +84,7 @@ Sisyphus must output this JSON **before** every `delegate_task` call:
 ```xml
 <delegation-decision>
 {
-  "agent": "explore" | "librarian" | "oracle" | "frontend-ui-ux-engineer" | "document-writer" | "Metis" | "Momus",
+  "agent": "explore" | "librarian" | "oracle" | "frontend-ui-ux-engineer" | "document-writer",
   "taskType": "exploration" | "implementation" | "debugging" | "refactoring" | "documentation" | "architecture" | "research",
   "complexity": "trivial" | "simple" | "moderate" | "complex",
   "domain": "frontend" | "backend" | "external" | "general",
@@ -133,14 +133,6 @@ const VALIDATION_RULES = {
   "document-writer": {
     validTaskTypes: ["documentation"],
   },
-  "Metis": {
-    validTaskTypes: ["architecture", "research"],
-    minComplexity: "moderate",
-  },
-  "Momus": {
-    validTaskTypes: ["architecture"],
-    minComplexity: "moderate",
-  },
 }
 ```
 
@@ -177,7 +169,7 @@ const VALIDATION_RULES = {
 | any | exploration (internal code) | `explore` |
 | external | exploration (docs/APIs) | `librarian` |
 | any | debugging (after 2+ failures) | `oracle` |
-| any | architecture decisions | `oracle` or `Metis` |
+| any | architecture decisions | `oracle` |
 | any | documentation | `document-writer` |
 | external | research | `librarian` |
 

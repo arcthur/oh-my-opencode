@@ -22,8 +22,6 @@ export const BuiltinAgentNameSchema = z.enum([
   "librarian",
   "explore",
   "multimodal-looker",
-  "Metis",
-  "Momus",
   "Atlas",
   "plan-synthesizer",
 ])
@@ -46,8 +44,6 @@ export const OverridableAgentNameSchema = z.enum([
   "Sisyphus-Junior",
   "OpenCode-Builder",
   "Prometheus",
-  "Metis",
-  "Momus",
   "oracle",
   "librarian",
   "explore",
@@ -107,7 +103,7 @@ export const BuiltinCommandNameSchema = z.enum([
 ])
 
 export const AgentOverrideConfigSchema = z.object({
-  /** @deprecated Use `category` instead. Model is inherited from category defaults. */
+  /** Model specification - single model string (arrays are only supported for Prometheus multi-plan) */
   model: z.string().optional(),
   variant: z.string().optional(),
   /** Category name to inherit model and other settings from CategoryConfig */
@@ -129,17 +125,27 @@ export const AgentOverrideConfigSchema = z.object({
   permission: AgentPermissionSchema.optional(),
 })
 
-/** Planning Agent Configuration
- * Consistent with other agent overrides: { model: "..." } or { model: ["...", "..."] }
- * - model: string → Single model for plan generation
- * - model: string[] → Multiple models for parallel generation + synthesis
+/** Prometheus override supports multi-model `model` arrays for multi-plan */
+export const PrometheusOverrideConfigSchema = AgentOverrideConfigSchema.extend({
+  model: z.union([z.string(), z.array(z.string()).max(5)]).optional(),
+})
+
+/** Multi-Plan Pipeline Configuration
+ * Controls the unified planning pipeline that integrates:
+ * - Intent classification (migrated from Metis)
+ * - Deep verification (migrated from Momus)
+ * - Complexity-based routing
+ * - Smart interview skipping
  */
-export const PlanningAgentConfigSchema = z.object({
-  /** Model specification - string for single, array for multi-model planning */
-  model: z.union([
-    z.string(),
-    z.array(z.string()).max(5),
-  ]),
+export const MultiPlanPipelineConfigSchema = z.object({
+  /** Enable automatic complexity detection for single vs multi-model routing (default: true) */
+  auto_complexity_detection: z.boolean().default(true),
+  /** Enable smart interview skipping based on request clarity (default: true) */
+  smart_skip_interview: z.boolean().default(true),
+  /** Enable deep file verification in Plan Synthesizer (default: true) */
+  deep_verification: z.boolean().default(true),
+  /** Enable ADHD-omission detection in Plan Synthesizer (default: true) */
+  adhd_detection: z.boolean().default(true),
 })
 
 export const AgentOverridesSchema = z.object({
@@ -148,17 +154,13 @@ export const AgentOverridesSchema = z.object({
   Sisyphus: AgentOverrideConfigSchema.optional(),
   "Sisyphus-Junior": AgentOverrideConfigSchema.optional(),
   "OpenCode-Builder": AgentOverrideConfigSchema.optional(),
-  "Prometheus": AgentOverrideConfigSchema.optional(),
-  "Metis": AgentOverrideConfigSchema.optional(),
-  "Momus": AgentOverrideConfigSchema.optional(),
+  "Prometheus": PrometheusOverrideConfigSchema.optional(),
   oracle: AgentOverrideConfigSchema.optional(),
   librarian: AgentOverrideConfigSchema.optional(),
   explore: AgentOverrideConfigSchema.optional(),
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
   Atlas: AgentOverrideConfigSchema.optional(),
   "plan-synthesizer": AgentOverrideConfigSchema.optional(),
-  /** Planning configuration: string (single model) or array (multi-model) */
-  planning: PlanningAgentConfigSchema.optional(),
 })
 
 export const ClaudeCodeConfigSchema = z.object({
@@ -516,6 +518,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   runtime_tracker: RuntimeTrackerConfigSchema.optional(),
   user_memory: UserMemoryConfigSchema.optional(),
   org_memory: OrgMemoryConfigSchema.optional(),
+  multi_plan_pipeline: MultiPlanPipelineConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -538,12 +541,12 @@ export type CategoryConfig = z.infer<typeof CategoryConfigSchema>
 export type CategoriesConfig = z.infer<typeof CategoriesConfigSchema>
 export type BuiltinCategoryName = z.infer<typeof BuiltinCategoryNameSchema>
 export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
-export type PlanningAgentConfig = z.infer<typeof PlanningAgentConfigSchema>
 export type PlanningWithFilesConfig = z.infer<typeof PlanningWithFilesConfigSchema>
 export type SilentToolOutputConfig = z.infer<typeof SilentToolOutputConfigSchema>
 export type RepoOverviewConfig = z.infer<typeof RepoOverviewConfigSchema>
 export type RuntimeTrackerConfig = z.infer<typeof RuntimeTrackerConfigSchema>
 export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>
 export type OrgMemoryConfig = z.infer<typeof OrgMemoryConfigSchema>
+export type MultiPlanPipelineConfig = z.infer<typeof MultiPlanPipelineConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

@@ -90,7 +90,9 @@ export function createSisyphusJuniorAgentWithOverrides(
     override = undefined
   }
 
-  const model = override?.model ?? systemDefaultModel ?? SISYPHUS_JUNIOR_DEFAULTS.model
+  // If model is an array (only valid for Prometheus), use the first element
+  const rawModel = override?.model ?? systemDefaultModel ?? SISYPHUS_JUNIOR_DEFAULTS.model
+  const model = Array.isArray(rawModel) ? rawModel[0] : rawModel
   const temperature = override?.temperature ?? SISYPHUS_JUNIOR_DEFAULTS.temperature
 
   const promptAppend = override?.prompt_append

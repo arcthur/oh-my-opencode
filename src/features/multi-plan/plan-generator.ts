@@ -6,6 +6,7 @@ import type { NormalizedPlanningModel, PlanGenerationTask, MultiPlanSession } fr
 import { log } from "../../shared/logger"
 import { getTaskToastManager } from "../task-toast-manager"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
+import { buildIntentClassificationPrompt, buildAISlopGuardrails } from "./intent-classifier"
 
 type OpencodeClient = PluginInput["client"]
 
@@ -273,10 +274,18 @@ export class PlanGenerator {
   }
 
   /**
-   * Build the base planning prompt
+   * Build the base planning prompt with embedded Metis capabilities
+   * (intent classification + AI-slop guardrails)
    */
   private buildPlanningPrompt(planName: string, context: string): string {
+    const intentClassification = buildIntentClassificationPrompt()
+    const slopGuardrails = buildAISlopGuardrails()
+
     return `You are generating a work plan for a multi-model planning session.
+
+${intentClassification}
+
+---
 
 ## Plan Name
 ${planName}
@@ -284,55 +293,65 @@ ${planName}
 ## Context from Interview
 ${context}
 
-## Instructions
+---
+
+${slopGuardrails}
+
+---
+
+## Plan Format Instructions
 
 Generate a comprehensive work plan following the standard .sisyphus/plans/*.md format.
 
 **Required Sections**:
 
-1. **Context**
+1. **Intent Classification** (from Phase 0 above)
+   - Type, Confidence, Primary Focus
+
+2. **Context**
    - Original Request
    - Interview Summary (key discussions and decisions)
    - Any research findings
 
-2. **Work Objectives**
+3. **Work Objectives**
    - Core Objective (1-2 sentences)
    - Concrete Deliverables (specific files, endpoints, features)
    - Definition of Done (checkboxes)
    - Must Have / Must NOT Have
 
-3. **Assumptions (REQUIRED)**
+4. **Assumptions (REQUIRED)**
    List ALL assumptions with confidence levels:
    | # | Assumption | Confidence (High/Med/Low) | If Wrong, Impact |
    - High = verified via code/user confirmation
    - Medium = reasonable inference
    - Low = educated guess, needs validation
 
-4. **Risks (REQUIRED)**
+5. **Risks (REQUIRED)**
    Identify what could go wrong:
    | # | Risk | Probability | Impact | Mitigation |
    Categories: Technical, Integration, Scope, Testing
 
-5. **Verification Strategy**
+6. **Verification Strategy**
    - Test infrastructure decision
    - Framework choice
 
-6. **TODOs** (numbered, with checkboxes)
+7. **TODOs** (numbered, with checkboxes)
    Each TODO must have:
    - What to do (clear steps)
-   - Must NOT do (guardrails)
+   - Must NOT do (guardrails specific to this TODO)
    - Parallelizable: YES/NO
    - References (CRITICAL - specific file paths and line numbers)
    - Acceptance Criteria (checkboxes)
 
-7. **Success Criteria**
+8. **Success Criteria**
    - Verification commands with expected output
 
 **Quality Requirements**:
 - Be SPECIFIC - no vague "add feature" or "improve X"
 - Every claim must have a file reference
 - Every TODO must have concrete acceptance criteria
-- Avoid AI slop - no generic "best practices" without specifics
+- Apply AI-slop guardrails from above
+- Include intent-specific directives in your TODOs
 `
   }
 

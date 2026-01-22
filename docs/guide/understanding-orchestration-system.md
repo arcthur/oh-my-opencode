@@ -24,8 +24,8 @@ flowchart TB
     subgraph Planning["Planning Layer (Human + Prometheus)"]
         User[("👤 User")]
         Prometheus["🔥 Prometheus<br/>(Planner)<br/>Claude Opus 4.5"]
-        Metis["🦉 Metis<br/>(Consultant)<br/>Claude Opus 4.5"]
-        Momus["👁️ Momus<br/>(Reviewer)<br/>GPT-5.2"]
+        MultiPlan["🔀 multi_plan<br/>(Multi-Model Planning)<br/>Tool"]
+        Synth["⚖️ Plan Synthesizer<br/>(plan-synthesizer)<br/>Opus-class"]
     end
     
     subgraph Execution["Execution Layer (Orchestrator)"]
@@ -41,11 +41,11 @@ flowchart TB
     end
     
     User -->|"Describe work"| Prometheus
-    Prometheus -->|"Consult"| Metis
     Prometheus -->|"Interview"| User
     Prometheus -->|"Generate plan"| Plan[".sisyphus/plans/*.md"]
-    Plan -->|"High accuracy?"| Momus
-    Momus -->|"OKAY / REJECT"| Prometheus
+    Prometheus -->|"Complex plan?"| MultiPlan
+    MultiPlan -->|"Compare + Synthesize"| Synth
+    Synth -->|"Unified plan + report"| Prometheus
     
     User -->|"/start-work"| Orchestrator
     Plan -->|"Read"| Orchestrator
@@ -65,7 +65,7 @@ flowchart TB
 
 ---
 
-## Layer 1: Planning (Prometheus + Metis + Momus)
+## Layer 1: Planning (Prometheus + Multi-Model Planning)
 
 ### Prometheus: Your Strategic Consultant
 
@@ -92,15 +92,13 @@ stateDiagram-v2
         Check: ✓ Test strategy confirmed?
     }
     
-    PlanGeneration --> MetisConsult: Mandatory gap analysis
-    MetisConsult --> WritePlan: Incorporate findings
+    PlanGeneration --> MultiPlanDecision: Complex plan?
+    MultiPlanDecision --> MultiPlanRun: Call multi_plan (optional)
+    MultiPlanRun --> WritePlan: Use unified plan output
     WritePlan --> HighAccuracyChoice: Present to user
     
-    HighAccuracyChoice --> MomusLoop: User wants high accuracy
+    HighAccuracyChoice --> MultiPlanRun: User wants high accuracy (debate mode)
     HighAccuracyChoice --> Done: User accepts plan
-    
-    MomusLoop --> WritePlan: REJECTED - fix issues
-    MomusLoop --> Done: OKAY - plan approved
     
     Done --> [*]: Guide to /start-work
 ```
@@ -116,39 +114,15 @@ Prometheus adapts its interview style based on what you're doing:
 | **Mid-sized Task** | Guardrails - exact boundaries | "What must NOT be included? Hard constraints?" |
 | **Architecture** | Strategic - long-term impact | "Expected lifespan? Scale requirements?" |
 
-### Metis: The Gap Analyzer
+### Multi-Model Planning: Deep Verification and Synthesis
 
-Before Prometheus writes the plan, **Metis catches what Prometheus missed**:
+For complex or high-accuracy planning, Prometheus can call `multi_plan` to:
 
-- Hidden intentions in user's request
-- Ambiguities that could derail implementation
-- AI-slop patterns (over-engineering, scope creep)
-- Missing acceptance criteria
-- Edge cases not addressed
-
-**Why Metis Exists:**
-
-The plan author (Prometheus) has "ADHD working memory" - it makes connections that never make it onto the page. Metis forces externalization of implicit knowledge.
-
-### Momus: The Ruthless Reviewer
-
-For high-accuracy mode, Momus validates plans against **four core criteria**:
-
-1. **Clarity**: Does each task specify WHERE to find implementation details?
-2. **Verification**: Are acceptance criteria concrete and measurable?
-3. **Context**: Is there sufficient context to proceed without >10% guesswork?
-4. **Big Picture**: Is the purpose, background, and workflow clear?
-
-**The Momus Loop:**
-
-Momus only says "OKAY" when:
-- 100% of file references verified
-- ≥80% of tasks have clear reference sources
-- ≥90% of tasks have concrete acceptance criteria
-- Zero tasks require assumptions about business logic
-- Zero critical red flags
-
-If REJECTED, Prometheus fixes issues and resubmits. **No maximum retry limit.**
+- Generate multiple independent plans in parallel
+- Compare and score them (clarity/verification/context/big picture)
+- Run optional deep verification (file reference audit, execution simulation)
+- Resolve conflicts and synthesize one unified final plan
+- Optionally run a debate round (rebuttals) for maximum scrutiny
 
 ---
 

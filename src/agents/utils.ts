@@ -6,9 +6,7 @@ import { createOracleAgent, ORACLE_PROMPT_METADATA } from "./oracle"
 import { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
 import { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
 import { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "./multimodal-looker"
-import { createMetisAgent } from "./metis"
 import { createAtlasAgent } from "./atlas"
-import { createMomusAgent } from "./momus"
 import { createPlanSynthesizerAgent } from "./plan-synthesizer"
 import type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynamic-agent-prompt-builder"
 import { deepMerge } from "../shared"
@@ -17,14 +15,20 @@ import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-c
 
 type AgentSource = AgentFactory | AgentConfig
 
+/**
+ * Extracts a single model string from model specification.
+ * Only Prometheus supports multi-model arrays; other agents use the first element.
+ */
+function extractSingleModel(model: string | string[]): string {
+  return Array.isArray(model) ? model[0] : model
+}
+
 const agentSources: Record<BuiltinAgentName, AgentSource> = {
   Sisyphus: createSisyphusAgent,
   oracle: createOracleAgent,
   librarian: createLibrarianAgent,
   explore: createExploreAgent,
   "multimodal-looker": createMultimodalLookerAgent,
-  "Metis": createMetisAgent,
-  "Momus": createMomusAgent,
   // Note: Atlas is handled specially in createBuiltinAgents()
   // because it needs OrchestratorContext, not just a model string
   Atlas: createAtlasAgent as unknown as AgentFactory,
@@ -165,7 +169,8 @@ export function createBuiltinAgents(
     if (disabledAgents.includes(agentName)) continue
 
     const override = agentOverrides[agentName]
-    const model = override?.model ?? systemDefaultModel
+    const rawModel = override?.model ?? systemDefaultModel
+    const model = extractSingleModel(rawModel)
 
     let config = buildAgent(source, model, mergedCategories, gitMasterConfig)
 
@@ -192,7 +197,8 @@ export function createBuiltinAgents(
 
   if (!disabledAgents.includes("Sisyphus")) {
     const sisyphusOverride = agentOverrides["Sisyphus"]
-    const sisyphusModel = sisyphusOverride?.model ?? systemDefaultModel
+    const rawSisyphusModel = sisyphusOverride?.model ?? systemDefaultModel
+    const sisyphusModel = extractSingleModel(rawSisyphusModel)
 
     let sisyphusConfig = createSisyphusAgent(
       sisyphusModel,
@@ -216,9 +222,10 @@ export function createBuiltinAgents(
 
   if (!disabledAgents.includes("Atlas")) {
     const orchestratorOverride = agentOverrides["Atlas"]
-    const orchestratorModel = orchestratorOverride?.model ?? systemDefaultModel
-     let orchestratorConfig = createAtlasAgent({
-       model: orchestratorModel,
+    const rawOrchestratorModel = orchestratorOverride?.model ?? systemDefaultModel
+    const orchestratorModel = extractSingleModel(rawOrchestratorModel)
+    let orchestratorConfig = createAtlasAgent({
+      model: orchestratorModel,
        availableAgents,
        availableSkills,
        userCategories: categories,

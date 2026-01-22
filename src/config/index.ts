@@ -9,7 +9,6 @@ export {
   SisyphusAgentConfigSchema,
   ExperimentalConfigSchema,
   RalphLoopConfigSchema,
-  PlanningAgentConfigSchema,
 } from "./schema"
 
 export type {
@@ -24,5 +23,4 @@ export type {
   ExperimentalConfig,
   DynamicContextPruningConfig,
   RalphLoopConfig,
-  PlanningAgentConfig,
 } from "./schema"

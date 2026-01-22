@@ -203,6 +203,19 @@ describe("user_memory schema", () => {
 })
 
 describe("AgentOverrideConfigSchema", () => {
+  describe("model field", () => {
+    test("rejects model as array (only Prometheus supports multi-model)", () => {
+      // #given
+      const config = { model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"] }
+
+      // #when
+      const result = AgentOverrideConfigSchema.safeParse(config)
+
+      // #then
+      expect(result.success).toBe(false)
+    })
+  })
+
   describe("category field", () => {
     test("accepts category as optional string", () => {
       // #given
@@ -394,6 +407,48 @@ describe("AgentOverrideConfigSchema", () => {
         expect(result.data.prompt_append).toBe("Extra instructions")
       }
     })
+  })
+})
+
+describe("Prometheus multi-model planning config", () => {
+  test("accepts agents.Prometheus.model as string[] (2-5)", () => {
+    // #given
+    const config = {
+      agents: {
+        Prometheus: {
+          model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // #then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.agents?.Prometheus?.model).toEqual([
+        "anthropic/claude-opus-4-5",
+        "openai/gpt-5.2",
+      ])
+    }
+  })
+
+  test("rejects model array for non-Prometheus agents", () => {
+    // #given
+    const config = {
+      agents: {
+        Sisyphus: {
+          model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // #then
+    expect(result.success).toBe(false)
   })
 })
 

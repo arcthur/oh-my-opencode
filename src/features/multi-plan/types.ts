@@ -1,3 +1,5 @@
+import type { MultiPlanPipelineConfig } from "../../config/schema"
+
 /**
  * Normalized planning model (internal use - always has name and model)
  */
@@ -101,6 +103,8 @@ export interface MultiPlanSession {
   debateEnabled?: boolean
   /** Rebuttals from rejected models (if debate enabled) */
   rebuttals?: PlanRebuttal[]
+  /** Unified multi-plan pipeline config (optional) */
+  pipelineConfig?: MultiPlanPipelineConfig
 }
 
 /**
@@ -117,6 +121,8 @@ export interface StartMultiPlanInput {
   config: NormalizedPlanningConfig
   /** Enable debate mode - rejected plans can rebut */
   debateEnabled?: boolean
+  /** Unified multi-plan pipeline config (optional) */
+  pipelineConfig?: MultiPlanPipelineConfig
 }
 
 /**

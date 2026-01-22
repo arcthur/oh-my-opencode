@@ -208,23 +208,36 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       if (plannerEnabled) {
         const prometheusOverride =
           pluginConfig.agents?.["Prometheus"] as
-            | (Record<string, unknown> & { category?: string; model?: string })
+            | (Record<string, unknown> & { category?: string; model?: string | string[] })
             | undefined;
         const defaultModel = config.model as string | undefined;
+
+        // Prometheus override supports "category" and multi-model "model" for multi-plan,
+        // but the actual OpenCode agent definition MUST have a single model string.
+        // We strip config-only keys before merging overrides into the agent definition.
+        const {
+          category: prometheusOverrideCategory,
+          model: prometheusOverrideModel,
+          ...prometheusOverrideAgentFields
+        } = (prometheusOverride ?? {}) as Record<string, unknown> & {
+          category?: string
+          model?: string | string[]
+        }
 
         // Resolve full category config (model, temperature, top_p, tools, etc.)
         // Apply all category properties when category is specified, but explicit
         // overrides (model, temperature, etc.) will take precedence during merge
-        const categoryConfig = prometheusOverride?.category
+        const categoryConfig = prometheusOverrideCategory
           ? resolveCategoryConfig(
-              prometheusOverride.category,
+              prometheusOverrideCategory,
               pluginConfig.categories
             )
           : undefined;
 
         // Model resolution: explicit override → category config → OpenCode default
-        // No hardcoded fallback - OpenCode config.model is the terminal fallback
-        const resolvedModel = prometheusOverride?.model ?? categoryConfig?.model ?? defaultModel;
+        // If model is an array (multi-plan mode), use the first model for Prometheus agent itself
+        const rawModel = prometheusOverrideModel ?? categoryConfig?.model ?? defaultModel;
+        const resolvedModel = Array.isArray(rawModel) ? rawModel[0] : rawModel;
 
         const prometheusBase = {
           // Only include model if one was resolved - let OpenCode apply its own default if none
@@ -255,7 +268,12 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         };
 
         agentConfig["Prometheus"] = prometheusOverride
-          ? { ...prometheusBase, ...prometheusOverride }
+          ? {
+              ...prometheusBase,
+              ...prometheusOverrideAgentFields,
+              // Ensure model is always a single string even if config provided an array.
+              ...(resolvedModel ? { model: resolvedModel } : {}),
+            }
           : prometheusBase;
       }
 
@@ -338,7 +356,9 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     }
     if (agentResult["Sisyphus-Junior"]) {
       const agent = agentResult["Sisyphus-Junior"] as AgentWithPermission;
-      agent.permission = { ...agent.permission, delegate_task: "allow" };
+      // CRITICAL: Sisyphus-Junior is a focused executor. Never allow delegation via config-layer overrides.
+      // (The agent factory denies delegate_task/task; this is a defense-in-depth enforcement.)
+      agent.permission = { ...agent.permission, delegate_task: "deny", task: "deny" };
     }
 
     config.permission = {

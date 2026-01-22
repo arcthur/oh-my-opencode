@@ -120,7 +120,29 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available agents: `oracle`, `librarian`, `explore`, `multimodal-looker`
+Available built-in agents: `Sisyphus`, `Atlas`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`
+
+## Multi-Plan Pipeline
+
+Unified configuration for multi-model planning routing and synthesizer verification behavior:
+
+```jsonc
+{
+  "multi_plan_pipeline": {
+    "auto_complexity_detection": true,
+    "smart_skip_interview": true,
+    "deep_verification": true,
+    "adhd_detection": true
+  }
+}
+```
+
+| Field | Default | Description |
+|------|---------|-------------|
+| `auto_complexity_detection` | `true` | Adds per-message complexity routing hints for planners (`single_model` vs `multi_model`) |
+| `smart_skip_interview` | `true` | Adds per-message clarity hints (`skip` / `brief` / `full`) |
+| `deep_verification` | `true` | Plan Synthesizer Phase 3 deep verification toggle |
+| `adhd_detection` | `true` | Plan Synthesizer ADHD-omission scan toggle |
 
 ## Built-in Skills
 
@@ -164,11 +186,12 @@ When enabled (default), Sisyphus provides a powerful orchestrator with optional 
 - **Sisyphus**: Primary orchestrator agent (Claude Opus 4.5)
 - **OpenCode-Builder**: OpenCode's default build agent, renamed due to SDK limitations (disabled by default)
 - **Prometheus**: OpenCode's default plan agent with work-planner methodology (enabled by default)
-- **Metis**: Pre-planning analysis agent that identifies hidden requirements and AI failure points
+- **plan-synthesizer**: Multi-model plan arbiter that critiques and synthesizes competing plans
+- **Sisyphus-Junior**: Focused executor used in multi-plan generation/rebuttals; cannot delegate implementation
 
 **Configuration Options:**
 
-```json
+```jsonc
 {
   "sisyphus_agent": {
     "disabled": false,
@@ -181,7 +204,7 @@ When enabled (default), Sisyphus provides a powerful orchestrator with optional 
 
 **Example: Enable OpenCode-Builder:**
 
-```json
+```jsonc
 {
   "sisyphus_agent": {
     "default_builder_enabled": true
@@ -193,7 +216,7 @@ This enables OpenCode-Builder agent alongside Sisyphus. The default build agent 
 
 **Example: Disable all Sisyphus orchestration:**
 
-```json
+```jsonc
 {
   "sisyphus_agent": {
     "disabled": true
@@ -203,7 +226,7 @@ This enables OpenCode-Builder agent alongside Sisyphus. The default build agent 
 
 You can also customize Sisyphus agents like other agents:
 
-```json
+```jsonc
 {
   "agents": {
     "Sisyphus": {
@@ -216,8 +239,28 @@ You can also customize Sisyphus agents like other agents:
     "Prometheus": {
       "model": "openai/gpt-5.2"
     },
-    "Metis": {
+    "plan-synthesizer": {
+      "model": "anthropic/claude-opus-4-5"
+    },
+    "Sisyphus-Junior": {
       "model": "anthropic/claude-sonnet-4-5"
+    }
+  }
+}
+```
+
+For **multi-model planning**, you can set `agents.Prometheus.model` to a `string[]` (2-5 models). Prometheus will use the **first** entry as its own runtime model, and the full array will be used for the multi-plan pipeline.
+
+**Example: Enable multi-model planning via `agents.Prometheus.model` array:**
+
+```jsonc
+{
+  "agents": {
+    "Prometheus": {
+      "model": [
+        "anthropic/claude-opus-4-5",
+        "openai/gpt-5.2"
+      ]
     }
   }
 }
@@ -394,9 +437,8 @@ Within the Native tier, models fall back based on capability requirements:
 | **Sisyphus** | High-tier (isMax20) or Standard | `anthropic/claude-opus-4-5` or `anthropic/claude-sonnet-4-5` |
 | **Oracle** | Deep reasoning | `openai/gpt-5.2-codex` |
 | **Prometheus** | High-tier/Standard | Same as Sisyphus |
-| **Metis** | High-tier/Standard | Same as Sisyphus |
-| **Momus** | Deep reasoning | `openai/gpt-5.2-codex` |
 | **Atlas** | High-tier/Standard | Same as Sisyphus |
+| **plan-synthesizer** | High-tier/Standard | Typically Opus-class or same as Sisyphus |
 | **multimodal-looker** | Visual | `google/gemini-3-pro-preview` |
 
 #### Special Case: explore Agent
@@ -544,7 +586,7 @@ The `isMax20` flag (Claude Max 20x mode) affects high-tier task model selection:
 | `true` | Uses `unspecified-high` | Opus-class models |
 | `false` | Uses `unspecified-low` | Sonnet-class models |
 
-**Affected agents**: Sisyphus, Prometheus, Metis, Atlas
+**Affected agents**: Sisyphus, Prometheus, Atlas
 
 **Why?**: Max20 users have 20x more Claude usage, so they can afford Opus for orchestration. Standard users should conserve quota with Sonnet.
 

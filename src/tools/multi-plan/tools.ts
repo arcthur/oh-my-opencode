@@ -1,6 +1,6 @@
 import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin"
 import type { BackgroundManager } from "../../features/background-agent"
-import type { PlanningAgentConfig } from "../../config/schema"
+import type { MultiPlanPipelineConfig } from "../../config/schema"
 import { MultiPlanOrchestrator, MultiPlanError, normalizePlanningConfig, type NormalizedPlanningModel } from "../../features/multi-plan"
 import type { MultiPlanResult, StartMultiPlanInput } from "../../features/multi-plan"
 import { log } from "../../shared/logger"
@@ -39,7 +39,7 @@ type MultiPlanOrchestratorLike = {
 type CreateMultiPlanOrchestrator = (
   ctx: PluginInput,
   backgroundManager: BackgroundManager,
-  config: PlanningAgentConfig | undefined
+  model: string | string[] | undefined
 ) => MultiPlanOrchestratorLike
 
 /**
@@ -51,11 +51,13 @@ type CreateMultiPlanOrchestrator = (
 export function createMultiPlanTool(options: {
   ctx: PluginInput
   backgroundManager: BackgroundManager
-  config: PlanningAgentConfig | undefined
+  /** Model config from agents.Prometheus.model - string for single, array for multi-plan */
+  model: string | string[] | undefined
+  pipelineConfig?: MultiPlanPipelineConfig | undefined
   createOrchestrator?: CreateMultiPlanOrchestrator
 }): ToolDefinition {
-  const { ctx, backgroundManager, config, createOrchestrator } = options
-  const models = normalizePlanningConfig(config)
+  const { ctx, backgroundManager, model, pipelineConfig, createOrchestrator } = options
+  const models = normalizePlanningConfig(model)
 
   // Validate model names at tool creation time (config is static)
   // This catches config errors early, before any tool execution
@@ -66,13 +68,13 @@ export function createMultiPlanTool(options: {
     description: `Orchestrate multi-model planning where multiple AI models generate plans in parallel, followed by Plan Synthesizer review and conflict resolution.
 
 **When to use this tool:**
-- User has requested to generate a work plan AND 2+ models are configured in planning.models
+- User has requested to generate a work plan AND 2+ models are configured in \`agents.Prometheus.model\`
 - You want diverse perspectives from different AI models
 - The task is complex enough to benefit from multiple viewpoints
 
 **What this tool does:**
 1. Launches N models in parallel to generate plans (each writes to .sisyphus/plans/{name}-{model}.md)
-2. Runs Plan Synthesizer (Momus-style) to:
+2. Runs Plan Synthesizer (ruthless critique + decisive conflict resolution) to:
    - Compare all generated plans with structured 4-criterion evaluation
    - Analyze assumption conflicts and risk coverage
    - Identify and analyze approach conflicts
@@ -137,8 +139,8 @@ Plan names must be safe for use in file paths. Avoid special characters like: < 
 
       try {
         const orchestrator = createOrchestrator
-          ? createOrchestrator(ctx, backgroundManager, config)
-          : new MultiPlanOrchestrator(ctx, backgroundManager, config)
+          ? createOrchestrator(ctx, backgroundManager, model)
+          : new MultiPlanOrchestrator(ctx, backgroundManager, model)
 
         const result = await orchestrator.start({
           planName,
@@ -146,6 +148,7 @@ Plan names must be safe for use in file paths. Avoid special characters like: < 
           parentSessionId: sessionID,
           config: { models },
           debateEnabled: args.debate ?? false,
+          pipelineConfig,
         })
 
         log("[multi_plan] Multi-model planning completed", {

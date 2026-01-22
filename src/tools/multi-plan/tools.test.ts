@@ -3,18 +3,17 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundManager } from "../../features/background-agent"
 import { MultiPlanError } from "../../features/multi-plan"
 import type { MultiPlanResult, StartMultiPlanInput, NormalizedPlanningModel } from "../../features/multi-plan"
-import type { PlanningAgentConfig } from "../../config/schema"
 import { createMultiPlanTool } from "./tools"
 
 let startBehavior: ((input: StartMultiPlanInput) => Promise<MultiPlanResult>) | undefined
 let lastStartInput: StartMultiPlanInput | undefined
 
-// Helper to create config in new format
-function createPlanningConfig(modelIds: string[]): PlanningAgentConfig {
+// Helper to create model config
+function createModelConfig(modelIds: string[]): string | string[] {
   if (modelIds.length === 1) {
-    return { model: modelIds[0] }
+    return modelIds[0]
   }
-  return { model: modelIds }
+  return modelIds
 }
 
 describe("createMultiPlanTool", () => {
@@ -80,7 +79,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: undefined,
+      model: undefined,
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -102,7 +101,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: createPlanningConfig(["anthropic/claude-opus-4-5"]),
+      model: createModelConfig(["anthropic/claude-opus-4-5"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -122,7 +121,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: createPlanningConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
+      model: createModelConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -142,7 +141,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: createPlanningConfig(["anthropic/claude-opus-4-5", "org/.."]),
+      model: createModelConfig(["anthropic/claude-opus-4-5", "org/.."]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -163,7 +162,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: createPlanningConfig(["org/a..b", "org/a--b"]),
+      model: createModelConfig(["org/a..b", "org/a--b"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -195,7 +194,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: createPlanningConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
+      model: createModelConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 
@@ -217,7 +216,7 @@ describe("createMultiPlanTool", () => {
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
-      config: createPlanningConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
+      model: createModelConfig(["anthropic/claude-opus-4-5", "openai/gpt-5.2"]),
       createOrchestrator: () => createOrchestratorStub(),
     })
 

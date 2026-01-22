@@ -29,18 +29,6 @@ const VALIDATION_RULES: Partial<Record<BuiltinAgentName, AgentValidationRules>> 
     validDomains: ["backend", "general", "frontend"],
     minComplexity: "moderate",
   },
-  "Metis": {
-    validTaskTypes: ["architecture", "research"],
-    validComplexity: ["moderate", "complex"],
-    validDomains: ["frontend", "backend", "general"],
-    minComplexity: "moderate",
-  },
-  "Momus": {
-    validTaskTypes: ["architecture"],
-    validComplexity: ["moderate", "complex"],
-    validDomains: ["frontend", "backend", "general"],
-    minComplexity: "moderate",
-  },
 }
 
 /**
@@ -63,7 +51,7 @@ function suggestBetterAgent(taskType: TaskType): string | undefined {
     debugging: "explore first, then oracle if 2+ attempts failed",
     refactoring: "direct implementation or delegate via category",
     documentation: "delegate via category with writing skill",
-    architecture: "oracle or Metis",
+    architecture: "oracle or multi_plan for complex planning",
     research: "librarian",
   }
   return suggestions[taskType]
