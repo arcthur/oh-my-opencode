@@ -6,6 +6,7 @@ import type {
   EventInput,
   MessageInput,
 } from "../../shared/hook-types"
+import type { ContextCollector } from "../context-injector/collector"
 import { DEFAULT_CONFIG } from "./types"
 import { getOrgMemorySummary, addCustomRule, addProtectedPath, addArchitecturalDecision } from "./storage"
 import { log } from "../../shared/logger"
@@ -14,9 +15,13 @@ import { log } from "../../shared/logger"
  * Creates a hook that injects org/project memory into sessions
  * and captures project-level "remember" requests.
  */
-export function createOrgMemoryHook(ctx: PluginInput, userConfig?: Partial<OrgMemoryConfig>) {
+export function createOrgMemoryHook(
+  ctx: PluginInput,
+  userConfig?: Partial<OrgMemoryConfig>,
+  deps?: { collector?: ContextCollector }
+) {
   const config: OrgMemoryConfig = { ...DEFAULT_CONFIG, ...userConfig }
-  const injectedSessions = new Set<string>()
+  const collector = deps?.collector
 
   // Patterns to detect project-level memory requests
   const PROJECT_REMEMBER_PATTERNS = [
@@ -76,27 +81,38 @@ export function createOrgMemoryHook(ctx: PluginInput, userConfig?: Partial<OrgMe
     },
   ]
 
-  async function injectOrgMemory(sessionID: string, output: ToolExecuteOutput): Promise<void> {
-    if (!config.enabled || !config.auto_inject) return
-    if (injectedSessions.has(sessionID)) return
+  /**
+   * Register org memory context with the collector (once per session)
+   */
+  const toolExecuteBefore = async (
+    input: ToolExecuteInput,
+    _output: unknown
+  ) => {
+    if (!config.enabled || !config.auto_inject || !collector) return
 
     const memorySummary = getOrgMemorySummary(ctx.directory, config)
-    if (memorySummary) {
-      output.output += `\n\n${memorySummary}`
-      log("[org-memory] injected project memory", { sessionID })
-    }
+    if (!memorySummary) return
 
-    injectedSessions.add(sessionID)
+    collector.register(input.sessionID, {
+      id: "org-memory-context",
+      source: "org-memory",
+      priority: "normal",
+      content: memorySummary,
+      oncePerSession: true,
+      estimatedTokens: Math.ceil(memorySummary.length / 4),
+      metadata: {
+        project: ctx.directory.split("/").pop(),
+      },
+    })
+
+    log("[org-memory] registered context for injection", { sessionID: input.sessionID })
   }
 
   const toolExecuteAfter = async (
-    input: ToolExecuteInput,
-    output: ToolExecuteOutput
+    _input: ToolExecuteInput,
+    _output: ToolExecuteOutput
   ) => {
-    // Inject on first tool use in session
-    if (!injectedSessions.has(input.sessionID)) {
-      await injectOrgMemory(input.sessionID, output)
-    }
+    // No longer needed - injection moved to toolExecuteBefore via collector
   }
 
   const userPromptSubmit = async (input: MessageInput) => {
@@ -146,22 +162,8 @@ export function createOrgMemoryHook(ctx: PluginInput, userConfig?: Partial<OrgMe
   const eventHandler = async ({ event }: EventInput) => {
     const props = event.properties as Record<string, unknown> | undefined
 
-    // Clear session state on session deletion
-    if (event.type === "session.deleted") {
-      const sessionInfo = props?.info as { id?: string } | undefined
-      if (sessionInfo?.id) {
-        injectedSessions.delete(sessionInfo.id)
-      }
-    }
-
-    // Clear session state on compaction (will re-inject on next tool use)
-    if (event.type === "session.compacted") {
-      const sessionID = (props?.sessionID ??
-        (props?.info as { id?: string } | undefined)?.id) as string | undefined
-      if (sessionID) {
-        injectedSessions.delete(sessionID)
-      }
-    }
+    // Session lifecycle cleanup is handled by SessionStateCoordinator
+    // (clearSession on delete, resetOncePerSession on compaction)
 
     // Extract ADRs from compaction summary
     if (event.type === "session.summarized") {
@@ -209,6 +211,7 @@ export function createOrgMemoryHook(ctx: PluginInput, userConfig?: Partial<OrgMe
   }
 
   return {
+    "tool.execute.before": toolExecuteBefore,
     "tool.execute.after": toolExecuteAfter,
     "user.prompt.submit": userPromptSubmit,
     event: eventHandler,

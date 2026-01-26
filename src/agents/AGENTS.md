@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-8 AI agents for multi-model orchestration. Sisyphus (primary), oracle, librarian, explore, multimodal-looker, Prometheus, Metis, Momus.
+8 AI agents for multi-model orchestration. Sisyphus (primary), oracle, librarian, explore, multimodal-looker, Prometheus, Atlas, Plan-Synthesizer.
 
 ## STRUCTURE
 
@@ -17,8 +17,7 @@ agents/
 ├── explore.ts                  # Fast grep (Grok Code)
 ├── multimodal-looker.ts        # Media analyzer (Gemini 3 Flash)
 ├── prometheus-prompt.ts        # Planning (1196 lines) - interview mode
-├── metis.ts                    # Plan consultant - pre-planning analysis
-├── momus.ts                    # Plan reviewer - validation
+├── plan-synthesizer.ts         # Multi-plan synthesis (Metis+Momus consolidated)
 ├── types.ts                    # AgentModelConfig interface
 ├── utils.ts                    # createBuiltinAgents(), getAgentName()
 └── index.ts                    # builtinAgents export
@@ -34,8 +33,8 @@ agents/
 | explore | opencode/grok-code | 0.1 | Fast contextual grep |
 | multimodal-looker | google/gemini-3-flash | 0.1 | PDF/image analysis |
 | Prometheus | anthropic/claude-opus-4-5 | 0.1 | Strategic planning, interview mode |
-| Metis | anthropic/claude-sonnet-4-5 | 0.1 | Pre-planning gap analysis |
-| Momus | anthropic/claude-sonnet-4-5 | 0.1 | Plan validation |
+| Atlas | anthropic/claude-opus-4-5 | 0.1 | Orchestrator, 7-phase delegation |
+| Plan-Synthesizer | anthropic/claude-sonnet-4-5 | 0.1 | Multi-plan synthesis (replaces Metis+Momus) |
 
 ## HOW TO ADD
 

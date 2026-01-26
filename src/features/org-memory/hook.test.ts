@@ -19,20 +19,28 @@ describe("createOrgMemoryHook", () => {
     mock.restore()
   })
 
-  test("injects org memory once per session", async () => {
+  test("registers org memory context with collector (once per session)", async () => {
     // #given
-    const hook = createOrgMemoryHook(ctx)
+    const mockCollector = {
+      register: mock(() => {}),
+      resetOncePerSession: mock(() => {}),
+    }
+    const hook = createOrgMemoryHook(ctx, undefined, { collector: mockCollector as never })
 
     const input = { tool: "Read", sessionID: "s1", callID: "c1" }
-    const output = { title: "ok", output: "tool output", metadata: {} }
+    const output = {}
 
     // #when
-    await hook["tool.execute.after"](input as never, output as never)
-    await hook["tool.execute.after"](input as never, output as never)
+    await hook["tool.execute.before"]?.(input as never, output as never)
+    await hook["tool.execute.before"]?.(input as never, output as never)
 
-    // #then
-    const occurrences = output.output.split("[Org Memory]").length - 1
-    expect(occurrences).toBe(1)
+    // #then - collector handles once-per-session internally via oncePerSession flag
+    expect(mockCollector.register).toHaveBeenCalledTimes(2)
+    const calls = mockCollector.register.mock.calls as unknown as [string, { source: string; oncePerSession: boolean }][]
+    expect(calls[0][1]).toMatchObject({
+      source: "org-memory",
+      oncePerSession: true,
+    })
   })
 
   test("captures protected paths from 'never modify'", async () => {

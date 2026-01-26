@@ -62,6 +62,7 @@ import {
   updateSessionAgent,
   clearSessionAgent,
 } from "./features/claude-code-session-state";
+import { sessionStateCoordinator } from "./features/session-state-coordinator";
 import {
   builtinTools,
   createCallOmoAgent,
@@ -179,12 +180,34 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const contextInjectorMessagesTransform =
     createContextInjectorMessagesTransformHook(contextCollector);
 
+  // Configure context budget
+  if (pluginConfig.context_budget) {
+    contextCollector.setBudgetConfig({
+      total_budget: pluginConfig.context_budget.total_budget ?? 2000,
+      source_limits: pluginConfig.context_budget.source_limits,
+      overflow_strategy: pluginConfig.context_budget.overflow_strategy ?? "drop-low-priority",
+    })
+  }
+
+  // Register feature handlers with session coordinator
+  sessionStateCoordinator.registerFeature("context-collector", {
+    onSessionDeleted(sessionID) {
+      contextCollector.clearSession(sessionID)
+    },
+    onSessionCompacted(sessionID) {
+      contextCollector.resetOncePerSession(sessionID)
+    },
+  })
+
   const userMemory = createUserMemoryHook(ctx, pluginConfig.user_memory, {
     summarizer: createDefaultUserMemorySummarizer(ctx, pluginConfig.user_memory, {
       categories: pluginConfig.categories,
     }),
+    collector: contextCollector,
   });
-  const orgMemory = createOrgMemoryHook(ctx, pluginConfig.org_memory);
+  const orgMemory = createOrgMemoryHook(ctx, pluginConfig.org_memory, {
+    collector: contextCollector,
+  });
   const agentUsageReminder = isHookEnabled("agent-usage-reminder")
     ? createAgentUsageReminderHook(ctx)
     : null;
@@ -493,6 +516,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           | undefined;
         if (!sessionInfo?.parentID) {
           setMainSession(sessionInfo?.id);
+          sessionStateCoordinator.setMainSessionID(sessionInfo?.id);
+        }
+        if (sessionInfo?.id) {
+          const agent = (props as Record<string, unknown>)?.agent as string | undefined;
+          sessionStateCoordinator.onSessionCreated(sessionInfo.id, sessionInfo.parentID, agent);
         }
         firstMessageVariantGate.markSessionCreated(sessionInfo);
       }
@@ -501,13 +529,25 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         const sessionInfo = props?.info as { id?: string } | undefined;
         if (sessionInfo?.id === getMainSessionID()) {
           setMainSession(undefined);
+          sessionStateCoordinator.setMainSessionID(undefined);
         }
         if (sessionInfo?.id) {
+          // Dispatch to coordinator first (handlers do their cleanup, including contextCollector)
+          sessionStateCoordinator.onSessionDeleted(sessionInfo.id);
+          // Then clean up plugin-level state (not covered by coordinator handlers)
           clearSessionAgent(sessionInfo.id);
           resetMessageCursor(sessionInfo.id);
           firstMessageVariantGate.clear(sessionInfo.id);
           await skillMcpManager.disconnectSession(sessionInfo.id);
           await lspManager.cleanupTempDirectoryClients();
+        }
+      }
+
+      if (event.type === "session.compacted") {
+        const sessionID = props?.sessionID as string | undefined;
+        if (sessionID) {
+          // Coordinator dispatches to handlers (including contextCollector.resetOncePerSession)
+          sessionStateCoordinator.onSessionCompacted(sessionID);
         }
       }
 
@@ -549,6 +589,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
 
     "tool.execute.before": async (input, output) => {
+      // Memory context registration (uses contextCollector with oncePerSession)
+      await userMemory?.["tool.execute.before"]?.(input, output);
+      await orgMemory?.["tool.execute.before"]?.(input, output);
+
       await claudeCodeHooks["tool.execute.before"](input, output);
       await nonInteractiveEnv?.["tool.execute.before"](input, output);
       await commentChecker?.["tool.execute.before"](input, output);

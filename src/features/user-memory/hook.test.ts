@@ -26,20 +26,28 @@ describe("createUserMemoryHook", () => {
     mock.restore()
   })
 
-  test("injects memory once per session", async () => {
+  test("registers memory context with collector (once per session)", async () => {
     // #given
-    const hook = createUserMemoryHook(ctx)
+    const mockCollector = {
+      register: mock(() => {}),
+      resetOncePerSession: mock(() => {}),
+    }
+    const hook = createUserMemoryHook(ctx, undefined, { collector: mockCollector as never })
 
     const input = { tool: "Read", sessionID: "s1", callID: "c1" }
-    const output = { title: "ok", output: "tool output", metadata: {} }
+    const output = {}
 
     // #when
-    await hook["tool.execute.after"](input as never, output as never)
-    await hook["tool.execute.after"](input as never, output as never)
+    await hook["tool.execute.before"]?.(input as never, output as never)
+    await hook["tool.execute.before"]?.(input as never, output as never)
 
-    // #then
-    const occurrences = output.output.split("[User Memory]").length - 1
-    expect(occurrences).toBe(1)
+    // #then - collector handles once-per-session internally via oncePerSession flag
+    expect(mockCollector.register).toHaveBeenCalledTimes(2)
+    const calls = mockCollector.register.mock.calls as unknown as [string, { source: string; oncePerSession: boolean }][]
+    expect(calls[0][1]).toMatchObject({
+      source: "user-memory",
+      oncePerSession: true,
+    })
   })
 
   test("captures declarative remember statements, not imperative remember-to", async () => {

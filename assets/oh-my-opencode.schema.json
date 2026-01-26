@@ -2456,6 +2456,51 @@
           "type": "boolean"
         }
       }
+    },
+    "context_budget": {
+      "type": "object",
+      "properties": {
+        "total_budget": {
+          "default": 2000,
+          "type": "number",
+          "minimum": 500,
+          "maximum": 10000
+        },
+        "source_limits": {
+          "type": "object",
+          "properties": {
+            "user-memory": {
+              "type": "number"
+            },
+            "org-memory": {
+              "type": "number"
+            },
+            "planning-with-files": {
+              "type": "number"
+            },
+            "keyword-detector": {
+              "type": "number"
+            },
+            "rules-injector": {
+              "type": "number"
+            },
+            "directory-agents": {
+              "type": "number"
+            },
+            "directory-readme": {
+              "type": "number"
+            }
+          }
+        },
+        "overflow_strategy": {
+          "default": "drop-low-priority",
+          "type": "string",
+          "enum": [
+            "truncate",
+            "drop-low-priority"
+          ]
+        }
+      }
     }
   }
 }

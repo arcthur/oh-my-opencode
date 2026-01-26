@@ -8,6 +8,8 @@ export type ContextSourceType =
   | "rules-injector"
   | "directory-agents"
   | "directory-readme"
+  | "user-memory"
+  | "org-memory"
   | "custom"
 
 /**
@@ -48,6 +50,10 @@ export interface RegisterContextOptions {
   priority?: ContextPriority
   /** Optional metadata */
   metadata?: Record<string, unknown>
+  /** Estimated token count for budget tracking */
+  estimatedTokens?: number
+  /** Whether this context should only be injected once per session */
+  oncePerSession?: boolean
 }
 
 /**
@@ -90,3 +96,16 @@ export interface OutputParts {
  * Injection strategy
  */
 export type InjectionStrategy = "prepend-parts" | "storage" | "auto"
+
+/**
+ * Budget configuration for context injection
+ * Controls total token allocation across all context sources
+ */
+export interface ContextBudgetConfig {
+  /** Total token budget for all injected context (default: 2000) */
+  total_budget: number
+  /** Per-source token limits */
+  source_limits?: Partial<Record<ContextSourceType, number>>
+  /** Overflow strategy: 'truncate' cuts content, 'drop-low-priority' removes low priority entries */
+  overflow_strategy: "truncate" | "drop-low-priority"
+}

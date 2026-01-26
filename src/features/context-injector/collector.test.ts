@@ -327,4 +327,81 @@ describe("ContextCollector", () => {
       expect(collector.hasPending(sessionID)).toBe(false)
     })
   })
+
+  describe("budget constraints", () => {
+    it("preserves metadata.estimatedTokens when estimatedTokens option is undefined", () => {
+      // #given
+      const sessionID = "ses_budget_meta"
+      collector.register(sessionID, {
+        id: "ctx",
+        source: "keyword-detector",
+        content: "hello world",
+        metadata: { estimatedTokens: 123 },
+      })
+
+      // #when
+      const pending = collector.getPending(sessionID)
+
+      // #then
+      expect(pending.entries[0].metadata?.estimatedTokens).toBe(123)
+    })
+
+    it("truncates critical/high entries when overflow_strategy is drop-low-priority and entry exceeds total budget", () => {
+      // #given
+      const sessionID = "ses_budget_drop_truncate_high"
+      collector.setBudgetConfig({
+        total_budget: 20,
+        overflow_strategy: "drop-low-priority",
+      })
+      const hugeContent = "x".repeat(400) // 100 tokens by estimate
+      collector.register(sessionID, {
+        id: "critical",
+        source: "custom",
+        content: hugeContent,
+        priority: "critical",
+        estimatedTokens: 100,
+      })
+
+      // #when
+      const pending = collector.getPending(sessionID)
+
+      // #then
+      expect(pending.entries.length).toBe(1)
+      expect(pending.entries[0].priority).toBe("critical")
+      expect(pending.entries[0].content.endsWith("...")).toBe(true)
+      expect(pending.entries[0].content.length).toBeLessThanOrEqual(20 * 4)
+    })
+
+    it("skips normal/low entries that exceed source limit when overflow_strategy is drop-low-priority", () => {
+      // #given
+      const sessionID = "ses_budget_source_limit_drop"
+      collector.setBudgetConfig({
+        total_budget: 2000,
+        overflow_strategy: "drop-low-priority",
+        source_limits: {
+          "rules-injector": 10,
+        },
+      })
+      collector.register(sessionID, {
+        id: "too-big",
+        source: "rules-injector",
+        content: "y".repeat(1000),
+        priority: "normal",
+        estimatedTokens: 500,
+      })
+      collector.register(sessionID, {
+        id: "ok",
+        source: "keyword-detector",
+        content: "ok",
+        priority: "normal",
+        estimatedTokens: 1,
+      })
+
+      // #when
+      const pending = collector.getPending(sessionID)
+
+      // #then
+      expect(pending.entries.map((e) => `${e.source}:${e.id}`)).toEqual(["keyword-detector:ok"])
+    })
+  })
 })

@@ -15,6 +15,7 @@ import type {
   EventInput,
   MessageInput,
 } from "../../shared/hook-types"
+import type { ContextCollector } from "../context-injector/collector"
 import {
   DEFAULT_CONFIG,
   DEFAULT_HIERARCHICAL_CONFIG,
@@ -109,7 +110,7 @@ export function createDefaultUserMemorySummarizer(
 export function createUserMemoryHook(
   ctx: PluginInput,
   userConfig?: Partial<UserMemoryHookConfig>,
-  deps?: { summarizer?: UserMemorySummarizer }
+  deps?: { summarizer?: UserMemorySummarizer; collector?: ContextCollector }
 ) {
   const config: UserMemoryConfig = { ...DEFAULT_CONFIG, ...userConfig }
   const hierarchicalConfig: HierarchicalMemoryConfig = {
@@ -133,7 +134,7 @@ export function createUserMemoryHook(
     ...userConfig?.semantic_clustering,
   }
   const disclosureLevel = userConfig?.disclosure_level ?? "standard"
-  const injectedSessions = new Set<string>()
+  const collector = deps?.collector
 
   // Flag to prevent concurrent aggregations
   let aggregationInProgress = false
@@ -156,28 +157,37 @@ export function createUserMemoryHook(
     aggregation_model: hierarchicalConfig.aggregation_model,
   })
 
-  async function injectMemory(sessionID: string, output: ToolExecuteOutput): Promise<void> {
-    if (!config.enabled || !config.auto_inject) return
-    if (injectedSessions.has(sessionID)) return
+  /**
+   * Register user memory context with the collector (once per session)
+   */
+  const toolExecuteBefore = async (
+    input: ToolExecuteInput,
+    _output: unknown
+  ) => {
+    if (!config.enabled || !config.auto_inject || !collector) return
 
     const memorySummary = getMemorySummary(temporalConfig, disclosureLevel, entityConfig)
-    if (memorySummary) {
-      output.output += `\n\n${memorySummary}`
-      log("[user-memory] injected memory context", { sessionID })
-    }
+    if (!memorySummary) return
 
-    injectedSessions.add(sessionID)
+    collector.register(input.sessionID, {
+      id: "user-memory-context",
+      source: "user-memory",
+      priority: "normal",
+      content: memorySummary,
+      oncePerSession: true,
+      estimatedTokens: Math.ceil(memorySummary.length / 4),
+      metadata: {
+        disclosureLevel,
+      },
+    })
+
+    log("[user-memory] registered context for injection", { sessionID: input.sessionID })
   }
 
   const toolExecuteAfter = async (
     input: ToolExecuteInput,
     output: ToolExecuteOutput
   ) => {
-    // Inject memory on first tool use in session
-    if (!injectedSessions.has(input.sessionID)) {
-      await injectMemory(input.sessionID, output)
-    }
-
     // Track tool usage patterns
     if (config.enabled) {
       const args = (output.metadata as { args?: unknown })?.args
@@ -367,34 +377,19 @@ export function createUserMemoryHook(
   const eventHandler = async ({ event }: EventInput) => {
     const props = event.properties as Record<string, unknown> | undefined
 
-    // Clear session state on session deletion
+    // Persist and aggregate on session deletion
+    // (Collector cleanup is handled by SessionStateCoordinator)
     if (event.type === "session.deleted") {
-      const sessionInfo = props?.info as { id?: string } | undefined
-      if (sessionInfo?.id) {
-        injectedSessions.delete(sessionInfo.id)
-      }
-
-      // Persist pattern stats and aggregate on session end
       savePatternStats(patternStats)
       aggregateFrequentPatterns()
-
-      // Trigger hierarchical memory aggregation
       await triggerAggregation()
     }
 
-    // Clear session state on compaction (will re-inject on next tool use)
+    // Persist and aggregate on compaction
+    // (Collector resetOncePerSession is handled by SessionStateCoordinator)
     if (event.type === "session.compacted") {
-      const sessionID = (props?.sessionID ??
-        (props?.info as { id?: string } | undefined)?.id) as string | undefined
-      if (sessionID) {
-        injectedSessions.delete(sessionID)
-      }
-
-      // Persist pattern stats and aggregate on compaction
       savePatternStats(patternStats)
       aggregateFrequentPatterns()
-
-      // Trigger hierarchical memory aggregation
       await triggerAggregation()
     }
 
@@ -474,6 +469,7 @@ export function createUserMemoryHook(
   }
 
   return {
+    "tool.execute.before": toolExecuteBefore,
     "tool.execute.after": toolExecuteAfter,
     "user.prompt.submit": userPromptSubmit,
     event: eventHandler,

@@ -493,6 +493,26 @@ export const OrgMemoryConfigSchema = z.object({
   max_custom_rules: z.number().min(0).max(200).default(20),
 })
 
+/**
+ * Context budget configuration for controlling token allocation across context sources
+ */
+export const ContextBudgetConfigSchema = z.object({
+  /** Total token budget for all injected context (default: 2000) */
+  total_budget: z.number().min(500).max(10000).default(2000),
+  /** Per-source token limits */
+  source_limits: z.object({
+    "user-memory": z.number().optional(),
+    "org-memory": z.number().optional(),
+    "planning-with-files": z.number().optional(),
+    "keyword-detector": z.number().optional(),
+    "rules-injector": z.number().optional(),
+    "directory-agents": z.number().optional(),
+    "directory-readme": z.number().optional(),
+  }).partial().optional(),
+  /** Overflow strategy (default: drop-low-priority) */
+  overflow_strategy: z.enum(["truncate", "drop-low-priority"]).default("drop-low-priority"),
+})
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -519,6 +539,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   user_memory: UserMemoryConfigSchema.optional(),
   org_memory: OrgMemoryConfigSchema.optional(),
   multi_plan_pipeline: MultiPlanPipelineConfigSchema.optional(),
+  context_budget: ContextBudgetConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -548,5 +569,6 @@ export type RuntimeTrackerConfig = z.infer<typeof RuntimeTrackerConfigSchema>
 export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>
 export type OrgMemoryConfig = z.infer<typeof OrgMemoryConfigSchema>
 export type MultiPlanPipelineConfig = z.infer<typeof MultiPlanPipelineConfigSchema>
+export type ContextBudgetConfig = z.infer<typeof ContextBudgetConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"
