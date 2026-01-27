@@ -4,10 +4,10 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
 
 1. **Find available plans**: Search for Prometheus-generated plan files at \`.sisyphus/plans/\`
 
-2. **Check for active boulder state**: Read \`.sisyphus/boulder.json\` if it exists
+2. **Check for active work state**: Read \`.sisyphus/work.yaml\` if it exists
 
 3. **Decision logic**:
-   - If \`.sisyphus/boulder.json\` exists AND plan is NOT complete (has unchecked boxes):
+   - If \`.sisyphus/work.yaml\` exists AND plan is NOT complete (has unchecked boxes):
      - **APPEND** current session to session_ids
      - Continue work on existing plan
    - If no active plan OR plan is complete:
@@ -15,14 +15,20 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
      - If ONE plan: auto-select it
      - If MULTIPLE plans: show list with timestamps, ask user to select
 
-4. **Create/Update boulder.json**:
-   \`\`\`json
-   {
-     "active_plan": "/absolute/path/to/plan.md",
-     "started_at": "ISO_TIMESTAMP",
-     "session_ids": ["session_id_1", "session_id_2"],
-     "plan_name": "plan-name"
-   }
+4. **Create/Update work.yaml**:
+   \`\`\`yaml
+   active_plan: /absolute/path/to/plan.md
+   plan_name: plan-name
+   started_at: ISO_TIMESTAMP
+   session_ids:
+     - session_id_1
+     - session_id_2
+   research_ops: 0
+   last_findings_mtime: 0
+   errors: []
+   blockers: []
+   phase_completions: []
+   decisions: []
    \`\`\`
 
 5. **Read the plan file** and start executing tasks according to Orchestrator Sisyphus workflow
@@ -67,6 +73,6 @@ Reading plan and beginning execution...
 ## CRITICAL
 
 - The session_id is injected by the hook - use it directly
-- Always update boulder.json BEFORE starting work
+- Always update work.yaml BEFORE starting work
 - Read the FULL plan file before delegating any tasks
 - Follow Orchestrator Sisyphus delegation protocols (7-section format)`

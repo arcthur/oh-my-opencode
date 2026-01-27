@@ -39,24 +39,53 @@ Oh-My-OpenCode solves this by clearly separating two roles:
 ```mermaid
 flowchart TD
     User[User Request] --> Prometheus
-    
+
     subgraph Planning Phase
         Prometheus[Prometheus<br>Planner] --> MultiPlan[multi_plan tool<br>(optional)]
         MultiPlan --> Synth[Plan Synthesizer<br>(plan-synthesizer)]
         Synth --> Prometheus
         Prometheus --> PlanFile["/.sisyphus/plans/{name}.md"]
     end
-    
+
     PlanFile --> StartWork[//start-work/]
-    StartWork --> BoulderState[boulder.json]
-    
+    StartWork --> WorkState[work.yaml]
+
     subgraph Execution Phase
-        BoulderState --> Sisyphus[Sisyphus<br>Orchestrator]
+        WorkState --> Sisyphus[Sisyphus<br>Orchestrator]
+        PlanFile -.-> |"TASK SSOT"| Sisyphus
         Sisyphus --> Oracle[Oracle]
         Sisyphus --> Frontend[Frontend<br>Engineer]
         Sisyphus --> Explore[Explore]
     end
 ```
+
+### Single Source of Truth Architecture
+
+The system uses two complementary sources of truth:
+
+| SSOT | File | Purpose |
+|------|------|---------|
+| **STATE** | `.sisyphus/work.yaml` | Session metadata, protocol state (2-action, 3-strike), decision history |
+| **TASKS** | `.sisyphus/plans/*.md` | Actual tasks with checkboxes, human-readable progress |
+
+- **work.yaml** is machine-optimized: structured YAML for programmatic session management
+- **plans/*.md** is human-optimized: markdown for agent reasoning and human review
+- **Path convention**: `work.yaml.active_plan` is stored as a **workspace-relative** path when possible (e.g., `.sisyphus/plans/x.md`)
+
+**Performance Note (Optional Cache):**
+
+To avoid re-parsing the plan file on every progress check, `work.yaml` may include an optional cached snapshot:
+
+```yaml
+task_snapshot:
+  total: 10
+  completed: 3
+  plan_mtime: 1737964800000
+  last_sync: "2026-01-27T08:00:00Z"
+```
+
+- This snapshot is **derived from** the plan file and is **never** the source of truth for tasks.
+- It is automatically refreshed when the plan file changes.
 
 ---
 
@@ -99,10 +128,11 @@ When the user requests "Make it a plan", plan generation begins.
 ### Phase 3: Execution
 When the user enters `/start-work`, the execution phase begins.
 
-1. **State Management**: Creates `boulder.json` file to track current plan and session ID.
-2. **Task Execution**: Sisyphus reads the plan and processes TODOs one by one.
+1. **State Management**: Creates/updates `work.yaml` to track active plan, session IDs, and protocol state.
+2. **Task Execution**: Sisyphus reads the plan file and processes tasks one by one.
 3. **Delegation**: UI work is delegated to Frontend agent, complex logic to Oracle.
-4. **Continuity**: Even if the session is interrupted, work continues in the next session through `boulder.json`.
+4. **Continuity**: Even if the session is interrupted, work continues in the next session through `work.yaml`.
+5. **Protocol Enforcement**: 2-action rule (research tracking) and 3-strike protocol (error recording) are managed via work.yaml.
 
 ---
 

@@ -8,7 +8,9 @@
 
 ```
 hooks/
-├── atlas/                      # Main orchestration & delegation (771 lines)
+├── atlas/                      # Orchestration, delegation & protocols (uses work-state)
+├── planning-with-files/        # Manus-style planning (uses work-state)
+├── start-work/                 # Session initialization (uses work-state)
 ├── context-window-limit-recovery/  # Auto-summarize at token limit
 ├── todo-continuation-enforcer.ts # Force TODO completion
 ├── ralph-loop/                 # Self-referential dev loop until done

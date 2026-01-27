@@ -1,14 +1,41 @@
 import { describe, expect, test, beforeEach, afterEach, spyOn } from "bun:test"
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync, writeFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir, homedir } from "node:os"
+import * as yaml from "js-yaml"
 import { createStartWorkHook } from "./index"
-import {
-  writeBoulderState,
-  clearBoulderState,
-} from "../../features/boulder-state"
-import type { BoulderState } from "../../features/boulder-state"
+import type { WorkState } from "../../features/work-state"
 import * as sessionState from "../../features/claude-code-session-state"
+
+// Helper to write work.yaml (replaces writeWorkState)
+function writeWorkState(directory: string, state: Partial<WorkState>): void {
+  const sisyphusDir = join(directory, ".sisyphus")
+  if (!existsSync(sisyphusDir)) {
+    mkdirSync(sisyphusDir, { recursive: true })
+  }
+  const fullState: WorkState = {
+    active_plan: state.active_plan ?? "",
+    plan_name: state.plan_name ?? "",
+    started_at: state.started_at ?? new Date().toISOString(),
+    session_ids: state.session_ids ?? [],
+    research_ops: state.research_ops ?? 0,
+    last_findings_mtime: state.last_findings_mtime ?? 0,
+    errors: state.errors ?? [],
+    blockers: state.blockers ?? [],
+    phase_completions: state.phase_completions ?? [],
+    decisions: state.decisions ?? [],
+  }
+  writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
+}
+
+// Helper to clear work.yaml (replaces clearWorkState)
+function clearWorkState(directory: string): void {
+  const workPath = join(directory, ".sisyphus", "work.yaml")
+  if (existsSync(workPath)) {
+    unlinkSync(workPath)
+  }
+}
+
 
 describe("start-work hook", () => {
   const TEST_DIR = join(tmpdir(), "start-work-test-" + Date.now())
@@ -28,11 +55,11 @@ describe("start-work hook", () => {
     if (!existsSync(SISYPHUS_DIR)) {
       mkdirSync(SISYPHUS_DIR, { recursive: true })
     }
-    clearBoulderState(TEST_DIR)
+    clearWorkState(TEST_DIR)
   })
 
   afterEach(() => {
-    clearBoulderState(TEST_DIR)
+    clearWorkState(TEST_DIR)
     if (existsSync(TEST_DIR)) {
       rmSync(TEST_DIR, { recursive: true, force: true })
     }
@@ -78,18 +105,18 @@ describe("start-work hook", () => {
       expect(output.parts[0].text).toContain("---")
     })
 
-    test("should inject resume info when existing boulder state found", async () => {
-      // #given - existing boulder state with incomplete plan
+    test("should inject resume info when existing work state found", async () => {
+      // #given - existing work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
@@ -238,12 +265,12 @@ describe("start-work hook", () => {
       expect(output.parts[0].text).not.toContain("Which plan would you like to work on?")
     })
 
-    test("should select explicitly specified plan name from user-request, ignoring existing boulder state", async () => {
-      // #given - existing boulder state pointing to old plan
+    test("should select explicitly specified plan name from user-request, ignoring existing work state", async () => {
+      // #given - existing work state pointing to old plan
       const plansDir = join(TEST_DIR, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
-      // Old plan (in boulder state)
+      // Old plan (in work state)
       const oldPlanPath = join(plansDir, "old-plan.md")
       writeFileSync(oldPlanPath, "# Old Plan\n- [ ] Old Task 1")
 
@@ -251,14 +278,14 @@ describe("start-work hook", () => {
       const newPlanPath = join(plansDir, "new-plan.md")
       writeFileSync(newPlanPath, "# New Plan\n- [ ] New Task 1")
 
-      // Set up stale boulder state pointing to old plan
-      const staleState: BoulderState = {
+      // Set up stale work state pointing to old plan
+      const staleState: Partial<WorkState> = {
         active_plan: oldPlanPath,
         started_at: "2026-01-01T10:00:00Z",
         session_ids: ["old-session"],
         plan_name: "old-plan",
       }
-      writeBoulderState(TEST_DIR, staleState)
+      writeWorkState(TEST_DIR, staleState)
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
@@ -281,7 +308,9 @@ describe("start-work hook", () => {
       // #then - should select new-plan, NOT resume old-plan
       expect(output.parts[0].text).toContain("new-plan")
       expect(output.parts[0].text).not.toContain("RESUMING")
-      expect(output.parts[0].text).not.toContain("old-plan")
+      // Note: output may mention "old-plan" in the switch note, but should not be RESUMING it
+      expect(output.parts[0].text).toContain("Starting New Plan")
+      expect(output.parts[0].text).toContain("Switched from previous plan")
     })
 
     test("should strip ultrawork/ulw keywords from plan name argument", async () => {
@@ -312,7 +341,8 @@ describe("start-work hook", () => {
 
       // #then - should find plan without ultrawork suffix
       expect(output.parts[0].text).toContain("my-feature-plan")
-      expect(output.parts[0].text).toContain("Auto-Selected Plan")
+      // Explicit plan request results in "Starting New Plan" (not auto-selected)
+      expect(output.parts[0].text).toContain("Starting New Plan")
     })
 
     test("should strip ulw keyword from plan name argument", async () => {
@@ -343,7 +373,8 @@ describe("start-work hook", () => {
 
       // #then - should find plan without ulw suffix
       expect(output.parts[0].text).toContain("api-refactor")
-      expect(output.parts[0].text).toContain("Auto-Selected Plan")
+      // Explicit plan request results in "Starting New Plan" (not auto-selected)
+      expect(output.parts[0].text).toContain("Starting New Plan")
     })
 
     test("should match plan by partial name", async () => {
@@ -374,7 +405,8 @@ describe("start-work hook", () => {
 
       // #then - should find plan by partial match
       expect(output.parts[0].text).toContain("2026-01-15-feature-implementation")
-      expect(output.parts[0].text).toContain("Auto-Selected Plan")
+      // Explicit plan request results in "Starting New Plan" (not auto-selected)
+      expect(output.parts[0].text).toContain("Starting New Plan")
     })
   })
 

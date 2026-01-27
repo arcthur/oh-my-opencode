@@ -48,7 +48,9 @@ flowchart TB
     Synth -->|"Unified plan + report"| Prometheus
     
     User -->|"/start-work"| Orchestrator
-    Plan -->|"Read"| Orchestrator
+    Orchestrator --> WorkState[".sisyphus/work.yaml<br/>(STATE SSOT)"]
+    Plan -->|"Read tasks"| Orchestrator
+    WorkState -->|"Resume state"| Orchestrator
     
     Orchestrator -->|"delegate_task(category)"| Junior
     Orchestrator -->|"delegate_task(agent)"| Oracle
@@ -159,12 +161,13 @@ flowchart LR
 - ✅ Run commands to verify results
 - ✅ Use lsp_diagnostics to check for errors
 - ✅ Search patterns with grep/glob/ast-grep
+- ✅ Create git commits **after verification** (atomic, scoped)
 
 **What Orchestrator MUST delegate:**
 - ❌ Writing/editing code files
 - ❌ Fixing bugs
 - ❌ Creating tests
-- ❌ Git commits
+ - ❌ Large implementation changes (delegate; only do small verification fixes if needed)
 
 ### Wisdom Accumulation
 
@@ -238,7 +241,7 @@ You have incomplete todos! Complete ALL before responding:
 DO NOT respond until all todos are marked completed.
 ```
 
-This "boulder pushing" mechanism is why the system is named after Sisyphus.
+This "work continuation" mechanism (the Sisyphus “boulder pushing” metaphor) is why the system is named after Sisyphus.
 
 ---
 

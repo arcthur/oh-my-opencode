@@ -12,8 +12,7 @@ import {
   createThinkModeHook,
   createClaudeCodeHooksHook,
   createContextWindowLimitRecoveryHook,
-
-  createCompactionContextInjector,
+  // NOTE: createCompactionContextInjector removed - OpenCode API does not yet support experimental.session.compacting
   createRulesInjectorHook,
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
@@ -161,9 +160,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         experimental: pluginConfig.experimental,
       })
     : null;
-  const compactionContextInjector = isHookEnabled("compaction-context-injector")
-    ? createCompactionContextInjector()
-    : undefined;
+  // NOTE: compactionContextInjector removed - OpenCode API does not yet support experimental.session.compacting
+  // When API support is added, reintegrate from claude-code-hooks or compaction-context-injector
   const rulesInjector = isHookEnabled("rules-injector")
     ? createRulesInjectorHook(ctx)
     : null;

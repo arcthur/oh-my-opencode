@@ -7,15 +7,10 @@ import type { PlanningWithFilesConfig } from "../../features/planning-with-files
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
 import {
   detectActivePlan,
-  detectPhaseCompletion,
+  detectPhaseCompletion as detectManusPhaseCompletion,
   getPlanDir,
-  getCurrentPhase,
-  getStrikeGuidance,
-  generateBlockerPrompt,
-  generateErrorRecordingPrompt,
-  generateReflectionPrompt,
-  isErrorRecorded,
   initializePlan,
+  isErrorRecorded as isManusErrorRecorded,
   loadState,
   parsePhases,
   readTaskPlan,
@@ -27,6 +22,7 @@ import {
   BlockerPromptCache,
 } from "../../features/planning-with-files/blocker-detection"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
+import { createWorkStateManager, type WorkStateManager } from "../../features/work-state"
 
 export interface PlanningWithFilesHookOptions {
   config?: Partial<PlanningWithFilesConfig>
@@ -163,6 +159,9 @@ export function createPlanningWithFilesHook(
     return {}
   }
 
+  // Use WorkStateManager for shared state (2-action rule, 3-strike, blockers)
+  const workStateManager = createWorkStateManager(ctx.directory)
+
   const injectedSessions = new Set<string>()
   const activePlanBySessionID = new Map<string, string>()
   const toolArgsByCallID = new Map<string, unknown>()
@@ -186,6 +185,44 @@ export function createPlanningWithFilesHook(
     return detected
   }
 
+  // Sync Manus-style state to WorkStateManager (best-effort)
+  const syncToWorkState = async (planName: string, sessionID: string): Promise<void> => {
+    const manusState = await loadState(ctx.directory, planName, config)
+    if (!manusState) return
+
+    // Load or initialize work state
+    let workState = workStateManager.load()
+    if (!workState) {
+      // Initialize work state with Manus plan path
+      const planDir = getPlanDir(ctx.directory, planName, config)
+      const taskPlanPath = path.join(planDir, "task_plan.md")
+      workState = workStateManager.initialize(taskPlanPath, sessionID)
+    }
+
+    // Sync fields from Manus state to work state
+    if (manusState.actionCount !== workState.research_ops) {
+      for (let i = workState.research_ops; i < manusState.actionCount; i++) {
+        workStateManager.incrementResearchOps()
+      }
+    }
+
+    if (manusState.lastFindingsMtime !== workState.last_findings_mtime) {
+      const findingsPath = path.join(getPlanDir(ctx.directory, planName, config), "findings.md")
+      workStateManager.checkFindingsModified(findingsPath)
+    }
+
+    // Sync error strikes
+    for (const [key, strikes] of Object.entries(manusState.errorStrikes)) {
+      for (let i = 0; i < strikes; i++) {
+        // Record error if not already tracked
+        const existingStrikes = workState.errors.find((e) => e.key === key)?.strikes ?? 0
+        if (existingStrikes < strikes) {
+          workStateManager.recordError(key)
+        }
+      }
+    }
+  }
+
   const chatMessage = async (
     input: { sessionID: string; messageID?: string },
     output: { parts: Array<{ type: string; text?: string }> }
@@ -197,6 +234,7 @@ export function createPlanningWithFilesHook(
       await initializePlan(ctx.directory, init.planName, init.planName, config)
       injectedSessions.delete(input.sessionID)
       activePlanBySessionID.set(input.sessionID, init.planName)
+      await syncToWorkState(init.planName, input.sessionID)
     }
 
     if (injectedSessions.has(input.sessionID)) return
@@ -215,6 +253,7 @@ export function createPlanningWithFilesHook(
     output.parts[textPartIndex].text = `${output.parts[textPartIndex].text}\n\n${notice}`
 
     injectedSessions.add(input.sessionID)
+    await syncToWorkState(planName, input.sessionID)
   }
 
   const toolExecuteBefore = async (
@@ -286,6 +325,8 @@ Planning files initialized at \`.sisyphus/${config.directory}/${planName}/\`.
 </planning-with-files-auto-from-multi-plan>`,
           metadata: { planName, created: !alreadyInitialized },
         })
+
+        await syncToWorkState(planName, input.sessionID)
       }
     }
 
@@ -295,34 +336,51 @@ Planning files initialized at \`.sisyphus/${config.directory}/${planName}/\`.
     const state = await loadState(ctx.directory, planName, config)
     if (!state) return
 
+    // Ensure work state is initialized for this Manus plan
+    if (!workStateManager.getState()) {
+      const planDir = getPlanDir(ctx.directory, planName, config)
+      const taskPlanPath = path.join(planDir, "task_plan.md")
+      workStateManager.initialize(taskPlanPath, input.sessionID)
+
+      // Set initial findings mtime to prevent false "modified" detection on first call
+      const findingsPath = path.join(planDir, "findings.md")
+      workStateManager.checkFindingsModified(findingsPath)
+    }
+
     const errorText = extractToolError({ output: output.output })
     if (errorText) {
       const taskPlan = await readTaskPlan(ctx.directory, planName, config)
       const phases = taskPlan ? parsePhases(taskPlan) : []
-      const currentPhase = getCurrentPhase(phases)
+      const currentPhase = phases.find((p) => p.status === "in_progress")?.id ?? null
 
-      // 3-strike protocol (best-effort) based on tool output markers.
+      // 3-strike protocol - use WorkStateManager for state, Manus state for backup
       if (config.three_strike_protocol) {
         const errorKey = `${input.tool}:${errorText.slice(0, 80)}`
-        state.errorStrikes[errorKey] = (state.errorStrikes[errorKey] ?? 0) + 1
+
+        // Record in WorkStateManager
+        let { strikes, requiresRecording } = workStateManager.recordError(errorKey, errorText)
+
+        // Also update Manus state for backwards compatibility
+        state.errorStrikes[errorKey] = strikes
         await saveState(ctx.directory, state, config)
 
-        const strikes = state.errorStrikes[errorKey]
-        let requiresRecording = strikes >= 2
-
+        // Check if error was already recorded in task_plan.md
         if (requiresRecording) {
-          const recorded = await isErrorRecorded(ctx.directory, planName, errorKey, config)
-          requiresRecording = !recorded
+          const recordedInFile = await isManusErrorRecorded(ctx.directory, planName, errorKey, config)
+          if (recordedInFile) {
+            workStateManager.markErrorRecorded(errorKey)
+            requiresRecording = false
+          }
         }
 
         let content = `<three-strike-protocol strike="${strikes}">
-${getStrikeGuidance(strikes, requiresRecording)}
+${workStateManager.getStrikeGuidance(strikes, requiresRecording)}
 
 Error: ${errorText.slice(0, 150)}
 </three-strike-protocol>`
 
         if (requiresRecording) {
-          content += `\n\n${generateErrorRecordingPrompt(errorKey, strikes, currentPhase)}`
+          content += `\n\n${workStateManager.generateErrorRecordingPrompt(errorKey, strikes)}`
         }
 
         collector.register(input.sessionID, {
@@ -338,42 +396,47 @@ Error: ${errorText.slice(0, 150)}
         const blockerKey = `${planName}:${input.tool}:${errorText.slice(0, 80)}`
         if (!blockerCache.has(input.sessionID, blockerKey)) {
           blockerCache.add(input.sessionID, blockerKey)
+
+          // Add blocker to WorkStateManager
+          workStateManager.addBlocker(errorText)
+
           collector.register(input.sessionID, {
             id: `blocker-${blockerKey}`,
             source: "planning-with-files",
             priority: "high",
-            content: generateBlockerPrompt(errorText, currentPhase),
+            content: workStateManager.generateBlockerPrompt(errorText),
             metadata: { planName, errorText },
           })
         }
       }
     }
 
-    // Phase reflection: prompt after a phase transitions to complete in task_plan.md
+    // Phase reflection: detect transitions using Manus-style phase parsing
     if (["Write", "Edit", "write", "edit"].includes(input.tool) && filePath?.includes("task_plan.md")) {
       const taskPlan = await readTaskPlan(ctx.directory, planName, config)
       if (taskPlan) {
         const phases = parsePhases(taskPlan)
-        const newlyCompleted = detectPhaseCompletion(ctx.directory, planName, phases, config)
-        for (const phase of newlyCompleted) {
+        const completedPhases = detectManusPhaseCompletion(ctx.directory, planName, phases, config)
+        for (const phase of completedPhases) {
+          workStateManager.recordPhaseCompletion(String(phase.id))
           collector.register(input.sessionID, {
             id: `phase-reflection-${phase.id}`,
             source: "planning-with-files",
             priority: "high",
-            content: generateReflectionPrompt(phase, phases),
+            content: workStateManager.generateReflectionPrompt({ id: String(phase.id), name: phase.name }),
             metadata: { planName, phaseId: phase.id },
           })
         }
       }
     }
 
-    const findingsCheck = await wasFindingsModified(
-      ctx.directory,
-      planName,
-      state.lastFindingsMtime,
-      config
-    )
+    // 2-action rule - use WorkStateManager
+    const findingsPath = path.join(getPlanDir(ctx.directory, planName, config), "findings.md")
+    const findingsCheck = workStateManager.checkFindingsModified(findingsPath)
+
     if (findingsCheck.modified) {
+      workStateManager.resetResearchOps()
+      // Also reset Manus state
       state.actionCount = 0
       state.lastFindingsMtime = findingsCheck.newMtime
       await saveState(ctx.directory, state, config)
@@ -381,11 +444,14 @@ Error: ${errorText.slice(0, 150)}
     }
 
     if (config.two_action_rule && actionCountTools.has(input.tool.toLowerCase())) {
-      state.actionCount += 1
+      const newCount = workStateManager.incrementResearchOps()
+
+      // Also update Manus state
+      state.actionCount = newCount
       await saveState(ctx.directory, state, config)
 
-      if (state.actionCount >= 2 && state.actionCount % 2 === 0) {
-        const findingsPath = `.sisyphus/${config.directory}/${planName}/findings.md`
+      if (workStateManager.shouldRemindTwoAction()) {
+        const findingsRelPath = `.sisyphus/${config.directory}/${planName}/findings.md`
         collector.register(input.sessionID, {
           id: "two-action-rule",
           source: "planning-with-files",
@@ -393,16 +459,16 @@ Error: ${errorText.slice(0, 150)}
           content: `<two-action-rule>
 ## Update findings.md NOW
 
-${state.actionCount} research operations completed.
+${newCount} research operations completed.
 
-Update \`${findingsPath}\` with:
+Update \`${findingsRelPath}\` with:
 - Key discoveries
 - Technical decisions
 - Resources found
 
 Counter auto-resets when you modify findings.md.
 </two-action-rule>`,
-          metadata: { planName, actionCount: state.actionCount },
+          metadata: { planName, actionCount: newCount },
         })
       }
     }
@@ -425,6 +491,7 @@ Counter auto-resets when you modify findings.md.
         activePlanBySessionID.delete(deletedID)
         stopVerificationLastPromptAt.delete(deletedID)
         blockerCache.delete(deletedID)
+        workStateManager.clearPhaseCache()
       }
       return
     }

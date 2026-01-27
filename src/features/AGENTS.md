@@ -26,7 +26,7 @@ features/
 ├── claude-code-session-state/  # Session state persistence
 ├── opencode-skill-loader/      # Skills from 6 directories
 ├── context-injector/           # AGENTS.md/README.md injection
-├── boulder-state/              # Todo state persistence
+├── work-state/                 # Unified orchestrator state (work.yaml)
 ├── task-toast-manager/         # Toast notifications
 └── hook-message-injector/      # Message injection
 ```

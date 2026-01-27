@@ -2,11 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { execSync } from "node:child_process"
 import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
-import {
-  readBoulderState,
-  appendSessionId,
-  getPlanProgress,
-} from "../../features/boulder-state"
+import { createWorkStateManager, type WorkStateManager } from "../../features/work-state"
 import { getMainSessionID, subagentSessions } from "../../features/claude-code-session-state"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
@@ -53,7 +49,7 @@ You should NOT:
 ---
 `
 
-const BOULDER_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.BOULDER_CONTINUATION)}
+const WORK_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
 
 You have an active work plan with incomplete tasks. Continue working.
 
@@ -194,7 +190,7 @@ function buildOrchestratorReminder(planName: string, progress: { total: number; 
   return `
 ---
 
-**BOULDER STATE:** Plan: \`${planName}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
+**WORK STATE:** Plan: \`${planName}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
 
 ---
 
@@ -204,7 +200,7 @@ ${buildVerificationReminder(sessionId)}
 
 RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
 
-Update the plan file \`.sisyphus/tasks/${planName}.yaml\`:
+Update the plan file \`.sisyphus/plans/${planName}.md\`:
 - Change \`[ ]\` to \`[x]\` for the completed task
 - Use \`Edit\` tool to modify the checkbox
 
@@ -222,7 +218,7 @@ Update the plan file \`.sisyphus/tasks/${planName}.yaml\`:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**${remaining} tasks remain. Keep bouldering.**`
+**${remaining} tasks remain. Keep working.**`
 }
 
 function buildStandaloneVerificationReminder(sessionId: string): string {
@@ -430,6 +426,12 @@ const CONTINUATION_COOLDOWN_MS = 5000
 export interface AtlasHookOptions {
   directory: string
   backgroundManager?: BackgroundManager
+  /** Enable 2-action rule (remind to document research after 2 ops) */
+  twoActionRule?: boolean
+  /** Enable 3-strike protocol (track and guide error handling) */
+  threeStrikeProtocol?: boolean
+  /** Tools that count as research actions for 2-action rule */
+  researchTools?: string[]
 }
 
 function isAbortError(error: unknown): boolean {
@@ -453,11 +455,18 @@ function isAbortError(error: unknown): boolean {
   return false
 }
 
+const DEFAULT_RESEARCH_TOOLS = ["Read", "Glob", "Grep", "WebFetch", "WebSearch", "Task"]
+
 export function createAtlasHook(
   ctx: PluginInput,
   options?: AtlasHookOptions
 ) {
   const backgroundManager = options?.backgroundManager
+  const twoActionRule = options?.twoActionRule ?? false
+  const threeStrikeProtocol = options?.threeStrikeProtocol ?? false
+  const researchTools = new Set((options?.researchTools ?? DEFAULT_RESEARCH_TOOLS).map(t => t.toLowerCase()))
+
+  const workStateManager = createWorkStateManager(ctx.directory)
   const sessions = new Map<string, SessionState>()
   const pendingFilePaths = new Map<string, string>()
 
@@ -480,12 +489,12 @@ export function createAtlasHook(
       return
     }
 
-    const prompt = BOULDER_CONTINUATION_PROMPT
+    const prompt = WORK_CONTINUATION_PROMPT
       .replace(/{PLAN_NAME}/g, planName) +
       `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`
 
     try {
-      log(`[${HOOK_NAME}] Injecting boulder continuation`, { sessionID, planName, remaining })
+      log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planName, remaining })
 
       let model: { providerID: string; modelID: string } | undefined
       try {
@@ -523,9 +532,9 @@ export function createAtlasHook(
          query: { directory: ctx.directory },
        })
 
-      log(`[${HOOK_NAME}] Boulder continuation injected`, { sessionID })
+      log(`[${HOOK_NAME}] Work continuation injected`, { sessionID })
     } catch (err) {
-      log(`[${HOOK_NAME}] Boulder continuation failed`, { sessionID, error: String(err) })
+      log(`[${HOOK_NAME}] Work continuation failed`, { sessionID, error: String(err) })
     }
   }
 
@@ -551,17 +560,17 @@ export function createAtlasHook(
 
         log(`[${HOOK_NAME}] session.idle`, { sessionID })
 
-        // Read boulder state FIRST to check if this session is part of an active boulder
-        const boulderState = readBoulderState(ctx.directory)
-        const isBoulderSession = boulderState?.session_ids.includes(sessionID) ?? false
+        // Read work state FIRST to check if this session is part of an active work
+        const workState = workStateManager.load()
+        const isWorkSession = workState?.session_ids.includes(sessionID) ?? false
 
         const mainSessionID = getMainSessionID()
         const isMainSession = sessionID === mainSessionID
         const isBackgroundTaskSession = subagentSessions.has(sessionID)
 
-        // Allow continuation if: main session OR background task OR boulder session
-        if (mainSessionID && !isMainSession && !isBackgroundTaskSession && !isBoulderSession) {
-          log(`[${HOOK_NAME}] Skipped: not main, background task, or boulder session`, { sessionID })
+        // Allow continuation if: main session OR background task OR work session
+        if (mainSessionID && !isMainSession && !isBackgroundTaskSession && !isWorkSession) {
+          log(`[${HOOK_NAME}] Skipped: not main, background task, or work session`, { sessionID })
           return
         }
 
@@ -583,8 +592,8 @@ export function createAtlasHook(
         }
 
 
-        if (!boulderState) {
-          log(`[${HOOK_NAME}] No active boulder`, { sessionID })
+        if (!workState) {
+          log(`[${HOOK_NAME}] No active work`, { sessionID })
           return
         }
 
@@ -593,9 +602,9 @@ export function createAtlasHook(
           return
         }
 
-        const progress = getPlanProgress(boulderState.active_plan)
+        const progress = workStateManager.getPlanProgress()
         if (progress.isComplete) {
-          log(`[${HOOK_NAME}] Boulder complete`, { sessionID, plan: boulderState.plan_name })
+          log(`[${HOOK_NAME}] Work complete`, { sessionID, plan: workState.plan_name })
           return
         }
 
@@ -607,7 +616,7 @@ export function createAtlasHook(
 
         state.lastContinuationInjectedAt = now
         const remaining = progress.total - progress.completed
-        injectContinuation(sessionID, boulderState.plan_name, remaining, progress.total)
+        injectContinuation(sessionID, workState.plan_name, remaining, progress.total)
         return
       }
 
@@ -702,7 +711,57 @@ export function createAtlasHook(
       input: ToolExecuteAfterInput,
       output: ToolExecuteAfterOutput
     ): Promise<void> => {
-      if (!isCallerOrchestrator(input.sessionID)) {
+      const isOrchestrator = isCallerOrchestrator(input.sessionID)
+      const outputStr = output.output && typeof output.output === "string" ? output.output : ""
+      const workState = workStateManager.load()
+
+      // === Protocol handling (for any session with active work) ===
+      if (workState && input.sessionID) {
+        // 3-strike protocol: detect errors
+        if (threeStrikeProtocol) {
+          const isError = outputStr.startsWith("❌") ||
+            outputStr.toLowerCase().startsWith("error:") ||
+            outputStr.toLowerCase().startsWith("error ")
+
+          if (isError) {
+            const errorKey = `${input.tool}:${outputStr.slice(0, 80)}`
+            const { strikes, requiresRecording } = workStateManager.recordError(errorKey, outputStr)
+
+            let guidance = `\n\n<three-strike-protocol strike="${strikes}">\n${workStateManager.getStrikeGuidance(strikes, requiresRecording)}`
+            if (requiresRecording) {
+              guidance += `\n\n**REQUIRED**: Record this error in the plan file's Errors/Issues section before retrying.`
+            }
+            guidance += `\n</three-strike-protocol>`
+
+            output.output = outputStr + guidance
+            log(`[${HOOK_NAME}] 3-strike: ${strikes} strikes`, { tool: input.tool, sessionID: input.sessionID })
+          }
+        }
+
+        // 2-action rule: track research operations
+        if (twoActionRule && researchTools.has(input.tool.toLowerCase())) {
+          const count = workStateManager.incrementResearchOps()
+
+          if (workStateManager.shouldRemindTwoAction()) {
+            const reminder = `\n\n<two-action-rule>
+## Document Your Research
+
+${count} research operations completed. Update your notepad or findings section with:
+- Key discoveries from this research
+- Decisions made and their rationale
+- Resources or references found
+
+This helps maintain context across sessions and prevents knowledge loss.
+</two-action-rule>`
+
+            output.output = (output.output || "") + reminder
+            log(`[${HOOK_NAME}] 2-action rule reminder`, { count, sessionID: input.sessionID })
+          }
+        }
+      }
+
+      // === Orchestrator-specific handling ===
+      if (!isOrchestrator) {
         return
       }
 
@@ -729,28 +788,29 @@ export function createAtlasHook(
         return
       }
 
-      const outputStr = output.output && typeof output.output === "string" ? output.output : ""
-      const isBackgroundLaunch = outputStr.includes("Background task launched") || outputStr.includes("Background task resumed")
-      
+      const delegateOutputStr = output.output && typeof output.output === "string" ? output.output : ""
+      const isBackgroundLaunch = delegateOutputStr.includes("Background task launched") || delegateOutputStr.includes("Background task resumed")
+
       if (isBackgroundLaunch) {
         return
       }
-      
+
       if (output.output && typeof output.output === "string") {
         const gitStats = getGitDiffStats(ctx.directory)
         const fileChanges = formatFileChanges(gitStats)
         const subagentSessionId = extractSessionIdFromOutput(output.output)
 
-        const boulderState = readBoulderState(ctx.directory)
+        // Reload work state in case it was updated by protocol handling
+        const currentWorkState = workStateManager.load()
 
-        if (boulderState) {
-          const progress = getPlanProgress(boulderState.active_plan)
+        if (currentWorkState) {
+          const progress = workStateManager.getPlanProgress()
 
-          if (input.sessionID && !boulderState.session_ids.includes(input.sessionID)) {
-            appendSessionId(ctx.directory, input.sessionID)
-            log(`[${HOOK_NAME}] Appended session to boulder`, {
+          if (input.sessionID && !currentWorkState.session_ids.includes(input.sessionID)) {
+            workStateManager.appendSessionId(input.sessionID)
+            log(`[${HOOK_NAME}] Appended session to work`, {
               sessionID: input.sessionID,
-              plan: boulderState.plan_name,
+              plan: currentWorkState.plan_name,
             })
           }
 
@@ -769,11 +829,11 @@ ${fileChanges}
 ${originalResponse}
 
 <system-reminder>
-${buildOrchestratorReminder(boulderState.plan_name, progress, subagentSessionId)}
+${buildOrchestratorReminder(currentWorkState.plan_name, progress, subagentSessionId)}
 </system-reminder>`
 
-          log(`[${HOOK_NAME}] Output transformed for orchestrator mode (boulder)`, {
-            plan: boulderState.plan_name,
+          log(`[${HOOK_NAME}] Output transformed for orchestrator mode (work)`, {
+            plan: currentWorkState.plan_name,
             progress: `${progress.completed}/${progress.total}`,
             fileCount: gitStats.length,
           })

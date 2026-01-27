@@ -1,0 +1,26 @@
+/**
+ * Work State
+ *
+ * Unified state management for orchestrator workflows.
+ * Single source of truth: .sisyphus/work.yaml
+ */
+
+export { WorkStateManager, createWorkStateManager } from "./manager"
+export type {
+  WorkState,
+  ErrorRecord,
+  BlockerRecord,
+  PhaseCompletion,
+  Decision,
+  PlanProgress,
+  Phase,
+  PhaseStatus,
+} from "./types"
+export {
+  WorkStateSchema,
+  WORK_STATE_DIR,
+  WORK_STATE_FILE,
+  WORK_STATE_PATH,
+  PLANS_DIR,
+  NOTEPADS_DIR,
+} from "./types"

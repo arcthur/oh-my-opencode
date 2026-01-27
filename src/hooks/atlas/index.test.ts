@@ -1,19 +1,59 @@
 import { describe, expect, test, beforeEach, afterEach, mock } from "bun:test"
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
+import * as yaml from "js-yaml"
 import { createAtlasHook } from "./index"
-import {
-  writeBoulderState,
-  clearBoulderState,
-  readBoulderState,
-} from "../../features/boulder-state"
-import type { BoulderState } from "../../features/boulder-state"
+import type { WorkState } from "../../features/work-state"
 
 import {
   MESSAGE_STORAGE,
   setOpenCodeStorageDirForTesting,
 } from "../../features/hook-message-injector"
+
+// Helper to write work.yaml
+function writeWorkState(directory: string, state: Partial<WorkState>): void {
+  const sisyphusDir = join(directory, ".sisyphus")
+  if (!existsSync(sisyphusDir)) {
+    mkdirSync(sisyphusDir, { recursive: true })
+  }
+  const fullState: WorkState = {
+    active_plan: state.active_plan ?? "",
+    plan_name: state.plan_name ?? "",
+    started_at: state.started_at ?? new Date().toISOString(),
+    session_ids: state.session_ids ?? [],
+    research_ops: state.research_ops ?? 0,
+    last_findings_mtime: state.last_findings_mtime ?? 0,
+    errors: state.errors ?? [],
+    blockers: state.blockers ?? [],
+    phase_completions: state.phase_completions ?? [],
+    decisions: state.decisions ?? [],
+  }
+  writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
+}
+
+// Helper to read work.yaml
+function readWorkState(directory: string): WorkState | null {
+  const workPath = join(directory, ".sisyphus", "work.yaml")
+  if (!existsSync(workPath)) {
+    return null
+  }
+  try {
+    const content = readFileSync(workPath, "utf-8")
+    return yaml.load(content) as WorkState
+  } catch {
+    return null
+  }
+}
+
+// Helper to clear work.yaml
+function clearWorkState(directory: string): void {
+  const workPath = join(directory, ".sisyphus", "work.yaml")
+  if (existsSync(workPath)) {
+    unlinkSync(workPath)
+  }
+}
+
 
 describe("atlas hook", () => {
    const TEST_DIR = join(tmpdir(), "atlas-test-" + Date.now())
@@ -60,11 +100,11 @@ describe("atlas hook", () => {
     if (!existsSync(SISYPHUS_DIR)) {
       mkdirSync(SISYPHUS_DIR, { recursive: true })
     }
-    clearBoulderState(TEST_DIR)
+    clearWorkState(TEST_DIR)
   })
 
   afterEach(() => {
-    clearBoulderState(TEST_DIR)
+    clearWorkState(TEST_DIR)
     if (existsSync(TEST_DIR)) {
       rmSync(TEST_DIR, { recursive: true, force: true })
     }
@@ -91,20 +131,20 @@ describe("atlas hook", () => {
     })
 
      test("should not transform when caller is not Atlas", async () => {
-       // #given - boulder state exists but caller agent in message storage is not Atlas
+       // #given - work state exists but caller agent in message storage is not Atlas
        const sessionID = "session-non-orchestrator-test"
        setupMessageStorage(sessionID, "other-agent")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -125,9 +165,9 @@ describe("atlas hook", () => {
       cleanupMessageStorage(sessionID)
     })
 
-     test("should append standalone verification when no boulder state but caller is Atlas", async () => {
-       // #given - no boulder state, but caller is Atlas
-       const sessionID = "session-no-boulder-test"
+     test("should append standalone verification when no work state but caller is Atlas", async () => {
+       // #given - no work state, but caller is Atlas
+      const sessionID = "session-no-work-test"
        setupMessageStorage(sessionID, "Atlas")
       
       const hook = createAtlasHook(createMockPluginInput())
@@ -151,21 +191,21 @@ describe("atlas hook", () => {
       cleanupMessageStorage(sessionID)
     })
 
-     test("should transform output when caller is Atlas with boulder state", async () => {
-       // #given - Atlas caller with boulder state
+     test("should transform output when caller is Atlas with work state", async () => {
+       // #given - Atlas caller with work state
        const sessionID = "session-transform-test"
        setupMessageStorage(sessionID, "Atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -191,20 +231,20 @@ describe("atlas hook", () => {
     })
 
      test("should still transform when plan is complete (shows progress)", async () => {
-       // #given - boulder state with complete plan, Atlas caller
+       // #given - work state with complete plan, Atlas caller
        const sessionID = "session-complete-plan-test"
        setupMessageStorage(sessionID, "Atlas")
       
       const planPath = join(TEST_DIR, "complete-plan.md")
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
         plan_name: "complete-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -227,21 +267,21 @@ describe("atlas hook", () => {
       cleanupMessageStorage(sessionID)
     })
 
-     test("should append session ID to boulder state if not present", async () => {
-       // #given - boulder state without session-append-test, Atlas caller
+     test("should append session ID to work state if not present", async () => {
+       // #given - work state without session-append-test, Atlas caller
        const sessionID = "session-append-test"
        setupMessageStorage(sessionID, "Atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -257,27 +297,27 @@ describe("atlas hook", () => {
       )
 
       // #then - sessionID should be appended
-      const updatedState = readBoulderState(TEST_DIR)
+      const updatedState = readWorkState(TEST_DIR)
       expect(updatedState?.session_ids).toContain(sessionID)
       
       cleanupMessageStorage(sessionID)
     })
 
      test("should not duplicate existing session ID", async () => {
-       // #given - boulder state already has session-dup-test, Atlas caller
+       // #given - work state already has session-dup-test, Atlas caller
        const sessionID = "session-dup-test"
        setupMessageStorage(sessionID, "Atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [sessionID],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -293,28 +333,28 @@ describe("atlas hook", () => {
       )
 
       // #then - should still have only one sessionID
-      const updatedState = readBoulderState(TEST_DIR)
+      const updatedState = readWorkState(TEST_DIR)
       const count = updatedState?.session_ids.filter((id) => id === sessionID).length
       expect(count).toBe(1)
       
       cleanupMessageStorage(sessionID)
     })
 
-     test("should include boulder.json path and notepad path in transformed output", async () => {
-       // #given - boulder state, Atlas caller
+     test("should include plan name and progress in transformed output", async () => {
+       // #given - work state, Atlas caller
        const sessionID = "session-path-test"
        setupMessageStorage(sessionID, "Atlas")
       
       const planPath = join(TEST_DIR, "my-feature.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2\n- [x] Task 3")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
         plan_name: "my-feature",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -338,20 +378,20 @@ describe("atlas hook", () => {
     })
 
      test("should include resume and checkbox instructions in reminder", async () => {
-       // #given - boulder state, Atlas caller
+       // #given - work state, Atlas caller
        const sessionID = "session-resume-test"
        setupMessageStorage(sessionID, "Atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -598,7 +638,7 @@ describe("atlas hook", () => {
     })
   })
 
-  describe("session.idle handler (boulder continuation)", () => {
+  describe("session.idle handler (work continuation)", () => {
     const MAIN_SESSION_ID = "main-session-123"
 
      beforeEach(() => {
@@ -613,18 +653,18 @@ describe("atlas hook", () => {
       cleanupMessageStorage(MAIN_SESSION_ID)
     })
 
-    test("should inject continuation when boulder has incomplete tasks", async () => {
-      // #given - boulder state with incomplete plan
+    test("should inject continuation when work has incomplete tasks", async () => {
+      // #given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2\n- [ ] Task 3")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
@@ -641,12 +681,12 @@ describe("atlas hook", () => {
       expect(mockInput._promptMock).toHaveBeenCalled()
       const callArgs = mockInput._promptMock.mock.calls[0][0]
       expect(callArgs.path.id).toBe(MAIN_SESSION_ID)
-      expect(callArgs.body.parts[0].text).toContain("BOULDER CONTINUATION")
+      expect(callArgs.body.parts[0].text).toContain("WORK CONTINUATION")
       expect(callArgs.body.parts[0].text).toContain("2 remaining")
     })
 
-    test("should not inject when no boulder state exists", async () => {
-      // #given - no boulder state
+    test("should not inject when no work state exists", async () => {
+      // #given - no work state
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
@@ -662,18 +702,18 @@ describe("atlas hook", () => {
       expect(mockInput._promptMock).not.toHaveBeenCalled()
     })
 
-    test("should not inject when boulder plan is complete", async () => {
-      // #given - boulder state with complete plan
+    test("should not inject when work plan is complete", async () => {
+      // #given - work state with complete plan
       const planPath = join(TEST_DIR, "complete-plan.md")
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "complete-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
@@ -691,17 +731,17 @@ describe("atlas hook", () => {
     })
 
     test("should skip when abort error occurred before idle", async () => {
-      // #given - boulder state with incomplete plan
+      // #given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
@@ -728,17 +768,17 @@ describe("atlas hook", () => {
     })
 
     test("should skip when background tasks are running", async () => {
-      // #given - boulder state with incomplete plan
+      // #given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockBackgroundManager = {
         getTasksByParentSession: () => [{ status: "running" }],
@@ -763,17 +803,17 @@ describe("atlas hook", () => {
     })
 
     test("should clear abort state on message.updated", async () => {
-      // #given - boulder with incomplete plan
+      // #given - work with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
@@ -806,17 +846,17 @@ describe("atlas hook", () => {
     })
 
     test("should include plan progress in continuation prompt", async () => {
-      // #given - boulder state with specific progress
+      // #given - work state with specific progress
       const planPath = join(TEST_DIR, "progress-plan.md")
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2\n- [ ] Task 3\n- [ ] Task 4")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "progress-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
@@ -836,17 +876,17 @@ describe("atlas hook", () => {
     })
 
      test("should not inject when last agent is not Atlas", async () => {
-       // #given - boulder state with incomplete plan, but last agent is NOT Atlas
+       // #given - work state with incomplete plan, but last agent is NOT Atlas
        const planPath = join(TEST_DIR, "test-plan.md")
        writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
 
-       const state: BoulderState = {
+       const state: Partial<WorkState> = {
          active_plan: planPath,
          started_at: "2026-01-02T10:00:00Z",
          session_ids: [MAIN_SESSION_ID],
          plan_name: "test-plan",
        }
-       writeBoulderState(TEST_DIR, state)
+       writeWorkState(TEST_DIR, state)
 
        // #given - last agent is NOT Atlas
        cleanupMessageStorage(MAIN_SESSION_ID)
@@ -868,17 +908,17 @@ describe("atlas hook", () => {
      })
 
     test("should debounce rapid continuation injections (prevent infinite loop)", async () => {
-      // #given - boulder state with incomplete plan
+      // #given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
@@ -908,17 +948,17 @@ describe("atlas hook", () => {
     })
 
     test("should cleanup on session.deleted", async () => {
-      // #given - boulder state
+      // #given - work state
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
-      const state: BoulderState = {
+      const state: Partial<WorkState> = {
         active_plan: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
         plan_name: "test-plan",
       }
-      writeBoulderState(TEST_DIR, state)
+      writeWorkState(TEST_DIR, state)
 
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
@@ -940,8 +980,8 @@ describe("atlas hook", () => {
         },
       })
 
-      // Re-create boulder after deletion
-      writeBoulderState(TEST_DIR, state)
+      // Re-create work state after deletion
+      writeWorkState(TEST_DIR, state)
 
       // Trigger idle - should inject because state was cleaned up
       await hook.handler({
