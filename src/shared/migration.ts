@@ -13,6 +13,8 @@ export const AGENT_NAME_MAP: Record<string, string> = {
   "multimodal-looker": "multimodal-looker",
   "orchestrator-sisyphus": "Atlas",
   atlas: "Atlas",
+  prometheus: "Prometheus",
+  "plan-synthesizer": "plan-synthesizer",
 }
 
 export const BUILTIN_AGENT_NAMES = new Set([

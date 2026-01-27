@@ -7,11 +7,7 @@ const AGGREGATION_MODEL_TO_CATEGORY = {
   opus: "unspecified-high",
 } as const
 
-const DEFAULT_CATEGORY_MODELS: Record<string, string> = {
-  quick: "anthropic/claude-haiku-4-5",
-  "unspecified-low": "anthropic/claude-sonnet-4-5",
-  "unspecified-high": "anthropic/claude-opus-4-5",
-}
+// No hardcoded default models - use systemDefaultModel
 
 const parseModelString = (model: string): { providerID: string; modelID: string } | undefined => {
   const parts = model.split("/")
@@ -23,18 +19,24 @@ const parseModelString = (model: string): { providerID: string; modelID: string 
 
 export function resolveUserMemoryAggregationModel(
   aggregationModel: keyof typeof AGGREGATION_MODEL_TO_CATEGORY,
-  categories?: CategoriesConfig
+  categories?: CategoriesConfig,
+  systemDefaultModel?: string
 ): { providerID: string; modelID: string } | undefined {
   const categoryName = AGGREGATION_MODEL_TO_CATEGORY[aggregationModel]
-  const defaultModel = DEFAULT_CATEGORY_MODELS[categoryName]
-  if (!defaultModel) return undefined
 
   const userModel = categories?.[categoryName]?.model
+
+  // If we have neither userModel nor systemDefaultModel, we can't resolve a model
+  if (!userModel && !systemDefaultModel) {
+    return undefined
+  }
+
+  // resolveModel requires systemDefault, so use userModel as fallback if systemDefaultModel is missing
   const resolved = resolveModel({
     userModel,
-    inheritedModel: defaultModel,
-    systemDefault: defaultModel,
+    systemDefault: systemDefaultModel ?? userModel ?? "",
   })
 
+  if (!resolved) return undefined
   return parseModelString(resolved)
 }

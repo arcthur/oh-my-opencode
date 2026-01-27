@@ -79,7 +79,7 @@ const SESSION_POOL_CONFIG = {
 
 export function createUserMemorySummarizer(
   ctx: PluginInput,
-  options?: { categories?: CategoriesConfig }
+  options?: { categories?: CategoriesConfig; systemDefaultModel?: string }
 ): UserMemorySummarizer | undefined {
   const sessionApi = ctx?.client?.session
   if (!sessionApi?.create || !sessionApi?.prompt || !sessionApi?.messages) {
@@ -100,7 +100,7 @@ export function createUserMemorySummarizer(
   const resolveModel = (
     aggregationModel: HierarchicalMemoryConfig["aggregation_model"]
   ): { providerID: string; modelID: string } | undefined => {
-    return resolveUserMemoryAggregationModel(aggregationModel, options?.categories)
+    return resolveUserMemoryAggregationModel(aggregationModel, options?.categories, options?.systemDefaultModel)
   }
 
   const getSessionKey = (kind: PromptKind | "unknown", model: string): string => {

@@ -88,7 +88,7 @@ export type { UserMemorySummarizer, PromptKind as UserMemoryPromptKind }
 export function createDefaultUserMemorySummarizer(
   ctx: PluginInput,
   _config?: Partial<UserMemoryHookConfig>,
-  options?: { categories?: CategoriesConfig }
+  options?: { categories?: CategoriesConfig; systemDefaultModel?: string }
 ): UserMemorySummarizer | undefined {
   return createUserMemorySummarizer(ctx, options)
 }

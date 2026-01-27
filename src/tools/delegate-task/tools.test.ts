@@ -8,22 +8,22 @@ const SYSTEM_DEFAULT_MODEL = "anthropic/claude-sonnet-4-5"
 
 describe("sisyphus-task", () => {
   describe("DEFAULT_CATEGORIES", () => {
-    test("visual-engineering category has model config", () => {
+    test("visual-engineering category exists (no hardcoded model)", () => {
       // #given
       const category = DEFAULT_CATEGORIES["visual-engineering"]
 
-      // #when / #then
+      // #when / #then - DEFAULT_CATEGORIES no longer has hardcoded models
       expect(category).toBeDefined()
-      expect(category.model).toBe("google/gemini-3-pro-preview")
+      expect(category.model).toBeUndefined()
     })
 
-    test("ultrabrain category has model and variant config", () => {
+    test("ultrabrain category has variant config (no hardcoded model)", () => {
       // #given
       const category = DEFAULT_CATEGORIES["ultrabrain"]
 
-      // #when / #then
+      // #when / #then - DEFAULT_CATEGORIES no longer has hardcoded models
       expect(category).toBeDefined()
-      expect(category.model).toBe("openai/gpt-5.2-codex")
+      expect(category.model).toBeUndefined()
       expect(category.variant).toBe("xhigh")
     })
   })
@@ -140,16 +140,16 @@ describe("sisyphus-task", () => {
       expect(result).toBeNull()
     })
 
-    test("returns default model from DEFAULT_CATEGORIES for builtin category", () => {
+    test("uses systemDefaultModel for builtin category (DEFAULT_CATEGORIES no longer has models)", () => {
       // #given
       const categoryName = "visual-engineering"
 
       // #when
       const result = resolveCategoryConfig(categoryName, { systemDefaultModel: SYSTEM_DEFAULT_MODEL })
 
-      // #then
+      // #then - systemDefaultModel is used since DEFAULT_CATEGORIES no longer has models
       expect(result).not.toBeNull()
-      expect(result!.config.model).toBe("google/gemini-3-pro-preview")
+      expect(result!.config.model).toBe(SYSTEM_DEFAULT_MODEL)
       expect(result!.promptAppend).toContain("VISUAL/UI")
     })
 
@@ -226,17 +226,18 @@ describe("sisyphus-task", () => {
       expect(result!.config.temperature).toBe(0.3)
     })
 
-    test("category built-in model takes precedence over inheritedModel", () => {
-      // #given - builtin category with its own model, parent model also provided
+    test("systemDefaultModel is used (DEFAULT_CATEGORIES no longer has models)", () => {
+      // #given - builtin category no longer has its own model
       const categoryName = "visual-engineering"
       const inheritedModel = "cliproxy/claude-opus-4-5"
 
       // #when
       const result = resolveCategoryConfig(categoryName, { inheritedModel, systemDefaultModel: SYSTEM_DEFAULT_MODEL })
 
-      // #then - category's built-in model wins over inheritedModel
+      // #then - systemDefaultModel is used since DEFAULT_CATEGORIES no longer has models
+      // Note: inheritedModel is passed as defaultConfig?.model which is now undefined
       expect(result).not.toBeNull()
-      expect(result!.config.model).toBe("google/gemini-3-pro-preview")
+      expect(result!.config.model).toBe(SYSTEM_DEFAULT_MODEL)
     })
 
     test("systemDefaultModel is used as fallback when custom category has no model", () => {
@@ -269,16 +270,16 @@ describe("sisyphus-task", () => {
       expect(result!.config.model).toBe("my-provider/my-model")
     })
 
-    test("default model from category config is used when no user model and no inheritedModel", () => {
+    test("systemDefaultModel is used when no user model and no inheritedModel (DEFAULT_CATEGORIES no longer has models)", () => {
       // #given
       const categoryName = "visual-engineering"
 
       // #when
       const result = resolveCategoryConfig(categoryName, { systemDefaultModel: SYSTEM_DEFAULT_MODEL })
 
-      // #then
+      // #then - systemDefaultModel is used since DEFAULT_CATEGORIES no longer has models
       expect(result).not.toBeNull()
-      expect(result!.config.model).toBe("google/gemini-3-pro-preview")
+      expect(result!.config.model).toBe(SYSTEM_DEFAULT_MODEL)
     })
   })
 
@@ -399,10 +400,10 @@ describe("sisyphus-task", () => {
         toolContext
       )
 
-      // #then - variant MUST be "max" from DEFAULT_CATEGORIES
+      // #then - variant "max" from DEFAULT_CATEGORIES, model from systemDefaultModel
       expect(launchInput.model).toEqual({
         providerID: "anthropic",
-        modelID: "claude-opus-4-5",
+        modelID: "claude-sonnet-4-5", // Uses systemDefaultModel since DEFAULT_CATEGORIES no longer has hardcoded models
         variant: "max",
       })
     })
@@ -456,10 +457,10 @@ describe("sisyphus-task", () => {
         toolContext
       )
 
-      // #then - variant MUST be "max" from DEFAULT_CATEGORIES
+      // #then - variant "max" from DEFAULT_CATEGORIES, model from systemDefaultModel
       expect(promptBody.model).toEqual({
         providerID: "anthropic",
-        modelID: "claude-opus-4-5",
+        modelID: "claude-sonnet-4-5", // Uses systemDefaultModel since DEFAULT_CATEGORIES no longer has hardcoded models
         variant: "max",
       })
     }, { timeout: 20000 })
@@ -961,9 +962,10 @@ describe("sisyphus-task", () => {
   describe("unstable agent forced background mode", () => {
     test("gemini model with run_in_background=false should force background but wait for result", async () => {
       // #given - category using gemini model with run_in_background=false
+      // Note: DEFAULT_CATEGORIES no longer has hardcoded models, so we need userCategories
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
-      
+
       const mockManager = {
         launch: async () => {
           launchCalled = true
@@ -976,7 +978,7 @@ describe("sisyphus-task", () => {
           }
         },
       }
-      
+
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
@@ -992,19 +994,25 @@ describe("sisyphus-task", () => {
           status: async () => ({ data: { "ses_unstable_gemini": { type: "idle" } } }),
         },
       }
-      
+
+      // Provide userCategories with gemini model to trigger unstable agent detection
+      const userCategories = {
+        "visual-engineering": { model: "google/gemini-3-pro-preview" },
+      }
+
       const tool = createDelegateTask({
         manager: mockManager,
         client: mockClient,
+        userCategories,
       })
-      
+
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
         agent: "Sisyphus",
         abort: new AbortController().signal,
       }
-      
+
       // #when - using visual-engineering (gemini model) with run_in_background=false
       const result = await tool.execute(
         {
@@ -1016,7 +1024,7 @@ describe("sisyphus-task", () => {
         },
         toolContext
       )
-      
+
       // #then - should launch as background BUT wait for and return actual result
       expect(launchCalled).toBe(true)
       expect(result).toContain("UNSTABLE AGENT")
@@ -1143,10 +1151,10 @@ describe("sisyphus-task", () => {
     }, { timeout: 20000 })
 
     test("artistry category (gemini) with run_in_background=false should force background but wait for result", async () => {
-      // #given - artistry also uses gemini model
+      // #given - artistry uses gemini model, need userCategories since DEFAULT_CATEGORIES no longer has models
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
-      
+
       const mockManager = {
         launch: async () => {
           launchCalled = true
@@ -1159,7 +1167,7 @@ describe("sisyphus-task", () => {
           }
         },
       }
-      
+
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
@@ -1175,19 +1183,25 @@ describe("sisyphus-task", () => {
           status: async () => ({ data: { "ses_artistry_gemini": { type: "idle" } } }),
         },
       }
-      
+
+      // Provide userCategories with gemini model to trigger unstable agent detection
+      const userCategories = {
+        artistry: { model: "google/gemini-3-pro-preview", variant: "max" },
+      }
+
       const tool = createDelegateTask({
         manager: mockManager,
         client: mockClient,
+        userCategories,
       })
-      
+
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
         agent: "Sisyphus",
         abort: new AbortController().signal,
       }
-      
+
       // #when - artistry category (gemini-3-pro-preview with max variant)
       const result = await tool.execute(
         {
@@ -1199,7 +1213,7 @@ describe("sisyphus-task", () => {
         },
         toolContext
       )
-      
+
       // #then - should launch as background BUT wait for and return actual result
       expect(launchCalled).toBe(true)
       expect(result).toContain("UNSTABLE AGENT")
@@ -1207,10 +1221,10 @@ describe("sisyphus-task", () => {
     }, { timeout: 20000 })
 
     test("writing category (gemini-flash) with run_in_background=false should force background but wait for result", async () => {
-      // #given - writing uses gemini-3-flash-preview
+      // #given - writing uses gemini-3-flash-preview, need userCategories since DEFAULT_CATEGORIES no longer has models
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
-      
+
       const mockManager = {
         launch: async () => {
           launchCalled = true
@@ -1223,7 +1237,7 @@ describe("sisyphus-task", () => {
           }
         },
       }
-      
+
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
@@ -1239,19 +1253,25 @@ describe("sisyphus-task", () => {
           status: async () => ({ data: { "ses_writing_gemini": { type: "idle" } } }),
         },
       }
-      
+
+      // Provide userCategories with gemini model to trigger unstable agent detection
+      const userCategories = {
+        writing: { model: "google/gemini-3-flash-preview" },
+      }
+
       const tool = createDelegateTask({
         manager: mockManager,
         client: mockClient,
+        userCategories,
       })
-      
+
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
         agent: "Sisyphus",
         abort: new AbortController().signal,
       }
-      
+
       // #when - writing category (gemini-3-flash-preview)
       const result = await tool.execute(
         {
@@ -1263,7 +1283,7 @@ describe("sisyphus-task", () => {
         },
         toolContext
       )
-      
+
       // #then - should launch as background BUT wait for and return actual result
       expect(launchCalled).toBe(true)
       expect(result).toContain("UNSTABLE AGENT")
@@ -1394,43 +1414,44 @@ describe("sisyphus-task", () => {
   })
 
   describe("modelInfo detection via resolveCategoryConfig", () => {
-    test("catalog model is used for category with catalog entry", () => {
-      // #given - ultrabrain has catalog entry
+    test("systemDefaultModel is used for category without model (DEFAULT_CATEGORIES no longer has models)", () => {
+      // #given - ultrabrain no longer has a hardcoded model in DEFAULT_CATEGORIES
       const categoryName = "ultrabrain"
-      
+
       // #when
       const resolved = resolveCategoryConfig(categoryName, { systemDefaultModel: SYSTEM_DEFAULT_MODEL })
-      
-      // #then - catalog model is used
+
+      // #then - systemDefaultModel is used since DEFAULT_CATEGORIES has no models
       expect(resolved).not.toBeNull()
-      expect(resolved!.config.model).toBe("openai/gpt-5.2-codex")
+      expect(resolved!.config.model).toBe(SYSTEM_DEFAULT_MODEL)
       expect(resolved!.config.variant).toBe("xhigh")
     })
 
-    test("default model is used for category with default entry", () => {
-      // #given - unspecified-low has default model
+    test("systemDefaultModel is used for category (DEFAULT_CATEGORIES no longer has models)", () => {
+      // #given - unspecified-low no longer has a hardcoded model
       const categoryName = "unspecified-low"
-      
+
       // #when
       const resolved = resolveCategoryConfig(categoryName, { systemDefaultModel: SYSTEM_DEFAULT_MODEL })
-      
-      // #then - default model from DEFAULT_CATEGORIES is used
+
+      // #then - systemDefaultModel is used
       expect(resolved).not.toBeNull()
-      expect(resolved!.config.model).toBe("anthropic/claude-sonnet-4-5")
+      expect(resolved!.config.model).toBe(SYSTEM_DEFAULT_MODEL)
     })
 
-    test("category built-in model takes precedence over inheritedModel for builtin category", () => {
-      // #given - builtin ultrabrain category with its own model, inherited model also provided
+    test("systemDefaultModel is used when no userModel is defined (DEFAULT_CATEGORIES no longer has models)", () => {
+      // #given - builtin ultrabrain category no longer has its own model
       const categoryName = "ultrabrain"
       const inheritedModel = "cliproxy/claude-opus-4-5"
-      
+
       // #when
       const resolved = resolveCategoryConfig(categoryName, { inheritedModel, systemDefaultModel: SYSTEM_DEFAULT_MODEL })
-      
-      // #then - category's built-in model wins (ultrabrain uses gpt-5.2-codex)
+
+      // #then - systemDefaultModel wins since DEFAULT_CATEGORIES has no models
+      // (the inheritedModel parameter is passed as defaultConfig?.model which is undefined)
       expect(resolved).not.toBeNull()
       const actualModel = resolved!.config.model
-      expect(actualModel).toBe("openai/gpt-5.2-codex")
+      expect(actualModel).toBe(SYSTEM_DEFAULT_MODEL)
     })
 
     test("when user defines model - modelInfo should report user-defined regardless of inheritedModel", () => {
@@ -1478,18 +1499,18 @@ describe("sisyphus-task", () => {
     // ===== TESTS FOR resolveModel() INTEGRATION (TDD GREEN) =====
     // These tests verify the NEW behavior where categories do NOT have default models
 
-    test("FIXED: category built-in model takes precedence over inheritedModel", () => {
-      // #given a builtin category with its own model, and an inherited model from parent
-      // The CORRECT chain: userConfig?.model ?? categoryBuiltIn ?? systemDefaultModel
+    test("systemDefaultModel is used for builtin category (categories no longer have built-in models)", () => {
+      // #given a builtin category, and an inherited model from parent
+      // DEFAULT_CATEGORIES no longer has models, so systemDefaultModel is used
       const categoryName = "ultrabrain"
       const inheritedModel = "anthropic/claude-opus-4-5"
-      
-      // #when category has a built-in model (gpt-5.2-codex for ultrabrain)
+
+      // #when category no longer has a built-in model
       const resolved = resolveCategoryConfig(categoryName, { inheritedModel, systemDefaultModel: SYSTEM_DEFAULT_MODEL })
-      
-      // #then category's built-in model should be used, NOT inheritedModel
+
+      // #then systemDefaultModel is used since DEFAULT_CATEGORIES no longer has models
       expect(resolved).not.toBeNull()
-      expect(resolved!.model).toBe("openai/gpt-5.2-codex")
+      expect(resolved!.model).toBe(SYSTEM_DEFAULT_MODEL)
     })
 
     test("FIXED: systemDefaultModel is used when no userConfig.model and no inheritedModel", () => {
@@ -1542,19 +1563,19 @@ describe("sisyphus-task", () => {
       expect(resolved!.model).toBe(SYSTEM_DEFAULT_MODEL)
     })
 
-    test("FIXED: undefined userConfig.model falls back to category built-in model", () => {
+    test("systemDefaultModel is used when userConfig.model is undefined (categories no longer have built-in models)", () => {
       // #given user sets a builtin category but leaves model undefined
       const categoryName = "visual-engineering"
       // Using type assertion since we're testing fallback behavior for categories without model
       const userCategories = { "visual-engineering": { temperature: 0.2 } } as unknown as Record<string, CategoryConfig>
       const inheritedModel = "anthropic/claude-opus-4-5"
-      
+
       // #when resolveCategoryConfig is called
       const resolved = resolveCategoryConfig(categoryName, { userCategories, inheritedModel, systemDefaultModel: SYSTEM_DEFAULT_MODEL })
-      
-      // #then should use category's built-in model (gemini-3-pro-preview for visual-engineering)
+
+      // #then should use systemDefaultModel since DEFAULT_CATEGORIES no longer has models
       expect(resolved).not.toBeNull()
-      expect(resolved!.model).toBe("google/gemini-3-pro-preview")
+      expect(resolved!.model).toBe(SYSTEM_DEFAULT_MODEL)
     })
 
     test("systemDefaultModel is used when no other model is available", () => {

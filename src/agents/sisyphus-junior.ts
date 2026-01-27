@@ -78,7 +78,7 @@ function buildSisyphusJuniorPrompt(promptAppend?: string): string {
 const BLOCKED_TOOLS = ["task", "delegate_task"]
 
 export const SISYPHUS_JUNIOR_DEFAULTS = {
-  model: "anthropic/claude-sonnet-4-5",
+  // model: Uses systemDefaultModel - no hardcoded default
   temperature: 0.1,
 } as const
 
@@ -91,7 +91,10 @@ export function createSisyphusJuniorAgentWithOverrides(
   }
 
   // If model is an array (only valid for Prometheus), use the first element
-  const rawModel = override?.model ?? systemDefaultModel ?? SISYPHUS_JUNIOR_DEFAULTS.model
+  const rawModel = override?.model ?? systemDefaultModel
+  if (!rawModel) {
+    throw new Error("Sisyphus-Junior requires a model. Provide via override.model or systemDefaultModel.")
+  }
   const model = Array.isArray(rawModel) ? rawModel[0] : rawModel
   const temperature = override?.temperature ?? SISYPHUS_JUNIOR_DEFAULTS.temperature
 

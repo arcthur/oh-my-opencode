@@ -89,6 +89,7 @@ import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
+  log("[oh-my-opencode] Plugin loading", { directory: ctx.directory });
   // Start background tmux check immediately
   startTmuxCheck();
 

@@ -396,8 +396,8 @@ describe("shouldDeleteAgentConfig", () => {
     expect(shouldDelete).toBe(false)
   })
 
-  test("returns true when all fields match category defaults", () => {
-    // #given: Config with fields matching category defaults
+  test("returns false when config has extra fields not in defaults", () => {
+    // #given: Config with model field, but DEFAULT_CATEGORIES no longer has models
     const config = {
       category: "visual-engineering",
       model: "google/gemini-3-pro-preview",
@@ -406,7 +406,20 @@ describe("shouldDeleteAgentConfig", () => {
     // #when: Check if config should be deleted
     const shouldDelete = shouldDeleteAgentConfig(config, "visual-engineering")
 
-    // #then: Should return true (all fields match defaults)
+    // #then: Should return false (config has model, but defaults don't)
+    expect(shouldDelete).toBe(false)
+  })
+
+  test("returns true when config has only category (empty defaults)", () => {
+    // #given: Config with only category, matching empty defaults
+    const config = {
+      category: "visual-engineering",
+    }
+
+    // #when: Check if config should be deleted
+    const shouldDelete = shouldDeleteAgentConfig(config, "visual-engineering")
+
+    // #then: Should return true (no extra fields beyond category)
     expect(shouldDelete).toBe(true)
   })
 

@@ -15,7 +15,7 @@ import { createAgentToolRestrictions } from "../shared/permission-compat"
  * produce a single winner for each conflict point.
  */
 
-const DEFAULT_MODEL = "anthropic/claude-opus-4-5"
+// No hardcoded default model - must be provided by caller
 
 export const PLAN_SYNTHESIZER_SYSTEM_PROMPT = `You are the **Plan Synthesizer** - the ruthless arbiter of competing AI-generated plans.
 
@@ -691,7 +691,10 @@ Your output is what actually gets executed. Make it count.
 **Never forget**: A bad synthesis is worse than the best single plan. If one plan is clearly superior, just use it. Don't merge for the sake of merging.
 `
 
-export function createPlanSynthesizerAgent(model: string = DEFAULT_MODEL): AgentConfig {
+export function createPlanSynthesizerAgent(model: string): AgentConfig {
+  if (!model) {
+    throw new Error("Plan Synthesizer requires a model to be specified")
+  }
   const restrictions = createAgentToolRestrictions([
     "task",
     "delegate_task",
@@ -715,7 +718,7 @@ export function createPlanSynthesizerAgent(model: string = DEFAULT_MODEL): Agent
   return { ...base, thinking: { type: "enabled", budgetTokens: 32000 } } as AgentConfig
 }
 
-export const planSynthesizerAgent = createPlanSynthesizerAgent()
+// planSynthesizerAgent instance removed - use createPlanSynthesizerAgent(model) with explicit model
 
 export const planSynthesizerPromptMetadata: AgentPromptMetadata = {
   category: "advisor",

@@ -73,7 +73,10 @@ describe("user-memory summarizer", () => {
         client: { session: { create, prompt, messages } },
       } as unknown as PluginInput
 
-      const summarizer = createUserMemorySummarizer(ctx)
+      // Provide categories with models since DEFAULT_CATEGORIES no longer has hardcoded models
+      const summarizer = createUserMemorySummarizer(ctx, {
+        categories: { quick: { model: "anthropic/claude-haiku-4-5" } },
+      })
 
       await summarizer!.summarize("prompt1", { kind: "weekly", model: "haiku" })
       await summarizer!.summarize("prompt2", { kind: "weekly", model: "haiku" })
@@ -100,7 +103,10 @@ describe("user-memory summarizer", () => {
         client: { session: { create, prompt, messages } },
       } as unknown as PluginInput
 
-      const summarizer = createUserMemorySummarizer(ctx)
+      // Provide categories with models since DEFAULT_CATEGORIES no longer has hardcoded models
+      const summarizer = createUserMemorySummarizer(ctx, {
+        categories: { quick: { model: "anthropic/claude-haiku-4-5" } },
+      })
 
       await summarizer!.summarize("prompt1", { kind: "weekly", model: "haiku" })
       await summarizer!.summarize("prompt2", { kind: "monthly", model: "haiku" })
@@ -123,7 +129,10 @@ describe("user-memory summarizer", () => {
         client: { session: { create, prompt, messages } },
       } as unknown as PluginInput
 
-      const summarizer = createUserMemorySummarizer(ctx)
+      // Provide categories with models since DEFAULT_CATEGORIES no longer has hardcoded models
+      const summarizer = createUserMemorySummarizer(ctx, {
+        categories: { quick: { model: "anthropic/claude-haiku-4-5" } },
+      })
 
       // Make failures to trigger circuit breaker (threshold is 3)
       for (let i = 0; i < 3; i++) {
@@ -168,7 +177,10 @@ describe("user-memory summarizer", () => {
         client: { session: { create, prompt, messages } },
       } as unknown as PluginInput
 
-      const summarizer = createUserMemorySummarizer(ctx)
+      // Provide categories with models since DEFAULT_CATEGORIES no longer has hardcoded models
+      const summarizer = createUserMemorySummarizer(ctx, {
+        categories: { quick: { model: "anthropic/claude-haiku-4-5" } },
+      })
 
       // Make one failure
       try {
@@ -193,7 +205,10 @@ describe("user-memory summarizer", () => {
         client: { session: { create, prompt, messages } },
       } as unknown as PluginInput
 
-      const summarizer = createUserMemorySummarizer(ctx)
+      // Provide categories with models since DEFAULT_CATEGORIES no longer has hardcoded models
+      const summarizer = createUserMemorySummarizer(ctx, {
+        categories: { quick: { model: "anthropic/claude-haiku-4-5" } },
+      })
 
       // Trigger failures
       for (let i = 0; i < 3; i++) {

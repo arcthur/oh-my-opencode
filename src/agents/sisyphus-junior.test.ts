@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { createSisyphusJuniorAgentWithOverrides, SISYPHUS_JUNIOR_DEFAULTS } from "./sisyphus-junior"
 
+const TEST_SYSTEM_DEFAULT_MODEL = "google/gemini-3-pro"
+
 describe("createSisyphusJuniorAgentWithOverrides", () => {
   describe("honored fields", () => {
     test("applies model override", () => {
@@ -8,7 +10,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { model: "openai/gpt-5.2" }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.model).toBe("openai/gpt-5.2")
@@ -19,7 +21,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { temperature: 0.5 }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.temperature).toBe(0.5)
@@ -30,7 +32,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { top_p: 0.9 }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.top_p).toBe(0.9)
@@ -41,7 +43,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { description: "Custom description" }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.description).toBe("Custom description")
@@ -52,7 +54,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { color: "#FF0000" }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.color).toBe("#FF0000")
@@ -63,7 +65,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { prompt_append: "Extra instructions here" }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.prompt).toContain("You work ALONE")
@@ -72,15 +74,15 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
   })
 
   describe("defaults", () => {
-    test("uses default model when no override", () => {
+    test("uses systemDefaultModel when no override", () => {
       // #given
       const override = {}
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
-      expect(result.model).toBe(SISYPHUS_JUNIOR_DEFAULTS.model)
+      expect(result.model).toBe(TEST_SYSTEM_DEFAULT_MODEL)
     })
 
     test("uses default temperature when no override", () => {
@@ -88,7 +90,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = {}
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.temperature).toBe(SISYPHUS_JUNIOR_DEFAULTS.temperature)
@@ -96,7 +98,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
   })
 
   describe("disable semantics", () => {
-    test("disable: true causes override block to be ignored", () => {
+    test("disable: true causes override block to be ignored, uses systemDefaultModel", () => {
       // #given
       const override = {
         disable: true,
@@ -105,10 +107,10 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
-      // #then - defaults should be used, not the overrides
-      expect(result.model).toBe(SISYPHUS_JUNIOR_DEFAULTS.model)
+      // #then - systemDefaultModel should be used, not the overrides
+      expect(result.model).toBe(TEST_SYSTEM_DEFAULT_MODEL)
       expect(result.temperature).toBe(SISYPHUS_JUNIOR_DEFAULTS.temperature)
     })
   })
@@ -119,7 +121,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { mode: "primary" as const }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.mode).toBe("subagent")
@@ -130,7 +132,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { prompt: "Completely new prompt that replaces everything" }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.prompt).toContain("You work ALONE")
@@ -151,7 +153,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       const tools = result.tools as Record<string, boolean> | undefined
@@ -183,7 +185,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       } as { permission: Record<string, string> }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override as Parameters<typeof createSisyphusJuniorAgentWithOverrides>[0])
+      const result = createSisyphusJuniorAgentWithOverrides(override as Parameters<typeof createSisyphusJuniorAgentWithOverrides>[0], TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then - task/delegate_task blocked, but call_omo_agent allowed for explore/librarian spawning
       const tools = result.tools as Record<string, boolean> | undefined
@@ -207,7 +209,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = {}
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       expect(result.prompt).toContain("Sisyphus-Junior")
@@ -220,7 +222,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const override = { prompt_append: "CUSTOM_MARKER_FOR_TEST" }
 
       // #when
-      const result = createSisyphusJuniorAgentWithOverrides(override)
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
 
       // #then
       const baseEndIndex = result.prompt!.indexOf("Dense > verbose.")

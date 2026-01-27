@@ -63,9 +63,9 @@ Approach:
 </Category_Context>
 
 <Caller_Warning>
-THIS CATEGORY USES A LESS CAPABLE MODEL (claude-haiku-4-5).
+THIS CATEGORY IS FOR SIMPLE/QUICK TASKS.
 
-The model executing this task has LIMITED reasoning capacity. Your prompt MUST be:
+The executor may have LIMITED reasoning capacity for complex logic. Your prompt MUST be:
 
 **EXHAUSTIVELY EXPLICIT** - Leave NOTHING to interpretation:
 1. MUST DO: List every required action as atomic, numbered steps
@@ -114,7 +114,7 @@ This is NOT a default choice - it's for genuinely unclassifiable moderate-effort
 </Category_Context>
 
 <Caller_Warning>
-THIS CATEGORY USES A MID-TIER MODEL (claude-sonnet-4-5).
+THIS CATEGORY IS FOR MODERATE-EFFORT TASKS.
 
 **PROVIDE CLEAR STRUCTURE:**
 1. MUST DO: Enumerate required actions explicitly
@@ -155,14 +155,17 @@ Approach:
 
 
 
+// DEFAULT_CATEGORIES: Categories without explicit models use systemDefaultModel.
+// This ensures compatibility with any provider the user has configured.
+// Users can override these in their oh-my-opencode.json categories config.
 export const DEFAULT_CATEGORIES: Record<string, CategoryConfig> = {
-  "visual-engineering": { model: "google/gemini-3-pro-preview" },
-  ultrabrain: { model: "openai/gpt-5.2-codex", variant: "xhigh" },
-  artistry: { model: "google/gemini-3-pro-preview", variant: "max" },
-  quick: { model: "anthropic/claude-haiku-4-5" },
-  "unspecified-low": { model: "anthropic/claude-sonnet-4-5" },
-  "unspecified-high": { model: "anthropic/claude-opus-4-5", variant: "max" },
-  writing: { model: "google/gemini-3-flash-preview" },
+  "visual-engineering": {},
+  ultrabrain: { variant: "xhigh" },
+  artistry: { variant: "max" },
+  quick: {},
+  "unspecified-low": {},
+  "unspecified-high": { variant: "max" },
+  writing: {},
 }
 
 export const CATEGORY_PROMPT_APPENDS: Record<string, string> = {

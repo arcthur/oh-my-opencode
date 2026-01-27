@@ -26,7 +26,7 @@ import type { OhMyOpenCodeConfig } from "../config";
 import { log } from "../shared";
 import { getOpenCodeConfigPaths } from "../shared/opencode-config-dir";
 import { migrateAgentConfig } from "../shared/permission-compat";
-import { AGENT_NAME_MAP } from "../shared/migration";
+import { AGENT_NAME_MAP, migrateAgentNames } from "../shared/migration";
 import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus-prompt";
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
 import type { ModelCacheState } from "../plugin-state";
@@ -125,9 +125,14 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       return AGENT_NAME_MAP[agent.toLowerCase()] ?? AGENT_NAME_MAP[agent] ?? agent
     }) as typeof pluginConfig.disabled_agents
 
+    // Migrate agent names in pluginConfig.agents (e.g., sisyphus → Sisyphus)
+    const { migrated: migratedAgents } = migrateAgentNames(
+      (pluginConfig.agents ?? {}) as Record<string, unknown>
+    )
+
     const builtinAgents = createBuiltinAgents(
       migratedDisabledAgents,
-      pluginConfig.agents,
+      migratedAgents as typeof pluginConfig.agents,
       ctx.directory,
       config.model as string | undefined,
       pluginConfig.categories,
@@ -183,7 +188,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       };
 
       agentConfig["Sisyphus-Junior"] = createSisyphusJuniorAgentWithOverrides(
-        pluginConfig.agents?.["Sisyphus-Junior"],
+        (migratedAgents as Record<string, unknown>)["Sisyphus-Junior"] as Parameters<typeof createSisyphusJuniorAgentWithOverrides>[0],
         config.model as string | undefined
       );
 
@@ -194,7 +199,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           buildConfigWithoutName as Record<string, unknown>
         );
         const openCodeBuilderOverride =
-          pluginConfig.agents?.["OpenCode-Builder"];
+          (migratedAgents as Record<string, unknown>)["OpenCode-Builder"];
         const openCodeBuilderBase = {
           ...migratedBuildConfig,
           description: `${configAgent?.build?.description ?? "Build agent"} (OpenCode default)`,
@@ -207,7 +212,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
 
       if (plannerEnabled) {
         const prometheusOverride =
-          pluginConfig.agents?.["Prometheus"] as
+          migratedAgents["Prometheus"] as
             | (Record<string, unknown> & { category?: string; model?: string | string[] })
             | undefined;
         const defaultModel = config.model as string | undefined;

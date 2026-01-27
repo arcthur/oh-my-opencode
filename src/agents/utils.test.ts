@@ -109,7 +109,7 @@ describe("buildAgent with category and skills", () => {
   const { buildAgent } = require("./utils")
   const TEST_MODEL = "anthropic/claude-opus-4-5"
 
-  test("agent with category inherits category settings", () => {
+  test("agent with category but no model stays without model (uses systemDefaultModel at runtime)", () => {
     // #given - agent factory that sets category but no model
     const source = {
       "test-agent": () =>
@@ -122,8 +122,9 @@ describe("buildAgent with category and skills", () => {
     // #when
     const agent = buildAgent(source["test-agent"], TEST_MODEL)
 
-    // #then - category's built-in model is applied
-    expect(agent.model).toBe("google/gemini-3-pro-preview")
+    // #then - DEFAULT_CATEGORIES no longer has hardcoded models, so agent has no model
+    // The systemDefaultModel will be applied at runtime by createBuiltinAgents
+    expect(agent.model).toBeUndefined()
   })
 
   test("agent with category and existing model keeps existing model", () => {
@@ -244,8 +245,8 @@ describe("buildAgent with category and skills", () => {
     // #when
     const agent = buildAgent(source["test-agent"], TEST_MODEL)
 
-    // #then - category's built-in model and skills are applied
-    expect(agent.model).toBe("openai/gpt-5.2-codex")
+    // #then - category's variant and skills are applied; model comes from systemDefaultModel at runtime
+    expect(agent.model).toBeUndefined() // DEFAULT_CATEGORIES no longer has hardcoded models
     expect(agent.variant).toBe("xhigh")
     expect(agent.prompt).toContain("Role: Designer-Turned-Developer")
     expect(agent.prompt).toContain("Task description")
