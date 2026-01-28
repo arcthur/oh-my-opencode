@@ -8,6 +8,10 @@ import type {
   TemporalValidityConfig,
   ConsolidationConfig,
   SemanticClusteringConfig,
+  EmbeddingConfig,
+  EmbeddingCache,
+  EmbeddingCacheFile,
+  EmbeddingProvider,
 } from "./types"
 import type {
   ToolExecuteInput,
@@ -24,7 +28,14 @@ import {
   DEFAULT_TEMPORAL_VALIDITY_CONFIG,
   DEFAULT_CONSOLIDATION_CONFIG,
   DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
+  DEFAULT_EMBEDDING_CONFIG,
+  DEFAULT_HYBRID_WEIGHTS,
 } from "./types"
+import { loadEmbeddingCache, saveEmbeddingCache } from "./embeddings/cache"
+import { getProviderWithFallback } from "./embeddings/provider"
+import { buildBM25Index } from "./embeddings/bm25"
+import type { BM25Index } from "./embeddings/types"
+import type { HybridSimilarityContext } from "./similarity"
 import {
   getMemorySummary,
   addWorkHistoryEntry,
@@ -35,6 +46,7 @@ import {
   aggregateFrequentPatterns,
   loadUserMemory,
   saveUserMemory,
+  getContextAwareMemorySummary,
 } from "./storage"
 import {
   performAggregations,
@@ -72,6 +84,7 @@ export interface UserMemoryHookConfig extends UserMemoryConfig {
   temporal_validity?: Partial<TemporalValidityConfig>
   consolidation?: Partial<ConsolidationConfig>
   semantic_clustering?: Partial<SemanticClusteringConfig>
+  embeddings?: Partial<EmbeddingConfig>
   disclosure_level?: "minimal" | "standard" | "full"
 }
 
@@ -133,11 +146,21 @@ export function createUserMemoryHook(
     ...DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
     ...userConfig?.semantic_clustering,
   }
+  const embeddingConfig: EmbeddingConfig = {
+    ...DEFAULT_EMBEDDING_CONFIG,
+    ...userConfig?.embeddings,
+  }
   const disclosureLevel = userConfig?.disclosure_level ?? "standard"
   const collector = deps?.collector
 
   // Flag to prevent concurrent aggregations
   let aggregationInProgress = false
+
+  // Lazy-loaded embedding provider and cache
+  let embeddingProvider: EmbeddingProvider | null = null
+  let embeddingCache: EmbeddingCache | null = null
+  // Track whether we used fallback provider (for cache metadata correctness)
+  let usedProviderFallback = false
 
   // In-memory pattern stats accumulator (persisted on session end)
   let patternStats: PatternStats = loadPatternStats()
@@ -212,6 +235,43 @@ export function createUserMemoryHook(
         break
       }
     }
+
+    // Inject user memory context for this prompt (baseline once per session + relevant per prompt)
+    if (!config.auto_inject || !collector) return
+
+    // Baseline hierarchical summary: once per session (existing behavior, but now works even before first tool call)
+    const baseline = getMemorySummary(temporalConfig, disclosureLevel, entityConfig)
+    if (baseline) {
+      collector.register(input.sessionID, {
+        id: "user-memory-context",
+        source: "user-memory",
+        priority: "normal",
+        content: baseline,
+        oncePerSession: true,
+        estimatedTokens: Math.ceil(baseline.length / 4),
+        metadata: { disclosureLevel },
+      })
+    }
+
+    // Context-aware relevant memory: computed per prompt when embeddings enabled
+    if (embeddingConfig.enabled) {
+      try {
+        const relevant = await getContextAwareMemorySummary(content, embeddingConfig, 5)
+        if (relevant) {
+          collector.register(input.sessionID, {
+            id: "user-memory-relevant",
+            source: "user-memory",
+            priority: "high",
+            content: relevant,
+            oncePerSession: false,
+            estimatedTokens: Math.ceil(relevant.length / 4),
+            metadata: { disclosureLevel },
+          })
+        }
+      } catch (error) {
+        log("[user-memory] failed to build context-aware memory summary", { error: String(error) })
+      }
+    }
   }
 
   /**
@@ -235,6 +295,51 @@ export function createUserMemoryHook(
         return
       }
 
+      // Create hybrid similarity context if embeddings are enabled
+      let hybridContext: HybridSimilarityContext | undefined
+      if (embeddingConfig.enabled) {
+        try {
+          // Lazy-load provider and cache (with fallback to local if configured provider fails)
+          if (!embeddingProvider) {
+            const { provider, usedFallback } = await getProviderWithFallback(embeddingConfig)
+            embeddingProvider = provider
+            usedProviderFallback = usedFallback
+            if (usedFallback) {
+              log("[user-memory] using fallback local provider")
+            }
+          }
+          if (!embeddingCache && embeddingConfig.cache_enabled) {
+            const cacheFile = loadEmbeddingCache()
+            embeddingCache = cacheFile?.embeddings ?? {
+              version: 1,
+              provider: embeddingProvider.name,
+              model: (usedProviderFallback || embeddingConfig.provider === "local")
+                ? (embeddingConfig.local_model ?? "Xenova/all-MiniLM-L6-v2")
+                : (embeddingConfig.openai_model ?? "text-embedding-3-small"),
+              dimension: embeddingProvider.dimension,
+              entries: {},
+              lastUpdated: Date.now(),
+            }
+          }
+
+          if (embeddingProvider && embeddingCache) {
+            hybridContext = {
+              provider: embeddingProvider,
+              cache: embeddingCache,
+              weights: {
+                ...DEFAULT_HYBRID_WEIGHTS,
+                ...embeddingConfig.hybrid_weights,
+              },
+            }
+            log("[user-memory] hybrid context created for aggregation")
+          }
+        } catch (error) {
+          log("[user-memory] failed to create hybrid context, falling back to text-only", {
+            error: String(error),
+          })
+        }
+      }
+
       // Perform aggregations
       const updated = await performAggregations(
         memory,
@@ -242,7 +347,8 @@ export function createUserMemoryHook(
         aggregationSummarizer,
         hierarchicalConfig,
         consolidationConfig,
-        semanticClusteringConfig
+        semanticClusteringConfig,
+        hybridContext
       )
 
       let entityGraphChanged = false
@@ -366,6 +472,78 @@ export function createUserMemoryHook(
           longTermKnowledge: updated.longTermKnowledge?.length ?? 0,
           workHistoryCleaned: memory.workHistory.length - updated.workHistory.length,
         })
+      }
+
+      // Build BM25 index from all searchable memory content
+      let bm25Index: BM25Index | null = null
+      if (embeddingConfig.enabled) {
+        const searchableDocuments: Array<{ id: string; text: string }> = []
+
+        // Add long-term knowledge
+        for (const k of updated.longTermKnowledge ?? []) {
+          searchableDocuments.push({
+            id: `knowledge:${k.id}`,
+            text: `${k.category}: ${k.content}`,
+          })
+        }
+
+        // Add weekly summaries
+        for (const w of updated.weeklySummaries ?? []) {
+          searchableDocuments.push({
+            id: `weekly:${w.weekStart}`,
+            text: w.summary,
+          })
+        }
+
+        // Add monthly summaries
+        for (const m of updated.monthlySummaries ?? []) {
+          searchableDocuments.push({
+            id: `monthly:${m.month}`,
+            text: m.summary,
+          })
+        }
+
+        // Add recent work history (last 20 entries for search)
+        const recentHistory = updated.workHistory.slice(0, 20)
+        for (const h of recentHistory) {
+          searchableDocuments.push({
+            id: `history:${h.timestamp}`,
+            text: `${h.project ?? "unknown"}: ${h.summary}`,
+          })
+        }
+
+        if (searchableDocuments.length > 0) {
+          bm25Index = buildBM25Index(searchableDocuments)
+          log("[user-memory] built BM25 index", {
+            documents: searchableDocuments.length,
+          })
+        }
+      }
+
+      // Save embedding cache and BM25 index together
+      if (embeddingCache && Object.keys(embeddingCache.entries).length > 0) {
+        embeddingCache.lastUpdated = Date.now()
+        saveEmbeddingCache(embeddingCache, bm25Index)
+        log("[user-memory] saved embedding cache", {
+          entries: Object.keys(embeddingCache.entries).length,
+          hasBM25Index: bm25Index !== null,
+        })
+      } else if (bm25Index) {
+        // Save BM25 index even if embedding cache is empty
+        saveEmbeddingCache(
+          {
+            version: 1,
+            provider: embeddingProvider?.name ?? (usedProviderFallback ? "local" : embeddingConfig.provider),
+            model: (usedProviderFallback || embeddingConfig.provider === "local")
+              ? (embeddingConfig.local_model ?? "Xenova/all-MiniLM-L6-v2")
+              : (embeddingConfig.openai_model ?? "text-embedding-3-small"),
+            dimension: embeddingProvider?.dimension ?? 384,
+            entries: {},
+            lastUpdated: Date.now(),
+          },
+          bm25Index
+        )
+        log("[user-memory] saved BM25 index (no embeddings)")
       }
     } catch (error) {
       log("[user-memory] aggregation failed", { error: String(error) })

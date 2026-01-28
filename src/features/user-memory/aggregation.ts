@@ -14,11 +14,14 @@ import type {
   HierarchicalMemoryConfig,
   SemanticClusteringConfig,
   ConsolidationConfig,
+  EmbeddingConfig,
+  EmbeddingProvider,
+  EmbeddingCache,
 } from "./types"
-import { DEFAULT_HIERARCHICAL_CONFIG, DEFAULT_SEMANTIC_CLUSTERING_CONFIG, DEFAULT_CONSOLIDATION_CONFIG } from "./types"
+import { DEFAULT_HIERARCHICAL_CONFIG, DEFAULT_SEMANTIC_CLUSTERING_CONFIG, DEFAULT_CONSOLIDATION_CONFIG, DEFAULT_EMBEDDING_CONFIG } from "./types"
 import { buildWeeklySummaryPrompt, buildMonthlySummaryPrompt, buildMergeDecisionPrompt, parseMergeDecisionResponse } from "./prompts"
 import { log } from "../../shared/logger"
-import { calculateSimilarity, DEFAULT_SIMILARITY_CONFIG } from "./similarity"
+import { calculateSimilarity, DEFAULT_SIMILARITY_CONFIG, calculateSimilarityWithEmbeddings, type HybridSimilarityContext } from "./similarity"
 import { generateKnowledgeId, inferStalenessCategory, calculateValidityRange } from "./temporal-validity"
 
 // ============================================================================
@@ -422,13 +425,21 @@ interface LessonCluster {
 
 /**
  * Extract long-term knowledge from monthly summaries
+ *
+ * @param monthlySummaries - Monthly summaries to extract from
+ * @param existingKnowledge - Existing knowledge to merge with
+ * @param summarize - LLM summarize function
+ * @param config - Semantic clustering configuration
+ * @param knowledgeLimit - Maximum knowledge entries to keep
+ * @param hybridContext - Optional hybrid similarity context for vector search
  */
 export async function extractLongTermKnowledge(
   monthlySummaries: MonthlySummary[],
   existingKnowledge: LongTermKnowledge[],
   summarize: SummarizeFunction,
   config: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
-  knowledgeLimit: number = DEFAULT_HIERARCHICAL_CONFIG.long_term_knowledge_limit
+  knowledgeLimit: number = DEFAULT_HIERARCHICAL_CONFIG.long_term_knowledge_limit,
+  hybridContext?: HybridSimilarityContext
 ): Promise<LongTermKnowledge[]> {
   // Apply limit even when no new knowledge is extracted
   const applyLimit = (arr: LongTermKnowledge[]) =>
@@ -447,8 +458,8 @@ export async function extractLongTermKnowledge(
     return applyLimit(existingKnowledge)
   }
 
-  // Cluster similar lessons using enhanced semantic similarity
-  const clusters = await clusterSimilarLessons(allLessons, summarize, config)
+  // Cluster similar lessons using enhanced semantic similarity (hybrid when available)
+  const clusters = await clusterSimilarLessons(allLessons, summarize, config, hybridContext)
 
   // Filter to clusters that appeared in at least 2 DIFFERENT months
   // This ensures we capture stable cross-month patterns, not single-month noise
@@ -480,33 +491,51 @@ export async function extractLongTermKnowledge(
  *
  * Uses hybrid approach:
  * 1. Enhanced word overlap with stemming and synonyms for candidate selection
- * 2. LLM-assisted merge decisions for borderline cases (when available)
+ * 2. Vector similarity when embeddings are enabled (three-way hybrid)
+ * 3. LLM-assisted merge decisions for borderline cases (when available)
  *
  * @param lessons - Lessons to cluster
  * @param summarize - Optional LLM summarize function for borderline decisions
  * @param config - Semantic clustering configuration
+ * @param hybridContext - Optional hybrid similarity context for vector search
  */
 async function clusterSimilarLessons(
   lessons: Array<{ content: string; month: string }>,
   summarize?: SummarizeFunction,
-  config: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG
+  config: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
+  hybridContext?: HybridSimilarityContext
 ): Promise<LessonCluster[]> {
   const clusters: LessonCluster[] = []
   let llmCallsUsed = 0
 
   for (const lesson of lessons) {
     let matched = false
-    let bestMatch: { cluster: LessonCluster; similarity: ReturnType<typeof calculateSimilarity> } | null = null
+    let bestMatch: { cluster: LessonCluster; similarity: { score: number; confidence: "high" | "medium" | "low" } } | null = null
 
-    // Find matching cluster using enhanced similarity
+    // Find matching cluster using enhanced similarity (hybrid when available)
     for (const cluster of clusters) {
-      const similarity = calculateSimilarity(lesson.content, cluster.content, {
-        ...DEFAULT_SIMILARITY_CONFIG,
-        highConfidenceThreshold: config.high_confidence_threshold,
-        candidateThreshold: config.candidate_threshold,
-        useSynonyms: config.use_synonyms,
-        useStemming: config.use_stemming,
-      })
+      // Use hybrid similarity when embedding context is available
+      const similarityResult = hybridContext
+        ? await calculateSimilarityWithEmbeddings(
+            lesson.content,
+            cluster.content,
+            hybridContext,
+            `lesson-${lessons.indexOf(lesson)}`,
+            `cluster-${clusters.indexOf(cluster)}`
+          )
+        : calculateSimilarity(lesson.content, cluster.content, {
+            ...DEFAULT_SIMILARITY_CONFIG,
+            highConfidenceThreshold: config.high_confidence_threshold,
+            candidateThreshold: config.candidate_threshold,
+            useSynonyms: config.use_synonyms,
+            useStemming: config.use_stemming,
+          })
+
+      // Normalize to common interface for comparison
+      const similarity = {
+        score: similarityResult.score,
+        confidence: similarityResult.confidence,
+      }
 
       // Track best match for potential LLM decision
       if (!bestMatch || similarity.score > bestMatch.similarity.score) {
@@ -798,6 +827,14 @@ export function checkConsolidationTriggers(
  * periods are aggregated to prevent data loss.
  *
  * Now also supports size-based consolidation triggers (not just time boundaries).
+ *
+ * @param memory - User memory to aggregate
+ * @param now - Current timestamp
+ * @param summarize - LLM summarize function
+ * @param config - Hierarchical memory configuration
+ * @param consolidationConfig - Consolidation configuration
+ * @param semanticClusteringConfig - Semantic clustering configuration
+ * @param hybridContext - Optional hybrid similarity context for vector search
  */
 export async function performAggregations(
   memory: UserMemory,
@@ -805,7 +842,8 @@ export async function performAggregations(
   summarize: SummarizeFunction,
   config: HierarchicalMemoryConfig = DEFAULT_HIERARCHICAL_CONFIG,
   consolidationConfig: ConsolidationConfig = DEFAULT_CONSOLIDATION_CONFIG,
-  semanticClusteringConfig: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG
+  semanticClusteringConfig: SemanticClusteringConfig = DEFAULT_SEMANTIC_CLUSTERING_CONFIG,
+  hybridContext?: HybridSimilarityContext
 ): Promise<UserMemory> {
   if (!config.enabled) {
     return memory
@@ -919,14 +957,17 @@ export async function performAggregations(
     consolidation.needsL2toL3
 
   if (needsKnowledgeExtraction) {
-    log("[aggregation] extracting long-term knowledge")
+    log("[aggregation] extracting long-term knowledge", {
+      useHybridSimilarity: !!hybridContext,
+    })
 
     updated.longTermKnowledge = await extractLongTermKnowledge(
       updated.monthlySummaries,
       updated.longTermKnowledge,
       summarize,
       semanticClusteringConfig,
-      config.long_term_knowledge_limit
+      config.long_term_knowledge_limit,
+      hybridContext
     )
 
     updated.lastKnowledgeExtraction = now

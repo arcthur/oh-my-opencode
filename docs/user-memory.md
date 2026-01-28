@@ -2,11 +2,12 @@
 
 ## Overview
 
-User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing for Tree-Organized Retrieval) hierarchical memory system with three enhancement layers:
+User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing for Tree-Organized Retrieval) hierarchical memory system with four enhancement layers:
 
 1. **Temporal Validity** - Facts have valid_from/valid_until with staleness decay
 2. **Entity Memory** - Person/project/technology relationship graph (opt-in)
 3. **Semantic Clustering** - LLM-assisted knowledge deduplication
+4. **Embedding-based Search** - Three-way hybrid search: Vector + BM25 + Jaccard (opt-in)
 
 **LLM Summarizer (default)**:
 - A built-in summarizer can call the OpenCode session API to generate weekly/monthly summaries.
@@ -41,6 +42,13 @@ User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing f
 │  ─────────────────────────                                                │
 │  Enhanced word overlap + LLM-assisted borderline decisions                │
 │  (Stemming, synonyms, 0.6 high / 0.25 candidate thresholds)               │
+│                                                                           │
+│  ──────────────────────────────────────────────────────────────────────   │
+│  Embedding Layer (opt-in)                                                 │
+│  ────────────────────────                                                 │
+│  Three-way hybrid search: Vector (50%) + BM25 (30%) + Jaccard (20%)       │
+│  Providers: local (transformers.js) / openai                              │
+│  Cache: ~/.opencode/memory/embeddings.json                                │
 │                                                                           │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
@@ -315,6 +323,277 @@ const SYNONYM_GROUPS = [
 
 ---
 
+## Part 4: Embedding-based Search (Optional)
+
+When enabled, embeddings provide **semantic vector search** for memory retrieval. This integrates with the existing similarity system to form a **three-way hybrid search**.
+
+### Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Three-Way Hybrid Search                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   Query: "How do I configure TypeScript paths?"                          │
+│           │                                                              │
+│           ▼                                                              │
+│   ┌───────────────────────────────────────────────────────────────┐     │
+│   │                    Search Signals                              │     │
+│   ├───────────────────┬───────────────────┬───────────────────────┤     │
+│   │  Vector (50%)     │  BM25 (30%)       │  Jaccard (20%)        │     │
+│   │  ─────────────    │  ─────────────    │  ─────────────────    │     │
+│   │  Semantic meaning │  Keyword precision│  N-gram/synonyms      │     │
+│   │  "paths" ≈        │  Exact "TypeScript"│  "TS" → "TypeScript" │     │
+│   │  "aliases"        │  match scores high│  stemmed overlap      │     │
+│   └───────────────────┴───────────────────┴───────────────────────┘     │
+│                               │                                          │
+│                               ▼                                          │
+│                     Weighted Score Fusion                                │
+│                     ───────────────────────                              │
+│                     final = 0.5*vec + 0.3*bm25 + 0.2*jaccard            │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Embedding Providers
+
+Two providers are supported:
+
+**Local Provider** (default):
+- Uses `@huggingface/transformers` (ONNX runtime) for **offline** embeddings
+- Model: `Xenova/all-MiniLM-L6-v2` (384 dimensions, ~23 MB download on first use)
+- No API key required, works offline
+- Lazy-loaded on first embedding request
+
+**OpenAI Provider**:
+- Requires `OPENAI_API_KEY` environment variable
+- Models: `text-embedding-ada-002`, `text-embedding-3-small`, `text-embedding-3-large`
+- Supports custom `OPENAI_BASE_URL` for self-hosted endpoints
+
+**Fallback Chain**:
+```
+Configured Provider → Local Provider → Error
+```
+If the configured provider fails (e.g., API error), local provider is used as fallback.
+
+### BM25 Ranking
+
+Full BM25 (Best Match 25) implementation for keyword-based ranking:
+
+```typescript
+// BM25 scoring formula
+score = Σ IDF(t) * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (docLen / avgDocLen)))
+
+// Default parameters
+k1 = 1.2  // Term frequency saturation
+b = 0.75  // Length normalization
+```
+
+BM25 index is:
+- Built from document content using the shared stemmer
+- Serialized to cache alongside embeddings
+- Rebuilt when content changes
+
+### Score Normalization
+
+Per-query min-max normalization prevents cross-model baseline shifts:
+
+```typescript
+function normalizeScores(scores: number[]): number[] {
+  const min = Math.min(...scores)
+  const max = Math.max(...scores)
+  if (max === min) return scores.map(() => 0.5) // Avoid noise amplification
+  return scores.map(s => (s - min) / (max - min))
+}
+```
+
+### Configuration
+
+```typescript
+interface EmbeddingConfigOverride {
+  enabled: boolean                          // default: false (opt-in)
+  provider: "local" | "openai"              // default: "local"
+  openai_model?: "text-embedding-ada-002" |
+                 "text-embedding-3-small" |
+                 "text-embedding-3-large"
+  local_model?: string                      // default: "Xenova/all-MiniLM-L6-v2"
+  hybrid_weights?: {
+    vector: number                          // default: 0.5
+    bm25: number                            // default: 0.3
+    jaccard: number                         // default: 0.2
+  }
+  cache_enabled: boolean                    // default: true
+  batch_size: number                        // default: 20
+}
+```
+
+**Example configuration:**
+
+```json
+{
+  "user_memory": {
+    "embeddings": {
+      "enabled": true,
+      "provider": "local",
+      "cache_enabled": true,
+      "hybrid_weights": {
+        "vector": 0.5,
+        "bm25": 0.3,
+        "jaccard": 0.2
+      }
+    }
+  }
+}
+```
+
+Configured via `user_memory.embeddings`.
+
+### Embedding Cache
+
+Embeddings are cached to disk for performance:
+
+**Location**: `~/.opencode/memory/embeddings.json`
+
+**Cache structure**:
+```typescript
+interface EmbeddingCacheData {
+  embeddings: {
+    version: 1
+    provider: "local" | "openai"
+    model: string
+    dimension: number
+    entries: Record<string, {
+      id: string
+      contentHash: string      // DJB2 hash (base36) for invalidation
+      vector: number[]
+      computedAt: number
+    }>
+    lastUpdated: number
+  }
+  bm25Index: SerializableBM25Index | null
+}
+```
+
+**Features**:
+- Content-hash based validation (DJB2 algorithm)
+- Atomic writes via temp file + rename
+- Separate load/save for embeddings-only or BM25-only
+- Cache invalidation when content changes
+
+### Integration with Semantic Clustering
+
+When embeddings are enabled, similarity calculations use hybrid search:
+
+```typescript
+// With embeddings enabled
+similarity = calculateHybridSimilarity(text1, text2, provider, cache, weights)
+
+// Fallback without embeddings
+similarity = calculateHybridSimilarityWithoutVector(text1, text2, weights)
+// Uses only BM25 (60%) + Jaccard (40%)
+```
+
+This enhances:
+- **L2→L3 knowledge clustering**: Better semantic matching for lesson deduplication
+- **Entity reconciliation**: Improved alias detection
+- **Memory retrieval**: More relevant context injection
+
+### Tuning Hybrid Weights
+
+| Use Case | Vector | BM25 | Jaccard | Rationale |
+|----------|--------|------|---------|-----------|
+| General (default) | 0.5 | 0.3 | 0.2 | Balanced semantic + keyword |
+| Keyword-heavy code | 0.3 | 0.5 | 0.2 | Prioritize exact matches |
+| Natural language | 0.6 | 0.2 | 0.2 | Prioritize semantic meaning |
+| Synonym-rich domain | 0.4 | 0.3 | 0.3 | Boost n-gram/synonym matching |
+
+**Note**: Weights must sum to 1.0 (validated at config load time).
+
+### Context-aware Memory Injection
+
+When embeddings are enabled, memory injection becomes **context-aware**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Memory Injection Flow                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   User Prompt                                                            │
+│       │                                                                  │
+│       ▼                                                                  │
+│   ┌───────────────────────────────────────────────────────────────┐     │
+│   │  Baseline Injection (once per session)                         │     │
+│   │  ──────────────────────────────────────                        │     │
+│   │  Hierarchical summary: rules, knowledge, weekly, preferences   │     │
+│   └───────────────────────────────────────────────────────────────┘     │
+│       │                                                                  │
+│       ▼                                                                  │
+│   ┌───────────────────────────────────────────────────────────────┐     │
+│   │  Relevant Memory (per prompt, embeddings enabled)              │     │
+│   │  ─────────────────────────────────────────────────             │     │
+│   │  Hybrid search against prompt content → top 5 relevant items   │     │
+│   │  Includes: knowledge, weekly, monthly, work history            │     │
+│   └───────────────────────────────────────────────────────────────┘     │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Injection priority**:
+- Baseline hierarchical summary: `priority: "normal"`, once per session
+- Context-relevant memories: `priority: "high"`, per prompt
+
+**Example output** (relevant memory section):
+
+```
+[Relevant User Memory]
+
+## Relevant Knowledge
+- pattern: Use path aliases for cleaner imports (relevance: 85%)
+- preference: Prefer explicit TypeScript types (relevance: 72%)
+
+## Related Weekly Activity
+- Worked on tsconfig refactoring last week (relevance: 68%)
+
+[End User Memory]
+```
+
+### Memory Search API
+
+Programmatic access to hybrid search:
+
+```typescript
+import { searchMemory, getContextAwareMemorySummary } from "./storage"
+
+// Search for relevant memories
+const results = await searchMemory(
+  "TypeScript path configuration",
+  { enabled: true, provider: "local" },
+  5,    // topK
+  0.1   // minScore threshold
+)
+
+// Get formatted context-aware summary
+const summary = await getContextAwareMemorySummary(
+  "How do I configure TypeScript paths?",
+  { enabled: true },
+  5     // topK
+)
+```
+
+**Search result structure**:
+
+```typescript
+interface MemorySearchResult {
+  type: "knowledge" | "weekly" | "monthly" | "history"
+  id: string
+  content: string
+  score: number  // Hybrid similarity score [0, 1]
+  source: LongTermKnowledge | WeeklySummary | MonthlySummary | WorkHistoryEntry
+}
+```
+
+---
+
 ## Consolidation Triggers
 
 Aggregation is triggered by **time boundaries** OR **size thresholds** (whichever comes first).
@@ -439,6 +718,19 @@ flowchart TD
   MonthlySummary -->|"QuarterlyOrSize>6"| LongTermKnowledge["Long-term Knowledge (L3)"]
   LongTermKnowledge -->|"staleness and supersession"| KnowledgeValidity["Validity and Supersession"]
   LongTermKnowledge --> SemanticClustering["Semantic Clustering (stemmer, synonyms, LLM)"]
+
+  subgraph Embeddings["Embedding Layer (if enabled)"]
+    AllMemory["All Memory Content"] --> BM25Index["BM25 Index"]
+    AllMemory --> VectorCache["Embedding Cache"]
+    BM25Index --> HybridSearch["Hybrid Search"]
+    VectorCache --> HybridSearch
+  end
+
+  SemanticClustering -->|"hybrid context"| HybridSearch
+  LongTermKnowledge --> AllMemory
+  WeeklySummary --> AllMemory
+  MonthlySummary --> AllMemory
+  WorkHistory --> AllMemory
 ```
 
 ---
@@ -447,11 +739,12 @@ flowchart TD
 
 | Event | Actions |
 |-------|---------|
-| `session.summarized` | Add L0 entry + Extract entities (if enabled) + Trigger aggregation |
+| `session.summarized` | Add L0 entry + Extract entities (if enabled) + Trigger aggregation + Build BM25 index (if embeddings enabled) |
 | `session.deleted` | Trigger aggregation only |
 | `session.compacted` | Trigger aggregation only |
-| `tool.execute.after` | Inject memory (once per session, on first tool call) |
-| `user.prompt.submit` | Detect "remember X" patterns → `addExplicitMemory()` |
+| `user.prompt.submit` | Detect "remember X" patterns → `addExplicitMemory()` + Inject baseline memory (once per session) + Inject relevant memory (per prompt, if embeddings enabled) |
+
+**Note**: Memory injection now occurs at `user.prompt.submit` (before first tool call), ensuring context is available from the start of each turn.
 
 ### "Remember" Detection Patterns
 
@@ -576,7 +869,8 @@ All memory stored in `~/.opencode/memory/`:
 ```
 ~/.opencode/memory/
 ├── user.json          # Main memory (UserMemory)
-└── pattern-stats.json # Tool usage patterns
+├── pattern-stats.json # Tool usage patterns
+└── embeddings.json    # Embedding cache (if enabled)
 ```
 
 ### Estimated Storage Size
@@ -589,7 +883,19 @@ All memory stored in `~/.opencode/memory/`:
 | L3 LongTermKnowledge | ~150 bytes | 50 | ~8 KB |
 | EntityNode | ~200 bytes | 200 | ~40 KB |
 | EntityRelationship | ~150 bytes | 500 | ~75 KB |
-| **Total (typical)** | | | **~150 KB** |
+| **Total (user.json)** | | | **~150 KB** |
+
+**Embeddings cache** (if enabled):
+
+| Component | Size per Entry | Typical Entries | Total |
+|-----------|---------------|-----------------|-------|
+| Embedding vector (local, 384d) | ~7 KB | 100 | ~700 KB |
+| Embedding vector (OpenAI, 1536d) | ~28 KB | 100 | ~2.8 MB |
+| Embedding vector (OpenAI, 3072d) | ~55 KB | 100 | ~5.5 MB |
+| BM25 index | ~50 bytes/doc | 100 | ~5 KB |
+| **Total (embeddings.json)** | | | **~700 KB - 5.5 MB** |
+
+**Note**: JSON storage of float arrays uses ~18 bytes per number (vs ~4 bytes in binary).
 
 ### Atomic Write
 
@@ -685,6 +991,24 @@ Migration is automatic and non-destructive.
 }
 ```
 
+### EmbeddingConfig
+
+```typescript
+{
+  enabled: false,                    // opt-in
+  provider: "local",                 // "local" | "openai"
+  openai_model: undefined,           // "text-embedding-ada-002" | "text-embedding-3-small" | "text-embedding-3-large"
+  local_model: "Xenova/all-MiniLM-L6-v2",
+  hybrid_weights: {
+    vector: 0.5,
+    bm25: 0.3,
+    jaccard: 0.2
+  },
+  cache_enabled: true,
+  batch_size: 20
+}
+```
+
 ### Model Selection (Aggregation)
 
 `aggregation_model` maps to built-in category defaults, then user overrides:
@@ -716,6 +1040,20 @@ src/features/user-memory/
 ├── summarizer.ts         # LLM summarizer with circuit breaker
 ├── hook.ts               # Event handlers, trigger orchestration
 ├── index.ts              # Public exports
+├── embeddings/           # Embedding-based search (opt-in)
+│   ├── index.ts          # Public API exports
+│   ├── types.ts          # Type definitions and constants
+│   ├── provider.ts       # Provider factory and fallback logic
+│   ├── search.ts         # Vector search and cosine similarity
+│   ├── bm25.ts           # BM25 ranking algorithm
+│   ├── hybrid.ts         # Three-way hybrid search (Vector + BM25 + Jaccard)
+│   ├── cache.ts          # JSON-based embedding cache with atomic writes
+│   ├── providers/
+│   │   ├── index.ts      # Provider exports
+│   │   ├── local.ts      # Offline embeddings (transformers.js/ONNX)
+│   │   └── openai.ts     # Cloud-based embeddings (OpenAI API)
+│   ├── hybrid.test.ts    # Hybrid search tests
+│   └── search.test.ts    # Vector search tests
 ├── aggregation.test.ts   # Core test suite
 ├── storage.test.ts       # Storage tests
 ├── hook.test.ts          # Hook tests
@@ -755,6 +1093,7 @@ The following settings are configurable under `user_memory`:
 - `user_memory.temporal_validity`
 - `user_memory.consolidation`
 - `user_memory.semantic_clustering`
+- `user_memory.embeddings`
 - `user_memory.disclosure_level`
 
 ### Entity Extraction
@@ -775,6 +1114,18 @@ The following settings are configurable under `user_memory`:
 | Hardcoded synonyms | ~20 domain-specific groups, not extensible |
 | LLM call budget | Max 20 calls per aggregation, borderline cases may be missed |
 | LLM failures | Falls back to word overlap only if LLM unavailable |
+
+### Embeddings
+
+| Limitation | Details |
+|------------|---------|
+| First-run latency | Local provider downloads ~23 MB model on first use |
+| Memory usage | Local provider loads model into memory (~100-200 MB) |
+| OpenAI cost | OpenAI provider incurs API costs per embedding |
+| Dimension mismatch | Switching providers invalidates cached embeddings |
+| No GPU acceleration | Local provider uses CPU-only ONNX runtime |
+| English-optimized | Default model (`all-MiniLM-L6-v2`) trained primarily on English |
+| Cache corruption | Single JSON file; no backup mechanism |
 
 ### Temporal Validity
 
@@ -805,9 +1156,9 @@ The following settings are configurable under `user_memory`:
 
 | Limitation | Details |
 |------------|---------|
-| Once per session | Memory injected on first tool call only |
-| Appended to tool output | May be truncated if output is long |
-| No dynamic refresh | Changes during session not reflected |
+| Baseline once per session | Hierarchical summary injected on first prompt only |
+| Relevant memory per prompt | Context-aware search runs each prompt (if embeddings enabled) |
+| No mid-turn refresh | Memory changes during a turn not reflected until next prompt |
 
 ---
 
@@ -886,6 +1237,8 @@ bun test src/features/user-memory/
 | `aggregation.test.ts` | 40+ | Core RAPTOR algorithms |
 | `storage.test.ts` | 10+ | Load/save, pattern normalization |
 | `hook.test.ts` | 5+ | Event handling |
+| `embeddings/hybrid.test.ts` | 2+ | Score normalization |
+| `embeddings/search.test.ts` | 2+ | Vector search |
 | `entity-extraction.ts` | ❌ | No dedicated tests |
 | `entity-reconciliation.ts` | ❌ | No dedicated tests |
 | `similarity.ts` | ❌ | No dedicated tests |

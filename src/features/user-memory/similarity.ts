@@ -3,6 +3,11 @@
  *
  * Enhanced similarity calculation for lesson clustering.
  * Combines word overlap, synonym expansion, and n-gram matching.
+ *
+ * With embeddings enabled, supports three-way hybrid search:
+ * - Vector similarity (semantic understanding)
+ * - BM25 (keyword precision)
+ * - Jaccard (n-gram/synonym matching)
  */
 
 import {
@@ -10,6 +15,17 @@ import {
   expandWithSynonyms,
   extractNgrams,
 } from "./text-processing"
+import type {
+  EmbeddingConfig,
+  EmbeddingProvider,
+  EmbeddingCache,
+  HybridWeights,
+  HybridSimilarityResult,
+} from "./embeddings/types"
+import {
+  calculateHybridSimilarity as calculateHybridSimilarityCore,
+  calculateHybridSimilarityWithoutVector,
+} from "./embeddings/hybrid"
 
 // ============================================================================
 // Similarity Configuration
@@ -146,4 +162,76 @@ export function calculateSimilarity(
       ngramOverlap,
     },
   }
+}
+
+// ============================================================================
+// Hybrid Similarity (Vector + BM25 + Jaccard)
+// ============================================================================
+
+/**
+ * Context for hybrid similarity calculation.
+ * Created once and reused for multiple comparisons.
+ */
+export interface HybridSimilarityContext {
+  provider: EmbeddingProvider
+  cache: EmbeddingCache
+  weights: HybridWeights
+}
+
+/**
+ * Calculate three-way hybrid similarity between two texts.
+ *
+ * When embeddings are enabled, combines:
+ * - Vector similarity (semantic understanding via embeddings)
+ * - BM25 (keyword precision)
+ * - Jaccard (n-gram and synonym matching)
+ *
+ * Falls back to BM25 + Jaccard when embeddings are disabled.
+ *
+ * @param text1 - First text to compare
+ * @param text2 - Second text to compare
+ * @param context - Optional hybrid context with provider, cache, and weights
+ * @param id1 - Optional ID for text1 (for caching)
+ * @param id2 - Optional ID for text2 (for caching)
+ * @returns Hybrid similarity result
+ */
+export async function calculateSimilarityWithEmbeddings(
+  text1: string,
+  text2: string,
+  context?: HybridSimilarityContext,
+  id1?: string,
+  id2?: string
+): Promise<HybridSimilarityResult> {
+  if (context) {
+    // Full hybrid with vector
+    return calculateHybridSimilarityCore(
+      text1,
+      text2,
+      context.provider,
+      context.cache,
+      context.weights,
+      id1,
+      id2
+    )
+  }
+
+  // Fallback: BM25 + Jaccard only
+  return calculateHybridSimilarityWithoutVector(text1, text2)
+}
+
+/**
+ * Synchronous hybrid similarity without vector component.
+ * Useful when embeddings are disabled or for quick comparisons.
+ *
+ * @param text1 - First text to compare
+ * @param text2 - Second text to compare
+ * @param weights - Optional hybrid weights
+ * @returns Hybrid similarity result
+ */
+export function calculateSimilaritySync(
+  text1: string,
+  text2: string,
+  weights?: HybridWeights
+): HybridSimilarityResult {
+  return calculateHybridSimilarityWithoutVector(text1, text2, weights)
 }

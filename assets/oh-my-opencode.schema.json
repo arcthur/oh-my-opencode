@@ -2390,6 +2390,63 @@
             "standard",
             "full"
           ]
+        },
+        "embeddings": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "provider": {
+              "type": "string",
+              "enum": [
+                "local",
+                "openai"
+              ]
+            },
+            "openai_model": {
+              "type": "string",
+              "enum": [
+                "text-embedding-ada-002",
+                "text-embedding-3-small",
+                "text-embedding-3-large"
+              ]
+            },
+            "local_model": {
+              "type": "string"
+            },
+            "hybrid_weights": {
+              "type": "object",
+              "properties": {
+                "vector": {
+                  "default": 0.5,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "bm25": {
+                  "default": 0.3,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "jaccard": {
+                  "default": 0.2,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            "cache_enabled": {
+              "type": "boolean"
+            },
+            "batch_size": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
         }
       }
     },

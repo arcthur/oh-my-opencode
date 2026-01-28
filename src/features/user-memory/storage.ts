@@ -10,7 +10,10 @@ import type {
   TemporalValidityConfig,
   EntityMemoryConfig,
   LongTermKnowledge,
+  EmbeddingConfig,
+  HybridWeights,
 } from "./types"
+import type { HybridSearchResult } from "./embeddings/types"
 import {
   DEFAULT_USER_MEMORY,
   CURRENT_SCHEMA_VERSION,
@@ -21,6 +24,11 @@ import {
 } from "./types"
 import { log } from "../../shared/logger"
 import { filterKnowledgeForInjection, filterWorkHistoryForInjection } from "./temporal-validity"
+import { loadEmbeddingCache } from "./embeddings/cache"
+import { getProviderWithFallback } from "./embeddings/provider"
+import { searchHybrid } from "./embeddings/hybrid"
+import { deserializeBM25Index } from "./embeddings/bm25"
+import { DEFAULT_EMBEDDING_CONFIG, DEFAULT_HYBRID_WEIGHTS } from "./embeddings/types"
 import { calculateEntityNodeConfidence } from "./entity-confidence"
 import { inferStalenessCategory } from "./temporal-validity"
 
@@ -447,6 +455,82 @@ export function getMemorySummary(
   return buildMemorySummary(memory, { temporalConfig, disclosureLevel, entityConfig })
 }
 
+/**
+ * Get context-aware memory summary using hybrid search.
+ *
+ * This function retrieves memories most relevant to the given context/query,
+ * combining vector similarity, BM25 keyword matching, and Jaccard n-gram overlap.
+ *
+ * @param context - The context or query to search for relevant memories
+ * @param embeddingConfig - Embedding configuration (must have enabled: true)
+ * @param topK - Maximum number of relevant memories to include (default: 5)
+ * @returns Formatted memory summary with relevant memories, or null if none found
+ */
+export async function getContextAwareMemorySummary(
+  context: string,
+  embeddingConfig: Partial<EmbeddingConfig> = {},
+  topK: number = 5
+): Promise<string | null> {
+  const config = { ...DEFAULT_EMBEDDING_CONFIG, ...embeddingConfig }
+
+  if (!config.enabled) {
+    log("[user-memory] getContextAwareMemorySummary: embeddings not enabled, falling back to standard summary")
+    return getMemorySummary()
+  }
+
+  const results = await searchMemory(context, config, topK)
+
+  if (results.length === 0) {
+    return null
+  }
+
+  const sections: string[] = []
+
+  // Group results by type
+  const knowledgeResults = results.filter((r) => r.type === "knowledge")
+  const weeklyResults = results.filter((r) => r.type === "weekly")
+  const monthlyResults = results.filter((r) => r.type === "monthly")
+  const historyResults = results.filter((r) => r.type === "history")
+
+  if (knowledgeResults.length > 0) {
+    sections.push(
+      `## Relevant Knowledge\n${knowledgeResults
+        .map((r) => `- ${r.content} (relevance: ${(r.score * 100).toFixed(0)}%)`)
+        .join("\n")}`
+    )
+  }
+
+  if (weeklyResults.length > 0) {
+    sections.push(
+      `## Related Weekly Activity\n${weeklyResults
+        .map((r) => `- ${r.content} (relevance: ${(r.score * 100).toFixed(0)}%)`)
+        .join("\n")}`
+    )
+  }
+
+  if (monthlyResults.length > 0) {
+    sections.push(
+      `## Related Monthly Summary\n${monthlyResults
+        .map((r) => `- ${r.content} (relevance: ${(r.score * 100).toFixed(0)}%)`)
+        .join("\n")}`
+    )
+  }
+
+  if (historyResults.length > 0) {
+    sections.push(
+      `## Related Work History\n${historyResults
+        .map((r) => `- ${r.content} (relevance: ${(r.score * 100).toFixed(0)}%)`)
+        .join("\n")}`
+    )
+  }
+
+  if (sections.length === 0) {
+    return null
+  }
+
+  return `[Relevant User Memory]\n${sections.join("\n\n")}\n[End User Memory]`
+}
+
 // ============================================================================
 // Pattern Statistics API
 // ============================================================================
@@ -638,4 +722,167 @@ export function aggregateFrequentPatterns(
   log("[user-memory] aggregated frequent patterns", { count: patterns.length })
 
   return patterns
+}
+
+// ============================================================================
+// Memory Search (Hybrid Vector + BM25 + Jaccard)
+// ============================================================================
+
+/**
+ * Search result with source information
+ */
+export interface MemorySearchResult {
+  /** Source type: knowledge, weekly, monthly, or history */
+  type: "knowledge" | "weekly" | "monthly" | "history"
+  /** Source ID */
+  id: string
+  /** Content text */
+  content: string
+  /** Hybrid similarity score */
+  score: number
+  /** Original source data */
+  source: LongTermKnowledge | { summary: string; weekStart?: number; month?: string; timestamp?: number; project?: string }
+}
+
+/**
+ * Search memory using hybrid similarity (Vector + BM25 + Jaccard).
+ *
+ * This function performs document-level search across all memory content:
+ * - Long-term knowledge
+ * - Weekly summaries
+ * - Monthly summaries
+ * - Recent work history
+ *
+ * @param query - Search query text
+ * @param config - Embedding configuration
+ * @param topK - Maximum number of results to return (default: 5)
+ * @param minScore - Minimum score threshold (default: 0.1)
+ * @returns Array of search results sorted by relevance
+ */
+export async function searchMemory(
+  query: string,
+  config: Partial<EmbeddingConfig> = {},
+  topK: number = 5,
+  minScore: number = 0.1
+): Promise<MemorySearchResult[]> {
+  const embeddingConfig = { ...DEFAULT_EMBEDDING_CONFIG, ...config }
+
+  if (!embeddingConfig.enabled) {
+    log("[user-memory] searchMemory called but embeddings not enabled")
+    return []
+  }
+
+  // Load memory and cache
+  const memory = loadUserMemory()
+  const cacheFile = loadEmbeddingCache()
+
+  if (!cacheFile?.bm25Index) {
+    log("[user-memory] searchMemory: no BM25 index available")
+    return []
+  }
+
+  // Build candidates from memory
+  const candidates: Array<{
+    id: string
+    text: string
+    type: "knowledge" | "weekly" | "monthly" | "history"
+    source: LongTermKnowledge | { summary: string; weekStart?: number; month?: string; timestamp?: number; project?: string }
+  }> = []
+
+  // Add long-term knowledge
+  for (const k of memory.longTermKnowledge ?? []) {
+    candidates.push({
+      id: `knowledge:${k.id}`,
+      text: `${k.category}: ${k.content}`,
+      type: "knowledge",
+      source: k,
+    })
+  }
+
+  // Add weekly summaries
+  for (const w of memory.weeklySummaries ?? []) {
+    candidates.push({
+      id: `weekly:${w.weekStart}`,
+      text: w.summary,
+      type: "weekly",
+      source: { summary: w.summary, weekStart: w.weekStart },
+    })
+  }
+
+  // Add monthly summaries
+  for (const m of memory.monthlySummaries ?? []) {
+    candidates.push({
+      id: `monthly:${m.month}`,
+      text: m.summary,
+      type: "monthly",
+      source: { summary: m.summary, month: m.month },
+    })
+  }
+
+  // Add recent work history
+  const recentHistory = memory.workHistory.slice(0, 20)
+  for (const h of recentHistory) {
+    candidates.push({
+      id: `history:${h.timestamp}`,
+      text: `${h.project ?? "unknown"}: ${h.summary}`,
+      type: "history",
+      source: { summary: h.summary, timestamp: h.timestamp, project: h.project },
+    })
+  }
+
+  if (candidates.length === 0) {
+    return []
+  }
+
+  try {
+    // Create embedding provider (with fallback to local if configured provider fails)
+    const { provider } = await getProviderWithFallback(embeddingConfig)
+
+    // Deserialize BM25 index
+    const bm25Index = deserializeBM25Index(cacheFile.bm25Index)
+
+    // Get hybrid weights
+    const weights: HybridWeights = {
+      ...DEFAULT_HYBRID_WEIGHTS,
+      ...embeddingConfig.hybrid_weights,
+    }
+
+    // Perform hybrid search
+    const hybridResults = await searchHybrid(
+      query,
+      candidates.map((c) => ({ id: c.id, text: c.text })),
+      weights,
+      provider,
+      cacheFile.embeddings,
+      bm25Index,
+      topK
+    )
+
+    // Map results back to memory items
+    const results: MemorySearchResult[] = []
+    for (const hr of hybridResults) {
+      if (hr.combinedScore < minScore) continue
+
+      const candidate = candidates.find((c) => c.id === hr.id)
+      if (candidate) {
+        results.push({
+          type: candidate.type,
+          id: candidate.id,
+          content: candidate.text,
+          score: hr.combinedScore,
+          source: candidate.source,
+        })
+      }
+    }
+
+    log("[user-memory] searchMemory completed", {
+      query: query.substring(0, 50),
+      results: results.length,
+    })
+
+    return results
+  } catch (error) {
+    log("[user-memory] searchMemory failed", { error: String(error) })
+    return []
+  }
 }

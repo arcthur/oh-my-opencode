@@ -455,6 +455,41 @@ export const SemanticClusteringConfigOverrideSchema = z.object({
   use_stemming: z.boolean(),
 }).partial()
 
+/** Hybrid search weights configuration - weights must sum to 1.0 */
+export const HybridWeightsConfigSchema = z.object({
+  /** Weight for vector (semantic) similarity (default: 0.5) */
+  vector: z.number().min(0).max(1).default(0.5),
+  /** Weight for BM25 (keyword) similarity (default: 0.3) */
+  bm25: z.number().min(0).max(1).default(0.3),
+  /** Weight for Jaccard (n-gram/synonym) similarity (default: 0.2) */
+  jaccard: z.number().min(0).max(1).default(0.2),
+}).refine(
+  (w) => Math.abs(w.vector + w.bm25 + w.jaccard - 1) < 0.01,
+  { message: "Hybrid weights must sum to 1.0" }
+)
+
+/** Embedding/Vector Search configuration */
+export const EmbeddingConfigOverrideSchema = z.object({
+  /** Enable vector search (default: false - opt-in) */
+  enabled: z.boolean(),
+  /** Embedding provider: 'local' for offline, 'openai' for cloud (default: 'local') */
+  provider: z.enum(["local", "openai"]),
+  /** OpenAI model when using openai provider */
+  openai_model: z.enum([
+    "text-embedding-ada-002",
+    "text-embedding-3-small",
+    "text-embedding-3-large",
+  ]),
+  /** Local model name (default: 'Xenova/all-MiniLM-L6-v2') */
+  local_model: z.string(),
+  /** Three-way hybrid search weights */
+  hybrid_weights: HybridWeightsConfigSchema.partial(),
+  /** Enable embedding cache (default: true) */
+  cache_enabled: z.boolean(),
+  /** Batch size for embedding API calls (default: 20) */
+  batch_size: z.number().min(1).max(100),
+}).partial()
+
 /** User Memory Configuration - persistent memory across sessions */
 export const UserMemoryConfigSchema = z.object({
   /** Enable user memory persistence (default: true) */
@@ -473,6 +508,8 @@ export const UserMemoryConfigSchema = z.object({
   consolidation: ConsolidationConfigOverrideSchema.optional(),
   semantic_clustering: SemanticClusteringConfigOverrideSchema.optional(),
   disclosure_level: UserMemoryDisclosureLevelSchema.optional(),
+  /** Vector search / embedding configuration */
+  embeddings: EmbeddingConfigOverrideSchema.optional(),
 })
 
 /** Org Memory Configuration - project/team memory shared via repo */
@@ -570,5 +607,7 @@ export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>
 export type OrgMemoryConfig = z.infer<typeof OrgMemoryConfigSchema>
 export type MultiPlanPipelineConfig = z.infer<typeof MultiPlanPipelineConfigSchema>
 export type ContextBudgetConfig = z.infer<typeof ContextBudgetConfigSchema>
+export type HybridWeightsConfig = z.infer<typeof HybridWeightsConfigSchema>
+export type EmbeddingConfigOverride = z.infer<typeof EmbeddingConfigOverrideSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

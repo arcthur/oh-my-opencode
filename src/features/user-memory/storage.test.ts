@@ -8,10 +8,85 @@ import {
   DEFAULT_USER_MEMORY,
   type UserMemory,
 } from "./types"
+import * as embeddingsProvider from "./embeddings/provider"
+import * as embeddingsCache from "./embeddings/cache"
+import * as bm25 from "./embeddings/bm25"
+import * as hybrid from "./embeddings/hybrid"
 
 describe("user-memory storage", () => {
   afterEach(() => {
     mock.restore()
+  })
+
+  describe("searchMemory", () => {
+    test("uses most recent 20 work history entries (not oldest) when building candidates", async () => {
+      //#given
+      const now = 1_700_000_000_000
+      spyOn(Date, "now").mockReturnValue(now)
+
+      const workHistory = Array.from({ length: 30 }, (_, i) => ({
+        // Newest first: 30..1
+        timestamp: now - i * 1000,
+        summary: `entry-${30 - i}`,
+        project: "proj-x",
+      }))
+
+      spyOn(storage, "loadUserMemory").mockReturnValue({
+        ...DEFAULT_USER_MEMORY,
+        workHistory,
+      } as unknown as UserMemory)
+
+      // Make embeddings enabled and short-circuit heavy dependencies
+      spyOn(embeddingsCache, "loadEmbeddingCache").mockReturnValue({
+        embeddings: {
+          version: 1,
+          provider: "local",
+          model: "Xenova/all-MiniLM-L6-v2",
+          dimension: 384,
+          entries: {},
+          lastUpdated: now,
+        },
+        bm25Index: {
+          documents: [],
+          documentFrequency: {},
+          avgDocLength: 0,
+          totalDocuments: 0,
+          version: 1,
+          lastUpdated: now,
+        },
+      })
+
+      spyOn(bm25, "deserializeBM25Index").mockReturnValue({
+        documents: [],
+        documentFrequency: new Map(),
+        avgDocLength: 0,
+        totalDocuments: 0,
+        version: 1,
+        lastUpdated: now,
+      })
+
+      spyOn(embeddingsProvider, "getProviderWithFallback").mockResolvedValue({
+        provider: { name: "local", dimension: 384, embed: async () => [[]], isAvailable: async () => true },
+        usedFallback: false,
+      })
+
+      const searchHybridSpy = spyOn(hybrid, "searchHybrid").mockResolvedValue([])
+
+      //#when
+      await storage.searchMemory("query", { enabled: true, provider: "local", cache_enabled: true, batch_size: 20 }, 5)
+
+      //#then
+      expect(searchHybridSpy).toHaveBeenCalled()
+      const candidatesArg = searchHybridSpy.mock.calls[0]?.[1] as Array<{ id: string; text: string }>
+      const historyCandidates = candidatesArg.filter((c) => c.id.startsWith("history:"))
+      expect(historyCandidates).toHaveLength(20)
+
+      const texts = historyCandidates.map((c) => c.text)
+      expect(texts.some((t) => t.endsWith("entry-30"))).toBe(true)
+      expect(texts.some((t) => t.endsWith("entry-11"))).toBe(true)
+      expect(texts.some((t) => t.endsWith("entry-10"))).toBe(false)
+      expect(texts.some((t) => t.endsWith("entry-1"))).toBe(false)
+    })
   })
 
   describe("buildMemorySummary", () => {

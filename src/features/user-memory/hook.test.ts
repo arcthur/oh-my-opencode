@@ -3,6 +3,9 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { createUserMemoryHook, type UserMemorySummarizer } from "./hook"
 import * as storage from "./storage"
 import { DEFAULT_PATTERN_STATS, DEFAULT_USER_MEMORY } from "./types"
+import * as embeddingsProvider from "./embeddings/provider"
+import * as embeddingsCache from "./embeddings/cache"
+import * as bm25 from "./embeddings/bm25"
 
 describe("createUserMemoryHook", () => {
   let ctx: PluginInput
@@ -24,6 +27,143 @@ describe("createUserMemoryHook", () => {
 
   afterEach(() => {
     mock.restore()
+  })
+
+  test("BM25 index uses most recent 20 work history entries (not oldest)", async () => {
+    // #given
+    const now = 1_700_000_000_000
+    spyOn(Date, "now").mockReturnValue(now)
+
+    const workHistory = Array.from({ length: 30 }, (_, i) => ({
+      // Newest first: 30..1
+      timestamp: now - i * 1000,
+      summary: `entry-${30 - i}`,
+      project: "proj-x",
+    }))
+
+    spyOn(storage, "loadUserMemory").mockReturnValue({
+      ...DEFAULT_USER_MEMORY,
+      workHistory,
+      lastWeeklyAggregation: now,
+      lastMonthlyAggregation: now,
+      lastKnowledgeExtraction: now,
+    })
+    spyOn(storage, "saveUserMemory").mockImplementation(() => {})
+
+    // Avoid loading real embedding providers / touching disk
+    spyOn(embeddingsProvider, "getProviderWithFallback").mockResolvedValue({
+      provider: { name: "local", dimension: 384, embed: async () => [[]], isAvailable: async () => true },
+      usedFallback: false,
+    })
+    spyOn(embeddingsCache, "loadEmbeddingCache").mockReturnValue(null)
+    spyOn(embeddingsCache, "saveEmbeddingCache").mockImplementation(() => {})
+
+    const buildBM25Spy = spyOn(bm25, "buildBM25Index")
+
+    const hook = createUserMemoryHook(ctx, {
+      embeddings: { enabled: true, provider: "local", cache_enabled: false, batch_size: 20 },
+    })
+
+    // #when
+    await hook.event({ event: { type: "session.deleted", properties: { info: { id: "s1" } } } } as never)
+
+    // #then
+    expect(buildBM25Spy).toHaveBeenCalled()
+    const docs = buildBM25Spy.mock.calls[0]?.[0] as Array<{ id: string; text: string }>
+    const historyDocs = docs.filter((d) => d.id.startsWith("history:"))
+    expect(historyDocs).toHaveLength(20)
+
+    // Should include newest (entry-30 .. entry-11), exclude oldest (entry-10 .. entry-1)
+    const texts = historyDocs.map((d) => d.text)
+    expect(texts.some((t) => t.endsWith("entry-30"))).toBe(true)
+    expect(texts.some((t) => t.endsWith("entry-11"))).toBe(true)
+    expect(texts.some((t) => t.endsWith("entry-10"))).toBe(false)
+    expect(texts.some((t) => t.endsWith("entry-1"))).toBe(false)
+  })
+
+  test("when provider fallback is used, saved cache metadata matches actual provider", async () => {
+    // #given
+    const now = 1_700_000_000_000
+    spyOn(Date, "now").mockReturnValue(now)
+
+    spyOn(storage, "loadUserMemory").mockReturnValue({
+      ...DEFAULT_USER_MEMORY,
+      workHistory: [
+        { timestamp: now - 1000, summary: "did something", project: "proj-x" },
+      ],
+      lastWeeklyAggregation: now,
+      lastMonthlyAggregation: now,
+      lastKnowledgeExtraction: now,
+    })
+    spyOn(storage, "saveUserMemory").mockImplementation(() => {})
+
+    // Config says openai, but provider falls back to local
+    spyOn(embeddingsProvider, "getProviderWithFallback").mockResolvedValue({
+      provider: { name: "local", dimension: 384, embed: async () => [[]], isAvailable: async () => true },
+      usedFallback: true,
+    })
+    spyOn(embeddingsCache, "loadEmbeddingCache").mockReturnValue(null)
+    const saveCacheSpy = spyOn(embeddingsCache, "saveEmbeddingCache").mockImplementation(() => {})
+    spyOn(bm25, "buildBM25Index").mockImplementation(() => ({
+      documents: [],
+      documentFrequency: new Map(),
+      avgDocLength: 0,
+      totalDocuments: 0,
+      version: 1,
+      lastUpdated: now,
+    }))
+
+    const hook = createUserMemoryHook(ctx, {
+      embeddings: { enabled: true, provider: "openai", cache_enabled: false, batch_size: 20, openai_model: "text-embedding-3-small" },
+    })
+
+    // #when
+    await hook.event({ event: { type: "session.deleted", properties: { info: { id: "s1" } } } } as never)
+
+    // #then
+    expect(saveCacheSpy).toHaveBeenCalled()
+    const savedEmbeddings = saveCacheSpy.mock.calls[0]?.[0] as { provider: string; model: string; dimension: number }
+    expect(savedEmbeddings.provider).toBe("local")
+    expect(savedEmbeddings.dimension).toBe(384)
+  })
+
+  test("injects context-aware relevant memory on user prompt when embeddings enabled", async () => {
+    // #given
+    const mockCollector = {
+      register: mock(() => {}),
+      resetOncePerSession: mock(() => {}),
+    }
+
+    spyOn(storage, "getContextAwareMemorySummary").mockResolvedValue("[Relevant User Memory]\n- X\n[End User Memory]")
+    spyOn(storage, "getMemorySummary").mockReturnValue("[User Memory]\n- baseline")
+
+    const hook = createUserMemoryHook(
+      ctx,
+      {
+        embeddings: { enabled: true, provider: "local", cache_enabled: false, batch_size: 20 },
+      },
+      { collector: mockCollector as never }
+    )
+
+    // #when
+    await hook["user.prompt.submit"]({
+      sessionID: "s1",
+      message: { role: "user", content: "We are working on user-memory embeddings scoring." },
+    } as never)
+
+    // #then
+    const calls = mockCollector.register.mock.calls as unknown as Array<
+      [string, { id: string; source: string; content: string; priority?: string; oncePerSession?: boolean }]
+    >
+    // Should register relevant context (priority high, not once-per-session)
+    expect(calls.some((c) =>
+      c[0] === "s1" &&
+      c[1].source === "user-memory" &&
+      c[1].id === "user-memory-relevant" &&
+      c[1].priority === "high" &&
+      c[1].oncePerSession !== true &&
+      c[1].content.includes("[Relevant User Memory]")
+    )).toBe(true)
   })
 
   test("registers memory context with collector (once per session)", async () => {

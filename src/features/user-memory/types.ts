@@ -600,3 +600,22 @@ export const DEFAULT_SEMANTIC_CLUSTERING_CONFIG: SemanticClusteringConfig = {
   use_synonyms: true,
   use_stemming: true,
 }
+
+// ============================================================================
+// Embedding Configuration (Vector Search)
+// ============================================================================
+
+// Re-export embedding types for convenience
+export type {
+  EmbeddingConfig,
+  EmbeddingProvider,
+  EmbeddingCache,
+  EmbeddingCacheFile,
+  HybridWeights,
+  HybridSimilarityResult,
+} from "./embeddings/types"
+
+export {
+  DEFAULT_EMBEDDING_CONFIG,
+  DEFAULT_HYBRID_WEIGHTS,
+} from "./embeddings/types"
