@@ -2536,6 +2536,184 @@ const report = ledger.generateDiagnosticReport("unexpected-full-rerun")
 
 ---
 
+### 2.8 Trace Persistence and Observability
+
+#### 2.8.1 Problem Statement
+
+The ExecutionTracer (Section 2.3) and GovernanceLedger (Section 2.7) provide rich observability during execution, but both are primarily in-memory structures:
+- Traces are lost when the session ends
+- Post-session debugging requires access to persisted data
+- Correlation between tracer nodes and ledger entries is implicit
+
+#### 2.8.2 Design: Persistent Trace Storage
+
+Traces are automatically persisted to disk when a governance session ends.
+
+**Storage Location**: `~/.sisyphus/traces/{sessionId}.json`
+
+```typescript
+/**
+ * Persisted trace format (compressed for storage)
+ */
+interface PersistedTrace {
+  /** Format version */
+  version: 1
+  /** Session ID */
+  sessionId: string
+  /** Trace ID */
+  traceId: string
+  /** When trace started */
+  startedAt: number
+  /** When trace ended */
+  endedAt: number
+  /** Total duration in ms */
+  durationMs: number
+  /** Summary metrics */
+  metrics: TraceMetrics
+  /** Critical nodes only (filtered) */
+  nodes: PersistedTraceNode[]
+  /** Edges between nodes */
+  edges: TraceEdge[]
+  /** Recent timeline events (last N) */
+  recentTimeline: TraceEvent[]
+  /** Compression stats */
+  compression: {
+    originalNodeCount: number
+    persistedNodeCount: number
+    originalTimelineCount: number
+    persistedTimelineCount: number
+  }
+}
+
+/**
+ * Simplified node for persistence (reduced size)
+ */
+interface PersistedTraceNode {
+  id: string
+  type: TraceNode["type"]
+  name: string
+  status: TraceNode["status"]
+  startedAt: number
+  durationMs?: number
+  /** Summarized inputs (keys only, not values) */
+  inputKeys?: string[]
+  /** Summarized outputs (keys only, not values) */
+  outputKeys?: string[]
+  /** Resource usage */
+  resources?: TraceNode["resources"]
+  /** Error summary if failed */
+  error?: { type: string; message: string }
+  /** Parent node for hierarchy */
+  parentId?: string
+}
+```
+
+#### 2.8.3 Compression Strategy
+
+To minimize storage while preserving debugging value:
+
+| Filter | Criteria | Rationale |
+|--------|----------|-----------|
+| Critical Node Types | `tool`, `agent`, `decision`, `checkpoint` | Skip routine hooks |
+| Failed Nodes | Any node with `status: "failed"` | Always keep errors |
+| Significant Duration | `durationMs > 100ms` | Skip fast operations |
+| Timeline Limit | Last 100 events | Bound event log size |
+| Data Sanitization | Keys only, no values | Reduce payload size |
+
+**Retention**: Last 50 traces are kept; older traces are automatically cleaned up.
+
+#### 2.8.4 Tracer-Ledger Correlation
+
+Ledger entries now include a `traceNodeId` field to correlate with tracer nodes:
+
+```typescript
+interface LedgerEntryBase {
+  id: string
+  timestamp: number
+  previousHash: string
+  type: string
+  /** Correlation to tracer node */
+  traceNodeId?: string
+}
+
+interface BudgetEvent extends LedgerEntryBase {
+  type: "budget-event"
+  /** Event subtype */
+  subtype: "consumption" | "warning" | "gc-triggered" | "fork-triggered" | "exhausted"
+  /** Tool that triggered this event */
+  tool?: string
+  /** Budget state at time of event */
+  budgetState: { consumed: number; allocated: number; percentage: number }
+  /** Action taken */
+  actionTaken: string
+  /** Tokens freed (if GC) */
+  tokensFreed?: number
+}
+```
+
+This enables queries like:
+- "What tool call triggered the 70% budget warning?"
+- "Which trace node corresponds to this approval event?"
+
+#### 2.8.5 Debug Skill
+
+A built-in `/debug` skill provides easy access to observability data:
+
+```bash
+# View execution trace
+/debug trace              # Latest trace
+/debug trace session123   # Specific session
+
+# View governance ledger
+/debug ledger             # Recent entries
+/debug ledger budget      # Budget events only
+/debug ledger approval    # Approval events only
+
+# View memory operations
+/debug memory             # Memory operations log
+
+# Generate comprehensive report
+/debug report             # Combined trace + ledger + memory
+```
+
+**Output Formats**:
+- YAML for human readability
+- Mermaid flowchart for trace visualization
+- JSON for programmatic access
+
+#### 2.8.6 Persistence API
+
+```typescript
+// Persist a trace
+function persistTrace(trace: ExecutionTrace): PersistedTrace | null
+
+// Load a persisted trace
+function loadTrace(sessionId: string): PersistedTrace | null
+
+// List available traces
+function listTraces(filter?: TraceQueryFilter): TraceListEntry[]
+
+// Get the most recent trace
+function getLatestTrace(): PersistedTrace | null
+
+// Delete a trace
+function deleteTrace(sessionId: string): boolean
+
+// Format for display
+function formatTraceAsYaml(trace: PersistedTrace): string
+function traceToMermaid(trace: PersistedTrace): string
+
+// Get summary for dashboard
+function getTracesSummary(): {
+  totalTraces: number
+  recentTraces: TraceListEntry[]
+  totalDurationMs: number
+  avgDurationMs: number
+}
+```
+
+---
+
 ## 3. Integration Architecture
 
 ### 3.1 Component Interaction Diagram

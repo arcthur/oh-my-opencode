@@ -70,6 +70,7 @@ import {
 } from "./summarizer"
 import { log } from "../../shared/logger"
 import { generateKnowledgeId, inferStalenessCategory } from "./temporal-validity"
+import { trackOperation, rotateLogIfNeeded } from "./operations-log"
 
 // ============================================================================
 // Types
@@ -229,7 +230,12 @@ export function createUserMemoryHook(
       if (match?.[1]) {
         const toRemember = match[1].trim()
         if (toRemember.length > 5) {
+          const tracker = trackOperation("explicit-memory-capture", {
+            sessionId: input.sessionID,
+            input: { contentPreview: toRemember.substring(0, 50) },
+          })
           addExplicitMemory(toRemember)
+          tracker.complete({ captured: true })
           log("[user-memory] captured explicit memory", { content: toRemember.substring(0, 50) })
         }
         break
@@ -242,6 +248,10 @@ export function createUserMemoryHook(
     // Baseline hierarchical summary: once per session (existing behavior, but now works even before first tool call)
     const baseline = getMemorySummary(temporalConfig, disclosureLevel, entityConfig)
     if (baseline) {
+      const injectionTracker = trackOperation("memory-injection", {
+        sessionId: input.sessionID,
+        input: { type: "baseline", disclosureLevel },
+      })
       collector.register(input.sessionID, {
         id: "user-memory-context",
         source: "user-memory",
@@ -251,10 +261,15 @@ export function createUserMemoryHook(
         estimatedTokens: Math.ceil(baseline.length / 4),
         metadata: { disclosureLevel },
       })
+      injectionTracker.complete({ estimatedTokens: Math.ceil(baseline.length / 4) })
     }
 
     // Context-aware relevant memory: computed per prompt when embeddings enabled
     if (embeddingConfig.enabled) {
+      const searchTracker = trackOperation("embedding-search", {
+        sessionId: input.sessionID,
+        input: { queryPreview: content.substring(0, 100), topK: 5 },
+      })
       try {
         const relevant = await getContextAwareMemorySummary(content, embeddingConfig, 5)
         if (relevant) {
@@ -267,8 +282,12 @@ export function createUserMemoryHook(
             estimatedTokens: Math.ceil(relevant.length / 4),
             metadata: { disclosureLevel },
           })
+          searchTracker.complete({ found: true, estimatedTokens: Math.ceil(relevant.length / 4) })
+        } else {
+          searchTracker.complete({ found: false })
         }
       } catch (error) {
+        searchTracker.fail(error instanceof Error ? error : String(error))
         log("[user-memory] failed to build context-aware memory summary", { error: String(error) })
       }
     }
@@ -281,11 +300,15 @@ export function createUserMemoryHook(
     if (!hierarchicalConfig.enabled || !hierarchicalConfig.auto_aggregate) return
     if (aggregationInProgress) return
 
+    // Rotate log file if needed (housekeeping)
+    rotateLogIfNeeded()
+
     try {
       aggregationInProgress = true
       const memory = loadUserMemory()
       const now = Date.now()
       const previousWeekStarts = new Set((memory.weeklySummaries ?? []).map((w) => w.weekStart))
+      const previousMonthlyCount = memory.monthlySummaries?.length ?? 0
 
       // Initialize timestamps if this is a new user
       if (!memory.lastWeeklyAggregation && memory.workHistory.length > 0) {
@@ -341,6 +364,9 @@ export function createUserMemoryHook(
       }
 
       // Perform aggregations
+      const aggregationTracker = trackOperation("weekly-aggregation", {
+        input: { workHistoryCount: memory.workHistory.length, previousWeeklyCount: memory.weeklySummaries?.length ?? 0 },
+      })
       const updated = await performAggregations(
         memory,
         now,
@@ -350,6 +376,20 @@ export function createUserMemoryHook(
         semanticClusteringConfig,
         hybridContext
       )
+      const newWeeklyCount = updated.weeklySummaries?.length ?? 0
+      const newMonthlyCount = updated.monthlySummaries?.length ?? 0
+      aggregationTracker.complete({
+        newWeeklySummaries: newWeeklyCount - (memory.weeklySummaries?.length ?? 0),
+        newMonthlySummaries: newMonthlyCount - previousMonthlyCount,
+      })
+
+      // Track monthly aggregation separately if it happened
+      if (newMonthlyCount > previousMonthlyCount) {
+        const monthlyTracker = trackOperation("monthly-aggregation", {
+          input: { previousCount: previousMonthlyCount },
+        })
+        monthlyTracker.complete({ newCount: newMonthlyCount })
+      }
 
       let entityGraphChanged = false
 
@@ -359,6 +399,11 @@ export function createUserMemoryHook(
           updated.weeklySummaries?.filter((w) => !previousWeekStarts.has(w.weekStart)) ?? []
 
         if (newWeeklySummaries.length > 0) {
+          const entityTracker = trackOperation("entity-extraction", {
+            input: { source: "weekly-summaries", count: newWeeklySummaries.length },
+          })
+          let totalEntities = 0
+
           let graph = updated.entityGraph
             ? {
                 ...DEFAULT_ENTITY_GRAPH,
@@ -377,6 +422,7 @@ export function createUserMemoryHook(
           for (const weeklySummary of newWeeklySummaries) {
             const entities = extractEntitiesFromWeeklySummary(weeklySummary)
             if (entities.length > 0) {
+              totalEntities += entities.length
               graph = addEntitiesAndCooccurrenceRelationships(graph, entities, {
                 timestamp: weeklySummary.weekStart,
                 context: `Weekly summary - ${weeklySummary.summary.slice(0, 160)}`,
@@ -394,6 +440,9 @@ export function createUserMemoryHook(
             )
             updated.entityGraph = graph
             updated.lastEntityExtraction = now
+            entityTracker.complete({ entitiesExtracted: totalEntities, graphNodes: Object.keys(graph.nodes).length })
+          } else {
+            entityTracker.complete({ entitiesExtracted: 0 })
           }
         }
       }
@@ -406,6 +455,9 @@ export function createUserMemoryHook(
         updated.lastKnowledgeExtraction !== memory.lastKnowledgeExtraction &&
         (updated.monthlySummaries?.length ?? 0) > 0
       ) {
+        const knowledgeTracker = trackOperation("knowledge-extraction", {
+          input: { monthlySummariesCount: updated.monthlySummaries?.length ?? 0 },
+        })
         try {
           const knowledgePrompt = buildKnowledgeExtractionPrompt(updated.monthlySummaries ?? [])
           const raw = await deps.summarizer.summarize(knowledgePrompt, {
@@ -442,12 +494,19 @@ export function createUserMemoryHook(
                 enriched,
                 hierarchicalConfig.long_term_knowledge_limit
               )
+              knowledgeTracker.complete({ knowledgeExtracted: enriched.length })
+            } else {
+              knowledgeTracker.complete({ knowledgeExtracted: 0 })
             }
+          } else {
+            knowledgeTracker.complete({ knowledgeExtracted: 0 })
           }
         } catch (error) {
           if (error instanceof CircuitOpenError) {
+            knowledgeTracker.skip("circuit open")
             log("[user-memory] knowledge extraction skipped (circuit open)")
           } else {
+            knowledgeTracker.fail(error instanceof Error ? error : String(error))
             log("[user-memory] knowledge extraction failed", { error: String(error) })
           }
         }
@@ -513,7 +572,11 @@ export function createUserMemoryHook(
         }
 
         if (searchableDocuments.length > 0) {
+          const bm25Tracker = trackOperation("bm25-index-build", {
+            input: { documentCount: searchableDocuments.length },
+          })
           bm25Index = buildBM25Index(searchableDocuments)
+          bm25Tracker.complete({ indexed: searchableDocuments.length })
           log("[user-memory] built BM25 index", {
             documents: searchableDocuments.length,
           })
@@ -558,16 +621,24 @@ export function createUserMemoryHook(
     // Persist and aggregate on session deletion
     // (Collector cleanup is handled by SessionStateCoordinator)
     if (event.type === "session.deleted") {
+      const patternTracker = trackOperation("pattern-aggregation", {
+        input: { trigger: "session.deleted" },
+      })
       savePatternStats(patternStats)
       aggregateFrequentPatterns()
+      patternTracker.complete()
       await triggerAggregation()
     }
 
     // Persist and aggregate on compaction
     // (Collector resetOncePerSession is handled by SessionStateCoordinator)
     if (event.type === "session.compacted") {
+      const patternTracker = trackOperation("pattern-aggregation", {
+        input: { trigger: "session.compacted" },
+      })
       savePatternStats(patternStats)
       aggregateFrequentPatterns()
+      patternTracker.complete()
       await triggerAggregation()
     }
 
@@ -582,6 +653,10 @@ export function createUserMemoryHook(
           const project = ctx.directory.split("/").pop()
           const now = Date.now()
 
+          const historyTracker = trackOperation("work-history-capture", {
+            sessionId: sessionID,
+            input: { project, summaryPreview: briefSummary.substring(0, 50) },
+          })
           addWorkHistoryEntry(
             {
               summary: briefSummary,
@@ -589,10 +664,15 @@ export function createUserMemoryHook(
             },
             config
           )
+          historyTracker.complete({ captured: true })
           log("[user-memory] captured work history", { summary: briefSummary.substring(0, 50) })
 
           // Extract entities if enabled
           if (entityConfig.enabled) {
+            const entityTracker = trackOperation("entity-extraction", {
+              sessionId: sessionID,
+              input: { source: "work-history", project },
+            })
             const memory = loadUserMemory()
             let graph = memory.entityGraph
               ? {
@@ -634,6 +714,7 @@ export function createUserMemoryHook(
             memory.lastEntityExtraction = now
             saveUserMemory(memory)
 
+            entityTracker.complete({ entitiesExtracted: entities.length, graphNodes: Object.keys(graph.nodes).length })
             if (entities.length > 0) {
               log("[user-memory] extracted entities", { count: entities.length })
             }

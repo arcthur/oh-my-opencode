@@ -124,3 +124,19 @@ export {
   fallbackMonthlySummary,
   SUMMARIZATION_SYSTEM_PROMPT,
 } from "./prompts"
+
+// Operations log exports (for debugging and observability)
+export {
+  trackOperation,
+  withOperationTracking,
+  readOperationEntries,
+  getOperationsLogSummary,
+  formatOperationsLogAsYaml,
+  clearOperationsLog,
+  rotateLogIfNeeded,
+  type MemoryOperationType,
+  type OperationStatus,
+  type MemoryOperationEntry,
+  type OperationsLogSummary,
+  type OperationsFilter,
+} from "./operations-log"

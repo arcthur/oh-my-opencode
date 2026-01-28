@@ -169,10 +169,17 @@ export class GovernanceLedgerWriter {
     budgetState: BudgetEvent["budgetState"]
     actionTaken: string
     tokensFreed?: number
+    tool?: string
+    traceNodeId?: string
   }): LedgerEntry {
     return this.append<BudgetEvent>({
       type: "budget-event",
-      ...params,
+      traceNodeId: params.traceNodeId,
+      subtype: params.subtype,
+      budgetState: params.budgetState,
+      actionTaken: params.actionTaken,
+      tokensFreed: params.tokensFreed,
+      tool: params.tool,
     })
   }
 

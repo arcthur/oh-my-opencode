@@ -36,6 +36,7 @@ import type { CheckpointConfig, CreateCheckpointOptions } from "./checkpoint-typ
 import * as fs from "node:fs/promises"
 import * as nodePath from "node:path"
 import { sanitizeInputs, sanitizeOutputs } from "./utils"
+import { persistTrace } from "./trace-persistence"
 
 /**
  * Default Node.js file system adapter for checkpoints
@@ -265,9 +266,13 @@ export function hasGovernanceSession(sessionId: string): boolean {
 export function cleanupGovernanceSession(sessionId: string): void {
   const session = sessions.get(sessionId)
   if (session) {
-    // Finalize tracer
+    // Finalize and persist tracer
     if (session.tracer) {
       session.tracer.finalize()
+      const trace = session.tracer.getTrace()
+      if (trace && trace.nodes.length > 0) {
+        persistTrace(trace)
+      }
     }
     sessions.delete(sessionId)
     log(`[governance] Session cleaned up`, { sessionId })
@@ -331,21 +336,23 @@ export function executePreToolGovernance(
     }
   }
 
-  // 2. Log to ledger (with actual budget status if available)
+  // 2. Log budget event (always log for complete tracking)
   if (session.ledger && session.budgetMonitor) {
     const status = session.budgetMonitor.getStatus()
-    // Only log budget events when approaching thresholds
-    if (status.phase !== "healthy") {
-      session.ledger.logBudgetEvent({
-        subtype: status.phase === "critical" ? "warning" : "warning",
-        budgetState: {
-          consumed: status.consumed,
-          allocated: status.allocated,
-          percentage: status.percentage,
-        },
-        actionTaken: `Pre-tool check: ${input.toolName}`,
-      })
-    }
+    const subtype = status.phase === "critical" ? "warning" :
+                    status.phase === "wrapUp" ? "warning" :
+                    status.phase === "midpoint" ? "warning" : "consumption"
+    session.ledger.logBudgetEvent({
+      subtype,
+      budgetState: {
+        consumed: status.consumed,
+        allocated: status.allocated,
+        percentage: status.percentage,
+      },
+      actionTaken: `Pre-tool: ${input.toolName}`,
+      tool: input.toolName,
+      traceNodeId: result.traceNodeId,
+    })
   }
 
   // 3. Increment tool call counter for auto-checkpoint
@@ -470,22 +477,25 @@ Consider creating a checkpoint and suggesting session fork.
     }
   }
 
-  // 4. Log to ledger with actual budget status
+  // 4. Log budget consumption with actual status (always log for complete tracking)
   if (session.ledger && session.budgetMonitor) {
     const status = session.budgetMonitor.getStatus()
-    // Only log budget events when approaching thresholds
-    if (status.phase !== "healthy") {
-      session.ledger.logBudgetEvent({
-        subtype: status.phase === "critical" ? "exhausted" : "warning",
-        budgetState: {
-          consumed: status.consumed,
-          allocated: status.allocated,
-          percentage: status.percentage,
-        },
-        actionTaken: `Post-tool: ${input.toolName}`,
-        tokensFreed: 0,
-      })
-    }
+    const nodeId = input.toolUseId ? session.activeToolNodes.get(input.toolUseId) : undefined
+    const subtype = status.phase === "critical" ? "exhausted" :
+                    status.phase === "wrapUp" ? "warning" :
+                    status.phase === "midpoint" ? "warning" : "consumption"
+    session.ledger.logBudgetEvent({
+      subtype,
+      budgetState: {
+        consumed: status.consumed,
+        allocated: status.allocated,
+        percentage: status.percentage,
+      },
+      actionTaken: `Post-tool: ${input.toolName} (${input.tokensUsed ?? 0} tokens)`,
+      tool: input.toolName,
+      traceNodeId: nodeId,
+      tokensFreed: 0,
+    })
   }
 
   return result
@@ -552,21 +562,21 @@ Tip: Focus on completing current task.
     }
   }
 
-  // 2. Log to ledger with actual budget status
+  // 2. Log budget consumption (always log for complete tracking)
   if (session.ledger && session.budgetMonitor) {
     const status = session.budgetMonitor.getStatus()
-    // Only log budget events when approaching thresholds
-    if (status.phase !== "healthy") {
-      session.ledger.logBudgetEvent({
-        subtype: "warning",
-        budgetState: {
-          consumed: status.consumed,
-          allocated: status.allocated,
-          percentage: status.percentage,
-        },
-        actionTaken: "User prompt received",
-      })
-    }
+    const subtype = status.phase === "critical" ? "exhausted" :
+                    status.phase === "wrapUp" ? "warning" :
+                    status.phase === "midpoint" ? "warning" : "consumption"
+    session.ledger.logBudgetEvent({
+      subtype,
+      budgetState: {
+        consumed: status.consumed,
+        allocated: status.allocated,
+        percentage: status.percentage,
+      },
+      actionTaken: `User prompt (${input.estimatedTokens ?? 0} tokens)`,
+    })
   }
 
   return result

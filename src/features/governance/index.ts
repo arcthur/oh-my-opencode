@@ -377,6 +377,22 @@ export {
   calculateTraceStatistics,
 } from "./visualization"
 
+// Trace persistence (for debugging/observability)
+export {
+  persistTrace,
+  loadTrace,
+  listTraces,
+  getLatestTrace,
+  deleteTrace,
+  formatTraceAsYaml,
+  traceToMermaid,
+  getTracesSummary,
+  type PersistedTrace,
+  type PersistedTraceNode,
+  type TraceQueryFilter,
+  type TraceListEntry,
+} from "./trace-persistence"
+
 // Shared utilities
 export {
   generateId,

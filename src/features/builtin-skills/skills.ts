@@ -1933,6 +1933,246 @@ Use code-simplifier when:
 - Touch code outside the defined scope without explicit permission`,
 }
 
+const debugSkill: BuiltinSkill = {
+  name: "debug",
+  description:
+    "Debug and inspect oh-my-opencode internals - execution trace, governance ledger, memory operations, and system state. Use for troubleshooting, verifying strategies, and understanding system behavior.",
+  argumentHint: "[trace|ledger|memory|report|all]",
+  template: `# Debug & Observability Skill
+
+This skill provides unified access to oh-my-opencode's internal state for debugging and verification.
+
+## Available Commands
+
+- \`/debug trace\` - Show execution trace (Mermaid diagram)
+- \`/debug ledger\` - Show governance ledger events with budget tracking
+- \`/debug memory\` - Show memory operations log and state
+- \`/debug report\` - Generate comprehensive summary
+- \`/debug\` or \`/debug all\` - Show summary dashboard
+
+---
+
+## Data Sources
+
+### 1. Governance Trace (PERSISTED)
+Location: \`~/.sisyphus/traces/{sessionId}.json\`
+Content: Hook → Tool → Agent execution flow (compressed, critical nodes only)
+Features:
+- Persisted on session end
+- Keeps last 50 sessions
+- Includes Mermaid diagram generation
+
+### 2. Governance Ledger
+Location: \`~/.sisyphus/ledger/{sessionId}.jsonl\`
+Content: Immutable audit events with complete budget tracking
+Features:
+- Every tool call logged with budget consumption
+- traceNodeId correlation to execution trace
+- Approval/rejection events
+- Budget phase transitions
+
+### 3. Memory Operations Log
+Location: \`~/.opencode/memory/operations.jsonl\`
+Content: Memory operations (injection, search, aggregation, etc.)
+
+### 4. User Memory State
+Location: \`~/.opencode/memory/user.json\`
+Content: Work history, entities, knowledge, preferences
+
+---
+
+## Execution Instructions
+
+### For \`/debug trace\`
+\`\`\`bash
+# List available traces
+ls -la ~/.sisyphus/traces/
+
+# Read the most recent trace
+cat ~/.sisyphus/traces/*.json | jq -s 'sort_by(.startedAt) | last'
+\`\`\`
+
+The trace file contains a Mermaid-ready structure. Extract and display:
+\`\`\`yaml
+trace:
+  session_id: xxx
+  duration_ms: N
+  metrics:
+    total_nodes: N
+    total_tokens: N
+  nodes:
+    - id: node_xxx
+      type: tool
+      name: Read
+      status: completed
+      duration_ms: 50
+\`\`\`
+
+Generate Mermaid from nodes/edges:
+\`\`\`mermaid
+flowchart TD
+    node1["Read (50ms)"] --> node2["Edit (120ms)"]
+    style node1 fill:#4CAF50
+    style node2 fill:#4CAF50
+\`\`\`
+
+### For \`/debug ledger\`
+\`\`\`bash
+# Read all ledger files (most recent session)
+ls -t ~/.sisyphus/ledger/*.jsonl | head -1 | xargs cat | tail -50
+\`\`\`
+
+Output as YAML summary showing budget timeline:
+\`\`\`yaml
+ledger_summary:
+  total_events: N
+  by_type:
+    budget-event: N
+    approval-event: N
+  budget_timeline:
+    - tool: Read
+      consumed: 1500
+      percentage: 0.75%
+    - tool: Edit
+      consumed: 3200
+      percentage: 1.6%
+  recent_events:
+    - type: budget-event
+      subtype: consumption
+      tool: Edit
+      traceNodeId: node_xxx  # correlation to trace
+      budget: {consumed: 5000, percentage: 2.5%}
+\`\`\`
+
+### For \`/debug memory\`
+\`\`\`bash
+# Read memory operations log
+cat ~/.opencode/memory/operations.jsonl | tail -30
+
+# Read memory state summary
+cat ~/.opencode/memory/user.json | jq '{
+  workHistoryCount: .workHistory | length,
+  weeklySummaries: .weeklySummaries | length,
+  monthlySummaries: .monthlySummaries | length,
+  longTermKnowledge: .longTermKnowledge | length,
+  entityNodes: .entityGraph.nodes | keys | length
+}'
+\`\`\`
+
+Output as YAML:
+\`\`\`yaml
+memory_operations:
+  total_operations: N
+  by_type:
+    memory-injection: N
+    embedding-search: N
+    entity-extraction: N
+  recent:
+    - operation: embedding-search
+      status: completed
+      duration_ms: 120
+
+memory_state:
+  work_history_count: N
+  weekly_summaries: N
+  monthly_summaries: N
+  long_term_knowledge: N
+  entity_nodes: N
+\`\`\`
+
+### For \`/debug report\` or \`/debug\`
+Show compact dashboard combining all sources:
+\`\`\`yaml
+=== oh-my-opencode Debug Dashboard ===
+
+traces:
+  available: N sessions
+  latest:
+    session_id: xxx
+    duration_ms: 5000
+    nodes: 15
+    tokens: 25000
+
+ledger:
+  events: N
+  budget_summary:
+    total_consumed: 25000
+    percentage: 12.5%
+    phase: healthy
+  recent_tools:
+    - Read (1500 tokens)
+    - Edit (3200 tokens)
+
+memory:
+  operations_logged: N
+  recent_operations:
+    - embedding-search (completed, 120ms)
+    - entity-extraction (completed, 45ms)
+  state:
+    work_history: N entries
+    entities: N nodes
+    knowledge: N items
+
+correlations:
+  # Show linked tracer nodes and ledger events
+  - trace: node_xxx (Edit)
+    ledger: budget-event (3200 tokens)
+    memory: embedding-search (before Edit)
+
+tips:
+  - Use "/debug trace" for execution flow diagram
+  - Use "/debug ledger" for budget timeline
+  - Use "/debug memory" for memory details
+\`\`\`
+
+---
+
+## Key Features
+
+### Budget Tracking
+- Every tool call is logged with token consumption
+- Complete budget timeline reconstruction
+- Phase transitions (healthy → midpoint → wrapUp → critical)
+
+### Trace Correlation
+- Ledger entries include \`traceNodeId\` linking to execution trace
+- Can trace from audit event back to specific tool execution
+- Memory operations include \`sessionId\` for correlation
+
+### Persistence
+- Traces persist across sessions (last 50)
+- Ledger is append-only (JSONL)
+- Memory operations rotate at 5MB
+
+---
+
+## Error Handling
+
+If a data source is missing:
+\`\`\`yaml
+traces:
+  status: "not available"
+  reason: "no traces found (governance may not be enabled)"
+
+ledger:
+  status: "empty"
+  reason: "no events logged yet"
+\`\`\`
+
+---
+
+## Quick Reference
+
+| Command | Shows |
+|---------|-------|
+| \`/debug\` | Summary dashboard |
+| \`/debug trace\` | Execution flow (Mermaid) + persisted history |
+| \`/debug ledger\` | Budget timeline + audit events |
+| \`/debug memory\` | Memory operations + state |
+| \`/debug report\` | Same as /debug |
+`,
+}
+
 export function createBuiltinSkills(): BuiltinSkill[] {
   return [
     playwrightSkill,
@@ -1944,5 +2184,7 @@ export function createBuiltinSkills(): BuiltinSkill[] {
     writingPlansSkill,
     systematicDebuggingSkill,
     codeSimplifierSkill,
+    // Observability
+    debugSkill,
   ]
 }

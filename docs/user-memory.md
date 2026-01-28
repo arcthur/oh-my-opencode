@@ -1253,3 +1253,161 @@ bun test src/features/user-memory/
 5. Alias reconciliation (manual verification)
 6. Semantic similarity thresholds (manual verification)
 7. Schema migration v2→v3
+
+---
+
+## Operations Log (Debugging)
+
+### Overview
+
+User Memory maintains an independent operations log for debugging and observability. This log is separate from the governance tracer to maintain clean separation of concerns:
+
+- **Governance tracer**: Execution flow (hook → tool → agent)
+- **Memory operations log**: Data processing operations (aggregation, extraction, search)
+
+### Log Location
+
+**File**: `~/.opencode/memory/operations.jsonl`
+
+**Format**: JSONL (JSON Lines) - append-only, one entry per line
+
+### Operation Types
+
+| Operation | Description | Trigger |
+|-----------|-------------|---------|
+| `memory-injection` | Context injection into prompt | `user.prompt.submit` |
+| `explicit-memory-capture` | "Remember X" pattern detected | `user.prompt.submit` |
+| `embedding-search` | Hybrid search for relevant memories | Per-prompt (if embeddings enabled) |
+| `weekly-aggregation` | L0 → L1 aggregation | Week boundary or size threshold |
+| `monthly-aggregation` | L1 → L2 aggregation | Month boundary or size threshold |
+| `knowledge-extraction` | L2 → L3 extraction | Quarterly or size threshold |
+| `entity-extraction` | Entity pattern extraction | `session.summarized` (if enabled) |
+| `bm25-index-build` | BM25 index construction | After aggregation (if embeddings enabled) |
+| `work-history-capture` | L0 entry creation | `session.summarized` |
+| `pattern-aggregation` | Tool usage pattern update | `session.summarized` |
+
+### Log Entry Format
+
+```typescript
+interface MemoryOperationEntry {
+  /** Unique operation ID */
+  id: string
+  /** Operation type */
+  operation: MemoryOperationType
+  /** Session ID (if available) */
+  sessionId?: string
+  /** Operation status */
+  status: "started" | "completed" | "failed" | "skipped"
+  /** Start timestamp */
+  startedAt: number
+  /** End timestamp (if completed) */
+  endedAt?: number
+  /** Duration in ms */
+  durationMs?: number
+  /** Input summary (sanitized) */
+  input?: Record<string, unknown>
+  /** Output summary (sanitized) */
+  output?: Record<string, unknown>
+  /** Error message (if failed) */
+  error?: string
+  /** Additional metadata */
+  metadata?: Record<string, unknown>
+}
+```
+
+### Log Rotation
+
+- **Max size**: 5 MB
+- **Retention**: Last 1000 entries after rotation
+- **Rotation event**: Logged with `entriesDropped` and `entriesKept` metadata
+
+### Viewing the Log
+
+Use the `/debug memory` skill command:
+
+```bash
+/debug memory              # Recent memory operations
+/debug memory --limit 50   # Last 50 operations
+```
+
+**Output format** (YAML):
+
+```yaml
+# Memory Operations Log
+
+summary:
+  total_operations: 150
+  total_duration_ms: 4523
+
+by_type:
+  memory-injection: 45 (avg 12ms)
+  weekly-aggregation: 3 (avg 850ms)
+  entity-extraction: 20 (avg 35ms)
+
+by_status:
+  completed: 148
+  failed: 2
+
+recent_operations:
+  - id: op_abc123
+    operation: memory-injection
+    status: completed
+    started_at: 2025-01-29T10:30:00Z
+    duration_ms: 15
+    output: {"injected": true, "disclosure_level": "standard"}
+```
+
+### Programmatic Access
+
+```typescript
+import {
+  readOperationEntries,
+  getOperationsLogSummary,
+  formatOperationsLogAsYaml
+} from "./operations-log"
+
+// Read filtered entries
+const entries = readOperationEntries({
+  operation: "weekly-aggregation",
+  status: "completed",
+  after: Date.now() - 7 * 24 * 60 * 60 * 1000,  // Last 7 days
+  limit: 10
+})
+
+// Get summary statistics
+const summary = getOperationsLogSummary(20)
+
+// Format for display
+const yaml = formatOperationsLogAsYaml(20)
+```
+
+### Operation Tracking API
+
+For custom operations:
+
+```typescript
+import { trackOperation, withOperationTracking } from "./operations-log"
+
+// Manual tracking
+const tracker = trackOperation("weekly-aggregation", {
+  sessionId: "session123",
+  input: { entryCount: 30 }
+})
+
+try {
+  const result = await performAggregation()
+  tracker.complete({ summaryCount: 1 })
+} catch (error) {
+  tracker.fail(error)
+}
+
+// Wrapper function
+const result = await withOperationTracking(
+  "embedding-search",
+  async () => searchMemory(query),
+  {
+    input: { query },
+    outputMapper: (r) => ({ resultCount: r.length })
+  }
+)
+```

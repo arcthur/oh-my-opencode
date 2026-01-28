@@ -213,6 +213,9 @@ export interface LedgerEntryBase {
 
   /** Entry type discriminator */
   type: string
+
+  /** Correlation ID to link with tracer node (optional) */
+  traceNodeId?: string
 }
 
 /**
@@ -260,7 +263,7 @@ export interface BudgetEvent extends LedgerEntryBase {
   type: "budget-event"
 
   /** Event subtype */
-  subtype: "warning" | "gc-triggered" | "fork-triggered" | "exhausted"
+  subtype: "consumption" | "warning" | "gc-triggered" | "fork-triggered" | "exhausted"
 
   /** Budget state at time of event */
   budgetState: {
@@ -271,6 +274,9 @@ export interface BudgetEvent extends LedgerEntryBase {
 
   /** Action taken */
   actionTaken: string
+
+  /** Tool that triggered this consumption (if applicable) */
+  tool?: string
 
   /** Tokens freed (if GC) */
   tokensFreed?: number
