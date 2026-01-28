@@ -1,45 +1,78 @@
 /**
  * Governance Orchestration Module
  *
- * Provides governance-oriented orchestration capabilities:
- * - SuspendException for pausable execution (Phase 1)
- * - Tool criticality registry for approval decisions (Phase 1)
- * - Approval gate middleware for user confirmation (Phase 1)
- * - Governance ledger for audit and diagnostics (Phase 1)
- * - Execution tracer for observability (Phase 2)
- * - Agent envelope for structured communication (Phase 2)
- * - Budget monitor with hidden budget strategy (Phase 3)
- * - Semantic checkpoints for environment-aware recovery (Phase 4)
- * - Hook isolation with Proxy-based sandbox (Phase 5)
- * - Trace visualization for debugging and reporting (Phase 6)
+ * Provides governance-oriented orchestration capabilities for agent execution.
+ *
+ * ## Public API
+ *
+ * The main entry points are the integration functions:
+ * - `executePreToolGovernance` - Called before each tool execution
+ * - `executePostToolGovernance` - Called after each tool execution
+ * - `executeUserPromptGovernance` - Called when user submits a prompt
+ * - `cleanupGovernanceSession` - Cleanup when session ends
+ *
+ * ## Architecture
+ *
+ * Internally composed of:
+ * - ExecutionTracer for observability (Phase 2)
+ * - BudgetMonitor with hidden budget strategy (Phase 3)
+ * - SemanticCheckpointManager for recovery (Phase 4)
+ * - GovernanceLedger for audit (Phase 1)
  *
  * @see docs/governance-orchestration-design.md
  */
 
-// Types
+// =============================================================================
+// PUBLIC API - Main integration functions
+// =============================================================================
+
+export {
+  // Session management
+  initGovernanceSession,
+  getGovernanceSession,
+  hasGovernanceSession,
+  cleanupGovernanceSession,
+
+  // Hook integration
+  executePreToolGovernance,
+  executePostToolGovernance,
+  executeUserPromptGovernance,
+
+  // Default config
+  DEFAULT_GOVERNANCE_CONFIG,
+} from "./integration"
+
 export type {
-  // Approval Gate types
+  GovernanceSession,
+  PreToolGovernanceInput,
+  PreToolGovernanceResult,
+  PostToolGovernanceInput,
+  PostToolGovernanceResult,
+  UserPromptGovernanceInput,
+  UserPromptGovernanceResult,
+} from "./integration"
+
+// =============================================================================
+// TYPES - For TypeScript consumers
+// =============================================================================
+
+// Core governance types
+export type {
   ToolCriticalityMeta,
   ApprovalPreview,
   SuspendInfo,
   ApprovalAction,
   ApprovalResult,
   CheckpointRef,
-
-  // Suspend/Resume state machine types
   SuspendState,
   ResumeInput,
   ResumeResult,
-
-  // Ledger types
   GovernanceLedger,
   LedgerEntry,
   LedgerEntryBase,
   LedgerFilter,
   IntegrityReport,
   DiagnosticReport,
-
-  // Specific ledger entry types
   PermissionEscalation,
   PermissionViolation,
   BudgetEvent,
@@ -48,8 +81,6 @@ export type {
   ApprovalEvent,
   StateProposalEvent,
   EnvironmentDriftEvent,
-
-  // Envelope types (Phase 2)
   AgentEnvelope,
   EnvelopeMetadata,
   EnvelopePermissions,
@@ -61,46 +92,7 @@ export type {
   EnvelopeValidationError,
 } from "./types"
 
-// Suspend Exception
-export {
-  SuspendException,
-  InMemoryResumeTokenStore,
-  ResumeHandler,
-  type ResumeTokenStore,
-} from "./suspend-exception"
-
-// Tool Criticality Registry
-export {
-  ToolCriticalityRegistry,
-  getToolCriticalityRegistry,
-  resetToolCriticalityRegistry,
-} from "./tool-criticality"
-
-// Approval Gate Hook
-export {
-  createApprovalGateHook,
-  type ApprovalGateHook,
-  type ApprovalGateConfig,
-  HOOK_NAME as APPROVAL_GATE_HOOK_NAME,
-} from "./approval-gate"
-
-// Governance Ledger
-export {
-  GovernanceLedgerWriter,
-  LedgerManager,
-  getLedgerManager,
-  resetLedgerManager,
-  type LedgerStorageConfig,
-} from "./ledger"
-
-// Execution Tracer (Phase 2)
-export {
-  ExecutionTracer,
-  TracerManager,
-  getTracerManager,
-  resetTracerManager,
-} from "./tracer"
-
+// Tracer types
 export type {
   ExecutionTrace,
   TraceNode,
@@ -124,38 +116,7 @@ export type {
   CompressionRules,
 } from "./tracer-types"
 
-export {
-  DEFAULT_TRACER_CONFIG,
-  DEFAULT_COMPRESSION_RULES,
-} from "./tracer-types"
-
-// Agent Envelope (Phase 2)
-export {
-  EnvelopeValidator,
-  EnvelopeFactory,
-  getEnvelopeFactory,
-  resetEnvelopeFactory,
-  envelopeSuccess,
-  envelopeError,
-  envelopeSuspended,
-  isEnvelopeSuccess,
-  isEnvelopeError,
-  isEnvelopeSuspended,
-  type EnvelopeValidatorConfig,
-} from "./envelope"
-
-// Budget Monitor (Phase 3)
-export {
-  BudgetMonitor,
-  BudgetMonitorManager,
-  getBudgetMonitorManager,
-  resetBudgetMonitorManager,
-  SimpleRefactorStrategy,
-  type RefactorStrategy,
-  type GarbageCollector,
-  type TaskState,
-} from "./budget-monitor"
-
+// Budget types
 export type {
   TokenBudget,
   BudgetStatus,
@@ -176,6 +137,102 @@ export type {
   BudgetMonitorConfig,
 } from "./budget-types"
 
+// Checkpoint types
+export type {
+  TaskPhase,
+  PhaseDefinition,
+  SemanticCheckpoint,
+  TaskIntent,
+  FileState,
+  FileRole,
+  FileValidity,
+  CriticalDeps,
+  GitContext,
+  PhaseRecord,
+  ExportFingerprint,
+  FingerprintMode,
+  ChangeAnalysis,
+  ChangeType,
+  ConfidenceLevel,
+  FileChangeResult,
+  RecoveryDecision,
+  RecoveryContinue,
+  RecoveryPartialRerun,
+  RecoveryFullRerun,
+  RecoveryUserDecision,
+  ChangeReport,
+  LayerChangeSummary,
+  CheckpointEvent as SemanticCheckpointEvent,
+  CheckpointCreatedEvent,
+  CheckpointRestoredEvent,
+  CheckpointInvalidatedEvent,
+  EnvironmentDriftDetectedEvent,
+  DriftType,
+  CheckpointConfig,
+  RecoveryStrategyPreference,
+  CreateCheckpointOptions,
+  CheckpointValidation,
+  SerializedCheckpoint,
+} from "./checkpoint-types"
+
+// Isolation types
+export type {
+  HookTrustLevel,
+  HookPermissions,
+  StateProposal,
+  ProposalType,
+  ProposalPriority,
+  ProposalStatus,
+  ProposalRejection,
+  HookDefinition,
+  SessionState,
+  SandboxedHookContext,
+  ScopedStateWriter,
+  ScopedLogger,
+  RestrictedToolInvoker,
+  ProposalSubmitter,
+  IsolationEvent,
+  PermissionDeniedEvent,
+  ProposalSubmittedEvent,
+  ProposalAppliedEvent,
+  ProposalRejectedEvent,
+  HookTimeoutEvent,
+  SharedWriteRequestEvent,
+  IsolationConfig,
+} from "./isolation-types"
+
+// Visualization types
+export type {
+  VisualizationFormat,
+  VisualizationOutput,
+  AnyVisualizationOutput,
+  VisualizationConfig,
+  MermaidFlowchartOutput,
+  MermaidSequenceOutput,
+  MermaidGanttOutput,
+  D3ForceOutput,
+  D3ForceNode,
+  D3ForceLink,
+  D3TreeOutput,
+  D3TreeNode,
+  D3TimelineOutput,
+  D3TimelineEvent,
+  HtmlReportOutput,
+  JsonSummaryOutput,
+  ReportSection,
+  TraceStatistics,
+  GovernanceSummary,
+} from "./visualization-types"
+
+// =============================================================================
+// CONSTANTS - Default configurations
+// =============================================================================
+
+export {
+  DEFAULT_TRACER_CONFIG,
+  DEFAULT_COMPRESSION_RULES,
+} from "./tracer-types"
+
 export {
   DEFAULT_BUDGET_CONFIG,
   DEFAULT_BUDGET_THRESHOLDS,
@@ -187,66 +244,6 @@ export {
   SessionForkRequiredError,
 } from "./budget-types"
 
-// Semantic Checkpoint (Phase 4)
-export {
-  SemanticCheckpointManager,
-  DefaultFingerprintStrategy,
-  CheckpointManagerRegistry,
-  getCheckpointRegistry,
-  resetCheckpointRegistry,
-  type FingerprintStrategy,
-  type FileSystemAdapter,
-  type GitAdapter,
-} from "./checkpoint"
-
-export type {
-  // Task phase model
-  TaskPhase,
-  PhaseDefinition,
-
-  // Core checkpoint types
-  SemanticCheckpoint,
-  TaskIntent,
-  FileState,
-  FileRole,
-  FileValidity,
-  CriticalDeps,
-  GitContext,
-  PhaseRecord,
-  ExportFingerprint,
-
-  // Change detection types
-  FingerprintMode,
-  ChangeAnalysis,
-  ChangeType,
-  ConfidenceLevel,
-  FileChangeResult,
-
-  // Recovery types
-  RecoveryDecision,
-  RecoveryContinue,
-  RecoveryPartialRerun,
-  RecoveryFullRerun,
-  RecoveryUserDecision,
-  ChangeReport,
-  LayerChangeSummary,
-
-  // Checkpoint events
-  CheckpointEvent as SemanticCheckpointEvent,
-  CheckpointCreatedEvent,
-  CheckpointRestoredEvent,
-  CheckpointInvalidatedEvent,
-  EnvironmentDriftDetectedEvent,
-  DriftType,
-
-  // Configuration
-  CheckpointConfig,
-  RecoveryStrategyPreference,
-  CreateCheckpointOptions,
-  CheckpointValidation,
-  SerializedCheckpoint,
-} from "./checkpoint-types"
-
 export {
   DEFAULT_CHECKPOINT_CONFIG,
   RECOVERY_STRATEGY_TABLE,
@@ -254,55 +251,6 @@ export {
   PHASE_DEFINITIONS,
   getPhasesAfter,
 } from "./checkpoint-types"
-
-// Hook Isolation (Phase 5)
-export {
-  ProposalQueue,
-  IsolationManager,
-  createSandboxedContext,
-  executeIsolatedHook,
-  getIsolationManager,
-  hasIsolationManager,
-  removeIsolationManager,
-  resetIsolationManagers,
-  type CreateSandboxedContextOptions,
-} from "./isolation"
-
-export type {
-  // Trust levels
-  HookTrustLevel,
-
-  // Permission types
-  HookPermissions,
-
-  // State proposal types
-  StateProposal,
-  ProposalType,
-  ProposalPriority,
-  ProposalStatus,
-  ProposalRejection,
-
-  // Hook context types
-  HookDefinition,
-  SessionState,
-  SandboxedHookContext,
-  ScopedStateWriter,
-  ScopedLogger,
-  RestrictedToolInvoker,
-  ProposalSubmitter,
-
-  // Isolation events
-  IsolationEvent,
-  PermissionDeniedEvent,
-  ProposalSubmittedEvent,
-  ProposalAppliedEvent,
-  ProposalRejectedEvent,
-  HookTimeoutEvent,
-  SharedWriteRequestEvent,
-
-  // Configuration
-  IsolationConfig,
-} from "./isolation-types"
 
 export {
   DEFAULT_ISOLATION_CONFIG,
@@ -315,7 +263,110 @@ export {
   ProposalError,
 } from "./isolation-types"
 
-// Trace Visualization (Phase 6)
+export {
+  DEFAULT_VISUALIZATION_CONFIG,
+  NODE_TYPE_COLORS,
+  NODE_STATUS_COLORS,
+  EDGE_TYPE_COLORS,
+} from "./visualization-types"
+
+// =============================================================================
+// ADVANCED API - For testing, plugins, and advanced use cases
+// =============================================================================
+
+// Suspend/Resume mechanism
+export {
+  SuspendException,
+  InMemoryResumeTokenStore,
+  ResumeHandler,
+  type ResumeTokenStore,
+} from "./suspend-exception"
+
+// Tool criticality
+export {
+  ToolCriticalityRegistry,
+  getToolCriticalityRegistry,
+  resetToolCriticalityRegistry,
+} from "./tool-criticality"
+
+// Approval gate (not integrated in main flow yet)
+export {
+  createApprovalGateHook,
+  type ApprovalGateHook,
+  type ApprovalGateConfig,
+  HOOK_NAME as APPROVAL_GATE_HOOK_NAME,
+} from "./approval-gate"
+
+// Ledger (internal, exposed for testing/debugging)
+export {
+  GovernanceLedgerWriter,
+  LedgerManager,
+  getLedgerManager,
+  resetLedgerManager,
+  type LedgerStorageConfig,
+} from "./ledger"
+
+// Tracer (internal, exposed for testing/debugging)
+export {
+  ExecutionTracer,
+  TracerManager,
+  getTracerManager,
+  resetTracerManager,
+} from "./tracer"
+
+// Envelope (internal, exposed for testing/debugging)
+export {
+  EnvelopeValidator,
+  EnvelopeFactory,
+  getEnvelopeFactory,
+  resetEnvelopeFactory,
+  envelopeSuccess,
+  envelopeError,
+  envelopeSuspended,
+  isEnvelopeSuccess,
+  isEnvelopeError,
+  isEnvelopeSuspended,
+  type EnvelopeValidatorConfig,
+} from "./envelope"
+
+// Budget monitor (internal, reset exposed for testing)
+export {
+  BudgetMonitor,
+  BudgetMonitorManager,
+  getBudgetMonitorManager,
+  resetBudgetMonitorManager,
+  SimpleRefactorStrategy,
+  type RefactorStrategy,
+  type GarbageCollector,
+  type TaskState,
+} from "./budget-monitor"
+
+// Checkpoint (internal, exposed for testing/debugging)
+export {
+  SemanticCheckpointManager,
+  DefaultFingerprintStrategy,
+  CheckpointManagerRegistry,
+  getCheckpointRegistry,
+  resetCheckpointRegistry,
+  type FingerprintStrategy,
+  type FileSystemAdapter,
+  type GitAdapter,
+} from "./checkpoint"
+
+// Isolation (internal, exposed for testing/debugging)
+export {
+  ProposalQueue,
+  IsolationManager,
+  createSandboxedContext,
+  executeIsolatedHook,
+  getIsolationManager,
+  hasIsolationManager,
+  removeIsolationManager,
+  resetIsolationManagers,
+  type CreateSandboxedContextOptions,
+} from "./isolation"
+
+// Visualization (internal, exposed for testing/debugging)
 export {
   TraceVisualizer,
   toMermaidFlowchart,
@@ -326,40 +377,11 @@ export {
   calculateTraceStatistics,
 } from "./visualization"
 
-export type {
-  // Visualization format types
-  VisualizationFormat,
-  VisualizationOutput,
-  AnyVisualizationOutput,
-  VisualizationConfig,
-
-  // Mermaid output types
-  MermaidFlowchartOutput,
-  MermaidSequenceOutput,
-  MermaidGanttOutput,
-
-  // D3 output types
-  D3ForceOutput,
-  D3ForceNode,
-  D3ForceLink,
-  D3TreeOutput,
-  D3TreeNode,
-  D3TimelineOutput,
-  D3TimelineEvent,
-
-  // Report output types
-  HtmlReportOutput,
-  JsonSummaryOutput,
-  ReportSection,
-
-  // Statistics types
-  TraceStatistics,
-  GovernanceSummary,
-} from "./visualization-types"
-
+// Shared utilities
 export {
-  DEFAULT_VISUALIZATION_CONFIG,
-  NODE_TYPE_COLORS,
-  NODE_STATUS_COLORS,
-  EDGE_TYPE_COLORS,
-} from "./visualization-types"
+  generateId,
+  sanitizeData,
+  sanitizeInputs,
+  sanitizeOutputs,
+  type SanitizeOptions,
+} from "./utils"

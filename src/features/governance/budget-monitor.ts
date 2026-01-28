@@ -327,7 +327,9 @@ export class BudgetMonitor extends EventEmitter {
         this.emitEvent({
           type: "warning",
           percentage,
-          message: "GC completed but freed no tokens",
+          remaining: this.budget.allocated - this.budget.consumed,
+          phase: this.getPhase(percentage),
+          estimatedSteps: this.estimateRemainingSteps(),
         })
 
         this.logToLedger("gc-ineffective", {

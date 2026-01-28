@@ -519,6 +519,7 @@ export const RECOVERY_STRATEGY_TABLE: Record<
     action: "partial-rerun",
     fromPhase: "affected",
     reason: `Write files externally modified: ${affected.join(", ")}`,
+    affectedPhases: ["execution", "verification"] as const,
   }),
 
   // Layer 1: Read file changed
@@ -532,6 +533,7 @@ export const RECOVERY_STRATEGY_TABLE: Record<
     action: "partial-rerun",
     fromPhase: "consumers",
     reason: `API changed in: ${affected.join(", ")} - consumers need re-validation`,
+    affectedPhases: ["execution", "verification"] as const,
   }),
 
   // Layer 2: Dependency version changed

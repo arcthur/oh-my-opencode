@@ -28,15 +28,7 @@ import type {
 } from "./tracer-types"
 import { DEFAULT_TRACER_CONFIG, DEFAULT_COMPRESSION_RULES } from "./tracer-types"
 import { SuspendException } from "./suspend-exception"
-
-/**
- * Generate a unique ID
- */
-function generateId(): string {
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substring(2, 8)
-  return `${timestamp}-${random}`
-}
+import { generateId, sanitizeData as sharedSanitizeData } from "./utils"
 
 /**
  * Execution Tracer
@@ -752,23 +744,7 @@ export class ExecutionTracer {
   }
 
   private sanitizeData(data: Record<string, unknown>): Record<string, unknown> {
-    if (!this.config.sanitizeSensitiveData) return data
-
-    const sensitiveKeys = ["password", "token", "secret", "key", "auth", "credential"]
-    const sanitized: Record<string, unknown> = {}
-
-    for (const [key, value] of Object.entries(data)) {
-      const lowerKey = key.toLowerCase()
-      if (sensitiveKeys.some((s) => lowerKey.includes(s))) {
-        sanitized[key] = "[REDACTED]"
-      } else if (typeof value === "string" && value.length > 1000) {
-        sanitized[key] = value.substring(0, 1000) + "...[truncated]"
-      } else {
-        sanitized[key] = value
-      }
-    }
-
-    return sanitized
+    return sharedSanitizeData(data, { enabled: this.config.sanitizeSensitiveData })
   }
 
   private formatError(error: unknown): TraceError {

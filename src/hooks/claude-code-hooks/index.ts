@@ -169,7 +169,7 @@ export function createClaudeCodeHooksHook(
 
     "tool.execute.before": async (
       input: { tool: string; sessionID: string; callID: string },
-      output: { args: Record<string, unknown> }
+      output: { args: Record<string, unknown>; message?: string }
     ): Promise<void> => {
       if (input.tool === "todowrite" && typeof output.args.todos === "string") {
         let parsed: unknown

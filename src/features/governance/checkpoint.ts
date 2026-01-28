@@ -39,6 +39,7 @@ import {
   CHECKPOINT_SCHEMA_VERSION,
 } from "./checkpoint-types"
 import { getLedgerManager } from "./ledger"
+import { generateId as sharedGenerateId } from "./utils"
 
 // ============================================================================
 // Fingerprint Strategy
@@ -691,9 +692,7 @@ export class SemanticCheckpointManager extends EventEmitter {
   // ===========================================================================
 
   private generateId(): string {
-    const timestamp = Date.now().toString(36)
-    const random = Math.random().toString(36).substring(2, 8)
-    return `cp-${timestamp}-${random}`
+    return sharedGenerateId("cp", 6)
   }
 
   private createTaskIntent(description: string): TaskIntent {

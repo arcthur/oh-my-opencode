@@ -550,6 +550,86 @@ export const ContextBudgetConfigSchema = z.object({
   overflow_strategy: z.enum(["truncate", "drop-low-priority"]).default("drop-low-priority"),
 })
 
+/** Governance Tool Criticality Configuration */
+export const GovernanceToolCriticalitySchema = z.object({
+  /** Tool name or pattern */
+  tool: z.string(),
+  /** Criticality level */
+  level: z.enum(["low", "medium", "high", "critical"]),
+  /** Reason for criticality */
+  reason: z.string().optional(),
+  /** Categories this applies to */
+  categories: z.array(z.string()).optional(),
+})
+
+/** Governance Configuration - approval, tracing, budget, checkpoints */
+export const GovernanceConfigSchema = z.object({
+  /** Enable governance module (default: false - opt-in) */
+  enabled: z.boolean().default(false),
+
+  /** Approval Gate Configuration */
+  approval_gate: z.object({
+    /** Enable approval gate for critical tools (default: true when governance enabled) */
+    enabled: z.boolean().default(true),
+    /** Tools that always skip approval (glob patterns) */
+    skip_patterns: z.array(z.string()).default([
+      "Read", "Glob", "Grep", "LSP", "TodoRead",
+    ]),
+    /** Token expiry time in minutes (default: 30) */
+    token_expiry_minutes: z.number().min(1).max(1440).default(30),
+    /** Custom tool criticality overrides */
+    tool_criticality: z.array(GovernanceToolCriticalitySchema).optional(),
+  }).partial().optional(),
+
+  /** Execution Tracer Configuration */
+  tracer: z.object({
+    /** Enable execution tracing (default: true when governance enabled) */
+    enabled: z.boolean().default(true),
+    /** Maximum nodes to keep in memory (default: 1000) */
+    max_nodes: z.number().min(100).max(10000).default(1000),
+    /** Auto-compress threshold (default: 500) */
+    auto_compress_threshold: z.number().min(50).max(5000).default(500),
+    /** Sanitize sensitive data in inputs/outputs (default: true) */
+    sanitize_sensitive_data: z.boolean().default(true),
+  }).partial().optional(),
+
+  /** Budget Monitor Configuration */
+  budget_monitor: z.object({
+    /** Enable budget monitoring (default: true when governance enabled) */
+    enabled: z.boolean().default(true),
+    /** Warn threshold as percentage of context window (default: 0.7) */
+    warn_threshold: z.number().min(0.3).max(0.95).default(0.7),
+    /** GC threshold (default: 0.85) */
+    gc_threshold: z.number().min(0.5).max(0.95).default(0.85),
+    /** Hard limit threshold (default: 0.95) */
+    hard_limit: z.number().min(0.7).max(0.99).default(0.95),
+    /** Context window size estimate (default: 200000) */
+    context_window_size: z.number().min(50000).max(1000000).default(200000),
+  }).partial().optional(),
+
+  /** Semantic Checkpoint Configuration */
+  checkpoint: z.object({
+    /** Enable semantic checkpoints (default: false - disabled until stable) */
+    enabled: z.boolean().default(false),
+    /** Auto-checkpoint interval in tool calls (default: 10) */
+    auto_checkpoint_interval: z.number().min(1).max(100).default(10),
+    /** Maximum checkpoints to keep (default: 5) */
+    max_checkpoints: z.number().min(1).max(20).default(5),
+    /** Recovery strategy preference */
+    recovery_preference: z.enum(["conservative", "balanced", "aggressive"]).default("balanced"),
+  }).partial().optional(),
+
+  /** Ledger Configuration */
+  ledger: z.object({
+    /** Enable governance ledger for audit logging (default: true when governance enabled) */
+    enabled: z.boolean().default(true),
+    /** Base directory for ledger files (default: .sisyphus/governance/ledger) */
+    base_dir: z.string().optional(),
+    /** Retention days for ledger entries (default: 30) */
+    retention_days: z.number().min(1).max(365).default(30),
+  }).partial().optional(),
+})
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -577,6 +657,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   org_memory: OrgMemoryConfigSchema.optional(),
   multi_plan_pipeline: MultiPlanPipelineConfigSchema.optional(),
   context_budget: ContextBudgetConfigSchema.optional(),
+  governance: GovernanceConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -609,5 +690,7 @@ export type MultiPlanPipelineConfig = z.infer<typeof MultiPlanPipelineConfigSche
 export type ContextBudgetConfig = z.infer<typeof ContextBudgetConfigSchema>
 export type HybridWeightsConfig = z.infer<typeof HybridWeightsConfigSchema>
 export type EmbeddingConfigOverride = z.infer<typeof EmbeddingConfigOverrideSchema>
+export type GovernanceConfig = z.infer<typeof GovernanceConfigSchema>
+export type GovernanceToolCriticality = z.infer<typeof GovernanceToolCriticalitySchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

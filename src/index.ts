@@ -87,6 +87,12 @@ import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
+import {
+  executePreToolGovernance,
+  executePostToolGovernance,
+  executeUserPromptGovernance,
+  cleanupGovernanceSession,
+} from "./features/governance";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[oh-my-opencode] Plugin loading", { directory: ctx.directory });
@@ -154,6 +160,18 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
     contextCollector
   );
+
+  // Governance integration
+  const governanceConfig = pluginConfig.governance;
+  const governanceEnabled = governanceConfig?.enabled ?? false;
+  if (governanceEnabled) {
+    log("[governance] Integration enabled", {
+      tracer: governanceConfig?.tracer?.enabled,
+      budget_monitor: governanceConfig?.budget_monitor?.enabled,
+      checkpoint: governanceConfig?.checkpoint?.enabled,
+      ledger: governanceConfig?.ledger?.enabled,
+    });
+  }
   const anthropicContextWindowLimitRecovery = isHookEnabled(
     "context-window-limit-recovery"
   )
@@ -405,6 +423,52 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
       await keywordDetector?.["chat.message"]?.(input, output);
       await claudeCodeHooks["chat.message"]?.(input, output);
+
+      // Governance user prompt processing
+      if (governanceEnabled) {
+        try {
+          const parts = (output as { parts?: Array<{ type: string; text?: string }> }).parts;
+          const prompt = parts
+            ?.filter((p) => p.type === "text" && p.text)
+            .map((p) => p.text)
+            .join("\n")
+            .trim() || "";
+
+          const estimatedTokens = Math.ceil(prompt.length / 4);
+
+          const govResult = executeUserPromptGovernance({
+            sessionId: input.sessionID,
+            prompt,
+            cwd: ctx.directory,
+            estimatedTokens,
+            config: governanceConfig,
+          });
+
+          if (govResult.block) {
+            throw new Error(govResult.reason ?? "Governance blocked the prompt");
+          }
+
+          if (govResult.messages.length > 0) {
+            const govContent = govResult.messages.join("\n\n");
+            contextCollector.register(input.sessionID, {
+              id: "governance-budget-context",
+              source: "custom",
+              content: govContent,
+              priority: "low",
+            });
+            log("[governance] Budget context injected", {
+              sessionID: input.sessionID,
+              phase: govResult.budgetStatus ? "active" : "normal",
+            });
+          }
+        } catch (err) {
+          log("[governance] User prompt error (non-fatal)", {
+            sessionID: input.sessionID,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
       await multiPlanTrigger?.["chat.message"]?.(input, output);
@@ -539,6 +603,18 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           firstMessageVariantGate.clear(sessionInfo.id);
           await skillMcpManager.disconnectSession(sessionInfo.id);
           await lspManager.cleanupTempDirectoryClients();
+
+          // Cleanup governance session
+          if (governanceEnabled) {
+            try {
+              cleanupGovernanceSession(sessionInfo.id);
+            } catch (err) {
+              log("[governance] Session cleanup error (non-fatal)", {
+                sessionID: sessionInfo.id,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
         }
       }
 
@@ -591,6 +667,42 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       // Memory context registration (uses contextCollector with oncePerSession)
       await userMemory?.["tool.execute.before"]?.(input, output);
       await orgMemory?.["tool.execute.before"]?.(input, output);
+
+      // Governance pre-tool checks
+      if (governanceEnabled) {
+        try {
+          const govResult = executePreToolGovernance({
+            sessionId: input.sessionID,
+            toolName: input.tool,
+            toolInput: output.args as Record<string, unknown>,
+            toolUseId: input.callID,
+            cwd: ctx.directory,
+            config: governanceConfig,
+          });
+
+          if (!govResult.proceed) {
+            throw new Error(govResult.reason ?? "Governance blocked the operation");
+          }
+
+          if (govResult.modifiedInput) {
+            Object.assign(output.args as Record<string, unknown>, govResult.modifiedInput);
+          }
+
+          if (govResult.message) {
+            const outputWithMessage = output as { args: unknown; message?: string };
+            outputWithMessage.message = (outputWithMessage.message ?? "") + "\n" + govResult.message;
+          }
+        } catch (err) {
+          if (err instanceof Error && err.message.includes("Governance blocked")) {
+            throw err;
+          }
+          log("[governance] Pre-tool error (non-fatal)", {
+            sessionID: input.sessionID,
+            tool: input.tool,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
 
       await claudeCodeHooks["tool.execute.before"](input, output);
       await nonInteractiveEnv?.["tool.execute.before"](input, output);
@@ -673,6 +785,54 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     "tool.execute.after": async (input, output) => {
       await planningWithFiles?.["tool.execute.after"]?.(input, output);
       await claudeCodeHooks["tool.execute.after"](input, output);
+
+      // Governance post-tool processing
+      if (governanceEnabled) {
+        try {
+          const govResult = await executePostToolGovernance({
+            sessionId: input.sessionID,
+            toolName: input.tool,
+            toolInput: (input as Record<string, unknown>).args as Record<string, unknown> ?? {},
+            toolOutput: output as Record<string, unknown>,
+            toolUseId: input.callID,
+            success: true,
+            cwd: ctx.directory,
+            config: governanceConfig,
+          });
+
+          if (govResult.warnings.length > 0) {
+            output.output = `${output.output}\n\n${govResult.warnings.join("\n")}`;
+          }
+
+          if (govResult.systemMessage) {
+            output.output = `${output.output}\n\n${govResult.systemMessage}`;
+          }
+
+          if (govResult.checkpointCreated) {
+            log("[governance] Auto-checkpoint created", { sessionID: input.sessionID });
+          }
+
+          if (govResult.block) {
+            ctx.client.tui
+              .showToast({
+                body: {
+                  title: "Budget Exhausted",
+                  message: "Context budget limit reached. Consider wrapping up.",
+                  variant: "warning",
+                  duration: 5000,
+                },
+              })
+              .catch(() => {});
+          }
+        } catch (err) {
+          log("[governance] Post-tool error (non-fatal)", {
+            sessionID: input.sessionID,
+            tool: input.tool,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       await antiSlopEnforcer?.["tool.execute.after"]?.(input, output);
       await silentToolOutput?.["tool.execute.after"]?.(input, output);
       await toolOutputTruncator?.["tool.execute.after"](input, output);

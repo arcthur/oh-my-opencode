@@ -25,15 +25,7 @@ import type {
   EnvironmentDriftEvent,
 } from "./types"
 import { log } from "../../shared/logger"
-
-/**
- * Generate a unique ID
- */
-function generateId(): string {
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substring(2, 10)
-  return `${timestamp}-${random}`
-}
+import { generateId } from "./utils"
 
 /**
  * Compute SHA-256 hash of an entry

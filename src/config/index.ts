@@ -9,6 +9,8 @@ export {
   SisyphusAgentConfigSchema,
   ExperimentalConfigSchema,
   RalphLoopConfigSchema,
+  GovernanceConfigSchema,
+  GovernanceToolCriticalitySchema,
 } from "./schema"
 
 export type {
@@ -23,4 +25,6 @@ export type {
   ExperimentalConfig,
   DynamicContextPruningConfig,
   RalphLoopConfig,
+  GovernanceConfig,
+  GovernanceToolCriticality,
 } from "./schema"
