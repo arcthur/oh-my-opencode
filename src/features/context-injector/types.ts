@@ -10,6 +10,8 @@ export type ContextSourceType =
   | "directory-readme"
   | "user-memory"
   | "org-memory"
+  | "session-handoff"
+  | "conditional-rules"
   | "custom"
 
 /**

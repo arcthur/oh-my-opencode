@@ -95,6 +95,8 @@ export const HookNameSchema = z.enum([
   "anti-slop-enforcer",
   "pre-completion-verification",
   "delegation-validator",
+  "conditional-rules",
+  "session-handoff",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -545,6 +547,8 @@ export const ContextBudgetConfigSchema = z.object({
     "rules-injector": z.number().optional(),
     "directory-agents": z.number().optional(),
     "directory-readme": z.number().optional(),
+    "session-handoff": z.number().optional(),
+    "conditional-rules": z.number().optional(),
   }).partial().optional(),
   /** Overflow strategy (default: drop-low-priority) */
   overflow_strategy: z.enum(["truncate", "drop-low-priority"]).default("drop-low-priority"),
@@ -640,6 +644,183 @@ export const GovernanceConfigSchema = z.object({
   }).partial().optional(),
 })
 
+// ============================================================================
+// Conditional Rules Configuration
+// ============================================================================
+
+/** AGENTS.md Discovery Configuration */
+export const AgentsMdConfigSchema = z.object({
+  /** Enable AGENTS.md discovery (default: true) */
+  enabled: z.boolean().default(true),
+  /** File names to search for (default: ["AGENTS.md", "AGENTS.local.md"]) */
+  file_names: z.array(z.string()).default(["AGENTS.md", "AGENTS.local.md"]),
+  /** Directories to ignore during discovery */
+  ignore: z.array(z.string()).default([
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".turbo",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "target",
+  ]),
+  /** Maximum directory depth to search (default: 10) */
+  max_depth: z.number().min(1).max(20).default(10),
+})
+
+/** Glob condition - matches file paths against glob pattern */
+export const GlobConditionSchema = z.object({
+  type: z.literal("glob"),
+  /** Glob pattern (e.g., "**\/*.ts", "src/components/**") */
+  pattern: z.string(),
+  /** If true (default), rule matches if ANY file matches. If false, ALL files must match. */
+  matchAny: z.boolean().optional(),
+})
+
+/** Directory condition - matches files within a directory */
+export const DirectoryConditionSchema = z.object({
+  type: z.literal("directory"),
+  /** Directory path relative to project root */
+  path: z.string(),
+  /** If true (default), includes subdirectories */
+  recursive: z.boolean().optional(),
+})
+
+/** Content condition - matches files containing specific patterns */
+export const ContentConditionSchema = z.object({
+  type: z.literal("content"),
+  /** Regex pattern to search in file content */
+  pattern: z.string(),
+  /** Only check files already matched by other conditions (default: true) */
+  relevantFilesOnly: z.boolean().optional(),
+})
+
+/** Context matcher for context conditions */
+export const ContextMatcherSchema = z.union([
+  z.object({ agent: z.string() }),
+  z.object({ category: z.string() }),
+  z.object({ task: z.enum(["planning", "implementation", "review", "debugging"]) }),
+  z.object({ skill: z.string() }),
+])
+
+/** Context condition - matches execution context */
+export const ContextConditionSchema = z.object({
+  type: z.literal("context"),
+  /** Context to match */
+  match: ContextMatcherSchema,
+})
+
+/** Union of all condition types */
+export const RuleConditionSchema = z.discriminatedUnion("type", [
+  GlobConditionSchema,
+  DirectoryConditionSchema,
+  ContentConditionSchema,
+  ContextConditionSchema,
+])
+
+/** Rule content can be inline string or file reference */
+export const RuleContentSchema = z.union([
+  z.string(),
+  z.object({
+    /** Path to file containing rule content */
+    file: z.string(),
+  }),
+])
+
+/** Config-defined conditional rule */
+export const ConfigRuleSchema = z.object({
+  /** Unique identifier for the rule */
+  id: z.string(),
+  /** Human-readable name */
+  name: z.string(),
+  /** Conditions that must all match (AND logic) */
+  conditions: z.array(RuleConditionSchema).min(1),
+  /** Rule content (instructions to inject) */
+  content: RuleContentSchema,
+  /** Priority (higher = matched first, default: 0) */
+  priority: z.number().optional(),
+  /** Enable/disable the rule (default: true) */
+  enabled: z.boolean().optional(),
+})
+
+/** Conditional Rules Configuration */
+export const ConditionalRulesConfigSchema = z.object({
+  /** AGENTS.md discovery settings */
+  agents_md: AgentsMdConfigSchema.partial().default({}),
+  /** Config-defined conditional rules */
+  conditional_rules: z.array(ConfigRuleSchema).optional(),
+})
+
+// ============================================================================
+// Session Handoff Configuration
+// ============================================================================
+
+/** Extractor configuration for session handoff */
+export const HandoffExtractorConfigSchema = z.object({
+  /** Model for extraction (haiku is cost-effective) */
+  model: z.enum(["haiku", "sonnet", "opus"]).default("haiku"),
+  /** Maximum decisions to extract */
+  max_decisions: z.number().min(1).max(20).default(10),
+  /** Maximum artifacts to track */
+  max_artifacts: z.number().min(1).max(50).default(20),
+  /** Generate embedding index for semantic search */
+  generate_embeddings: z.boolean().default(true),
+})
+
+/** Session Handoff Configuration - knowledge transfer between sessions */
+export const SessionHandoffConfigSchema = z.object({
+  /** Enable session handoff feature (default: true) */
+  enabled: z.boolean().default(true),
+  /** Automatically extract handoff on session end (default: true) */
+  auto_extract: z.boolean().default(true),
+  /** Automatically inject relevant handoffs on session start (default: true) */
+  auto_inject: z.boolean().default(true),
+  /** Minimum messages for auto-extraction (default: 5) */
+  min_messages_for_extract: z.number().min(1).max(50).default(5),
+  /** Minimum file modifications for auto-extraction - prevents chat-only sessions from generating handoffs (default: 1) */
+  min_file_changes_for_extract: z.number().min(0).max(20).default(1),
+  /** Maximum handoffs to inject (default: 3) */
+  max_inject_count: z.number().min(1).max(10).default(3),
+  /** Handoff expiration in days (default: 7) */
+  expiry_days: z.number().min(1).max(90).default(7),
+  /** Run extraction asynchronously in background - non-blocking (default: true) */
+  async_extraction: z.boolean().default(true),
+  /** Extractor configuration */
+  extractor: HandoffExtractorConfigSchema.partial().default({}),
+})
+
+// ============================================================================
+// Session Reference Configuration
+// ============================================================================
+
+/** Resolution options for session references */
+export const SessionReferenceResolveOptionsSchema = z.object({
+  /** Prefer handoff over raw session data (default: true) */
+  prefer_handoff: z.boolean().default(true),
+  /** Fall back to session if handoff missing (default: true) */
+  allow_session_fallback: z.boolean().default(true),
+  /** Create handoff on-demand if missing (default: false) */
+  create_handoff_if_missing: z.boolean().default(false),
+  /** Maximum results for semantic search (default: 5) */
+  max_results: z.number().min(1).max(20).default(5),
+  /** Minimum relevance score for semantic results (default: 0.3) */
+  min_relevance: z.number().min(0).max(1).default(0.3),
+})
+
+/** Session Reference Configuration - @session:id syntax for referencing previous sessions */
+export const SessionReferenceConfigSchema = z.object({
+  /** Enable @session reference syntax (default: true) */
+  enabled: z.boolean().default(true),
+  /** Strip @session references from prompt after resolution (default: false - keep for context) */
+  strip_from_prompt: z.boolean().default(false),
+  /** Resolution options */
+  resolve_options: SessionReferenceResolveOptionsSchema.partial().default({}),
+})
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -668,6 +849,12 @@ export const OhMyOpenCodeConfigSchema = z.object({
   multi_plan_pipeline: MultiPlanPipelineConfigSchema.optional(),
   context_budget: ContextBudgetConfigSchema.optional(),
   governance: GovernanceConfigSchema.optional(),
+  /** Conditional rules configuration for path-sensitive rule injection */
+  conditional_rules: ConditionalRulesConfigSchema.optional(),
+  /** Session handoff configuration for cross-session knowledge transfer */
+  session_handoff: SessionHandoffConfigSchema.optional(),
+  /** Session reference configuration for @session:id syntax */
+  session_reference: SessionReferenceConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -702,5 +889,17 @@ export type HybridWeightsConfig = z.infer<typeof HybridWeightsConfigSchema>
 export type EmbeddingConfigOverride = z.infer<typeof EmbeddingConfigOverrideSchema>
 export type GovernanceConfig = z.infer<typeof GovernanceConfigSchema>
 export type GovernanceToolCriticality = z.infer<typeof GovernanceToolCriticalitySchema>
+export type AgentsMdConfig = z.infer<typeof AgentsMdConfigSchema>
+export type GlobCondition = z.infer<typeof GlobConditionSchema>
+export type DirectoryCondition = z.infer<typeof DirectoryConditionSchema>
+export type ContentCondition = z.infer<typeof ContentConditionSchema>
+export type ContextCondition = z.infer<typeof ContextConditionSchema>
+export type RuleCondition = z.infer<typeof RuleConditionSchema>
+export type ConfigRule = z.infer<typeof ConfigRuleSchema>
+export type ConditionalRulesConfig = z.infer<typeof ConditionalRulesConfigSchema>
+export type SessionHandoffConfig = z.infer<typeof SessionHandoffConfigSchema>
+export type HandoffExtractorConfig = z.infer<typeof HandoffExtractorConfigSchema>
+export type SessionReferenceConfig = z.infer<typeof SessionReferenceConfigSchema>
+export type SessionReferenceResolveOptions = z.infer<typeof SessionReferenceResolveOptionsSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

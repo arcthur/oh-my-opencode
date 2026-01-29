@@ -36,7 +36,10 @@ import {
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
   createDelegationValidatorHook,
+  createConditionalRulesHooks,
+  createSessionHandoffHook,
 } from "./hooks";
+import { createHandoffSummarizer } from "./features/session-handoff";
 import {
   contextCollector,
   createContextInjectorMessagesTransformHook,
@@ -60,6 +63,7 @@ import {
   setSessionAgent,
   updateSessionAgent,
   clearSessionAgent,
+  getSessionAgent,
 } from "./features/claude-code-session-state";
 import { sessionStateCoordinator } from "./features/session-state-coordinator";
 import {
@@ -82,11 +86,14 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge } from "./shared";
+import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
+import { DEFAULT_HANDOFF_CONFIG } from "./features/session-handoff";
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
+import type { SessionReferenceConfig } from "./config/schema"
 import {
   executePreToolGovernance,
   executePostToolGovernance,
@@ -307,6 +314,96 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const delegationValidator = isHookEnabled("delegation-validator")
     ? createDelegationValidatorHook(ctx)
+    : null;
+
+  // Conditional rules for path-sensitive rule injection
+  // Deep merge user config with defaults to ensure all required fields are present
+  const conditionalRulesConfig = deepMerge(
+    DEFAULT_CONDITIONAL_RULES_CONFIG,
+    pluginConfig.conditional_rules ?? {}
+  ) as import("./features/conditional-rules").ConditionalRulesConfig
+  const conditionalRulesHooks = isHookEnabled("conditional-rules")
+    ? createConditionalRulesHooks({ config: conditionalRulesConfig })
+    : null;
+
+  // Session handoff for cross-session knowledge transfer
+  // Deep merge user config with defaults to ensure all required fields are present
+  const sessionHandoffConfig = deepMerge(
+    DEFAULT_HANDOFF_CONFIG,
+    pluginConfig.session_handoff ?? {}
+  ) as import("./features/session-handoff").SessionHandoffConfig
+
+  const DEFAULT_SESSION_REFERENCE_CONFIG: SessionReferenceConfig = {
+    enabled: true,
+    strip_from_prompt: false,
+    resolve_options: {
+      prefer_handoff: true,
+      allow_session_fallback: true,
+      create_handoff_if_missing: false,
+      max_results: 5,
+      min_relevance: 0.3,
+    },
+  }
+
+  const sessionReferenceConfig = deepMerge(
+    DEFAULT_SESSION_REFERENCE_CONFIG,
+    (pluginConfig.session_reference ?? {}) as Partial<SessionReferenceConfig>
+  ) as SessionReferenceConfig
+
+  // Lazy embedding provider (reuses user-memory embedding provider selection)
+  const embedForHandoff = (() => {
+    let providerPromise: Promise<import("./features/user-memory/embeddings/types").EmbeddingProvider> | null = null
+    return async (texts: string[]): Promise<number[][]> => {
+      if (!providerPromise) {
+        providerPromise = (async () => {
+          const { DEFAULT_EMBEDDING_CONFIG, DEFAULT_HYBRID_WEIGHTS } = await import(
+            "./features/user-memory/embeddings/types"
+          )
+          const { getProviderWithFallback } = await import(
+            "./features/user-memory/embeddings/provider"
+          )
+
+          const base = pluginConfig.user_memory?.embeddings ?? {}
+          const embeddingConfig: import("./features/user-memory/embeddings/types").EmbeddingConfig = {
+            ...DEFAULT_EMBEDDING_CONFIG,
+            ...base,
+            enabled: true,
+            hybrid_weights: {
+              ...DEFAULT_HYBRID_WEIGHTS,
+              ...(base.hybrid_weights ?? {}),
+            },
+          }
+
+          const { provider, usedFallback } = await getProviderWithFallback(embeddingConfig)
+          log("[session-handoff] embedding provider initialized", {
+            provider: provider.name,
+            dimension: provider.dimension,
+            usedFallback,
+          })
+          return provider
+        })()
+      }
+
+      const provider = await providerPromise
+      return provider.embed(texts)
+    }
+  })()
+
+  const handoffSummarizer = createHandoffSummarizer(ctx, sessionHandoffConfig, {
+    categories: pluginConfig.categories,
+  });
+  const sessionHandoffHook = isHookEnabled("session-handoff")
+    ? createSessionHandoffHook({
+        config: sessionHandoffConfig,
+        sessionReferenceConfig,
+        cwd: ctx.directory,
+        // LLM call for extraction - uses summarizer with circuit breaker
+        callLLM: handoffSummarizer
+          ? (prompt, systemPrompt, model) => handoffSummarizer.callLLM(prompt, systemPrompt, model)
+          : async () => "{}", // Fallback to metadata extraction if summarizer unavailable
+        embed: embedForHandoff,
+        collector: contextCollector,
+      })
     : null;
 
   if (sessionRecovery && todoContinuationEnforcer) {
@@ -539,6 +636,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     "user.prompt.submit": async (input: MessageInput) => {
       await userMemory["user.prompt.submit"]?.(input);
       await orgMemory["user.prompt.submit"]?.(input);
+      await sessionHandoffHook?.["user.prompt.submit"]?.(input as { sessionID: string; parts?: Array<{ type: string; text?: string }> });
     },
 
     "experimental.chat.messages.transform": async (
@@ -576,6 +674,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
       await atlasHook?.handler(input);
+      await conditionalRulesHooks?.event?.(input as { event: { type: string; properties?: unknown } });
+      await sessionHandoffHook?.event?.(input);
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
@@ -684,6 +784,29 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
       await planningWithFiles?.["tool.execute.before"]?.(input, output);
       await delegationValidator?.["tool.execute.before"]?.(input, output);
+
+      // Conditional rules for file operations
+      if (conditionalRulesHooks) {
+        const currentAgent = getSessionAgent(input.sessionID);
+        await conditionalRulesHooks["tool.execute.before"]?.({
+          tool: input.tool,
+          args: output.args as Record<string, unknown>,
+          sessionId: input.sessionID,
+          context: { cwd: ctx.directory, agent: currentAgent },
+        });
+
+        // Special handling for delegate_task to modify prompt with applicable rules
+        if (input.tool === "delegate_task") {
+          const delegateResult = await conditionalRulesHooks["tool.execute.before:delegate_task"]?.({
+            args: output.args as Record<string, unknown>,
+            sessionId: input.sessionID,
+            context: { cwd: ctx.directory, agent: currentAgent },
+          });
+          if (delegateResult?.args) {
+            Object.assign(output.args as Record<string, unknown>, delegateResult.args);
+          }
+        }
+      }
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
@@ -882,6 +1005,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await delegateTaskRetry?.["tool.execute.after"](input, output);
       await atlasHook?.["tool.execute.after"]?.(input, output);
       await taskResumeInfo["tool.execute.after"](input, output);
+      await sessionHandoffHook?.["tool.execute.after"]?.(input, output);
     },
   };
 };

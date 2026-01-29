@@ -2173,6 +2173,112 @@ ledger:
 `,
 }
 
+// =============================================================================
+// Session Handoff Skill
+// =============================================================================
+
+const handoffSkill: BuiltinSkill = {
+  name: "handoff",
+  description: "Manage session handoffs for cross-session knowledge transfer. Commands: create, list, show, inject, delete, cleanup. Triggers: 'handoff', 'session context', 'previous session', 'knowledge transfer'.",
+  argumentHint: "[create|list|show|inject|delete|cleanup] [args]",
+  template: `# Session Handoff Manager
+
+You are managing session handoffs - structured knowledge packages that transfer context between sessions.
+
+## Available Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| \`/handoff create\` | Create handoff from current session | \`/handoff create\` or \`/handoff create "Auth implementation"\` |
+| \`/handoff list\` | List handoffs for current project | \`/handoff list\` or \`/handoff list --all\` |
+| \`/handoff show <id>\` | Display handoff details | \`/handoff show ho_1706500000_abc123\` |
+| \`/handoff inject <id>\` | Manually inject handoff context | \`/handoff inject ho_1706500000_abc123\` |
+| \`/handoff delete <id>\` | Delete a handoff | \`/handoff delete ho_1706500000_abc123\` |
+| \`/handoff cleanup\` | Remove expired handoffs | \`/handoff cleanup\` |
+
+## Implementation
+
+### List Handoffs
+
+Read the handoff index and format for display:
+
+\`\`\`bash
+cat ~/.config/opencode/oh-my-opencode/handoffs/index.json 2>/dev/null || echo '{"handoffs":[]}'
+\`\`\`
+
+Then format as a table showing: ID, Goal (truncated), Created (relative time), Outcome.
+
+For project-specific filtering, check each handoff's projectPath matches current directory.
+
+### Show Handoff Details
+
+Read the specific handoff file:
+
+\`\`\`bash
+cat ~/.config/opencode/oh-my-opencode/handoffs/HANDOFF_ID.json 2>/dev/null
+\`\`\`
+
+Format the response showing:
+- **Metadata**: Goal, Duration, Project, Outcome, Key Files
+- **Decisions**: What, Chosen, Why, Rejected alternatives
+- **Anti-Patterns**: Approach, Reason, Error signature
+- **Domain Context**: Insights discovered
+
+### Delete Handoff
+
+1. Read current index
+2. Remove entry from index
+3. Delete the handoff file
+4. Save updated index
+
+### Cleanup Expired
+
+1. Read index
+2. Filter handoffs where expiresAt < Date.now()
+3. Delete expired handoff files
+4. Update and save index
+5. Report count removed
+
+## Response Format
+
+**When listing handoffs:**
+
+| ID | Goal | Created | Outcome |
+|----|------|---------|---------|
+| ho_... | Implement auth | 2 days ago | completed |
+| ho_... | Fix API bugs | 5 days ago | partial |
+
+**When showing details:**
+
+## Handoff: ho_1706500000_abc123
+
+**Goal**: Implement user authentication system
+**Duration**: 45 minutes | **Outcome**: completed
+**Key Files**: src/auth.ts, src/middleware.ts
+
+### Decisions
+
+1. **JWT storage**: Chose httpOnly cookies
+   - Why: XSS protection, automatic inclusion
+   - Rejected: localStorage (XSS vulnerable)
+
+### Anti-Patterns (Avoid)
+
+- ❌ **Storing tokens in memory**: Lost on page reload
+
+### Domain Knowledge
+
+- Auth middleware must run before route handlers
+- User model has passwordHash - never expose in API
+
+## Error Handling
+
+- Handoff not found: "Handoff 'X' not found. Use \`/handoff list\` to see available."
+- No handoffs: "No handoffs found. They are auto-created when sessions end."
+- Cleanup nothing: "No expired handoffs to clean up."
+`,
+}
+
 export function createBuiltinSkills(): BuiltinSkill[] {
   return [
     playwrightSkill,
@@ -2186,5 +2292,7 @@ export function createBuiltinSkills(): BuiltinSkill[] {
     codeSimplifierSkill,
     // Observability
     debugSkill,
+    // Session Management
+    handoffSkill,
   ]
 }
