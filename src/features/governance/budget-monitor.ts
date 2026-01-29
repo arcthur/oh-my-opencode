@@ -35,7 +35,8 @@ import {
   BudgetExhaustedError,
   SessionForkRequiredError,
 } from "./budget-types"
-import { getLedgerManager } from "./ledger"
+import type { BudgetEvent } from "./types"
+import { peekLedgerManager } from "./ledger"
 
 // ============================================================================
 // Refactor Strategy Interface
@@ -172,8 +173,8 @@ export class BudgetMonitor extends EventEmitter {
       percentage,
     })
 
-    // Log to ledger
-    this.logToLedger("consumption", { tokens, total: this.budget.consumed, percentage })
+    // Note: Ledger logging for consumption/exhausted is handled by integration.ts
+    // to include tool name and traceNodeId correlation. Only GC events are logged here.
 
     // Check thresholds
     if (percentage >= this.budget.hardLimit) {
@@ -182,8 +183,6 @@ export class BudgetMonitor extends EventEmitter {
         consumed: this.budget.consumed,
         allocated: this.budget.allocated,
       })
-
-      this.logToLedger("exhausted", { percentage })
 
       throw new BudgetExhaustedError(
         "Token budget exhausted",
@@ -475,8 +474,12 @@ export class BudgetMonitor extends EventEmitter {
   }
 
   private estimateRemainingSteps(): number {
-    const avgStepCost = this.budget.consumed / Math.max(this.stepCount, 1)
-    const remainingTokens = this.budget.allocated - this.budget.consumed
+    if (this.stepCount <= 0 || this.budget.consumed <= 0) return 0
+
+    const avgStepCost = this.budget.consumed / this.stepCount
+    if (avgStepCost <= 0) return 0
+
+    const remainingTokens = Math.max(0, this.budget.allocated - this.budget.consumed)
     return Math.floor(remainingTokens / avgStepCost)
   }
 
@@ -485,20 +488,22 @@ export class BudgetMonitor extends EventEmitter {
     this.emit("budget-event", event)
   }
 
-  private logToLedger(subtype: string, data: Record<string, unknown>): void {
+  private logToLedger(subtype: BudgetEvent["subtype"], data: Record<string, unknown>): void {
     try {
-      const ledger = getLedgerManager().getLedger(this.sessionId)
+      const manager = peekLedgerManager()
+      if (!manager?.hasLoadedLedger(this.sessionId)) return
+      const ledger = manager.getLedger(this.sessionId)
       const percentage = this.getPercentage()
 
       ledger.logBudgetEvent({
-        subtype: subtype as any,
+        subtype,
         budgetState: {
           consumed: this.budget.consumed,
           allocated: this.budget.allocated,
           percentage,
         },
         actionTaken: subtype,
-        tokensFreed: (data.freedTokens as number) ?? undefined,
+        tokensFreed: typeof data.freedTokens === "number" ? data.freedTokens : undefined,
       })
     } catch {
       // Ledger may not be initialized - ignore

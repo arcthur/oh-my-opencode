@@ -164,6 +164,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   // Governance integration
   const governanceConfig = pluginConfig.governance;
   const governanceEnabled = governanceConfig?.enabled ?? false;
+  const GOVERNANCE_BLOCK_PREFIX = "Governance blocked:";
   if (governanceEnabled) {
     log("[governance] Integration enabled", {
       tracer: governanceConfig?.tracer?.enabled,
@@ -445,7 +446,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           });
 
           if (govResult.block) {
-            throw new Error(govResult.reason ?? "Governance blocked the prompt");
+            throw new Error(
+              `${GOVERNANCE_BLOCK_PREFIX} ${govResult.reason ?? "Prompt blocked"}`
+            );
           }
 
           if (govResult.messages.length > 0) {
@@ -462,6 +465,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
             });
           }
         } catch (err) {
+          // Re-throw governance blocks, swallow other errors
+          if (err instanceof Error && err.message.startsWith(GOVERNANCE_BLOCK_PREFIX)) {
+            throw err;
+          }
           log("[governance] User prompt error (non-fatal)", {
             sessionID: input.sessionID,
             error: err instanceof Error ? err.message : String(err),
@@ -668,42 +675,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await userMemory?.["tool.execute.before"]?.(input, output);
       await orgMemory?.["tool.execute.before"]?.(input, output);
 
-      // Governance pre-tool checks
-      if (governanceEnabled) {
-        try {
-          const govResult = executePreToolGovernance({
-            sessionId: input.sessionID,
-            toolName: input.tool,
-            toolInput: output.args as Record<string, unknown>,
-            toolUseId: input.callID,
-            cwd: ctx.directory,
-            config: governanceConfig,
-          });
-
-          if (!govResult.proceed) {
-            throw new Error(govResult.reason ?? "Governance blocked the operation");
-          }
-
-          if (govResult.modifiedInput) {
-            Object.assign(output.args as Record<string, unknown>, govResult.modifiedInput);
-          }
-
-          if (govResult.message) {
-            const outputWithMessage = output as { args: unknown; message?: string };
-            outputWithMessage.message = (outputWithMessage.message ?? "") + "\n" + govResult.message;
-          }
-        } catch (err) {
-          if (err instanceof Error && err.message.includes("Governance blocked")) {
-            throw err;
-          }
-          log("[governance] Pre-tool error (non-fatal)", {
-            sessionID: input.sessionID,
-            tool: input.tool,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
       await claudeCodeHooks["tool.execute.before"](input, output);
       await nonInteractiveEnv?.["tool.execute.before"](input, output);
       await commentChecker?.["tool.execute.before"](input, output);
@@ -779,6 +750,44 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
          }
       }
 
+      // Governance pre-tool checks (run late to capture final args and avoid tracing denied calls)
+      if (governanceEnabled) {
+        try {
+          const govResult = executePreToolGovernance({
+            sessionId: input.sessionID,
+            toolName: input.tool,
+            toolInput: output.args as Record<string, unknown>,
+            toolUseId: input.callID,
+            cwd: ctx.directory,
+            config: governanceConfig,
+          });
+
+          if (!govResult.proceed) {
+            throw new Error(
+              `${GOVERNANCE_BLOCK_PREFIX} ${govResult.reason ?? "Operation blocked"}`
+            );
+          }
+
+          if (govResult.modifiedInput) {
+            Object.assign(output.args as Record<string, unknown>, govResult.modifiedInput);
+          }
+
+          if (govResult.message) {
+            const outputWithMessage = output as { args: unknown; message?: string };
+            outputWithMessage.message = (outputWithMessage.message ?? "") + "\n" + govResult.message;
+          }
+        } catch (err) {
+          if (err instanceof Error && err.message.startsWith(GOVERNANCE_BLOCK_PREFIX)) {
+            throw err;
+          }
+          log("[governance] Pre-tool error (non-fatal)", {
+            sessionID: input.sessionID,
+            tool: input.tool,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       await silentToolOutput?.["tool.execute.before"]?.(input, output);
     },
 
@@ -786,16 +795,42 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await planningWithFiles?.["tool.execute.after"]?.(input, output);
       await claudeCodeHooks["tool.execute.after"](input, output);
 
-      // Governance post-tool processing
+      await antiSlopEnforcer?.["tool.execute.after"]?.(input, output);
+      await silentToolOutput?.["tool.execute.after"]?.(input, output);
+      await toolOutputTruncator?.["tool.execute.after"](input, output);
+
+      // Governance post-tool processing (run after output shaping so budget estimates match actual context)
       if (governanceEnabled) {
         try {
+          const metadata = output.metadata as Record<string, unknown> | undefined;
+          const outputStr = typeof output.output === "string" ? output.output : "";
+          const outputLower = outputStr.toLowerCase();
+          const exitCode = typeof metadata?.exitCode === "number" ? metadata.exitCode : undefined;
+          const explicitSuccess =
+            typeof metadata?.success === "boolean" ? metadata.success : undefined;
+          const inferredSuccess =
+            explicitSuccess ??
+            (exitCode !== undefined
+              ? exitCode === 0
+              : !outputLower.includes("error:") && !outputLower.includes("failed:"));
+          const estimatedTokensUsed = Math.ceil(outputStr.length / 4);
+
+          const rawArgs =
+            (metadata as { args?: unknown } | undefined)?.args ??
+            (output as { args?: unknown }).args;
+          const toolInput =
+            rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs)
+              ? (rawArgs as Record<string, unknown>)
+              : {};
+
           const govResult = await executePostToolGovernance({
             sessionId: input.sessionID,
             toolName: input.tool,
-            toolInput: (input as Record<string, unknown>).args as Record<string, unknown> ?? {},
+            toolInput,
             toolOutput: output as Record<string, unknown>,
             toolUseId: input.callID,
-            success: true,
+            success: inferredSuccess,
+            tokensUsed: estimatedTokensUsed,
             cwd: ctx.directory,
             config: governanceConfig,
           });
@@ -833,9 +868,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         }
       }
 
-      await antiSlopEnforcer?.["tool.execute.after"]?.(input, output);
-      await silentToolOutput?.["tool.execute.after"]?.(input, output);
-      await toolOutputTruncator?.["tool.execute.after"](input, output);
       await userMemory?.["tool.execute.after"]?.(input, output);
       await orgMemory?.["tool.execute.after"]?.(input, output);
       await contextWindowMonitor?.["tool.execute.after"](input, output);
@@ -846,9 +878,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await emptyTaskResponseDetector?.["tool.execute.after"](input, output);
       await agentUsageReminder?.["tool.execute.after"](input, output);
       await interactiveBashSession?.["tool.execute.after"](input, output);
-await editErrorRecovery?.["tool.execute.after"](input, output);
-        await delegateTaskRetry?.["tool.execute.after"](input, output);
-        await atlasHook?.["tool.execute.after"]?.(input, output);
+      await editErrorRecovery?.["tool.execute.after"](input, output);
+      await delegateTaskRetry?.["tool.execute.after"](input, output);
+      await atlasHook?.["tool.execute.after"]?.(input, output);
       await taskResumeInfo["tool.execute.after"](input, output);
     },
   };

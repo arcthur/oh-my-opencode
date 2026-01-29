@@ -40,7 +40,7 @@ export interface ApprovalGateConfig {
   /** Enable ledger integration for audit logging */
   enableLedger?: boolean
 
-  /** Ledger base directory (defaults to .sisyphus/ledger) */
+  /** Ledger base directory (defaults to ~/.sisyphus/ledger) */
   ledgerBaseDir?: string
 }
 
@@ -119,6 +119,9 @@ function formatApprovalMessage(
     .map((a) => `  [${a.type}] ${a.label}`)
     .join("\n")
 
+  // NOTE: Approval gate is not integrated into the main flow yet.
+  // The slash commands (/approve, /reject, /modify) do not exist.
+  // When integrated, users will need to confirm via the UI.
   return `
 <approval-request tool="${tool}" token="${suspendInfo.resumeToken}">
 
@@ -133,10 +136,8 @@ ${impactList ? `### Estimated Impact\n${impactList}` : ""}
 ### Available Actions
 ${actions}
 
-To respond, use one of:
-- \`/approve ${suspendInfo.resumeToken}\` - Proceed with operation
-- \`/reject ${suspendInfo.resumeToken}\` - Cancel operation
-- \`/modify ${suspendInfo.resumeToken} <new-args>\` - Modify and retry
+**Note**: This operation requires user approval. The approval gate feature is not yet integrated into the main flow.
+Token for future reference: ${suspendInfo.resumeToken}
 
 </approval-request>
 `.trim()

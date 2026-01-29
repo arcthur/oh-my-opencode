@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, appendFileSync, readFileSync, readdirSync, unlinkSync, statSync } from "node:fs"
 import { join, dirname } from "node:path"
+import { homedir } from "node:os"
 import type {
   GovernanceLedger,
   LedgerEntry,
@@ -53,7 +54,7 @@ export interface LedgerStorageConfig {
 }
 
 const DEFAULT_STORAGE_CONFIG: LedgerStorageConfig = {
-  baseDir: ".sisyphus/ledger",
+  baseDir: join(homedir(), ".sisyphus", "ledger"),
   maxAgeDays: 30,
   maxCount: 100,
   preserveErrors: true,
@@ -460,8 +461,7 @@ export class GovernanceLedgerWriter {
         return `State proposal ${e.outcome}: ${e.target.namespace}.${e.target.key}`
       }
       default:
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return `Unknown event: ${(event as any).type}`
+        return "Unknown event"
     }
   }
 
@@ -559,6 +559,13 @@ export class LedgerManager {
   }
 
   /**
+   * Check if a session's ledger writer is loaded in memory
+   */
+  hasLoadedLedger(sessionId: string): boolean {
+    return this.ledgers.has(sessionId)
+  }
+
+  /**
    * Remove a session's ledger from memory (file persists)
    */
   unloadLedger(sessionId: string): void {
@@ -650,6 +657,13 @@ export function getLedgerManager(config?: Partial<LedgerStorageConfig>): LedgerM
   if (!globalManager) {
     globalManager = new LedgerManager(config)
   }
+  return globalManager
+}
+
+/**
+ * Get the global ledger manager if already initialized
+ */
+export function peekLedgerManager(): LedgerManager | undefined {
   return globalManager
 }
 

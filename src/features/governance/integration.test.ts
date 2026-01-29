@@ -17,6 +17,9 @@ import {
   DEFAULT_GOVERNANCE_CONFIG,
 } from "./integration"
 import { resetBudgetMonitorManager } from "./budget-monitor"
+import { resetTracerManager } from "./tracer"
+import { resetLedgerManager } from "./ledger"
+import { resetCheckpointRegistry } from "./checkpoint"
 import type { GovernanceConfig } from "../../config/schema"
 
 describe("GovernanceIntegration", () => {
@@ -26,6 +29,9 @@ describe("GovernanceIntegration", () => {
   afterEach(() => {
     cleanupGovernanceSession(testSessionId)
     resetBudgetMonitorManager()
+    resetTracerManager()
+    resetLedgerManager()
+    resetCheckpointRegistry()
   })
 
   describe("session management", () => {
@@ -205,6 +211,31 @@ describe("GovernanceIntegration", () => {
 
       expect(result.block).toBe(false)
     })
+
+    it("should not throw on budget exhaustion and should return block + systemMessage", async () => {
+      initGovernanceSession(testSessionId, testCwd, {
+        enabled: true,
+        budget_monitor: {
+          enabled: true,
+          context_window_size: 100,
+          refactor_threshold: 0.8,
+          hard_limit: 0.8,
+        },
+      })
+
+      const result = await executePostToolGovernance({
+        sessionId: testSessionId,
+        toolName: "Write",
+        toolInput: {},
+        toolOutput: {},
+        success: true,
+        tokensUsed: 90,
+        cwd: testCwd,
+      })
+
+      expect(result.block).toBe(true)
+      expect(result.systemMessage).toContain("Budget exhausted")
+    })
   })
 
   describe("executeUserPromptGovernance", () => {
@@ -260,6 +291,28 @@ describe("GovernanceIntegration", () => {
 
       // Should have budget status message
       expect(result.messages.length).toBeGreaterThan(0)
+    })
+
+    it("should inject budget exhausted message when hard limit reached", () => {
+      initGovernanceSession(testSessionId, testCwd, {
+        enabled: true,
+        budget_monitor: {
+          enabled: true,
+          context_window_size: 100,
+          refactor_threshold: 0.8,
+          hard_limit: 0.8,
+        },
+      })
+
+      const result = executeUserPromptGovernance({
+        sessionId: testSessionId,
+        prompt: "Hello!",
+        estimatedTokens: 90,
+        cwd: testCwd,
+      })
+
+      expect(result.block).toBe(false)
+      expect(result.messages.join("\n")).toContain("<budget-exhausted>")
     })
   })
 

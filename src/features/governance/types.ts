@@ -263,7 +263,15 @@ export interface BudgetEvent extends LedgerEntryBase {
   type: "budget-event"
 
   /** Event subtype */
-  subtype: "consumption" | "warning" | "gc-triggered" | "fork-triggered" | "exhausted"
+  subtype:
+    | "consumption"
+    | "warning"
+    | "gc-triggered"
+    | "gc-degraded"
+    | "gc-ineffective"
+    | "gc-completed"
+    | "fork-triggered"
+    | "exhausted"
 
   /** Budget state at time of event */
   budgetState: {

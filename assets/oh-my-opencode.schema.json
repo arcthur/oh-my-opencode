@@ -2561,40 +2561,39 @@
     },
     "governance": {
       "type": "object",
-      "description": "Governance module configuration for approval, tracing, budget monitoring, and checkpoints",
       "properties": {
         "enabled": {
-          "type": "boolean",
           "default": false,
-          "description": "Enable governance module (opt-in)"
+          "type": "boolean"
         },
         "approval_gate": {
           "type": "object",
-          "description": "Approval gate for critical tool execution",
           "properties": {
             "enabled": {
-              "type": "boolean",
               "default": true,
-              "description": "Enable approval gate for critical tools"
+              "type": "boolean"
             },
             "skip_patterns": {
+              "default": [
+                "Read",
+                "Glob",
+                "Grep",
+                "LSP",
+                "TodoRead"
+              ],
               "type": "array",
               "items": {
                 "type": "string"
-              },
-              "default": ["Read", "Glob", "Grep", "LSP", "TodoRead"],
-              "description": "Tools that always skip approval (glob patterns)"
+              }
             },
             "token_expiry_minutes": {
+              "default": 30,
               "type": "number",
               "minimum": 1,
-              "maximum": 1440,
-              "default": 30,
-              "description": "Token expiry time in minutes"
+              "maximum": 1440
             },
             "tool_criticality": {
               "type": "array",
-              "description": "Custom tool criticality overrides",
               "items": {
                 "type": "object",
                 "properties": {
@@ -2603,7 +2602,12 @@
                   },
                   "level": {
                     "type": "string",
-                    "enum": ["low", "medium", "high", "critical"]
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "critical"
+                    ]
                   },
                   "reason": {
                     "type": "string"
@@ -2615,130 +2619,117 @@
                     }
                   }
                 },
-                "required": ["tool", "level"]
+                "required": [
+                  "tool",
+                  "level"
+                ]
               }
             }
           }
         },
         "tracer": {
           "type": "object",
-          "description": "Execution tracer for observability",
           "properties": {
             "enabled": {
-              "type": "boolean",
               "default": true,
-              "description": "Enable execution tracing"
+              "type": "boolean"
             },
             "max_nodes": {
+              "default": 1000,
               "type": "number",
               "minimum": 100,
-              "maximum": 10000,
-              "default": 1000,
-              "description": "Maximum nodes to keep in memory"
+              "maximum": 10000
             },
             "auto_compress_threshold": {
+              "default": 500,
               "type": "number",
               "minimum": 50,
-              "maximum": 5000,
-              "default": 500,
-              "description": "Auto-compress threshold"
+              "maximum": 5000
             },
             "sanitize_sensitive_data": {
-              "type": "boolean",
               "default": true,
-              "description": "Sanitize sensitive data in inputs/outputs"
+              "type": "boolean"
             }
           }
         },
         "budget_monitor": {
           "type": "object",
-          "description": "Budget monitor with hidden budget strategy",
           "properties": {
             "enabled": {
-              "type": "boolean",
               "default": true,
-              "description": "Enable budget monitoring"
+              "type": "boolean"
             },
             "warn_threshold": {
+              "default": 0.7,
               "type": "number",
               "minimum": 0.3,
-              "maximum": 0.95,
-              "default": 0.7,
-              "description": "Warn threshold as percentage of context window"
+              "maximum": 0.95
             },
-            "gc_threshold": {
+            "refactor_threshold": {
+              "default": 0.85,
               "type": "number",
               "minimum": 0.5,
-              "maximum": 0.95,
-              "default": 0.85,
-              "description": "GC threshold"
+              "maximum": 0.95
             },
             "hard_limit": {
+              "default": 0.95,
               "type": "number",
               "minimum": 0.7,
-              "maximum": 0.99,
-              "default": 0.95,
-              "description": "Hard limit threshold"
+              "maximum": 0.99
             },
             "context_window_size": {
+              "default": 200000,
               "type": "number",
               "minimum": 50000,
-              "maximum": 1000000,
-              "default": 200000,
-              "description": "Context window size estimate"
+              "maximum": 1000000
             }
           }
         },
         "checkpoint": {
           "type": "object",
-          "description": "Semantic checkpoint for environment-aware recovery",
           "properties": {
             "enabled": {
-              "type": "boolean",
               "default": false,
-              "description": "Enable semantic checkpoints (disabled until stable)"
+              "type": "boolean"
             },
             "auto_checkpoint_interval": {
+              "default": 10,
               "type": "number",
               "minimum": 1,
-              "maximum": 100,
-              "default": 10,
-              "description": "Auto-checkpoint interval in tool calls"
+              "maximum": 100
             },
             "max_checkpoints": {
+              "default": 5,
               "type": "number",
               "minimum": 1,
-              "maximum": 20,
-              "default": 5,
-              "description": "Maximum checkpoints to keep"
+              "maximum": 20
             },
             "recovery_preference": {
-              "type": "string",
-              "enum": ["conservative", "balanced", "aggressive"],
               "default": "balanced",
-              "description": "Recovery strategy preference"
+              "type": "string",
+              "enum": [
+                "conservative",
+                "balanced",
+                "aggressive"
+              ]
             }
           }
         },
         "ledger": {
           "type": "object",
-          "description": "Governance ledger for audit logging",
           "properties": {
             "enabled": {
-              "type": "boolean",
               "default": true,
-              "description": "Enable governance ledger"
+              "type": "boolean"
             },
             "base_dir": {
-              "type": "string",
-              "description": "Base directory for ledger files"
+              "type": "string"
             },
             "retention_days": {
+              "default": 30,
               "type": "number",
               "minimum": 1,
-              "maximum": 365,
-              "default": 30,
-              "description": "Retention days for ledger entries"
+              "maximum": 365
             }
           }
         }

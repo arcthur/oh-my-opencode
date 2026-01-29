@@ -19,8 +19,8 @@ import type { TraceNodeStatus } from "./tracer-types"
 import {
   BudgetMonitor,
   getBudgetMonitorManager,
-  type TaskState,
 } from "./budget-monitor"
+import { BudgetExhaustedError, SessionForkRequiredError } from "./budget-types"
 import { getLedgerManager, type GovernanceLedgerWriter } from "./ledger"
 import {
   getToolCriticalityRegistry,
@@ -32,9 +32,8 @@ import {
   type SemanticCheckpointManager,
   type FileSystemAdapter,
 } from "./checkpoint"
-import type { CheckpointConfig, CreateCheckpointOptions } from "./checkpoint-types"
+import type { CreateCheckpointOptions } from "./checkpoint-types"
 import * as fs from "node:fs/promises"
-import * as nodePath from "node:path"
 import { sanitizeInputs, sanitizeOutputs } from "./utils"
 import { persistTrace } from "./trace-persistence"
 
@@ -94,7 +93,7 @@ export const DEFAULT_GOVERNANCE_CONFIG: GovernanceConfig = {
   budget_monitor: {
     enabled: true,
     warn_threshold: 0.7,
-    gc_threshold: 0.85,
+    refactor_threshold: 0.85,
     hard_limit: 0.95,
     context_window_size: 200000,
   },
@@ -193,13 +192,16 @@ export function initGovernanceSession(
     ? getBudgetMonitorManager({
         defaultAllocation: mergedConfig.budget_monitor.context_window_size ?? 200000,
         warningThreshold: mergedConfig.budget_monitor.warn_threshold ?? 0.7,
-        refactorThreshold: mergedConfig.budget_monitor.gc_threshold ?? 0.85,
+        refactorThreshold: mergedConfig.budget_monitor.refactor_threshold ?? 0.85,
         hardLimit: mergedConfig.budget_monitor.hard_limit ?? 0.95,
       })
     : null
 
   const ledgerManager = mergedConfig.ledger?.enabled
-    ? getLedgerManager(mergedConfig.ledger?.base_dir ? { baseDir: mergedConfig.ledger.base_dir } : undefined)
+    ? getLedgerManager({
+        ...(mergedConfig.ledger?.base_dir ? { baseDir: mergedConfig.ledger.base_dir } : {}),
+        maxAgeDays: mergedConfig.ledger.retention_days ?? 30,
+      })
     : null
 
   const checkpointRegistry = mergedConfig.checkpoint?.enabled
@@ -220,11 +222,24 @@ export function initGovernanceSession(
     }
   }
 
+  let ledger: GovernanceLedgerWriter | null = null
+  if (ledgerManager) {
+    try {
+      ledger = ledgerManager.getLedger(sessionId)
+    } catch (err) {
+      log("[governance] Ledger init error (non-fatal)", {
+        sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      ledger = null
+    }
+  }
+
   const session: GovernanceSession = {
     sessionId,
     tracer: tracerManager?.getTracer(sessionId) ?? null,
     budgetMonitor: budgetManager?.getMonitor(sessionId) ?? null,
-    ledger: ledgerManager?.getLedger(sessionId) ?? null,
+    ledger,
     checkpointManager: checkpointRegistry?.getManager(sessionId) ?? null,
     criticalityRegistry,
     config: mergedConfig,
@@ -268,10 +283,42 @@ export function cleanupGovernanceSession(sessionId: string): void {
   if (session) {
     // Finalize and persist tracer
     if (session.tracer) {
-      session.tracer.finalize()
-      const trace = session.tracer.getTrace()
+      const trace = getTracerManager().finalizeTracer(sessionId) ?? session.tracer.finalize()
       if (trace && trace.nodes.length > 0) {
         persistTrace(trace)
+      }
+    }
+    if (session.budgetMonitor) {
+      try {
+        getBudgetMonitorManager().removeMonitor(sessionId)
+      } catch (err) {
+        log("[governance] Budget monitor cleanup error (non-fatal)", {
+          sessionId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+    if (session.checkpointManager) {
+      try {
+        getCheckpointRegistry().removeManager(sessionId)
+      } catch (err) {
+        log("[governance] Checkpoint cleanup error (non-fatal)", {
+          sessionId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+    if (session.ledger) {
+      try {
+        // Unload per-session writer to avoid unbounded memory growth
+        getLedgerManager().unloadLedger(sessionId)
+        // Best-effort cleanup based on retention policy
+        getLedgerManager().cleanup()
+      } catch (err) {
+        log("[governance] Ledger cleanup error (non-fatal)", {
+          sessionId,
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
     }
     sessions.delete(sessionId)
@@ -410,12 +457,16 @@ export async function executePostToolGovernance(
     checkpointCreated: false,
   }
 
+  // Save nodeId before cleanup for ledger correlation
+  const traceNodeId = input.toolUseId
+    ? session.activeToolNodes.get(input.toolUseId)
+    : undefined
+
   // 1. End tracer node
   if (session.tracer && input.toolUseId) {
-    const nodeId = session.activeToolNodes.get(input.toolUseId)
-    if (nodeId) {
+    if (traceNodeId) {
       const status: TraceNodeStatus = input.success ? "completed" : "failed"
-      session.tracer.endNode(nodeId, {
+      session.tracer.endNode(traceNodeId, {
         outputs: sanitizeOutputs(input.toolOutput, session.config.tracer?.sanitize_sensitive_data ?? true),
         status,
         resources: {
@@ -427,18 +478,46 @@ export async function executePostToolGovernance(
   }
 
   // 2. Update budget monitor
-  if (session.budgetMonitor && input.tokensUsed) {
-    await session.budgetMonitor.recordConsumption(input.tokensUsed)
+  if (session.budgetMonitor && typeof input.tokensUsed === "number" && input.tokensUsed > 0) {
+    let consumptionError: unknown
+    try {
+      await session.budgetMonitor.recordConsumption(input.tokensUsed)
+    } catch (err) {
+      consumptionError = err
+    }
 
     const status = session.budgetMonitor.getStatus()
+    const hardLimit = session.config.budget_monitor?.hard_limit ?? 0.95
     // Map phases: "healthy" | "midpoint" | "wrapUp" | "critical"
     if (status.phase === "midpoint" || status.phase === "wrapUp") {
       result.warnings.push(
         `Budget ${status.phase}: ${Math.round(status.percentage * 100)}% used, ~${status.estimatedSteps} steps remaining`
       )
     }
+    if (status.phase === "critical" && status.percentage < hardLimit) {
+      result.warnings.push(
+        `Budget critical: ${Math.round(status.percentage * 100)}% used. Consider session fork to reduce context.`
+      )
+    }
 
-    if (status.phase === "critical") {
+    if (consumptionError instanceof BudgetExhaustedError) {
+      result.block = true
+      result.systemMessage = `<budget-exhausted>
+Budget exhausted (${Math.round(status.percentage * 100)}% used).
+Current task should be wrapped up immediately.
+Consider creating a checkpoint and suggesting session fork.
+</budget-exhausted>`
+    } else if (consumptionError instanceof SessionForkRequiredError) {
+      result.warnings.push(
+        "Budget critical: session fork recommended. Consider splitting work into a new session."
+      )
+    } else if (consumptionError) {
+      result.warnings.push(
+        `Budget monitor error (ignored): ${consumptionError instanceof Error ? consumptionError.message : String(consumptionError)}`
+      )
+    }
+
+    if (!result.block && status.percentage >= hardLimit) {
       result.block = true
       result.systemMessage = `<budget-exhausted>
 Budget exhausted (${Math.round(status.percentage * 100)}% used).
@@ -480,8 +559,8 @@ Consider creating a checkpoint and suggesting session fork.
   // 4. Log budget consumption with actual status (always log for complete tracking)
   if (session.ledger && session.budgetMonitor) {
     const status = session.budgetMonitor.getStatus()
-    const nodeId = input.toolUseId ? session.activeToolNodes.get(input.toolUseId) : undefined
-    const subtype = status.phase === "critical" ? "exhausted" :
+    const hardLimit = session.config.budget_monitor?.hard_limit ?? 0.95
+    const subtype = status.percentage >= hardLimit ? "exhausted" :
                     status.phase === "wrapUp" ? "warning" :
                     status.phase === "midpoint" ? "warning" : "consumption"
     session.ledger.logBudgetEvent({
@@ -493,7 +572,7 @@ Consider creating a checkpoint and suggesting session fork.
       },
       actionTaken: `Post-tool: ${input.toolName} (${input.tokensUsed ?? 0} tokens)`,
       tool: input.toolName,
-      traceNodeId: nodeId,
+      traceNodeId,  // Use saved nodeId from before cleanup
       tokensFreed: 0,
     })
   }
@@ -543,16 +622,28 @@ export function executeUserPromptGovernance(
   }
 
   // 1. Record prompt tokens in budget monitor
-  if (session.budgetMonitor && input.estimatedTokens) {
+  if (session.budgetMonitor && typeof input.estimatedTokens === "number" && input.estimatedTokens > 0) {
     // recordConsumption is async but we don't await here since user prompt
     // governance should be synchronous - the consumption is best-effort tracking
-    void session.budgetMonitor.recordConsumption(input.estimatedTokens)
+    session.budgetMonitor.recordConsumption(input.estimatedTokens).catch((err) => {
+      // Avoid unhandled rejections; critical budget is communicated via status below.
+      log("[governance] User prompt budget tracking error (non-fatal)", {
+        sessionId: input.sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
 
     const status = session.budgetMonitor.getStatus()
+    const hardLimit = session.config.budget_monitor?.hard_limit ?? 0.95
 
     // Generate hidden budget message (never raw tokens)
     // Map phases: "healthy" | "midpoint" | "wrapUp" | "critical"
-    if (status.phase !== "healthy") {
+    if (status.percentage >= hardLimit) {
+      result.messages.push(`<budget-exhausted>
+Budget exhausted (${Math.round(status.percentage * 100)}% used).
+Stop expanding context. Wrap up and propose a clean session fork with a short handoff.
+</budget-exhausted>`)
+    } else if (status.phase !== "healthy") {
       result.budgetStatus = `<budget-reminder>
 Estimated steps remaining: ${status.estimatedSteps}
 Phase: ${status.phase}
@@ -565,7 +656,8 @@ Tip: Focus on completing current task.
   // 2. Log budget consumption (always log for complete tracking)
   if (session.ledger && session.budgetMonitor) {
     const status = session.budgetMonitor.getStatus()
-    const subtype = status.phase === "critical" ? "exhausted" :
+    const hardLimit = session.config.budget_monitor?.hard_limit ?? 0.95
+    const subtype = status.percentage >= hardLimit ? "exhausted" :
                     status.phase === "wrapUp" ? "warning" :
                     status.phase === "midpoint" ? "warning" : "consumption"
     session.ledger.logBudgetEvent({
@@ -581,4 +673,3 @@ Tip: Focus on completing current task.
 
   return result
 }
-

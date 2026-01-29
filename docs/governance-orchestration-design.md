@@ -2481,11 +2481,11 @@ interface IntegrityReport {
 ```typescript
 /**
  * Append-only file storage for ledger
- * One JSONL file per session: .sisyphus/ledger/{sessionId}.jsonl
+ * One JSONL file per session: ~/.sisyphus/ledger/{sessionId}.jsonl
  */
 const LEDGER_STORAGE = {
   /** Base directory */
-  baseDir: ".sisyphus/ledger",
+  baseDir: "~/.sisyphus/ledger",
 
   /** File format: JSON Lines (one entry per line) */
   format: "jsonl",
@@ -2809,7 +2809,7 @@ function getTracesSummary(): {
    ├─► Tool Execution Request
    │   ├─► ApprovalGateMiddleware.execute()
    │   │   └─► If critical: suspend and return approval request (resumeToken)
-   │   │        └─► User responds (/approve|/reject|/modify|/defer)
+   │   │        └─► User responds via UI (integration TBD)
    │   │            └─► ResumeHandler.processResume()
    │   │                 └─► If approved/modified: re-invoke tool with resolved args
    │   ├─► EnvelopeValidator.wrap(input)
@@ -3106,7 +3106,7 @@ const DEFAULT_GOVERNANCE_CONFIG: GovernanceConfig = {
   },
   ledger: {
     enabled: true,
-    storageDir: ".sisyphus/ledger",
+    storageDir: "~/.sisyphus/ledger",
     retention: {
       maxAgeDays: 30,
       maxCount: 100,

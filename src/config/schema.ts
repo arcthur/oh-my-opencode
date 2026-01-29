@@ -594,18 +594,28 @@ export const GovernanceConfigSchema = z.object({
   }).partial().optional(),
 
   /** Budget Monitor Configuration */
-  budget_monitor: z.object({
-    /** Enable budget monitoring (default: true when governance enabled) */
-    enabled: z.boolean().default(true),
-    /** Warn threshold as percentage of context window (default: 0.7) */
-    warn_threshold: z.number().min(0.3).max(0.95).default(0.7),
-    /** GC threshold (default: 0.85) */
-    gc_threshold: z.number().min(0.5).max(0.95).default(0.85),
-    /** Hard limit threshold (default: 0.95) */
-    hard_limit: z.number().min(0.7).max(0.99).default(0.95),
-    /** Context window size estimate (default: 200000) */
-    context_window_size: z.number().min(50000).max(1000000).default(200000),
-  }).partial().optional(),
+  budget_monitor: z.preprocess(
+    (value) => {
+      // Backward compatibility: "gc_threshold" was renamed to "refactor_threshold".
+      if (!value || typeof value !== "object") return value
+      const obj = value as Record<string, unknown>
+      if (obj.refactor_threshold !== undefined) return value
+      if (obj.gc_threshold === undefined) return value
+      return { ...obj, refactor_threshold: obj.gc_threshold }
+    },
+    z.object({
+      /** Enable budget monitoring (default: true when governance enabled) */
+      enabled: z.boolean().default(true),
+      /** Warn threshold - triggers GC/convergence hints (default: 0.7) */
+      warn_threshold: z.number().min(0.3).max(0.95).default(0.7),
+      /** Refactor threshold - triggers fork suggestion (default: 0.85) */
+      refactor_threshold: z.number().min(0.5).max(0.95).default(0.85),
+      /** Hard limit threshold - triggers budget exhausted guardrail (default: 0.95) */
+      hard_limit: z.number().min(0.7).max(0.99).default(0.95),
+      /** Context window size estimate (default: 200000) */
+      context_window_size: z.number().min(50000).max(1000000).default(200000),
+    }).partial()
+  ).optional(),
 
   /** Semantic Checkpoint Configuration */
   checkpoint: z.object({
@@ -623,7 +633,7 @@ export const GovernanceConfigSchema = z.object({
   ledger: z.object({
     /** Enable governance ledger for audit logging (default: true when governance enabled) */
     enabled: z.boolean().default(true),
-    /** Base directory for ledger files (default: .sisyphus/governance/ledger) */
+    /** Base directory for ledger files (default: ~/.sisyphus/ledger) */
     base_dir: z.string().optional(),
     /** Retention days for ledger entries (default: 30) */
     retention_days: z.number().min(1).max(365).default(30),
