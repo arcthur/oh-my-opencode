@@ -136,7 +136,7 @@ export function buildExtractionContext(
   const truncatedMessages = truncateMessages(meaningfulMessages, 50000)
 
   // Filter to significant tool calls (skip reads, focus on writes)
-  const significantTools = new Set(["edit", "write", "bash", "delegate_task"])
+  const significantTools = new Set(["edit", "write", "multiedit", "bash", "delegate_task"])
   const significantToolCalls = toolCalls.filter((tc) => significantTools.has(tc.tool.toLowerCase()))
 
   return {

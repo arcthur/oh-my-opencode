@@ -756,6 +756,40 @@ export const ConditionalRulesConfigSchema = z.object({
 })
 
 // ============================================================================
+// Session Reference Configuration (defined before Session Handoff to allow nesting)
+// ============================================================================
+
+/** Resolution options for session references */
+export const SessionReferenceResolveOptionsSchema = z.object({
+  /** Prefer handoff over raw session data (default: true) */
+  prefer_handoff: z.boolean().default(true),
+  /** Fall back to session if handoff missing (default: true) */
+  allow_session_fallback: z.boolean().default(true),
+  /** Create handoff on-demand if missing (default: false) */
+  create_handoff_if_missing: z.boolean().default(false),
+  /** Maximum results for semantic search (default: 5) */
+  max_results: z.number().min(1).max(20).default(5),
+  /** Minimum relevance score for semantic results (default: 0.3) */
+  min_relevance: z.number().min(0).max(1).default(0.3),
+})
+
+/** Session Reference Configuration - @session:id syntax for referencing previous sessions */
+export const SessionReferenceConfigSchema = z.object({
+  /** Enable @session reference syntax (default: true) */
+  enabled: z.boolean().default(true),
+  /** Strip @session references from prompt after resolution (default: false - keep for context) */
+  strip_from_prompt: z.boolean().default(false),
+  /** Resolution options */
+  resolve_options: SessionReferenceResolveOptionsSchema.default({
+    prefer_handoff: true,
+    allow_session_fallback: true,
+    create_handoff_if_missing: false,
+    max_results: 5,
+    min_relevance: 0.3,
+  }),
+})
+
+// ============================================================================
 // Session Handoff Configuration
 // ============================================================================
 
@@ -789,37 +823,26 @@ export const SessionHandoffConfigSchema = z.object({
   expiry_days: z.number().min(1).max(90).default(7),
   /** Run extraction asynchronously in background - non-blocking (default: true) */
   async_extraction: z.boolean().default(true),
-  /** Extractor configuration */
-  extractor: HandoffExtractorConfigSchema.partial().default({}),
+  /** Extractor configuration - use .default() on full schema to ensure nested defaults apply */
+  extractor: HandoffExtractorConfigSchema.default({
+    model: "haiku",
+    max_decisions: 10,
+    max_artifacts: 20,
+    generate_embeddings: true,
+  }),
+  /**
+   * Session reference configuration (@session:id syntax).
+   * Preferred over top-level `session_reference` config.
+   * If both are specified, this takes precedence.
+   */
+  reference: SessionReferenceConfigSchema.optional(),
 })
 
-// ============================================================================
-// Session Reference Configuration
-// ============================================================================
+/** Default session handoff configuration - parsed from schema to ensure consistency */
+export const DEFAULT_SESSION_HANDOFF_CONFIG = SessionHandoffConfigSchema.parse({})
 
-/** Resolution options for session references */
-export const SessionReferenceResolveOptionsSchema = z.object({
-  /** Prefer handoff over raw session data (default: true) */
-  prefer_handoff: z.boolean().default(true),
-  /** Fall back to session if handoff missing (default: true) */
-  allow_session_fallback: z.boolean().default(true),
-  /** Create handoff on-demand if missing (default: false) */
-  create_handoff_if_missing: z.boolean().default(false),
-  /** Maximum results for semantic search (default: 5) */
-  max_results: z.number().min(1).max(20).default(5),
-  /** Minimum relevance score for semantic results (default: 0.3) */
-  min_relevance: z.number().min(0).max(1).default(0.3),
-})
-
-/** Session Reference Configuration - @session:id syntax for referencing previous sessions */
-export const SessionReferenceConfigSchema = z.object({
-  /** Enable @session reference syntax (default: true) */
-  enabled: z.boolean().default(true),
-  /** Strip @session references from prompt after resolution (default: false - keep for context) */
-  strip_from_prompt: z.boolean().default(false),
-  /** Resolution options */
-  resolve_options: SessionReferenceResolveOptionsSchema.partial().default({}),
-})
+/** Default session reference configuration - parsed from schema to ensure nested defaults apply */
+export const DEFAULT_SESSION_REFERENCE_CONFIG = SessionReferenceConfigSchema.parse({})
 
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),

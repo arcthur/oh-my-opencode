@@ -689,6 +689,134 @@ Opt-in experimental features that may change or be removed in future versions. U
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
 
+## Session Handoff
+
+Session handoff enables knowledge transfer between sessions by extracting and injecting structured context (decisions, anti-patterns, domain knowledge).
+
+```json
+{
+  "session_handoff": {
+    "enabled": true,
+    "auto_extract": true,
+    "auto_inject": true,
+    "min_messages_for_extract": 5,
+    "min_file_changes_for_extract": 1,
+    "max_inject_count": 3,
+    "expiry_days": 7,
+    "async_extraction": true,
+    "extractor": {
+      "model": "haiku",
+      "max_decisions": 10,
+      "max_artifacts": 20,
+      "generate_embeddings": true
+    },
+    "reference": {
+      "enabled": true,
+      "strip_from_prompt": false,
+      "resolve_options": {
+        "max_results": 5,
+        "min_relevance": 0.3
+      }
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enabled` | `true` | Enable session handoff feature |
+| `auto_extract` | `true` | Automatically extract handoff when session ends |
+| `auto_inject` | `true` | Automatically inject relevant handoffs on session start |
+| `min_messages_for_extract` | `5` | Minimum messages required for auto-extraction |
+| `min_file_changes_for_extract` | `1` | Minimum file modifications required (prevents chat-only sessions from generating handoffs) |
+| `max_inject_count` | `3` | Maximum handoffs to inject into new sessions |
+| `expiry_days` | `7` | Days until handoffs expire |
+| `async_extraction` | `true` | Run extraction in background (non-blocking) |
+
+### Extractor Configuration
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `extractor.model` | `haiku` | Model for extraction (`haiku`, `sonnet`, `opus`) |
+| `extractor.max_decisions` | `10` | Maximum decisions to extract per session |
+| `extractor.max_artifacts` | `20` | Maximum artifacts to track |
+| `extractor.generate_embeddings` | `true` | Generate embedding index for semantic search |
+
+### Session Reference Syntax
+
+Use `@session:id` syntax in prompts to reference previous sessions:
+
+```
+# Reference by session ID
+@session:abc123
+
+# Reference most recent session
+@session:latest
+@session:~1
+
+# Relative references (1 = most recent)
+@session:~2
+
+# Direct handoff reference
+@session:handoff:ho_xxx
+
+# Section queries
+@session:abc123:decisions
+@session:abc123:artifacts
+@session:abc123:antiPatterns
+@session:abc123:context
+
+# Semantic queries (quoted)
+@session:abc123:"authentication flow"
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `reference.enabled` | `true` | Enable `@session:id` reference syntax |
+| `reference.strip_from_prompt` | `false` | Remove references from prompt after resolution |
+| `reference.resolve_options.max_results` | `5` | Maximum results for semantic search |
+| `reference.resolve_options.min_relevance` | `0.3` | Minimum relevance score (0-1) for semantic results |
+
+### Goal-Oriented Handoff
+
+Use `/handoff <goal>` to create a focused handoff and start a new session:
+
+```
+# Active handoff with goal
+/handoff execute phase one of the plan
+/handoff check if this bug exists elsewhere
+/handoff build admin panel for this
+
+# Management commands
+/handoff              # List handoffs
+/handoff list         # List handoffs
+/handoff show <id>    # Show specific handoff
+/handoff delete <id>  # Delete handoff
+/handoff cleanup      # Remove expired handoffs
+```
+
+Goal-oriented handoff filters the extracted context based on the specified goal, transferring only relevant decisions, anti-patterns, and domain knowledge to the new session.
+
+### Migration Note
+
+The top-level `session_reference` config is deprecated. Use `session_handoff.reference` instead:
+
+```jsonc
+// ❌ Deprecated
+{
+  "session_reference": { "enabled": true }
+}
+
+// ✅ Preferred
+{
+  "session_handoff": {
+    "reference": { "enabled": true }
+  }
+}
+```
+
+Both are supported for backward compatibility, with `session_handoff.reference` taking precedence.
+
 ## Environment Variables
 
 | Variable              | Description                                                                                                                                     |

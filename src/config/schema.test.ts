@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { AgentOverrideConfigSchema, BuiltinCategoryNameSchema, CategoryConfigSchema, OhMyOpenCodeConfigSchema } from "./schema"
+import {
+  AgentOverrideConfigSchema,
+  BuiltinCategoryNameSchema,
+  CategoryConfigSchema,
+  OhMyOpenCodeConfigSchema,
+  SessionReferenceConfigSchema,
+} from "./schema"
 
 describe("disabled_mcps schema", () => {
   test("should accept built-in MCP names", () => {
@@ -607,5 +613,28 @@ describe("Sisyphus-Junior agent override", () => {
         write: false,
       })
     }
+  })
+})
+
+describe("SessionReferenceConfigSchema", () => {
+  test("applies nested resolve_options defaults on parse({})", () => {
+    // #given
+    const input = {}
+
+    // #when
+    const parsed = SessionReferenceConfigSchema.parse(input)
+
+    // #then
+    expect(parsed).toEqual({
+      enabled: true,
+      strip_from_prompt: false,
+      resolve_options: {
+        prefer_handoff: true,
+        allow_session_fallback: true,
+        create_handoff_if_missing: false,
+        max_results: 5,
+        min_relevance: 0.3,
+      },
+    })
   })
 })

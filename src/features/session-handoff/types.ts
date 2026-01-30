@@ -218,67 +218,78 @@ export interface HandoffIndexEntry {
 }
 
 // ============================================================================
-// Configuration
+// Configuration (re-exported from schema - single source of truth)
 // ============================================================================
 
-export interface SessionHandoffConfig {
-  /** Enable session handoff feature */
-  enabled: boolean
+// Types derived from zod schema
+export type {
+  SessionHandoffConfig,
+  HandoffExtractorConfig as ExtractorConfig,
+} from "../../config/schema"
 
-  /** Automatically extract handoff on session end */
-  auto_extract: boolean
+// Default config instance parsed from schema (ensures nested defaults apply)
+export { DEFAULT_SESSION_HANDOFF_CONFIG as DEFAULT_HANDOFF_CONFIG } from "../../config/schema"
 
-  /** Automatically inject relevant handoffs on session start */
-  auto_inject: boolean
+// ============================================================================
+// Session State Types (unified for hook/launcher/extractor)
+// ============================================================================
 
-  /** Minimum messages for auto-extraction */
-  min_messages_for_extract: number
-
-  /** Minimum file modifications for auto-extraction (prevents "chat-only" sessions from generating handoffs) */
-  min_file_changes_for_extract: number
-
-  /** Maximum handoffs to inject */
-  max_inject_count: number
-
-  /** Handoff expiration in days */
-  expiry_days: number
-
-  /** Run extraction asynchronously in background (non-blocking) */
-  async_extraction: boolean
-
-  /** Extractor configuration */
-  extractor: ExtractorConfig
+/**
+ * Message tracked during a session
+ */
+export interface TrackedMessage {
+  role: "user" | "assistant"
+  content: string
+  timestamp: number
 }
 
-export interface ExtractorConfig {
-  /** Model for extraction */
-  model: "haiku" | "sonnet" | "opus"
-
-  /** Maximum decisions to extract */
-  max_decisions: number
-
-  /** Maximum artifacts to track */
-  max_artifacts: number
-
-  /** Generate embedding index */
-  generate_embeddings: boolean
+/**
+ * Tool call tracked during a session
+ */
+export interface TrackedToolCall {
+  tool: string
+  args: Record<string, unknown>
+  result: string
+  success: boolean
 }
 
-export const DEFAULT_HANDOFF_CONFIG: SessionHandoffConfig = {
-  enabled: true,
-  auto_extract: true,
-  auto_inject: true,
-  min_messages_for_extract: 5,
-  min_file_changes_for_extract: 1,
-  max_inject_count: 3,
-  expiry_days: 7,
-  async_extraction: true,
-  extractor: {
-    model: "haiku",
-    max_decisions: 10,
-    max_artifacts: 20,
-    generate_embeddings: true,
-  },
+/**
+ * Snapshot of session state - used for extraction and handoff creation.
+ * Immutable view of the session at a point in time.
+ */
+export interface SessionSnapshot {
+  projectPath: string
+  startTime: number
+  messages: TrackedMessage[]
+  toolCalls: TrackedToolCall[]
+  /** File paths that were modified during the session */
+  fileChanges: string[]
+}
+
+/**
+ * Runtime session state - extends snapshot with mutable tracking flags.
+ * Used internally by the hook for state management.
+ */
+export interface SessionRuntimeState extends Omit<SessionSnapshot, "fileChanges"> {
+  /** File changes as Set for efficient deduplication during tracking */
+  fileChanges: Set<string>
+  /** Whether handoff context has been injected for this session */
+  injected: boolean
+  /** Whether handoff has been extracted for this session */
+  extracted: boolean
+}
+
+/**
+ * Convert runtime state to snapshot for extraction/handoff
+ */
+export function toSessionSnapshot(state: SessionRuntimeState): SessionSnapshot {
+  return {
+    projectPath: state.projectPath,
+    startTime: state.startTime,
+    messages: state.messages,
+    toolCalls: state.toolCalls,
+    fileChanges: [...state.fileChanges],
+  }
 }
 
 // ============================================================================
@@ -340,4 +351,51 @@ export interface ExtractionToolCall {
   args: Record<string, unknown>
   result: string
   success: boolean
+}
+
+// ============================================================================
+// Active Handoff Types (Goal-Oriented)
+// ============================================================================
+
+/**
+ * Request for an active (goal-oriented) handoff
+ */
+export interface ActiveHandoffRequest {
+  /** The goal/task for the new session */
+  goal: string
+
+  /** Source session ID */
+  sourceSessionId: string
+
+  /** Project path */
+  projectPath: string
+
+  /** Launch mode: auto creates new session, preview returns prompt only */
+  launchMode: "auto" | "preview"
+}
+
+/**
+ * Result of an active handoff operation
+ */
+export interface ActiveHandoffResult {
+  /** The created handoff package */
+  handoffPackage: HandoffPackage
+
+  /** The generated prompt for the new session */
+  prompt: string
+
+  /** New session ID (if launchMode was "auto") */
+  newSessionId?: string
+
+  /** User-facing message describing what happened */
+  message: string
+
+  /** Count of decisions transferred */
+  decisionsTransferred: number
+
+  /** Count of anti-patterns transferred */
+  antiPatternsTransferred: number
+
+  /** Key files included */
+  keyFiles: string[]
 }

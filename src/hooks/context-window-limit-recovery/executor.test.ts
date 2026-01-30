@@ -172,10 +172,10 @@ describe("executeCompact lock management", () => {
     // #when: Execute compaction
     await executeCompact(sessionID, msg, autoCompactState, mockClient, directory)
 
-    // #then: Should show failure toast
+    // #then: Should show failure toast (now titled "Recovery Exhausted" with handoff suggestion)
     const toastCalls = (mockClient.tui.showToast as any).mock.calls
     const failureToast = toastCalls.find(
-      (call: any) => call[0]?.body?.title === "Auto Compact Failed",
+      (call: any) => call[0]?.body?.title === "Recovery Exhausted",
     )
     expect(failureToast).toBeDefined()
 

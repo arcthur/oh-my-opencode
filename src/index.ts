@@ -93,7 +93,7 @@ import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
-import type { SessionReferenceConfig } from "./config/schema"
+import { DEFAULT_SESSION_REFERENCE_CONFIG, type SessionReferenceConfig } from "./config/schema"
 import {
   executePreToolGovernance,
   executePostToolGovernance,
@@ -333,21 +333,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     pluginConfig.session_handoff ?? {}
   ) as import("./features/session-handoff").SessionHandoffConfig
 
-  const DEFAULT_SESSION_REFERENCE_CONFIG: SessionReferenceConfig = {
-    enabled: true,
-    strip_from_prompt: false,
-    resolve_options: {
-      prefer_handoff: true,
-      allow_session_fallback: true,
-      create_handoff_if_missing: false,
-      max_results: 5,
-      min_relevance: 0.3,
-    },
+  // Session reference config: prefer session_handoff.reference over top-level session_reference
+  // If only session_reference is used, log deprecation warning
+  const hasNestedReference = pluginConfig.session_handoff?.reference !== undefined
+  const hasTopLevelReference = pluginConfig.session_reference !== undefined
+
+  if (hasTopLevelReference && !hasNestedReference) {
+    log("[session-handoff] DEPRECATED: 'session_reference' is deprecated. Use 'session_handoff.reference' instead.", {
+      level: "warn",
+    })
   }
 
   const sessionReferenceConfig = deepMerge(
     DEFAULT_SESSION_REFERENCE_CONFIG,
-    (pluginConfig.session_reference ?? {}) as Partial<SessionReferenceConfig>
+    // First apply top-level (deprecated), then nested (preferred) for override
+    deepMerge(
+      (pluginConfig.session_reference ?? {}) as Partial<SessionReferenceConfig>,
+      (pluginConfig.session_handoff?.reference ?? {}) as Partial<SessionReferenceConfig>
+    )
   ) as SessionReferenceConfig
 
   // Lazy embedding provider (reuses user-memory embedding provider selection)
@@ -573,6 +576,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         }
       }
 
+      // Session handoff must run before autoSlashCommand to handle /handoff commands
+      await sessionHandoffHook?.["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
       await multiPlanTrigger?.["chat.message"]?.(input, output);

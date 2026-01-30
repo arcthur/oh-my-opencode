@@ -2179,103 +2179,124 @@ ledger:
 
 const handoffSkill: BuiltinSkill = {
   name: "handoff",
-  description: "Manage session handoffs for cross-session knowledge transfer. Commands: create, list, show, inject, delete, cleanup. Triggers: 'handoff', 'session context', 'previous session', 'knowledge transfer'.",
-  argumentHint: "[create|list|show|inject|delete|cleanup] [args]",
-  template: `# Session Handoff Manager
+  description: "Goal-oriented session handoff for continuing work in a new session. Use '/handoff <goal>' to transfer context. Also supports management commands: list, show, delete, cleanup. Triggers: 'handoff', 'continue in new session', 'fresh session', 'context limit'.",
+  argumentHint: "[<goal> | list | show <id> | delete <id> | cleanup]",
+  template: `# Session Handoff
 
-You are managing session handoffs - structured knowledge packages that transfer context between sessions.
+Session handoff enables goal-oriented context transfer between sessions. Use it when:
+- Context window is reaching limits
+- Starting focused work on a specific aspect
+- Compact/recovery has failed or is insufficient
 
-## Available Commands
+## Primary Usage: Goal-Oriented Handoff
+
+\`\`\`
+/handoff <goal>
+\`\`\`
+
+**Examples:**
+- \`/handoff execute phase one of the plan\`
+- \`/handoff check if this bug exists elsewhere\`
+- \`/handoff build admin panel for this feature\`
+- \`/handoff complete the authentication tests\`
+
+When you use \`/handoff <goal>\`:
+1. Context is extracted from the current session
+2. Payload is filtered for goal-relevance (decisions, domain knowledge)
+3. Anti-patterns (failed approaches) are ALWAYS preserved
+4. A handoff prompt is generated for the new session
+5. Start a new session and paste the prompt to continue
+
+**What gets transferred:**
+- Key decisions relevant to the goal
+- Anti-patterns (approaches that failed - always included)
+- Domain knowledge discovered
+- Key files modified
+- Remaining tasks
+
+## Management Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| \`/handoff create\` | Create handoff from current session | \`/handoff create\` or \`/handoff create "Auth implementation"\` |
-| \`/handoff list\` | List handoffs for current project | \`/handoff list\` or \`/handoff list --all\` |
-| \`/handoff show <id>\` | Display handoff details | \`/handoff show ho_1706500000_abc123\` |
-| \`/handoff inject <id>\` | Manually inject handoff context | \`/handoff inject ho_1706500000_abc123\` |
-| \`/handoff delete <id>\` | Delete a handoff | \`/handoff delete ho_1706500000_abc123\` |
+| \`/handoff\` or \`/handoff list\` | List handoffs for project | \`/handoff list\` |
+| \`/handoff show <id>\` | Display handoff details | \`/handoff show ho_1706500000_abc\` |
+| \`/handoff delete <id>\` | Delete a handoff | \`/handoff delete ho_1706500000_abc\` |
 | \`/handoff cleanup\` | Remove expired handoffs | \`/handoff cleanup\` |
 
-## Implementation
+## Implementation Details
 
-### List Handoffs
+### For Goal-Oriented Handoff
 
-Read the handoff index and format for display:
+The hook automatically:
+1. Detects \`/handoff <goal>\` pattern
+2. Extracts session context (messages, tool calls, file changes)
+3. Uses LLM to identify decisions, anti-patterns, domain knowledge
+4. Filters by goal relevance (keyword matching + scoring)
+5. Builds a structured prompt for the new session
+6. Returns the prompt for manual use in a new session
 
+### For Management Commands
+
+Read/write to: \`~/.config/opencode/oh-my-opencode/handoffs/\`
+
+**List handoffs:**
 \`\`\`bash
 cat ~/.config/opencode/oh-my-opencode/handoffs/index.json 2>/dev/null || echo '{"handoffs":[]}'
 \`\`\`
 
-Then format as a table showing: ID, Goal (truncated), Created (relative time), Outcome.
+Format as table: ID, Goal (truncated), Created (relative), Outcome
 
-For project-specific filtering, check each handoff's projectPath matches current directory.
-
-### Show Handoff Details
-
-Read the specific handoff file:
-
+**Show details:**
 \`\`\`bash
 cat ~/.config/opencode/oh-my-opencode/handoffs/HANDOFF_ID.json 2>/dev/null
 \`\`\`
 
-Format the response showing:
-- **Metadata**: Goal, Duration, Project, Outcome, Key Files
-- **Decisions**: What, Chosen, Why, Rejected alternatives
-- **Anti-Patterns**: Approach, Reason, Error signature
-- **Domain Context**: Insights discovered
+## Response Formats
 
-### Delete Handoff
+**Goal handoff response:**
 
-1. Read current index
-2. Remove entry from index
-3. Delete the handoff file
-4. Save updated index
+## Handoff Initiated
 
-### Cleanup Expired
+**Goal**: execute phase one of the plan
+**Session**: sess_abc123
+**Handoff ID**: ho_1706500000_xyz
 
-1. Read index
-2. Filter handoffs where expiresAt < Date.now()
-3. Delete expired handoff files
-4. Update and save index
-5. Report count removed
+Context transferred:
+- 3 decisions
+- 2 anti-patterns
+- 5 key files
 
-## Response Format
+### Handoff Prompt (for new session)
 
-**When listing handoffs:**
+\\\`\\\`\\\`
+[Generated prompt with context]
+\\\`\\\`\\\`
+
+**Next Steps**: Start a new session and paste the prompt above.
+
+---
+
+**Management list response:**
 
 | ID | Goal | Created | Outcome |
 |----|------|---------|---------|
 | ho_... | Implement auth | 2 days ago | completed |
-| ho_... | Fix API bugs | 5 days ago | partial |
 
-**When showing details:**
+## When to Use Handoff vs Compact
 
-## Handoff: ho_1706500000_abc123
-
-**Goal**: Implement user authentication system
-**Duration**: 45 minutes | **Outcome**: completed
-**Key Files**: src/auth.ts, src/middleware.ts
-
-### Decisions
-
-1. **JWT storage**: Chose httpOnly cookies
-   - Why: XSS protection, automatic inclusion
-   - Rejected: localStorage (XSS vulnerable)
-
-### Anti-Patterns (Avoid)
-
-- ❌ **Storing tokens in memory**: Lost on page reload
-
-### Domain Knowledge
-
-- Auth middleware must run before route handlers
-- User model has passwordHash - never expose in API
+| Situation | Use |
+|-----------|-----|
+| Context limit reached, work is ongoing | \`/handoff <next-goal>\` |
+| Session naturally ending | Automatic extraction on idle |
+| Compact failed multiple times | \`/handoff <continue-goal>\` |
+| Starting fresh focused work | \`/handoff <specific-task>\` |
+| Minor token reduction needed | Let compact run |
 
 ## Error Handling
 
-- Handoff not found: "Handoff 'X' not found. Use \`/handoff list\` to see available."
-- No handoffs: "No handoffs found. They are auto-created when sessions end."
-- Cleanup nothing: "No expired handoffs to clean up."
+- **No session state**: "No session state found. Please try again after some interaction."
+- **Handoff not found**: "Handoff 'X' not found. Use \`/handoff list\` to see available."
+- **Extraction failed**: Falls back to quick handoff (file changes only)
 `,
 }
 

@@ -33,3 +33,7 @@ yarn.lock
 test-injection/
 notepad.md
 oauth-success.html
+
+# Local Claude/OpenCode settings
+.claude/settings.local.json
+src/.claude/settings.local.json

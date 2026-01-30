@@ -514,13 +514,16 @@ export async function executeCompact(
     await (client as Client).tui
       .showToast({
         body: {
-          title: "Auto Compact Failed",
-          message: "All recovery attempts failed. Please start a new session.",
+          title: "Recovery Exhausted",
+          message: "Consider /handoff <goal> for a fresh session with context.",
           variant: "error",
-          duration: 5000,
+          duration: 8000,
         },
       })
       .catch(() => {});
+
+    // Inject system-reminder suggesting handoff
+    log("[auto-compact] all recovery attempts exhausted, suggesting handoff", { sessionID });
   } finally {
     autoCompactState.compactionInProgress.delete(sessionID);
   }

@@ -12,6 +12,7 @@
 
 // Type exports
 export type {
+  // Domain models
   HandoffPackage,
   HandoffMetadata,
   HandoffPayload,
@@ -24,18 +25,29 @@ export type {
   EmbeddingIndexEntry,
   HandoffIndex,
   HandoffIndexEntry,
-  SessionHandoffConfig,
-  ExtractorConfig,
+  // Session state types (unified)
+  TrackedMessage,
+  TrackedToolCall,
+  SessionSnapshot,
+  SessionRuntimeState,
+  // Session reference types
   ParsedSessionReference,
   SessionReferenceType,
   SessionReferenceQuery,
+  // Extraction types
   ExtractionContext,
   ExtractionMessage,
   ExtractionToolCall,
+  // Active handoff types
+  ActiveHandoffRequest,
+  ActiveHandoffResult,
+  // Config types (re-exported from schema)
+  SessionHandoffConfig,
+  ExtractorConfig,
 } from "./types"
 
-// Constant exports
-export { DEFAULT_HANDOFF_CONFIG } from "./types"
+// Constant and utility exports
+export { DEFAULT_HANDOFF_CONFIG, toSessionSnapshot } from "./types"
 
 // Storage exports
 export {
@@ -73,11 +85,25 @@ export {
   cosineSimilarity,
 } from "./embeddings"
 
+// Staleness detection exports
+export {
+  checkHandoffStaleness,
+  formatStalenessWarning,
+  getGitFileModTime,
+  isSafeProjectRelativePath,
+  type StalenessInfo,
+} from "./staleness"
+
+// Reference resolver exports
+export {
+  resolveSessionReference,
+  type ResolveSessionReferenceOptions,
+} from "./reference-resolver"
+
 // Injector exports
 export {
   selectHandoffsForInjection,
   generateInjectionContent,
-  resolveSessionReference,
 } from "./injector"
 
 // Hook exports
@@ -87,6 +113,28 @@ export {
   type SessionHandoffHookContext,
 } from "./hook"
 
+// Goal extractor exports
+export {
+  filterPayloadByGoal,
+  type GoalFilterOptions,
+  type FilteredPayload,
+} from "./goal-extractor"
+
+// Prompt builder exports
+export {
+  buildHandoffPrompt,
+  buildHandoffSummary,
+  type PromptBuilderOptions,
+} from "./prompt-builder"
+
+// Launcher exports
+export {
+  executeActiveHandoff,
+  buildQuickHandoff,
+  type LauncherDependencies,
+  type LauncherSessionInput,
+} from "./launcher"
+
 // Summarizer exports
 export {
   createHandoffSummarizer,
@@ -95,3 +143,13 @@ export {
   type CircuitState,
   type CreateHandoffSummarizerOptions,
 } from "./summarizer"
+
+// Command parser exports
+export {
+  parseHandoffCommand,
+  isHandoffCommand,
+  isManagementCommand,
+  isGoalCommand,
+  type ParsedHandoffCommand,
+  type ManagementSubcommand,
+} from "./command-parser"
