@@ -19,13 +19,21 @@ export function parseToolsConfig(toolsStr?: string): Record<string, boolean> | u
 }
 
 /**
- * Parses a whitespace-separated string of allowed tool names into an array.
+ * Parses allowed tool names into an array.
+ * Supports both whitespace-separated string and YAML array format.
  * Used by skill loaders to configure allowed tools list.
  *
- * @param allowedTools - Whitespace-separated list of tool names
+ * @param allowedTools - Whitespace-separated string or array of tool names
  * @returns Array of tool names, or undefined if input is empty
  */
-export function parseAllowedTools(allowedTools: string | undefined): string[] | undefined {
+export function parseAllowedTools(allowedTools: string | string[] | undefined): string[] | undefined {
   if (!allowedTools) return undefined
+
+  // Handle YAML array format: already parsed as string[]
+  if (Array.isArray(allowedTools)) {
+    return allowedTools.map(t => t.trim()).filter(Boolean)
+  }
+
+  // Handle space-separated string format: "Read Write Edit Bash"
   return allowedTools.split(/\s+/).filter(Boolean)
 }

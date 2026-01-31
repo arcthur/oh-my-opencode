@@ -711,6 +711,11 @@ export function createAtlasHook(
       input: ToolExecuteAfterInput,
       output: ToolExecuteAfterOutput
     ): Promise<void> => {
+      // Guard against undefined output (e.g., from /review command - see issue #1035)
+      if (!output) {
+        return
+      }
+
       const isOrchestrator = isCallerOrchestrator(input.sessionID)
       const outputStr = output.output && typeof output.output === "string" ? output.output : ""
       const workState = workStateManager.load()
