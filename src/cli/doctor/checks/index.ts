@@ -7,6 +7,7 @@ import { getDependencyCheckDefinitions } from "./dependencies"
 import { getGhCliCheckDefinition } from "./gh"
 import { getLspCheckDefinition } from "./lsp"
 import { getMcpCheckDefinitions } from "./mcp"
+import { getMcpOAuthCheckDefinition } from "./mcp-oauth"
 import { getVersionCheckDefinition } from "./version"
 
 export * from "./opencode"
@@ -17,6 +18,7 @@ export * from "./dependencies"
 export * from "./gh"
 export * from "./lsp"
 export * from "./mcp"
+export * from "./mcp-oauth"
 export * from "./version"
 
 export function getAllCheckDefinitions(): CheckDefinition[] {
@@ -29,6 +31,7 @@ export function getAllCheckDefinitions(): CheckDefinition[] {
     getGhCliCheckDefinition(),
     getLspCheckDefinition(),
     ...getMcpCheckDefinitions(),
+    getMcpOAuthCheckDefinition(),
     getVersionCheckDefinition(),
   ]
 }
