@@ -393,7 +393,7 @@ describe("keyword-detector agent-specific ultrawork messages", () => {
     }
 
     // #when - ultrawork keyword detected with planner agent
-    await hook["chat.message"]({ sessionID, agent: "Prometheus" }, output)
+    await hook["chat.message"]({ sessionID, agent: "prometheus" }, output)
 
     // #then - should use planner-specific message
     const pending = collector.getPending(sessionID)
@@ -413,7 +413,7 @@ describe("keyword-detector agent-specific ultrawork messages", () => {
     }
 
     // #when - ultrawork keyword detected with Sisyphus agent
-    await hook["chat.message"]({ sessionID, agent: "Sisyphus" }, output)
+    await hook["chat.message"]({ sessionID, agent: "sisyphus" }, output)
 
     // #then - should use normal ultrawork message with agent utilization instructions
     const pending = collector.getPending(sessionID)
@@ -463,7 +463,7 @@ describe("keyword-detector agent-specific ultrawork messages", () => {
       message: {} as Record<string, unknown>,
       parts: [{ type: "text", text: "ultrawork implement" }],
     }
-    await hook["chat.message"]({ sessionID: sisyphusSessionID, agent: "Sisyphus" }, sisyphusOutput)
+    await hook["chat.message"]({ sessionID: sisyphusSessionID, agent: "sisyphus" }, sisyphusOutput)
 
     // #then - each session should have the correct message type
     const prometheusPending = collector.getPending(prometheusSessionID)
@@ -482,14 +482,14 @@ describe("keyword-detector agent-specific ultrawork messages", () => {
     const sessionID = "same-session-agent-switch"
 
     // Simulate: session state was updated to sisyphus (by index.ts updateSessionAgent)
-    updateSessionAgent(sessionID, "Sisyphus")
+    updateSessionAgent(sessionID, "sisyphus")
 
     const output = {
       message: {} as Record<string, unknown>,
       parts: [{ type: "text", text: "ultrawork implement this" }],
     }
 
-    // #when - hook receives stale input.agent="prometheus" but session state says "Sisyphus"
+    // #when - hook receives stale input.agent="prometheus" but session state says "sisyphus"
     await hook["chat.message"]({ sessionID, agent: "prometheus" }, output)
 
     // #then - should use Sisyphus from session state, NOT prometheus from stale input

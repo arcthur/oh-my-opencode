@@ -17,12 +17,12 @@ const AgentPermissionSchema = z.object({
 })
 
 export const BuiltinAgentNameSchema = z.enum([
-  "Sisyphus",
+  "sisyphus",
   "oracle",
   "librarian",
   "explore",
   "multimodal-looker",
-  "Atlas",
+  "atlas",
   "plan-synthesizer",
 ])
 
@@ -40,15 +40,15 @@ export const BuiltinSkillNameSchema = z.enum([
 export const OverridableAgentNameSchema = z.enum([
   "build",
   "plan",
-  "Sisyphus",
-  "Sisyphus-Junior",
+  "sisyphus",
+  "sisyphus-junior",
   "OpenCode-Builder",
-  "Prometheus",
+  "prometheus",
   "oracle",
   "librarian",
   "explore",
   "multimodal-looker",
-  "Atlas",
+  "atlas",
   "plan-synthesizer",
 ])
 
@@ -97,6 +97,9 @@ export const HookNameSchema = z.enum([
   "delegation-validator",
   "conditional-rules",
   "session-handoff",
+  "question-label-truncator",
+  "subagent-question-blocker",
+  "stop-continuation-guard",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -153,15 +156,15 @@ export const MultiPlanPipelineConfigSchema = z.object({
 export const AgentOverridesSchema = z.object({
   build: AgentOverrideConfigSchema.optional(),
   plan: AgentOverrideConfigSchema.optional(),
-  Sisyphus: AgentOverrideConfigSchema.optional(),
-  "Sisyphus-Junior": AgentOverrideConfigSchema.optional(),
+  sisyphus: AgentOverrideConfigSchema.optional(),
+  "sisyphus-junior": AgentOverrideConfigSchema.optional(),
   "OpenCode-Builder": AgentOverrideConfigSchema.optional(),
-  "Prometheus": PrometheusOverrideConfigSchema.optional(),
+  prometheus: PrometheusOverrideConfigSchema.optional(),
   oracle: AgentOverrideConfigSchema.optional(),
   librarian: AgentOverrideConfigSchema.optional(),
   explore: AgentOverrideConfigSchema.optional(),
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
-  Atlas: AgentOverrideConfigSchema.optional(),
+  atlas: AgentOverrideConfigSchema.optional(),
   "plan-synthesizer": AgentOverrideConfigSchema.optional(),
 })
 

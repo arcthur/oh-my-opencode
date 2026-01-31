@@ -69,7 +69,7 @@ export function createStartWorkHook(ctx: PluginInput) {
         sessionID: input.sessionID,
       })
 
-      updateSessionAgent(input.sessionID, "Atlas")
+      updateSessionAgent(input.sessionID, "atlas")
 
       const existingState = workStateManager.load()
       const sessionId = input.sessionID

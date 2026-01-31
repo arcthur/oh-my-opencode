@@ -417,11 +417,11 @@ describe("AgentOverrideConfigSchema", () => {
 })
 
 describe("Prometheus multi-model planning config", () => {
-  test("accepts agents.Prometheus.model as string[] (2-5)", () => {
+  test("accepts agents.prometheus.model as string[] (2-5)", () => {
     // #given
     const config = {
       agents: {
-        Prometheus: {
+        prometheus: {
           model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
         },
       },
@@ -433,7 +433,7 @@ describe("Prometheus multi-model planning config", () => {
     // #then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.Prometheus?.model).toEqual([
+      expect(result.data.agents?.prometheus?.model).toEqual([
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",
       ])
@@ -444,7 +444,7 @@ describe("Prometheus multi-model planning config", () => {
     // #given
     const config = {
       agents: {
-        Sisyphus: {
+        sisyphus: {
           model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
         },
       },
@@ -548,7 +548,7 @@ describe("Sisyphus-Junior agent override", () => {
     // #given
     const config = {
       agents: {
-        "Sisyphus-Junior": {
+        "sisyphus-junior": {
           model: "openai/gpt-5.2",
           temperature: 0.2,
         },
@@ -561,9 +561,9 @@ describe("Sisyphus-Junior agent override", () => {
     // #then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.["Sisyphus-Junior"]).toBeDefined()
-      expect(result.data.agents?.["Sisyphus-Junior"]?.model).toBe("openai/gpt-5.2")
-      expect(result.data.agents?.["Sisyphus-Junior"]?.temperature).toBe(0.2)
+      expect(result.data.agents?.["sisyphus-junior"]).toBeDefined()
+      expect(result.data.agents?.["sisyphus-junior"]?.model).toBe("openai/gpt-5.2")
+      expect(result.data.agents?.["sisyphus-junior"]?.temperature).toBe(0.2)
     }
   })
 
@@ -571,7 +571,7 @@ describe("Sisyphus-Junior agent override", () => {
     // #given
     const config = {
       agents: {
-        "Sisyphus-Junior": {
+        "sisyphus-junior": {
           prompt_append: "Additional instructions for Sisyphus-Junior",
         },
       },
@@ -583,7 +583,7 @@ describe("Sisyphus-Junior agent override", () => {
     // #then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.["Sisyphus-Junior"]?.prompt_append).toBe(
+      expect(result.data.agents?.["sisyphus-junior"]?.prompt_append).toBe(
         "Additional instructions for Sisyphus-Junior"
       )
     }
@@ -593,7 +593,7 @@ describe("Sisyphus-Junior agent override", () => {
     // #given
     const config = {
       agents: {
-        "Sisyphus-Junior": {
+        "sisyphus-junior": {
           tools: {
             read: true,
             write: false,
@@ -608,7 +608,7 @@ describe("Sisyphus-Junior agent override", () => {
     // #then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.["Sisyphus-Junior"]?.tools).toEqual({
+      expect(result.data.agents?.["sisyphus-junior"]?.tools).toEqual({
         read: true,
         write: false,
       })

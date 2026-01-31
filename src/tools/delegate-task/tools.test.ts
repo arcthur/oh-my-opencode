@@ -107,7 +107,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -118,7 +118,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -296,7 +296,7 @@ describe("sisyphus-task", () => {
             id: "task-variant",
             sessionID: "session-variant",
             description: "Variant task",
-            agent: "Sisyphus-Junior",
+            agent: "sisyphus-junior",
             status: "running",
           }
         },
@@ -323,7 +323,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
 
@@ -334,7 +334,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: true,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -359,7 +359,7 @@ describe("sisyphus-task", () => {
             id: "task-default-variant",
             sessionID: "session-default-variant",
             description: "Default variant task",
-            agent: "Sisyphus-Junior",
+            agent: "sisyphus-junior",
             status: "running",
           }
         },
@@ -384,7 +384,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
 
@@ -395,7 +395,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "unspecified-high",
           run_in_background: true,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -441,7 +441,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
 
@@ -452,7 +452,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "unspecified-high",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -497,7 +497,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -540,7 +540,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -551,7 +551,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: false,
-          skills: null,
+          load_skills: null,
         },
         toolContext
       )
@@ -594,7 +594,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -605,7 +605,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -660,7 +660,7 @@ describe("sisyphus-task", () => {
     const toolContext = {
       sessionID: "parent-session",
       messageID: "parent-message",
-      agent: "Sisyphus",
+      agent: "sisyphus",
       abort: new AbortController().signal,
     }
     
@@ -669,9 +669,9 @@ describe("sisyphus-task", () => {
       {
         description: "Resume test",
         prompt: "Continue the task",
-        resume: "ses_resume_test",
+        session_id: "ses_resume_test",
         run_in_background: false,
-        skills: [],
+        load_skills: [],
       },
       toolContext
     )
@@ -715,7 +715,7 @@ describe("sisyphus-task", () => {
     const toolContext = {
       sessionID: "parent-session",
       messageID: "parent-message",
-      agent: "Sisyphus",
+      agent: "sisyphus",
       abort: new AbortController().signal,
     }
     
@@ -724,9 +724,9 @@ describe("sisyphus-task", () => {
       {
         description: "Resume bg test",
         prompt: "Continue in background",
-        resume: "ses_bg_resume",
+        session_id: "ses_bg_resume",
         run_in_background: true,
-        skills: [],
+        load_skills: [],
       },
       toolContext
     )
@@ -770,7 +770,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -781,7 +781,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -830,7 +830,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -841,7 +841,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -883,7 +883,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -894,7 +894,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -938,7 +938,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent",
         messageID: "msg",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal
       }
 
@@ -948,7 +948,7 @@ describe("sisyphus-task", () => {
         prompt: "test",
         category: "custom-cat",
         run_in_background: false,
-        skills: []
+        load_skills: []
       }, toolContext)
 
       // #then
@@ -973,7 +973,7 @@ describe("sisyphus-task", () => {
             id: "task-unstable",
             sessionID: "ses_unstable_gemini",
             description: "Unstable gemini task",
-            agent: "Sisyphus-Junior",
+            agent: "sisyphus-junior",
             status: "running",
           }
         },
@@ -1009,7 +1009,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
 
@@ -1020,7 +1020,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something visual",
           category: "visual-engineering",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -1043,7 +1043,7 @@ describe("sisyphus-task", () => {
             id: "task-normal-bg",
             sessionID: "ses_normal_bg",
             description: "Normal background task",
-            agent: "Sisyphus-Junior",
+            agent: "sisyphus-junior",
             status: "running",
           }
         },
@@ -1067,7 +1067,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -1078,7 +1078,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something visual",
           category: "visual-engineering",
           run_in_background: true,  // User explicitly says true - normal background
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -1128,7 +1128,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -1139,7 +1139,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something smart",
           category: "ultrabrain",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -1162,7 +1162,7 @@ describe("sisyphus-task", () => {
             id: "task-artistry",
             sessionID: "ses_artistry_gemini",
             description: "Artistry gemini task",
-            agent: "Sisyphus-Junior",
+            agent: "sisyphus-junior",
             status: "running",
           }
         },
@@ -1198,7 +1198,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
 
@@ -1209,7 +1209,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something artistic",
           category: "artistry",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -1232,7 +1232,7 @@ describe("sisyphus-task", () => {
             id: "task-writing",
             sessionID: "ses_writing_gemini",
             description: "Writing gemini task",
-            agent: "Sisyphus-Junior",
+            agent: "sisyphus-junior",
             status: "running",
           }
         },
@@ -1268,7 +1268,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
 
@@ -1279,7 +1279,7 @@ describe("sisyphus-task", () => {
           prompt: "Write something",
           category: "writing",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )
@@ -1302,7 +1302,7 @@ describe("sisyphus-task", () => {
             id: "task-custom-unstable",
             sessionID: "ses_custom_unstable",
             description: "Custom unstable task",
-            agent: "Sisyphus-Junior",
+            agent: "sisyphus-junior",
             status: "running",
           }
         },
@@ -1338,7 +1338,7 @@ describe("sisyphus-task", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "Sisyphus",
+        agent: "sisyphus",
         abort: new AbortController().signal,
       }
       
@@ -1349,7 +1349,7 @@ describe("sisyphus-task", () => {
           prompt: "Do something",
           category: "my-unstable-cat",
           run_in_background: false,
-          skills: [],
+          load_skills: [],
         },
         toolContext
       )

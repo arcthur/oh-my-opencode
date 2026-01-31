@@ -22,7 +22,7 @@ describe("claude-code-session-state", () => {
     test("should store agent for session", () => {
       // #given
       const sessionID = "test-session-1"
-      const agent = "Prometheus"
+      const agent = "prometheus"
 
       // #when
       setSessionAgent(sessionID, agent)
@@ -34,13 +34,13 @@ describe("claude-code-session-state", () => {
     test("should NOT overwrite existing agent (first-write wins)", () => {
       // #given
       const sessionID = "test-session-1"
-      setSessionAgent(sessionID, "Prometheus")
+      setSessionAgent(sessionID, "prometheus")
 
       // #when - try to overwrite
-      setSessionAgent(sessionID, "Sisyphus")
+      setSessionAgent(sessionID, "sisyphus")
 
       // #then - first agent preserved
-      expect(getSessionAgent(sessionID)).toBe("Prometheus")
+      expect(getSessionAgent(sessionID)).toBe("prometheus")
     })
 
     test("should return undefined for unknown session", () => {
@@ -55,13 +55,13 @@ describe("claude-code-session-state", () => {
     test("should overwrite existing agent", () => {
       // #given
       const sessionID = "test-session-1"
-      setSessionAgent(sessionID, "Prometheus")
+      setSessionAgent(sessionID, "prometheus")
 
       // #when - force update
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "sisyphus")
 
       // #then
-      expect(getSessionAgent(sessionID)).toBe("Sisyphus")
+      expect(getSessionAgent(sessionID)).toBe("sisyphus")
     })
   })
 
@@ -69,8 +69,8 @@ describe("claude-code-session-state", () => {
     test("should remove agent from session", () => {
       // #given
       const sessionID = "test-session-1"
-      setSessionAgent(sessionID, "Prometheus")
-      expect(getSessionAgent(sessionID)).toBe("Prometheus")
+      setSessionAgent(sessionID, "prometheus")
+      expect(getSessionAgent(sessionID)).toBe("prometheus")
 
       // #when
       clearSessionAgent(sessionID)
@@ -104,15 +104,15 @@ describe("claude-code-session-state", () => {
     test("should correctly identify Prometheus agent for permission checks", () => {
       // #given - Prometheus session
       const sessionID = "test-prometheus-session"
-      const prometheusAgent = "Prometheus"
+      const prometheusAgent = "prometheus"
 
       // #when - agent is set (simulating chat.message hook)
       setSessionAgent(sessionID, prometheusAgent)
 
       // #then - getSessionAgent returns correct agent for prometheus-md-only hook
       const agent = getSessionAgent(sessionID)
-      expect(agent).toBe("Prometheus")
-      expect(["Prometheus"].includes(agent!)).toBe(true)
+      expect(agent).toBe("prometheus")
+      expect(["prometheus"].includes(agent!)).toBe(true)
     })
 
     test("should return undefined when agent not set (bug scenario)", () => {

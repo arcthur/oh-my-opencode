@@ -354,7 +354,7 @@ describe("todo-continuation-enforcer", () => {
 
     // #when - create hook with skipAgents option (should not throw)
     const hook = createTodoContinuationEnforcer(createMockPluginInput(), {
-      skipAgents: ["Prometheus", "custom-agent"],
+      skipAgents: ["prometheus", "custom-agent"],
     })
 
     // #then - handler works without error
@@ -835,8 +835,8 @@ describe("todo-continuation-enforcer", () => {
 
     // OpenCode returns assistant messages with flat modelID/providerID, not nested model object
     const mockMessagesWithAssistant = [
-      { info: { id: "msg-1", role: "user", agent: "Sisyphus", model: { providerID: "openai", modelID: "gpt-5.2" } } },
-      { info: { id: "msg-2", role: "assistant", agent: "Sisyphus", modelID: "gpt-5.2", providerID: "openai" } },
+      { info: { id: "msg-1", role: "user", agent: "sisyphus", model: { providerID: "openai", modelID: "gpt-5.2" } } },
+      { info: { id: "msg-2", role: "assistant", agent: "sisyphus", modelID: "gpt-5.2", providerID: "openai" } },
     ]
 
     const mockInput = {

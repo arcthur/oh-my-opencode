@@ -79,7 +79,7 @@ export class PlanGenerator {
         const bgTask = await this.manager.launch({
           description: `Multi-Plan: ${model.name}`,
           prompt,
-          agent: "Sisyphus-Junior", // Executor agent - generates plan directly without delegation
+          agent: "sisyphus-junior", // Executor agent - generates plan directly without delegation
           parentSessionID,
           parentMessageID: "",
           model: modelConfig.model,

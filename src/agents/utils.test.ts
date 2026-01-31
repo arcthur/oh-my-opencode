@@ -12,24 +12,24 @@ describe("createBuiltinAgents with model overrides", () => {
     const agents = createBuiltinAgents([], {}, undefined, TEST_DEFAULT_MODEL)
 
     // #then
-    expect(agents.Sisyphus.model).toBe("anthropic/claude-opus-4-5")
-    expect(agents.Sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
-    expect(agents.Sisyphus.reasoningEffort).toBeUndefined()
+    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-5")
+    expect(agents.sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.sisyphus.reasoningEffort).toBeUndefined()
   })
 
   test("Sisyphus with GPT model override has reasoningEffort, no thinking", () => {
     // #given
     const overrides = {
-      Sisyphus: { model: "github-copilot/gpt-5.2" },
+      sisyphus: { model: "github-copilot/gpt-5.2" },
     }
 
     // #when
     const agents = createBuiltinAgents([], overrides, undefined, TEST_DEFAULT_MODEL)
 
     // #then
-    expect(agents.Sisyphus.model).toBe("github-copilot/gpt-5.2")
-    expect(agents.Sisyphus.reasoningEffort).toBe("medium")
-    expect(agents.Sisyphus.thinking).toBeUndefined()
+    expect(agents.sisyphus.model).toBe("github-copilot/gpt-5.2")
+    expect(agents.sisyphus.reasoningEffort).toBe("medium")
+    expect(agents.sisyphus.thinking).toBeUndefined()
   })
 
   test("Sisyphus with systemDefaultModel GPT has reasoningEffort, no thinking", () => {
@@ -40,9 +40,9 @@ describe("createBuiltinAgents with model overrides", () => {
     const agents = createBuiltinAgents([], {}, undefined, systemDefaultModel)
 
     // #then
-    expect(agents.Sisyphus.model).toBe("openai/gpt-5.2")
-    expect(agents.Sisyphus.reasoningEffort).toBe("medium")
-    expect(agents.Sisyphus.thinking).toBeUndefined()
+    expect(agents.sisyphus.model).toBe("openai/gpt-5.2")
+    expect(agents.sisyphus.reasoningEffort).toBe("medium")
+    expect(agents.sisyphus.thinking).toBeUndefined()
   })
 
   test("Oracle with default model has reasoningEffort", () => {
@@ -93,15 +93,15 @@ describe("createBuiltinAgents with model overrides", () => {
   test("non-model overrides are still applied after factory rebuild", () => {
     // #given
     const overrides = {
-      Sisyphus: { model: "github-copilot/gpt-5.2", temperature: 0.5 },
+      sisyphus: { model: "github-copilot/gpt-5.2", temperature: 0.5 },
     }
 
     // #when
     const agents = createBuiltinAgents([], overrides, undefined, TEST_DEFAULT_MODEL)
 
     // #then
-    expect(agents.Sisyphus.model).toBe("github-copilot/gpt-5.2")
-    expect(agents.Sisyphus.temperature).toBe(0.5)
+    expect(agents.sisyphus.model).toBe("github-copilot/gpt-5.2")
+    expect(agents.sisyphus.temperature).toBe(0.5)
   })
 })
 

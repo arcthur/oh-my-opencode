@@ -154,7 +154,7 @@ describe("PlanGenerator.generatePlans", () => {
     expect(launchMock).toHaveBeenCalledTimes(1)
     const launchCall = (launchMock.mock.calls as unknown as Array<[Record<string, unknown>]>)[0][0]
     expect(launchCall.description).toBe("Multi-Plan: strategist")
-    expect(launchCall.agent).toBe("Sisyphus-Junior")
+    expect(launchCall.agent).toBe("sisyphus-junior")
     expect(launchCall.parentSessionID).toBe("parent_session_id")
     expect(launchCall.silent).toBe(true)
     expect(launchCall.model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4-5" })

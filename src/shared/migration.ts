@@ -3,28 +3,28 @@ import { log } from "./logger"
 
 // Migration map: old keys → new keys (for backward compatibility)
 export const AGENT_NAME_MAP: Record<string, string> = {
-  omo: "Sisyphus",
-  "OmO": "Sisyphus",
-  sisyphus: "Sisyphus",
+  omo: "sisyphus",
+  "OmO": "sisyphus",
+  sisyphus: "sisyphus",
   build: "build",
   oracle: "oracle",
   librarian: "librarian",
   explore: "explore",
   "multimodal-looker": "multimodal-looker",
-  "orchestrator-sisyphus": "Atlas",
-  atlas: "Atlas",
-  prometheus: "Prometheus",
+  "orchestrator-sisyphus": "atlas",
+  atlas: "atlas",
+  prometheus: "prometheus",
   "plan-synthesizer": "plan-synthesizer",
 }
 
 export const BUILTIN_AGENT_NAMES = new Set([
-  "Sisyphus",
+  "sisyphus",
   "oracle",
   "librarian",
   "explore",
   "multimodal-looker",
-  "Prometheus",
-  "Atlas",
+  "prometheus",
+  "atlas",
   "build",
 ])
 
@@ -134,16 +134,16 @@ export function migrateConfigFile(configPath: string, rawConfig: Record<string, 
       needsWrite = true
     }
 
-    // Migrate agents.planning.model → agents.Prometheus.model
+    // Migrate agents.planning.model → agents.prometheus.model
     const agents = rawConfig.agents as Record<string, unknown>
     const planning = agents.planning as Record<string, unknown> | undefined
     if (planning?.model) {
-      const prometheus = (agents.Prometheus ?? {}) as Record<string, unknown>
+      const prometheus = (agents.prometheus ?? {}) as Record<string, unknown>
       // Only migrate if Prometheus.model is not already set
       if (!prometheus.model) {
         prometheus.model = planning.model
-        agents.Prometheus = prometheus
-        log(`Migrated agents.planning.model to agents.Prometheus.model`)
+        agents.prometheus = prometheus
+        log(`Migrated agents.planning.model to agents.prometheus.model`)
       }
       delete agents.planning
       needsWrite = true

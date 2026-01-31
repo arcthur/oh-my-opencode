@@ -51,7 +51,7 @@ const COMPLEX_TASK_SIGNALS = `
  * Hook options
  */
 export interface MultiPlanTriggerHookOptions {
-  /** Model config from agents.Prometheus.model - string for single, array for multi-plan */
+  /** Model config from agents.prometheus.model - string for single, array for multi-plan */
   model: string | string[] | undefined
   pipelineConfig?: MultiPlanPipelineConfig | undefined
 }
@@ -175,7 +175,7 @@ function buildRoutingContext(input: {
  * This hook injects multi-plan capability information into the context
  * so that Prometheus (or other planners) know to use the multi_plan tool.
  *
- * The hook is only active when 2+ models are configured in `agents.Prometheus.model`.
+ * The hook is only active when 2+ models are configured in `agents.prometheus.model`.
  * With 0-1 models, Prometheus handles plan generation directly.
  *
  * Capability is injected once per session to avoid redundant context.

@@ -51,7 +51,7 @@ type CreateMultiPlanOrchestrator = (
 export function createMultiPlanTool(options: {
   ctx: PluginInput
   backgroundManager: BackgroundManager
-  /** Model config from agents.Prometheus.model - string for single, array for multi-plan */
+  /** Model config from agents.prometheus.model - string for single, array for multi-plan */
   model: string | string[] | undefined
   pipelineConfig?: MultiPlanPipelineConfig | undefined
   createOrchestrator?: CreateMultiPlanOrchestrator
@@ -68,7 +68,7 @@ export function createMultiPlanTool(options: {
     description: `Orchestrate multi-model planning where multiple AI models generate plans in parallel, followed by Plan Synthesizer review and conflict resolution.
 
 **When to use this tool:**
-- User has requested to generate a work plan AND 2+ models are configured in \`agents.Prometheus.model\`
+- User has requested to generate a work plan AND 2+ models are configured in \`agents.prometheus.model\`
 - You want diverse perspectives from different AI models
 - The task is complex enough to benefit from multiple viewpoints
 

@@ -115,13 +115,13 @@ interface AgentRequirement {
 }
 
 const AGENT_REQUIREMENTS: Record<string, AgentRequirement> = {
-  Sisyphus: { capability: "unspecified-high" },
+  sisyphus: { capability: "unspecified-high" },
   oracle: { capability: "ultrabrain", variant: "high" },
   librarian: { capability: "glm" },
   explore: { capability: "quick" },
   "multimodal-looker": { capability: "visual-engineering" },
-  Prometheus: { capability: "unspecified-high" },
-  Atlas: { capability: "unspecified-high" },
+  prometheus: { capability: "unspecified-high" },
+  atlas: { capability: "unspecified-high" },
 }
 
 interface CategoryRequirement {

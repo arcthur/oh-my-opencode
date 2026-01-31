@@ -26,6 +26,9 @@ import {
   createAutoSlashCommandHook,
   createEditErrorRecoveryHook,
   createDelegateTaskRetryHook,
+  createQuestionLabelTruncatorHook,
+  createSubagentQuestionBlockerHook,
+  createStopContinuationGuardHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
   createAtlasHook,
@@ -297,8 +300,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   initTaskToastManager(ctx.client);
 
+  const stopContinuationGuard = isHookEnabled("stop-continuation-guard")
+    ? createStopContinuationGuardHook(ctx)
+    : null;
+
+  const questionLabelTruncator = createQuestionLabelTruncatorHook();
+  const subagentQuestionBlocker = createSubagentQuestionBlockerHook();
+
   // Get Prometheus model config (string or array for multi-plan)
-  const prometheusModel = pluginConfig.agents?.Prometheus?.model as string | string[] | undefined;
+  const prometheusModel = pluginConfig.agents?.prometheus?.model as string | string[] | undefined;
 
   const multiPlanTrigger = isHookEnabled("multi-plan-trigger")
     ? createMultiPlanTriggerHook({
@@ -600,6 +610,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await multiPlanTrigger?.["chat.message"]?.(input, output);
       await planningWithFiles?.["chat.message"]?.(input, output);
       await preCompletionVerification?.["chat.message"]?.(input, output);
+      await stopContinuationGuard?.["chat.message"]?.({ sessionID: input.sessionID });
 
       if (ralphLoop) {
         const parts = (
@@ -677,6 +688,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     config: configHandler,
 
     event: async (input) => {
+      await stopContinuationGuard?.event(input as { event: { type: string; properties?: unknown } });
       await autoUpdateChecker?.event(input);
       await claudeCodeHooks.event(input);
       await backgroundNotificationHook?.event(input);
@@ -793,6 +805,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
 
     "tool.execute.before": async (input, output) => {
+      // Question label truncation (runs early to fix labels before other processing)
+      await questionLabelTruncator?.["tool.execute.before"]?.(input, output);
+      // Block question tool calls from subagent sessions
+      await subagentQuestionBlocker?.["tool.execute.before"]?.(input, output);
+
       // Memory context registration (uses contextCollector with oncePerSession)
       await userMemory?.["tool.execute.before"]?.(input, output);
       await orgMemory?.["tool.execute.before"]?.(input, output);

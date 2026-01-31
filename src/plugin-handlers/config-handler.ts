@@ -180,15 +180,15 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     };
     const configAgent = config.agent as AgentConfig | undefined;
 
-    if (isSisyphusEnabled && builtinAgents.Sisyphus) {
-      (config as { default_agent?: string }).default_agent = "Sisyphus";
+    if (isSisyphusEnabled && builtinAgents.sisyphus) {
+      (config as { default_agent?: string }).default_agent = "sisyphus";
 
       const agentConfig: Record<string, unknown> = {
-        Sisyphus: builtinAgents.Sisyphus,
+        sisyphus: builtinAgents.sisyphus,
       };
 
-      agentConfig["Sisyphus-Junior"] = createSisyphusJuniorAgentWithOverrides(
-        (migratedAgents as Record<string, unknown>)["Sisyphus-Junior"] as Parameters<typeof createSisyphusJuniorAgentWithOverrides>[0],
+      agentConfig["sisyphus-junior"] = createSisyphusJuniorAgentWithOverrides(
+        (migratedAgents as Record<string, unknown>)["sisyphus-junior"] as Parameters<typeof createSisyphusJuniorAgentWithOverrides>[0],
         config.model as string | undefined
       );
 
@@ -212,7 +212,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
 
       if (plannerEnabled) {
         const prometheusOverride =
-          migratedAgents["Prometheus"] as
+          migratedAgents["prometheus"] as
             | (Record<string, unknown> & { category?: string; model?: string | string[] })
             | undefined;
         const defaultModel = config.model as string | undefined;
@@ -272,7 +272,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
             : {}),
         };
 
-        agentConfig["Prometheus"] = prometheusOverride
+        agentConfig["prometheus"] = prometheusOverride
           ? {
               ...prometheusBase,
               ...prometheusOverrideAgentFields,
@@ -308,7 +308,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       config.agent = {
         ...agentConfig,
         ...Object.fromEntries(
-          Object.entries(builtinAgents).filter(([k]) => k !== "Sisyphus")
+          Object.entries(builtinAgents).filter(([k]) => k !== "sisyphus")
         ),
         ...userAgents,
         ...projectAgents,
@@ -347,20 +347,20 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       const agent = agentResult["multimodal-looker"] as AgentWithPermission;
       agent.permission = { ...agent.permission, task: "deny", look_at: "deny" };
     }
-    if (agentResult["Atlas"]) {
-      const agent = agentResult["Atlas"] as AgentWithPermission;
+    if (agentResult["atlas"]) {
+      const agent = agentResult["atlas"] as AgentWithPermission;
       agent.permission = { ...agent.permission, task: "deny", call_omo_agent: "deny", delegate_task: "allow" };
     }
-    if (agentResult.Sisyphus) {
-      const agent = agentResult.Sisyphus as AgentWithPermission;
+    if (agentResult.sisyphus) {
+      const agent = agentResult.sisyphus as AgentWithPermission;
       agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: "allow" };
     }
-    if (agentResult["Prometheus"]) {
-      const agent = agentResult["Prometheus"] as AgentWithPermission;
+    if (agentResult["prometheus"]) {
+      const agent = agentResult["prometheus"] as AgentWithPermission;
       agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: "allow" };
     }
-    if (agentResult["Sisyphus-Junior"]) {
-      const agent = agentResult["Sisyphus-Junior"] as AgentWithPermission;
+    if (agentResult["sisyphus-junior"]) {
+      const agent = agentResult["sisyphus-junior"] as AgentWithPermission;
       // CRITICAL: Sisyphus-Junior is a focused executor. Never allow delegation via config-layer overrides.
       // (The agent factory denies delegate_task/task; this is a defense-in-depth enforcement.)
       agent.permission = { ...agent.permission, delegate_task: "deny", task: "deny" };

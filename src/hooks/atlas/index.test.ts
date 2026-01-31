@@ -168,7 +168,7 @@ describe("atlas hook", () => {
      test("should append standalone verification when no work state but caller is Atlas", async () => {
        // #given - no work state, but caller is Atlas
       const sessionID = "session-no-work-test"
-       setupMessageStorage(sessionID, "Atlas")
+       setupMessageStorage(sessionID, "atlas")
       
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
@@ -194,7 +194,7 @@ describe("atlas hook", () => {
      test("should transform output when caller is Atlas with work state", async () => {
        // #given - Atlas caller with work state
        const sessionID = "session-transform-test"
-       setupMessageStorage(sessionID, "Atlas")
+       setupMessageStorage(sessionID, "atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2")
@@ -233,7 +233,7 @@ describe("atlas hook", () => {
      test("should still transform when plan is complete (shows progress)", async () => {
        // #given - work state with complete plan, Atlas caller
        const sessionID = "session-complete-plan-test"
-       setupMessageStorage(sessionID, "Atlas")
+       setupMessageStorage(sessionID, "atlas")
       
       const planPath = join(TEST_DIR, "complete-plan.md")
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2")
@@ -270,7 +270,7 @@ describe("atlas hook", () => {
      test("should append session ID to work state if not present", async () => {
        // #given - work state without session-append-test, Atlas caller
        const sessionID = "session-append-test"
-       setupMessageStorage(sessionID, "Atlas")
+       setupMessageStorage(sessionID, "atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
@@ -306,7 +306,7 @@ describe("atlas hook", () => {
      test("should not duplicate existing session ID", async () => {
        // #given - work state already has session-dup-test, Atlas caller
        const sessionID = "session-dup-test"
-       setupMessageStorage(sessionID, "Atlas")
+       setupMessageStorage(sessionID, "atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
@@ -343,7 +343,7 @@ describe("atlas hook", () => {
      test("should include plan name and progress in transformed output", async () => {
        // #given - work state, Atlas caller
        const sessionID = "session-path-test"
-       setupMessageStorage(sessionID, "Atlas")
+       setupMessageStorage(sessionID, "atlas")
       
       const planPath = join(TEST_DIR, "my-feature.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2\n- [x] Task 3")
@@ -380,7 +380,7 @@ describe("atlas hook", () => {
      test("should include resume and checkbox instructions in reminder", async () => {
        // #given - work state, Atlas caller
        const sessionID = "session-resume-test"
-       setupMessageStorage(sessionID, "Atlas")
+       setupMessageStorage(sessionID, "atlas")
       
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
@@ -418,7 +418,7 @@ describe("atlas hook", () => {
       const ORCHESTRATOR_SESSION = "orchestrator-write-test"
 
        beforeEach(() => {
-         setupMessageStorage(ORCHESTRATOR_SESSION, "Atlas")
+         setupMessageStorage(ORCHESTRATOR_SESSION, "atlas")
        })
 
       afterEach(() => {
@@ -489,7 +489,7 @@ describe("atlas hook", () => {
       test("should NOT append reminder when non-orchestrator writes outside .sisyphus/", async () => {
         // #given
         const nonOrchestratorSession = "non-orchestrator-session"
-        setupMessageStorage(nonOrchestratorSession, "Sisyphus-Junior")
+        setupMessageStorage(nonOrchestratorSession, "sisyphus-junior")
         
         const hook = createAtlasHook(createMockPluginInput())
         const originalOutput = "File written successfully"
@@ -646,7 +646,7 @@ describe("atlas hook", () => {
          getMainSessionID: () => MAIN_SESSION_ID,
          subagentSessions: new Set<string>(),
        }))
-       setupMessageStorage(MAIN_SESSION_ID, "Atlas")
+       setupMessageStorage(MAIN_SESSION_ID, "atlas")
      })
 
     afterEach(() => {
@@ -890,7 +890,7 @@ describe("atlas hook", () => {
 
        // #given - last agent is NOT Atlas
        cleanupMessageStorage(MAIN_SESSION_ID)
-       setupMessageStorage(MAIN_SESSION_ID, "Sisyphus")
+       setupMessageStorage(MAIN_SESSION_ID, "sisyphus")
 
        const mockInput = createMockPluginInput()
        const hook = createAtlasHook(mockInput)

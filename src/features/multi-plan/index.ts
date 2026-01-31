@@ -606,7 +606,7 @@ Plan Synthesizer will:
         const task = await this.manager.launch({
           description: `Rebuttal: ${rejection.modelName}`,
           prompt,
-          agent: "Sisyphus-Junior",
+          agent: "sisyphus-junior",
           parentSessionID: parentSessionId,
           parentMessageID: "",
           model: resolvedModelConfig.model,

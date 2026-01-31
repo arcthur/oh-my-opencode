@@ -24,14 +24,14 @@ function extractSingleModel(model: string | string[]): string {
 }
 
 const agentSources: Record<BuiltinAgentName, AgentSource> = {
-  Sisyphus: createSisyphusAgent,
+  sisyphus: createSisyphusAgent,
   oracle: createOracleAgent,
   librarian: createLibrarianAgent,
   explore: createExploreAgent,
   "multimodal-looker": createMultimodalLookerAgent,
   // Note: Atlas is handled specially in createBuiltinAgents()
   // because it needs OrchestratorContext, not just a model string
-  Atlas: createAtlasAgent as unknown as AgentFactory,
+  atlas: createAtlasAgent as unknown as AgentFactory,
   "plan-synthesizer": createPlanSynthesizerAgent,
 }
 
@@ -164,8 +164,8 @@ export function createBuiltinAgents(
   for (const [name, source] of Object.entries(agentSources)) {
     const agentName = name as BuiltinAgentName
 
-    if (agentName === "Sisyphus") continue
-    if (agentName === "Atlas") continue
+    if (agentName === "sisyphus") continue
+    if (agentName === "atlas") continue
     if (disabledAgents.includes(agentName)) continue
 
     const override = agentOverrides[agentName]
@@ -195,8 +195,8 @@ export function createBuiltinAgents(
     }
   }
 
-  if (!disabledAgents.includes("Sisyphus")) {
-    const sisyphusOverride = agentOverrides["Sisyphus"]
+  if (!disabledAgents.includes("sisyphus")) {
+    const sisyphusOverride = agentOverrides["sisyphus"]
     const rawSisyphusModel = sisyphusOverride?.model ?? systemDefaultModel
     const sisyphusModel = extractSingleModel(rawSisyphusModel)
 
@@ -217,11 +217,11 @@ export function createBuiltinAgents(
       sisyphusConfig = mergeAgentConfig(sisyphusConfig, sisyphusOverride)
     }
 
-    result["Sisyphus"] = sisyphusConfig
+    result["sisyphus"] = sisyphusConfig
   }
 
-  if (!disabledAgents.includes("Atlas")) {
-    const orchestratorOverride = agentOverrides["Atlas"]
+  if (!disabledAgents.includes("atlas")) {
+    const orchestratorOverride = agentOverrides["atlas"]
     const rawOrchestratorModel = orchestratorOverride?.model ?? systemDefaultModel
     const orchestratorModel = extractSingleModel(rawOrchestratorModel)
     let orchestratorConfig = createAtlasAgent({
@@ -235,7 +235,7 @@ export function createBuiltinAgents(
       orchestratorConfig = mergeAgentConfig(orchestratorConfig, orchestratorOverride)
     }
 
-    result["Atlas"] = orchestratorConfig
+    result["atlas"] = orchestratorConfig
   }
 
   return result

@@ -15,7 +15,7 @@ import { log, getAgentToolRestrictions, resolveModel, getOpenCodeConfigPaths } f
 
 type OpencodeClient = PluginInput["client"]
 
-const SISYPHUS_JUNIOR_AGENT = "Sisyphus-Junior"
+const SISYPHUS_JUNIOR_AGENT = "sisyphus-junior"
 const CATEGORY_EXAMPLES = Object.keys(DEFAULT_CATEGORIES).map(k => `'${k}'`).join(", ")
 
 function parseModelString(model: string): { providerID: string; modelID: string } | undefined {
@@ -83,9 +83,9 @@ function formatDetailedError(error: unknown, ctx: ErrorContext): string {
     lines.push(`- category: ${ctx.args.category ?? "(none)"}`)
     lines.push(`- subagent_type: ${ctx.args.subagent_type ?? "(none)"}`)
     lines.push(`- run_in_background: ${ctx.args.run_in_background}`)
-    lines.push(`- skills: [${ctx.args.skills?.join(", ") ?? ""}]`)
-    if (ctx.args.resume) {
-      lines.push(`- resume: ${ctx.args.resume}`)
+    lines.push(`- load_skills: [${ctx.args.load_skills?.join(", ") ?? ""}]`)
+    if (ctx.args.session_id) {
+      lines.push(`- session_id: ${ctx.args.session_id}`)
     }
   }
 
@@ -186,25 +186,26 @@ export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefini
       category: tool.schema.string().optional().describe(`Category name (e.g., ${CATEGORY_EXAMPLES}). Mutually exclusive with subagent_type.`),
       subagent_type: tool.schema.string().optional().describe("Agent name directly (e.g., 'oracle', 'explore'). Mutually exclusive with category."),
       run_in_background: tool.schema.boolean().describe("Run in background. MUST be explicitly set. Use false for task delegation, true only for parallel exploration."),
-      resume: tool.schema.string().optional().describe("Session ID to resume - continues previous agent session with full context"),
-      skills: tool.schema.array(tool.schema.string()).describe("Array of skill names to prepend to the prompt. Use [] (empty array) if no skills needed."),
+      session_id: tool.schema.string().optional().describe("Session ID to resume - continues previous agent session with full context"),
+      command: tool.schema.string().optional().describe("Optional command context for metadata"),
+      load_skills: tool.schema.array(tool.schema.string()).describe("Array of skill names to prepend to the prompt. Use [] (empty array) if no skills needed."),
     },
     async execute(args: DelegateTaskArgs, toolContext) {
       const ctx = toolContext as ToolContextWithMetadata
       if (args.run_in_background === undefined) {
         return `Invalid arguments: 'run_in_background' parameter is REQUIRED. Use run_in_background=false for task delegation, run_in_background=true only for parallel exploration.`
       }
-      if (args.skills === undefined) {
-        return `Invalid arguments: 'skills' parameter is REQUIRED. Use skills=[] if no skills are needed, or provide an array of skill names.`
+      if (args.load_skills === undefined) {
+        return `Invalid arguments: 'load_skills' parameter is REQUIRED. Use load_skills=[] if no skills are needed, or provide an array of skill names.`
       }
-      if (args.skills === null) {
-        return `Invalid arguments: skills=null is not allowed. Use skills=[] (empty array) if no skills are needed.`
+      if (args.load_skills === null) {
+        return `Invalid arguments: load_skills=null is not allowed. Use load_skills=[] (empty array) if no skills are needed.`
       }
       const runInBackground = args.run_in_background === true
 
       let skillContent: string | undefined
-      if (args.skills.length > 0) {
-        const { resolved, notFound } = await resolveMultipleSkillsAsync(args.skills, { gitMasterConfig })
+      if (args.load_skills.length > 0) {
+        const { resolved, notFound } = await resolveMultipleSkillsAsync(args.load_skills, { gitMasterConfig })
         if (notFound.length > 0) {
           const allSkills = await discoverSkills({ includeClaudeCodePaths: true })
           const available = allSkills.map(s => s.name).join(", ")
@@ -232,11 +233,11 @@ export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefini
         ? { providerID: prevMessage.model.providerID, modelID: prevMessage.model.modelID }
         : undefined
 
-      if (args.resume) {
+      if (args.session_id) {
         if (runInBackground) {
           try {
             const task = await manager.resume({
-              sessionId: args.resume,
+              sessionId: args.session_id,
               prompt: args.prompt,
               parentSessionID: ctx.sessionID,
               parentMessageID: ctx.messageID,
@@ -263,13 +264,13 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
             return formatDetailedError(error, {
               operation: "Resume background task",
               args,
-              sessionID: args.resume,
+              sessionID: args.session_id,
             })
           }
         }
 
         const toastManager = getTaskToastManager()
-        const taskId = `resume_sync_${args.resume.slice(0, 8)}`
+        const taskId = `resume_sync_${args.session_id.slice(0, 8)}`
         const startTime = new Date()
 
         if (toastManager) {
@@ -283,7 +284,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
 
         ctx.metadata?.({
           title: `Resume: ${args.description}`,
-          metadata: { sessionId: args.resume, sync: true },
+          metadata: { sessionId: args.session_id, sync: true },
         })
 
         try {
@@ -291,7 +292,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
           let resumeModel: { providerID: string; modelID: string } | undefined
 
           try {
-            const messagesResp = await client.session.messages({ path: { id: args.resume } })
+            const messagesResp = await client.session.messages({ path: { id: args.session_id } })
             const messages = (messagesResp.data ?? []) as Array<{
               info?: { agent?: string; model?: { providerID: string; modelID: string }; modelID?: string; providerID?: string }
             }>
@@ -304,7 +305,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
               }
             }
           } catch {
-            const resumeMessageDir = getMessageDir(args.resume)
+            const resumeMessageDir = getMessageDir(args.session_id)
             const resumeMessage = resumeMessageDir ? findNearestMessageWithFields(resumeMessageDir) : null
             resumeAgent = resumeMessage?.agent
             resumeModel = resumeMessage?.model?.providerID && resumeMessage?.model?.modelID
@@ -313,7 +314,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
           }
 
           await client.session.prompt({
-            path: { id: args.resume },
+            path: { id: args.session_id },
             body: {
               ...(resumeAgent !== undefined ? { agent: resumeAgent } : {}),
               ...(resumeModel !== undefined ? { model: resumeModel } : {}),
@@ -331,7 +332,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
             toastManager.removeTask(taskId)
           }
           const errorMessage = promptError instanceof Error ? promptError.message : String(promptError)
-          return `Failed to send resume prompt: ${errorMessage}\n\nSession ID: ${args.resume}`
+          return `Failed to send resume prompt: ${errorMessage}\n\nSession ID: ${args.session_id}`
         }
 
         // Wait for message stability after prompt completes
@@ -348,7 +349,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
           const elapsed = Date.now() - pollStart
           if (elapsed < MIN_STABILITY_TIME_MS) continue
 
-          const messagesCheck = await client.session.messages({ path: { id: args.resume } })
+          const messagesCheck = await client.session.messages({ path: { id: args.session_id } })
           const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
           const currentMsgCount = msgs.length
 
@@ -362,14 +363,14 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         }
 
         const messagesResult = await client.session.messages({
-          path: { id: args.resume },
+          path: { id: args.session_id },
         })
 
         if (messagesResult.error) {
           if (toastManager) {
             toastManager.removeTask(taskId)
           }
-          return `Error fetching result: ${messagesResult.error}\n\nSession ID: ${args.resume}`
+          return `Error fetching result: ${messagesResult.error}\n\nSession ID: ${args.session_id}`
         }
 
         const messages = ((messagesResult as { data?: unknown }).data ?? messagesResult) as Array<{
@@ -387,7 +388,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         }
 
         if (!lastMessage) {
-          return `No assistant response found.\n\nSession ID: ${args.resume}`
+          return `No assistant response found.\n\nSession ID: ${args.session_id}`
         }
 
         // Extract text from both "text" and "reasoning" parts (thinking models use "reasoning")
@@ -398,7 +399,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
 
         return `Task resumed and completed in ${duration}.
 
-Session ID: ${args.resume}
+Session ID: ${args.session_id}
 
 ---
 
@@ -498,7 +499,7 @@ ${textContent || "(No text output)"}`
               parentModel,
               parentAgent,
               model: categoryModel,
-              skills: args.skills.length > 0 ? args.skills : undefined,
+              skills: args.load_skills.length > 0 ? args.load_skills : undefined,
               skillContent: systemContent,
             })
 
@@ -642,7 +643,7 @@ ${textContent || "(No text output)"}`
             parentModel,
             parentAgent,
             model: categoryModel,
-            skills: args.skills.length > 0 ? args.skills : undefined,
+            skills: args.load_skills.length > 0 ? args.load_skills : undefined,
             skillContent: systemContent,
           })
 
@@ -706,7 +707,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
             description: args.description,
             agent: agentToUse,
             isBackground: false,
-            skills: args.skills.length > 0 ? args.skills : undefined,
+            skills: args.load_skills.length > 0 ? args.load_skills : undefined,
             modelInfo,
           })
         }
