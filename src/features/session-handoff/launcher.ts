@@ -16,12 +16,13 @@ import type {
   ExtractionContext,
   TrackedMessage,
   TrackedToolCall,
+  RecoveryPattern,
 } from "./types"
 import type { ExtractorDependencies } from "./extractor"
 import { createHandoffPackage, buildExtractionContext } from "./extractor"
 import { filterPayloadByGoal } from "./goal-extractor"
 import { buildHandoffPrompt, buildHandoffSummary } from "./prompt-builder"
-import { saveHandoff } from "./storage"
+import { saveHandoff as saveHandoffToStorage } from "./storage"
 import { log } from "../../shared/logger"
 
 // ============================================================================
@@ -39,9 +40,14 @@ export interface LauncherSessionInput {
   toolCalls: TrackedToolCall[]
   /** File changes - accepts Set (from runtime) or array (from snapshot) */
   fileChanges: Set<string> | string[]
+  /** Recovery patterns detected during the session (optional) */
+  recoveryPatterns?: RecoveryPattern[]
 }
 
 export interface LauncherDependencies extends ExtractorDependencies {
+  /** Override storage persistence (useful for tests) */
+  saveHandoff?: (pkg: HandoffPackage) => void
+
   /** Function to create a new session (optional - if not provided, runs in preview mode) */
   createSession?: () => Promise<string>
 
@@ -95,7 +101,13 @@ export async function executeActiveHandoff(
   )
 
   // Step 2: Create handoff package
-  const handoffPackage = await createHandoffPackage(context, config, deps, goal)
+  const handoffPackage = await createHandoffPackage(context, config, deps)
+
+  // Step 2.5: Merge recovery patterns detected in real-time (if available)
+  if (sessionState.recoveryPatterns && sessionState.recoveryPatterns.length > 0) {
+    // Keep most recent patterns to protect token budget (extraction-time cap: 10)
+    handoffPackage.payload.recoveryPatterns = sessionState.recoveryPatterns.slice(-10)
+  }
 
   // Step 3: Filter payload by goal relevance
   const filtered = filterPayloadByGoal(handoffPackage.payload, {
@@ -125,7 +137,8 @@ export async function executeActiveHandoff(
     },
   }
 
-  saveHandoff(storedPackage)
+  const persist = deps.saveHandoff ?? saveHandoffToStorage
+  persist(storedPackage)
 
   // Step 6: Launch new session or return preview
   let newSessionId: string | undefined

@@ -17,8 +17,27 @@ mock.module("./storage", () => ({
 }))
 
 mock.module("./injector", () => ({
-  generateInjectionContent: () => "handoff-context",
+  formatInjectionContent: () => "handoff-context",
   resolveSessionReference: () => null,
+  selectHandoffsForInjection: mock(() => [{
+    id: "ho_test_mock",
+    sourceSessionId: "test-session",
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    metadata: {
+      originalGoal: "Test goal",
+      durationMs: 1000,
+      projectPath: "/test",
+      keyFiles: [],
+      outcome: "completed",
+    },
+    payload: {
+      decisions: [],
+      artifacts: [],
+      antiPatterns: [],
+      domainContext: [],
+    },
+  }]),
 }))
 
 const { createSessionHandoffHook } = require("./hook")
@@ -32,6 +51,8 @@ describe("session-handoff hook", () => {
     storage.loadIndex.mockReset()
     storage.loadHandoff.mockReset()
     storage.deleteHandoff.mockReset()
+    storage.saveHandoff.mockReset()
+    storage.findHandoffBySessionId.mockReset()
   })
 
   test("re-injects handoff context after session.compacted", async () => {
@@ -133,5 +154,60 @@ describe("session-handoff hook", () => {
     expect(output.parts[0]?.text).toContain("## Session Handoffs")
     expect(output.parts[0]?.text).toContain("Test goal")
     expect(output.parts[0]?.text).toContain("2d/3a")
+  })
+
+  test("retries extraction on session.deleted when async idle extraction fails", async () => {
+    // #given
+    const storage = require("./storage")
+    let saved = false
+    storage.findHandoffBySessionId.mockImplementation(() => (saved ? { id: "ho_test_0" } : null))
+    storage.saveHandoff
+      .mockImplementationOnce(() => {
+        throw new Error("disk full")
+      })
+      .mockImplementation(() => {
+        saved = true
+      })
+
+    const hook = createSessionHandoffHook({
+      config: {
+        ...DEFAULT_HANDOFF_CONFIG,
+        auto_inject: false,
+        auto_extract: true,
+        async_extraction: true,
+        min_messages_for_extract: 1,
+        min_file_changes_for_extract: 1,
+      },
+      cwd: "/project",
+      callLLM: async () =>
+        JSON.stringify({
+          decisions: [],
+          artifacts: [],
+          antiPatterns: [],
+          domainContext: [],
+        }),
+    })
+
+    const sessionID = "session-async-extract"
+
+    // #when - capture enough state to trigger extraction
+    await hook["user.prompt.submit"]?.({
+      sessionID,
+      parts: [{ type: "text", text: "hello" }],
+    })
+
+    await hook["tool.execute.after"]?.(
+      { tool: "Edit", sessionID },
+      { output: "ok", metadata: { success: true, args: { file_path: "src/foo.ts" } } }
+    )
+
+    // #when - idle kicks off async extraction (first attempt fails)
+    await hook.event?.({ event: { type: "session.idle", properties: { sessionID } } })
+
+    // #when - session.deleted awaits in-flight task and retries extraction
+    await hook.event?.({ event: { type: "session.deleted", properties: { info: { id: sessionID } } } })
+
+    // #then
+    expect(storage.saveHandoff).toHaveBeenCalledTimes(2)
   })
 })

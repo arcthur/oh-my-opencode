@@ -8,9 +8,23 @@
  */
 
 import { isAbsolute, relative } from "node:path"
-import type { SessionHandoffConfig, ActiveHandoffRequest, SessionRuntimeState, HandoffIndexEntry } from "./types"
+import type {
+  SessionHandoffConfig,
+  ActiveHandoffRequest,
+  SessionRuntimeState,
+  HandoffIndexEntry,
+  RecoveryPattern,
+  HandoffMetrics,
+} from "./types"
+import { DEFAULT_HANDOFF_METRICS } from "./types"
 import { createHandoffPackage, buildExtractionContext, type ExtractorDependencies } from "./extractor"
-import { generateInjectionContent, resolveSessionReference, type ResolveSessionReferenceOptions } from "./injector"
+import {
+  resolveSessionReference,
+  selectHandoffsForInjection,
+  type ResolveSessionReferenceOptions,
+  type InjectorScoringConfig,
+} from "./injector"
+import { renderMultipleHandoffsForInjection } from "./renderer"
 import {
   saveHandoff,
   cleanupExpired,
@@ -21,6 +35,7 @@ import {
   loadHandoff,
   deleteHandoff,
   findHandoffsForProject,
+  updateHandoffMetrics,
 } from "./storage"
 import { log } from "../../shared/logger"
 import type { RegisterContextOptions } from "../context-injector/types"
@@ -28,6 +43,17 @@ import { buildEmbeddingIndexEntries, generateEmbeddingVectors } from "./embeddin
 import type { SessionReferenceConfig } from "../../config/schema"
 import { executeActiveHandoff, buildQuickHandoff } from "./launcher"
 import { parseHandoffCommand, isManagementCommand, type ParsedHandoffCommand, type ManagementSubcommand } from "./command-parser"
+import {
+  RecoveryPatternDetector,
+  addOrMergePattern,
+  type ToolExecution,
+} from "./recovery-detector"
+import {
+  CitationTracker,
+  determineSessionOutcome,
+  isArchitecturalHandoff,
+  checkL3Promotion,
+} from "./citation-tracker"
 
 // ============================================================================
 // Constants
@@ -36,11 +62,37 @@ import { parseHandoffCommand, isManagementCommand, type ParsedHandoffCommand, ty
 const HANDOFF_RESULT_TAG_OPEN = "<session-handoff-result>"
 const HANDOFF_RESULT_TAG_CLOSE = "</session-handoff-result>"
 
+const MAX_TRACKED_MESSAGES = 200
+const MAX_TRACKED_TOOL_CALLS = 200
+const MAX_MESSAGE_CHARS = 4000
+
 // ============================================================================
 // Session State Tracking
 // ============================================================================
 
 const sessionStates = new Map<string, SessionRuntimeState>()
+
+/**
+ * Extended session state with recovery patterns
+ */
+interface ExtendedSessionState extends SessionRuntimeState {
+  /** Recovery patterns detected during session */
+  recoveryPatterns: RecoveryPattern[]
+  /** IDs of handoffs injected into this session */
+  injectedHandoffIds: string[]
+}
+
+const extendedSessionStates = new Map<string, ExtendedSessionState>()
+
+/**
+ * Recovery pattern detectors per session
+ */
+const recoveryDetectors = new Map<string, RecoveryPatternDetector>()
+
+/**
+ * In-flight extraction tasks per session (to prevent duplicate work)
+ */
+const extractionTasks = new Map<string, Promise<boolean>>()
 
 // ============================================================================
 // Hook Context
@@ -58,6 +110,12 @@ export interface SessionHandoffHookContext {
   collector?: {
     register: (sessionId: string, entry: RegisterContextOptions) => void
   }
+  /** Scoring configuration for injection (optional) */
+  scoringConfig?: InjectorScoringConfig
+  /** Enable recovery pattern detection (default: true) */
+  enableRecoveryPatterns?: boolean
+  /** Enable citation tracking (default: true) */
+  enableCitationTracking?: boolean
 }
 
 // ============================================================================
@@ -68,9 +126,38 @@ export interface SessionHandoffHookContext {
  * Create session handoff hooks
  */
 export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
-  const { config, cwd, callLLM, collector, embed, sessionReferenceConfig } = ctx
+  const {
+    config,
+    cwd,
+    callLLM,
+    collector,
+    embed,
+    sessionReferenceConfig,
+    scoringConfig,
+    enableRecoveryPatterns = true,
+    enableCitationTracking = true,
+  } = ctx
 
   const deps: ExtractorDependencies = { callLLM }
+
+  // Citation tracker for updating handoff metrics
+  const citationTracker = enableCitationTracking
+    ? new CitationTracker(
+        // Update metrics callback
+        async (handoffId, updater) => {
+          try {
+            await updateHandoffMetrics(handoffId, updater)
+          } catch (e) {
+            log("[session-handoff] Failed to update metrics", { handoffId, error: String(e) })
+          }
+        },
+        // L3 promotion callback
+        async (handoffId, reason) => {
+          log("[session-handoff] L3 promotion candidate", { handoffId, reason })
+          // L3 promotion is handled in storage.ts updateHandoffMetrics
+        }
+      )
+    : null
 
   /**
    * Get or create session state
@@ -91,6 +178,31 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
   }
 
   /**
+   * Get or create extended session state (with recovery patterns)
+   */
+  function getExtendedState(sessionId: string): ExtendedSessionState {
+    if (!extendedSessionStates.has(sessionId)) {
+      const baseState = getState(sessionId)
+      extendedSessionStates.set(sessionId, {
+        ...baseState,
+        recoveryPatterns: [],
+        injectedHandoffIds: [],
+      })
+    }
+    return extendedSessionStates.get(sessionId)!
+  }
+
+  /**
+   * Get or create recovery detector for session
+   */
+  function getRecoveryDetector(sessionId: string): RecoveryPatternDetector {
+    if (!recoveryDetectors.has(sessionId)) {
+      recoveryDetectors.set(sessionId, new RecoveryPatternDetector())
+    }
+    return recoveryDetectors.get(sessionId)!
+  }
+
+  /**
    * Handle session start - inject relevant handoffs
    */
   async function handleSessionStart(sessionId: string, initialPrompt?: string): Promise<void> {
@@ -108,9 +220,34 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
       }
     }
 
-    // Generate and inject content
-    const content = generateInjectionContent(cwd, config, initialPrompt)
-    if (!content) return
+    // Select handoffs for injection (with scoring if enabled)
+    const selectedHandoffs = selectHandoffsForInjection(
+      cwd,
+      config,
+      initialPrompt,
+      scoringConfig
+    )
+
+    if (selectedHandoffs.length === 0) {
+      state.injected = true
+      return
+    }
+
+    // Track injected handoff IDs for citation tracking
+    const extState = getExtendedState(sessionId)
+    extState.injectedHandoffIds = selectedHandoffs.map((h) => h.id)
+
+    // Notify citation tracker
+    if (citationTracker && extState.injectedHandoffIds.length > 0) {
+      await citationTracker.onHandoffsInjected(sessionId, extState.injectedHandoffIds)
+    }
+
+    // Format content using unified renderer
+    const content = renderMultipleHandoffsForInjection(selectedHandoffs, cwd)
+    if (!content) {
+      state.injected = true
+      return
+    }
 
     if (collector) {
       collector.register(sessionId, {
@@ -123,7 +260,12 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
     }
 
     state.injected = true
-    log("[session-handoff] Injected context", { sessionId, contentLength: content.length })
+    log("[session-handoff] Injected context", {
+      sessionId,
+      contentLength: content.length,
+      handoffCount: selectedHandoffs.length,
+      handoffIds: selectedHandoffs.map((h) => h.id.slice(0, 15)),
+    })
   }
 
   /**
@@ -133,10 +275,12 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
    * assistant message if it exists and was recent (within 30s), rather than adding duplicates.
    */
   function trackMessage(sessionId: string, role: "user" | "assistant", content: string, isUpdate = false): void {
-    if (!config.enabled || !config.auto_extract) return
+    if (!config.enabled) return
 
     const state = getState(sessionId)
     const now = Date.now()
+    const normalizedContent =
+      content.length > MAX_MESSAGE_CHARS ? content.slice(0, MAX_MESSAGE_CHARS) + "..." : content
 
     // For assistant message updates, check if we should update the last message
     // instead of adding a new one (handles streaming updates)
@@ -144,7 +288,7 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
       const lastMsg = state.messages[state.messages.length - 1]
       // If last message is assistant and within 30s, update it instead of adding
       if (lastMsg.role === "assistant" && now - lastMsg.timestamp < 30000) {
-        lastMsg.content = content
+        lastMsg.content = normalizedContent
         lastMsg.timestamp = now
         return
       }
@@ -152,9 +296,13 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
 
     state.messages.push({
       role,
-      content,
+      content: normalizedContent,
       timestamp: now,
     })
+
+    while (state.messages.length > MAX_TRACKED_MESSAGES) {
+      state.messages.shift()
+    }
   }
 
   /**
@@ -167,10 +315,13 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
     result: string,
     success: boolean
   ): void {
-    if (!config.enabled || !config.auto_extract) return
+    if (!config.enabled) return
 
     const state = getState(sessionId)
     state.toolCalls.push({ tool, args, result, success })
+    while (state.toolCalls.length > MAX_TRACKED_TOOL_CALLS) {
+      state.toolCalls.shift()
+    }
 
     // Track file changes
     const toolName = tool.toLowerCase()
@@ -196,6 +347,8 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
 
     // Skip if already extracted
     if (state.extracted) return
+
+    const extractionInFlight = extractionTasks.has(sessionId)
 
     // Check minimum message requirement
     if (state.messages.length < config.min_messages_for_extract) {
@@ -226,11 +379,8 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
       return
     }
 
-    // For async extraction, mark extracted before starting to prevent duplicate attempts
-    // For sync extraction, we'll mark it after successful completion
-    if (config.async_extraction) {
-      state.extracted = true
-    }
+    // Get extended state for recovery patterns
+    const extState = extendedSessionStates.get(sessionId)
 
     // Capture state for extraction (don't delete - session may continue)
     const capturedState = {
@@ -239,15 +389,55 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
       messages: [...state.messages],
       toolCalls: [...state.toolCalls],
       fileChanges: [...state.fileChanges],
+      recoveryPatterns: extState?.recoveryPatterns ?? [],
     }
 
-    const success = await performExtraction(sessionId, capturedState, "idle")
-
-    // For sync extraction, only mark as extracted if successful
-    // This allows retry on next idle if extraction failed
-    if (!config.async_extraction) {
+    if (config.async_extraction) {
+      if (!extractionInFlight) {
+        const task = performExtraction(sessionId, capturedState, "idle")
+        extractionTasks.set(sessionId, task)
+        task
+          .then((success) => {
+            if (success) {
+              state.extracted = true
+            }
+          })
+          .finally(() => {
+            extractionTasks.delete(sessionId)
+          })
+      }
+    } else {
+      const success = await performExtraction(sessionId, capturedState, "idle")
       state.extracted = success
     }
+
+    // Cache intermediate outcome for citation tracking (not final settlement)
+    // Final settlement happens in handleSessionDeleted
+    if (citationTracker && extState?.injectedHandoffIds.length) {
+      const outcome = determineSessionOutcome(
+        state.messages,
+        [...state.fileChanges],
+        Date.now() - state.startTime
+      )
+      // Only record intermediate outcome, don't settle yet
+      // Session may continue after idle
+      citationTracker.recordIntermediateOutcome(sessionId, outcome)
+      log("[session-handoff] Cached intermediate citation outcome", {
+        sessionId,
+        outcome,
+        injectedCount: extState.injectedHandoffIds.length,
+      })
+    }
+  }
+
+  /**
+   * Clean up all session-related state
+   */
+  function cleanupSessionState(sessionId: string): void {
+    sessionStates.delete(sessionId)
+    extendedSessionStates.delete(sessionId)
+    recoveryDetectors.delete(sessionId)
+    extractionTasks.delete(sessionId)
   }
 
   /**
@@ -256,10 +446,47 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
    */
   async function handleSessionDeleted(sessionId: string): Promise<void> {
     const state = sessionStates.get(sessionId)
-    if (!state) return
+    if (!state) {
+      // Ensure cleanup even if base state is missing
+      cleanupSessionState(sessionId)
+      return
+    }
 
-    // If not yet extracted, try now
-    if (!state.extracted && config.enabled && config.auto_extract) {
+    // Final settlement of citation tracking on session deletion
+    // This is the authoritative point where we update handoff metrics
+    const extStateForCitations = extendedSessionStates.get(sessionId)
+    if (
+      citationTracker &&
+      extStateForCitations?.injectedHandoffIds.length &&
+      citationTracker.hasPendingCitation(sessionId)
+    ) {
+      // Compute final outcome (may override cached intermediate outcome)
+      const finalOutcome = determineSessionOutcome(
+        state.messages,
+        [...state.fileChanges],
+        Date.now() - state.startTime
+      )
+      // Use onSessionSettled for final settlement (updates citationCount + authorityScore)
+      await citationTracker.onSessionSettled(sessionId, finalOutcome)
+      log("[session-handoff] Settled citation tracking", {
+        sessionId,
+        outcome: finalOutcome,
+        injectedCount: extStateForCitations.injectedHandoffIds.length,
+      })
+    }
+
+    // If extraction is still running, await it before deciding whether to retry
+    const pendingExtraction = extractionTasks.get(sessionId)
+    if (pendingExtraction) {
+      try {
+        await pendingExtraction
+      } finally {
+        extractionTasks.delete(sessionId)
+      }
+    }
+
+    // If no handoff exists yet, try extraction now
+    if (config.enabled && config.auto_extract && !findHandoffBySessionId(sessionId)) {
       // Check thresholds
       const shouldExtract =
         state.messages.length >= config.min_messages_for_extract &&
@@ -267,16 +494,20 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
         !findHandoffBySessionId(sessionId)
 
       if (shouldExtract) {
+        // Get extended state for recovery patterns
+        const extState = extendedSessionStates.get(sessionId)
+
         const capturedState = {
           projectPath: state.projectPath,
           startTime: state.startTime,
           messages: [...state.messages],
           toolCalls: [...state.toolCalls],
           fileChanges: [...state.fileChanges],
+          recoveryPatterns: extState?.recoveryPatterns ?? [],
         }
 
-        // Clean up state first
-        sessionStates.delete(sessionId)
+        // Clean up all state first
+        cleanupSessionState(sessionId)
 
         await performExtraction(sessionId, capturedState, "deleted")
         return
@@ -284,12 +515,12 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
     }
 
     // Just clean up
-    sessionStates.delete(sessionId)
+    cleanupSessionState(sessionId)
   }
 
   /**
    * Perform the actual extraction
-   * @returns true if extraction succeeded (for sync mode), always true for async mode
+   * @returns true if extraction succeeded
    */
   async function performExtraction(
     sessionId: string,
@@ -299,6 +530,7 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
       messages: Array<{ role: "user" | "assistant"; content: string; timestamp: number }>
       toolCalls: Array<{ tool: string; args: Record<string, unknown>; result: string; success: boolean }>
       fileChanges: string[]
+      recoveryPatterns?: RecoveryPattern[]
     },
     trigger: "idle" | "deleted"
   ): Promise<boolean> {
@@ -315,6 +547,22 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
         )
 
         const pkg = await createHandoffPackage(context, config, deps)
+
+        // Add recovery patterns if available
+        if (capturedState.recoveryPatterns && capturedState.recoveryPatterns.length > 0) {
+          // Keep most recent patterns to protect prompt budget
+          pkg.payload.recoveryPatterns = capturedState.recoveryPatterns.slice(-10)
+          log("[session-handoff] Added recovery patterns to handoff", {
+            sessionId,
+            patternCount: pkg.payload.recoveryPatterns.length,
+          })
+        }
+
+        // Initialize metrics
+        pkg.metrics = {
+          ...DEFAULT_HANDOFF_METRICS,
+          isArchitectural: isArchitecturalHandoff(pkg),
+        }
 
         if (config.extractor.generate_embeddings && embed) {
           try {
@@ -341,6 +589,8 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
           decisions: pkg.payload.decisions.length,
           artifacts: pkg.payload.artifacts.length,
           antiPatterns: pkg.payload.antiPatterns.length,
+          recoveryPatterns: pkg.payload.recoveryPatterns?.length ?? 0,
+          isArchitectural: pkg.metrics?.isArchitectural,
           embeddings: pkg.embeddingIndex?.length ?? 0,
           trigger,
           async: config.async_extraction,
@@ -358,17 +608,7 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
       }
     }
 
-    if (config.async_extraction) {
-      // Non-blocking: fire and forget
-      doExtraction().catch(() => {
-        // Error already logged inside doExtraction
-      })
-      // For async, we return true immediately (caller already set extracted=true)
-      return true
-    } else {
-      // Blocking: wait for completion and return success status
-      return doExtraction()
-    }
+    return doExtraction()
   }
 
   /**
@@ -632,8 +872,10 @@ Unknown subcommand: \`${subcommand}\``
 No session state found. Please try again after some interaction in this session.`
     }
 
+    const extState = getExtendedState(sessionID)
+
     // Check if we have enough context for full extraction
-    const hasEnoughContext = state.messages.length >= 3 || state.fileChanges.size >= 1
+    const hasEnoughContext = extState.messages.length >= 3 || extState.fileChanges.size >= 1
 
     try {
       if (hasEnoughContext) {
@@ -645,7 +887,7 @@ No session state found. Please try again after some interaction in this session.
           launchMode: "preview",
         }
 
-        const result = await executeActiveHandoff(request, deps, state, config)
+        const result = await executeActiveHandoff(request, deps, extState, config)
 
         log("[session-handoff] active handoff executed", {
           sessionID,
@@ -826,7 +1068,10 @@ ${HANDOFF_RESULT_TAG_CLOSE}`
       // On first message, inject handoffs
       const state = getState(sessionID)
       if (!state.injected) {
-        await handleSessionStart(sessionID, promptText)
+        // Avoid injecting on management commands (e.g., first prompt is "/handoff list")
+        if (!promptText.trim().startsWith("/handoff")) {
+          await handleSessionStart(sessionID, promptText)
+        }
       }
 
       // Track the message (skip /handoff commands - they're system commands)
@@ -906,6 +1151,11 @@ ${HANDOFF_RESULT_TAG_CLOSE}`
           if (state) {
             state.injected = false
           }
+          // Reset recovery detector buffer on compaction
+          const detector = recoveryDetectors.get(sessionID)
+          if (detector) {
+            detector.reset()
+          }
         }
       }
 
@@ -940,6 +1190,33 @@ ${HANDOFF_RESULT_TAG_CLOSE}`
         output.output.slice(0, 1000), // Truncate result
         success
       )
+
+      // Recovery pattern detection
+      if (enableRecoveryPatterns && config.enabled) {
+        const detector = getRecoveryDetector(input.sessionID)
+        const execution: ToolExecution = {
+          tool: input.tool,
+          args: args || {},
+          success,
+          error: success ? undefined : output.output.slice(0, 500),
+          result: success ? output.output.slice(0, 200) : undefined,
+          timestamp: Date.now(),
+        }
+
+        const pattern = detector.onToolExecuted(execution)
+        if (pattern) {
+          const extState = getExtendedState(input.sessionID)
+          extState.recoveryPatterns = addOrMergePattern(extState.recoveryPatterns, pattern)
+
+          log("[session-handoff] Detected recovery pattern", {
+            sessionId: input.sessionID,
+            patternId: pattern.id,
+            failureCount: pattern.failureSequence.length,
+            errorCategory: pattern.contextSignature.errorCategory,
+            toolChain: pattern.contextSignature.toolChain,
+          })
+        }
+      }
     },
 
     // Expose internal functions for testing and manual use
@@ -967,4 +1244,7 @@ ${HANDOFF_RESULT_TAG_CLOSE}`
  */
 export function clearAllSessionStates(): void {
   sessionStates.clear()
+  extendedSessionStates.clear()
+  recoveryDetectors.clear()
+  extractionTasks.clear()
 }

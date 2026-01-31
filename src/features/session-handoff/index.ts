@@ -25,6 +25,22 @@ export type {
   EmbeddingIndexEntry,
   HandoffIndex,
   HandoffIndexEntry,
+  HandoffIndexVersion,
+  HandoffMetricsSummary,
+  // Recovery pattern types
+  RecoveryPattern,
+  FailedAttempt,
+  SuccessfulResolution,
+  RecoveryInsight,
+  ContextSignature,
+  RecoveryPatternStats,
+  ErrorCategory,
+  // Metrics types
+  HandoffMetrics,
+  HalfLifeConfig,
+  ScoringWeights,
+  ScoredHandoff,
+  L3PromotionReason,
   // Session state types (unified)
   TrackedMessage,
   TrackedToolCall,
@@ -47,7 +63,13 @@ export type {
 } from "./types"
 
 // Constant and utility exports
-export { DEFAULT_HANDOFF_CONFIG, toSessionSnapshot } from "./types"
+export {
+  DEFAULT_HANDOFF_CONFIG,
+  DEFAULT_HANDOFF_METRICS,
+  DEFAULT_HALF_LIFE_CONFIG,
+  DEFAULT_SCORING_WEIGHTS,
+  toSessionSnapshot,
+} from "./types"
 
 // Storage exports
 export {
@@ -61,6 +83,7 @@ export {
   findRecentHandoffs,
   findHandoffBySessionId,
   getRecentSessionHandoffs,
+  updateHandoffMetrics,
   cleanupExpired,
   shouldRunCleanup,
   saveEmbeddings,
@@ -103,7 +126,10 @@ export {
 // Injector exports
 export {
   selectHandoffsForInjection,
+  selectHandoffsWithScores,
+  formatInjectionContent,
   generateInjectionContent,
+  type InjectorScoringConfig,
 } from "./injector"
 
 // Hook exports
@@ -153,3 +179,63 @@ export {
   type ParsedHandoffCommand,
   type ManagementSubcommand,
 } from "./command-parser"
+
+// Recovery pattern detector exports
+export {
+  RecoveryPatternDetector,
+  classifyError,
+  isSameIntent,
+  shouldMergePatterns,
+  mergePatterns,
+  addOrMergePattern,
+  type ToolExecution,
+  type RecoveryDetectorConfig,
+  DEFAULT_RECOVERY_DETECTOR_CONFIG,
+} from "./recovery-detector"
+
+// Citation tracker exports
+export {
+  CitationTracker,
+  calculateAuthorityScore,
+  isArchitecturalHandoff,
+  checkL3Promotion,
+  createMetricsSummary,
+  determineSessionOutcome,
+  hasCompletionMarker,
+  hasBlockingErrors,
+  type SessionOutcome,
+} from "./citation-tracker"
+
+// Scoring exports
+export {
+  calculateFreshness,
+  calculateKeywordRelevance,
+  computeHandoffScore,
+  computeHandoffScoreWithEmbedding,
+  scoreAndRankHandoffs,
+  filterByMinScore,
+  explainScore,
+  validateWeights,
+  normalizeWeights,
+  type ScoringConfig,
+  DEFAULT_SCORING_CONFIG,
+} from "./scoring"
+
+// Renderer exports (unified formatting)
+export {
+  renderHandoffForInjection,
+  renderHandoffForReference,
+  renderHandoffPrompt,
+  renderHandoffSummary,
+  renderMultipleHandoffsForInjection,
+  renderSection,
+  formatDecision,
+  formatArtifact,
+  formatAntiPattern,
+  formatRecoveryPattern,
+  getAgeString,
+  summarizeArgs,
+  truncateError,
+  type RenderOptions,
+  type FormatDecisionOptions,
+} from "./renderer"

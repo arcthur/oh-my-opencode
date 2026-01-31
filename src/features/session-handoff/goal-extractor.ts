@@ -290,6 +290,9 @@ export function filterPayloadByGoal(
   // Anti-patterns: ALWAYS keep all (failure experience is universally valuable)
   const allAntiPatterns = payload.antiPatterns
 
+  // Recovery patterns: ALWAYS keep all (proven failure→fix journeys are universally valuable)
+  const allRecoveryPatterns = payload.recoveryPatterns
+
   return {
     payload: {
       decisions: filteredDecisions,
@@ -297,6 +300,7 @@ export function filterPayloadByGoal(
       antiPatterns: allAntiPatterns,
       domainContext: filteredContext,
       remainingTasks: payload.remainingTasks,
+      recoveryPatterns: allRecoveryPatterns,
     },
     stats: {
       decisionsKept: filteredDecisions.length,

@@ -7,27 +7,31 @@ Session Handoff provides structured knowledge extraction and transfer between se
 A **Handoff Package** is a structured "graduation certificate" for a completed session, containing transferable knowledge for future sessions working on related tasks.
 
 ```mermaid
-flowchart TD
-    subgraph SessionEnd["Session Completes"]
-        SM[Session Messages<br/>+ Tool calls<br/>+ Decisions]
-    end
-
-    subgraph Extraction["Extract"]
-        HP[HandoffPackage<br/>structured]
+flowchart TB
+    subgraph Extraction["Extraction Phase"]
+        SM["Session<br/>Messages + Tools + Files"]
+        EXT["Extract + Detect Recovery"]
+        HP["HandoffPackage<br/>• decisions[]<br/>• artifacts[]<br/>• antiPatterns[]<br/>• recoveryPatterns[]<br/>• metrics"]
     end
 
     subgraph Storage["Storage"]
-        FS["~/.config/opencode/<br/>oh-my-opencode/<br/>handoffs/"]
+        FS["~/.config/opencode/<br/>oh-my-opencode/handoffs/"]
     end
 
-    SM -->|extract| HP
-    HP -->|store| FS
+    subgraph Injection["Injection Phase"]
+        SCORE["Multi-Factor Scoring<br/>Score = R×0.5 + F×0.25 + A×0.25"]
+        INJ["Inject Top N"]
+        NS["New Session Context"]
+    end
 
-    HP --- D["- decisions[]"]
-    HP --- A["- artifacts[]"]
-    HP --- AP["- antiPatterns[]"]
-    HP --- DC["- domainContext"]
+    SM --> EXT --> HP --> FS
+    FS --> SCORE --> INJ --> NS
 ```
+
+**Scoring Factors:**
+- **R** (Relevance): Keyword matching (embedding-ready, falls back to lexical)
+- **F** (Freshness): Temporal decay with half-life
+- **A** (Authority): Citation success rate
 
 ### Motivation
 
@@ -37,13 +41,17 @@ flowchart TD
 - Re-discovering failed approaches
 - Inconsistent coding patterns across sessions
 - Manual context rebuilding via copy-paste
+- Repeating the same mistakes without knowing the fix
 
 **Solution**: Structured knowledge transfer that preserves:
 
-- **Decisions** - What was chosen and why
-- **Artifacts** - What was created or modified
-- **Anti-patterns** - What failed and should be avoided
-- **Domain knowledge** - Insights about the codebase
+| Knowledge Type | What It Captures | Value |
+|---------------|------------------|-------|
+| **Decisions** | What was chosen and why | Prevents re-discussion |
+| **Artifacts** | What was created or modified | Maps the changes |
+| **Anti-patterns** | What failed and should be avoided | Warns against approaches |
+| **Recovery Patterns** | Failure sequences that led to success | Shows the fix path |
+| **Domain Knowledge** | Insights about the codebase | Transfers tacit knowledge |
 
 ### Design Philosophy
 
@@ -55,210 +63,14 @@ flowchart TD
 | **Lazy extraction** | Handoffs created on-demand or at session idle, not continuously |
 | **Declarative reference** | `@session:id` syntax is explicit and parseable |
 | **Goal-oriented transfer** | Active handoffs filter context by goal relevance |
+| **Authority-weighted injection** | Proven-useful handoffs rank higher |
+| **Recovery-aware** | Captures not just failures, but how they were fixed |
 
 ---
 
-## Active Handoff (Goal-Oriented)
+## Core Schemas
 
-Active Handoff transforms the handoff mechanism from "passive archive" to "active task launcher". Instead of waiting for session end, users can proactively transfer context with a specific goal.
-
-### Usage
-
-```
-/handoff <goal>
-```
-
-**Examples:**
-- `/handoff execute phase one of the plan`
-- `/handoff check if this bug exists elsewhere`
-- `/handoff build admin panel for this feature`
-- `/handoff complete the authentication tests`
-
-### When to Use
-
-| Situation | Recommended Action |
-|-----------|-------------------|
-| Context limit reached, work ongoing | `/handoff <next-goal>` |
-| Compact failed multiple times | `/handoff <continue-goal>` |
-| Starting focused work on specific aspect | `/handoff <specific-task>` |
-| Session naturally ending | Automatic extraction on idle |
-| Minor token reduction needed | Let compact run |
-
-### Active Handoff Flow
-
-```mermaid
-flowchart TD
-    U["User: /handoff ..."]
-    P["1. Parse command"]
-    P1{"Management command?<br/>(list/show/delete/cleanup)"}
-    P2["2a. Execute management<br/>(self-contained in hook)"]
-    P3["Return result via<br/>chat.message rewrite"]
-    G["2b. Goal-oriented handoff"]
-    E["3. Extract session context"]
-    E1["Messages + Tool calls"]
-    E2["File changes"]
-    E3["LLM extraction (if enough context)"]
-    F["4. Filter by goal relevance"]
-    F1["Score decisions by keyword match"]
-    F2["Score artifacts by file keywords"]
-    F3["ALWAYS keep all anti-patterns"]
-    B["5. Build handoff prompt"]
-    B1["Preamble (source info)"]
-    B2["Goal statement"]
-    B3["Filtered decisions"]
-    B4["Anti-patterns (all)"]
-    B5["Key files"]
-    B6["Remaining tasks"]
-    S["6. Save handoff package"]
-    R["7. Return prompt via<br/>chat.message rewrite"]
-
-    U --> P --> P1
-    P1 -->|Yes| P2
-    P2 --> P3
-    P1 -->|No| G
-    G --> E
-    E --> E1 & E2 & E3
-    E1 & E2 & E3 --> F
-    F --> F1 & F2 & F3
-    F1 & F2 & F3 --> B
-    B --> B1 & B2 & B3 & B4 & B5 & B6
-    B1 & B2 & B3 & B4 & B5 & B6 --> S
-    S --> R
-```
-
-> **Note**: All `/handoff` commands are self-contained within the session-handoff hook. Management commands (list/show/delete/cleanup) execute directly and return results. Goal-oriented handoffs extract context and generate prompts. Both paths use `chat.message` hook to rewrite the user message, ensuring results are displayed to the user.
-
-### Goal Filtering
-
-The goal extractor filters payload items by relevance to the specified goal:
-
-**Scoring Logic:**
-1. Extract keywords from goal text (excluding common stop words)
-2. Extract file-related keywords (extensions, directories)
-3. Score each item:
-   - Decisions: keyword overlap in what/chosen/why + related files
-   - Artifacts: file path + summary keyword matches
-   - Domain context: keyword overlap
-4. Normalize scores and filter by threshold
-
-**Important:** Anti-patterns are **ALWAYS** preserved in full. Failed approaches are universally valuable regardless of the current goal.
-
-### Active Handoff Types
-
-```typescript
-interface ActiveHandoffRequest {
-  /** The goal/task for the new session */
-  goal: string
-
-  /** Source session ID */
-  sourceSessionId: string
-
-  /** Project path */
-  projectPath: string
-
-  /** Launch mode: auto creates new session, preview returns prompt only */
-  launchMode: "auto" | "preview"
-}
-
-interface ActiveHandoffResult {
-  /** The created handoff package */
-  handoffPackage: HandoffPackage
-
-  /** The generated prompt for the new session */
-  prompt: string
-
-  /** New session ID (if launchMode was "auto") */
-  newSessionId?: string
-
-  /** User-facing message describing what happened */
-  message: string
-
-  /** Count of decisions transferred */
-  decisionsTransferred: number
-
-  /** Count of anti-patterns transferred */
-  antiPatternsTransferred: number
-
-  /** Key files included */
-  keyFiles: string[]
-}
-```
-
-### Handoff Prompt Structure
-
-When `/handoff <goal>` is executed, the generated prompt follows this structure:
-
-```markdown
-## Session Handoff
-
-This session continues from a previous session (ho_xxx).
-The following context has been transferred to help you accomplish the goal.
-
----
-
-## Goal
-
-<user's goal text>
-
-## Key Decisions
-
-These decisions were made in the previous session and should guide your approach:
-
-1. **Decision topic**
-   - Chose: chosen approach
-   - Reason: rationale
-   - Rejected: alternatives
-   - Files: related files
-
-## Domain Knowledge
-
-Important insights about this codebase:
-
-- insight 1
-- insight 2
-
-## Approaches to AVOID
-
-These approaches were tried and FAILED. Do NOT repeat them:
-
-1. **Failed approach**: reason for failure
-   - Error: error signature
-   - Context: where it failed
-
-## Relevant Files
-
-Files from the previous session:
-
-- [+] `path/to/new.ts`: summary
-- [~] `path/to/modified.ts`: summary
-
-## Remaining Tasks
-
-Tasks carried over from the previous session:
-
-- [ ] task 1
-- [ ] task 2
-
----
-
-**Instructions**: Use the context above to accomplish the stated goal.
-If any previous decision conflicts with the goal, prioritize the goal.
-Avoid the documented anti-patterns unless you have a specific reason to revisit them.
-```
-
-### Integration with Compact Recovery
-
-When all compact recovery phases fail, the system suggests using handoff:
-
-```
-Toast: "Recovery Exhausted - Consider /handoff <goal> for a fresh session with context."
-```
-
-This guides users to use handoff as an alternative to lossy summarization when context limits are reached.
-
----
-
-## HandoffPackage Schema
+### HandoffPackage
 
 ```typescript
 interface HandoffPackage {
@@ -271,7 +83,7 @@ interface HandoffPackage {
   /** Creation timestamp */
   createdAt: number
 
-  /** Expiration timestamp (default: 7 days) */
+  /** Expiration timestamp (default: 7 days, L3 promoted: never) */
   expiresAt: number
 
   /** Package metadata */
@@ -280,30 +92,32 @@ interface HandoffPackage {
   /** Knowledge payload */
   payload: HandoffPayload
 
-  /**
-   * Embedding index metadata for semantic search (lazy-computed).
-   * Vectors are stored separately in `handoffs/embeddings/{id}.bin`.
-   */
+  /** Embedding index metadata for semantic search (lazy-computed, optional) */
   embeddingIndex?: EmbeddingIndexEntry[]
+
+  /** Usage metrics for scoring and L3 promotion */
+  metrics?: HandoffMetrics
 }
 
+// EmbeddingIndexEntry (optional, for semantic search)
 interface EmbeddingIndexEntry {
-  /** Stable identifier for this entry */
-  id: string
-
-  /** The embedded content */
-  content: string
-
-  /** Category: decision, artifact, antiPattern, domainContext */
+  id: string                    // e.g., "ho_xxx:decision:0"
+  content: string               // Normalized text for embedding
   category: "decision" | "artifact" | "antiPattern" | "domainContext"
-
-  /** Index within category */
-  index: number
-
-  /** Index into `handoffs/embeddings/{handoffId}.bin` */
-  vectorIndex: number
+  index: number                 // Index within category
+  vectorIndex: number           // Index into binary vector file
 }
+```
 
+**Embeddings (Optional)**:
+- When `extractor.generate_embeddings: true` AND an `embed` function is provided, embedding vectors are generated and stored in `handoffs/embeddings/*.bin`
+- When disabled or unavailable, the system falls back to keyword-based relevance scoring
+- Embeddings enable `computeHandoffScoreWithEmbedding()` for true semantic similarity
+- Storage path: `~/.config/opencode/oh-my-opencode/handoffs/embeddings/` (cross-platform via Node.js `homedir()`)
+
+### HandoffMetadata
+
+```typescript
 interface HandoffMetadata {
   /** Original goal/request from the session */
   originalGoal: string
@@ -339,10 +153,13 @@ interface HandoffPayload {
 
   /** Remaining tasks (optional, for continuation) */
   remainingTasks?: string[]
+
+  /** Recovery patterns: failure sequences that led to success */
+  recoveryPatterns?: RecoveryPattern[]
 }
 ```
 
-## Decision Schema
+### Decision
 
 Decisions are the most valuable part of a handoff - they capture **why** choices were made.
 
@@ -373,7 +190,7 @@ interface RejectedAlternative {
 }
 ```
 
-**Example Decision:**
+**Example:**
 
 ```json
 {
@@ -381,17 +198,15 @@ interface RejectedAlternative {
   "chosen": "Zustand with persist middleware",
   "why": "Simpler API than Redux, built-in persistence, good TypeScript support",
   "rejected": [
-    { "approach": "Redux Toolkit", "reason": "Overkill for this use case, more boilerplate" },
-    { "approach": "React Context", "reason": "No built-in persistence, prop drilling issues" }
+    { "approach": "Redux Toolkit", "reason": "Overkill for this use case" },
+    { "approach": "React Context", "reason": "No built-in persistence" }
   ],
-  "relatedFiles": ["src/stores/preferences.ts", "src/hooks/usePreferences.ts"],
+  "relatedFiles": ["src/stores/preferences.ts"],
   "category": "architecture"
 }
 ```
 
-## Artifact Schema
-
-Artifacts track what files were created or modified, providing a map of changes.
+### Artifact
 
 ```typescript
 interface Artifact {
@@ -410,15 +225,9 @@ interface Artifact {
   /** Dependencies this file introduced or modified */
   dependencies?: string[]
 }
-
-interface LineRange {
-  start: number
-  end: number
-  description: string
-}
 ```
 
-## AntiPattern Schema
+### AntiPattern
 
 Anti-patterns prevent future sessions from repeating failed experiments.
 
@@ -438,195 +247,479 @@ interface AntiPattern {
 }
 ```
 
-**Example AntiPattern:**
+**Limitation**: AntiPattern only captures "what failed", not "how it was fixed". For the complete recovery journey, see RecoveryPattern below.
 
-```json
-{
-  "approach": "Using native fetch for file uploads",
-  "reason": "No built-in progress tracking, had to switch to axios",
-  "errorSignature": "Cannot read property 'onUploadProgress' of undefined",
-  "context": "Large file upload feature in src/components/FileUploader.tsx"
+### RecoveryPattern
+
+Recovery patterns capture the complete "failure → fix" journey, providing actionable guidance.
+
+```typescript
+/**
+ * A captured recovery sequence: failures followed by successful resolution.
+ * More actionable than AntiPattern because it includes "what worked".
+ */
+interface RecoveryPattern {
+  /** Unique identifier (format: "rp_{timestamp}_{hash}") */
+  id: string
+
+  /** Sequence of failed attempts leading to resolution */
+  failureSequence: FailedAttempt[]
+
+  /** The successful resolution */
+  resolution: SuccessfulResolution
+
+  /** LLM-generated lesson learned (populated async) */
+  insight?: RecoveryInsight
+
+  /** Context signature for matching similar scenarios */
+  contextSignature: ContextSignature
+
+  /** Statistics */
+  stats: RecoveryPatternStats
+}
+
+interface FailedAttempt {
+  tool: string
+  args: Record<string, unknown>  // Sanitized - no secrets
+  error: string
+  timestamp: number
+}
+
+interface SuccessfulResolution {
+  tool: string
+  args: Record<string, unknown>
+  result: string
+  timestamp: number
+}
+
+interface RecoveryInsight {
+  /** One-sentence summary of the lesson */
+  summary: string
+
+  /** What to verify BEFORE attempting similar operations */
+  precheck: string
+
+  /** The critical change that led to success */
+  keyDifference: string
+
+  /** Confidence in the insight (0-1) */
+  confidence: number
+}
+
+interface ContextSignature {
+  /** File patterns involved (e.g., ["*.tsx", "package.json"]) */
+  filePatterns: string[]
+
+  /** Error category for matching */
+  errorCategory: ErrorCategory
+
+  /** Tool chain that was used */
+  toolChain: string[]
+}
+
+type ErrorCategory =
+  | "type-error"
+  | "module-not-found"
+  | "syntax-error"
+  | "runtime-error"
+  | "permission-denied"
+  | "network-error"
+  | "validation-error"
+  | "unknown"
+```
+
+**AntiPattern vs RecoveryPattern:**
+
+| Aspect | AntiPattern | RecoveryPattern |
+|--------|-------------|-----------------|
+| **Captures** | Single failure | Failure sequence + resolution |
+| **Value** | "Avoid this" | "Do this instead" |
+| **Trigger** | LLM extraction (subjective) | Tool execution events (objective) |
+| **Confidence** | Depends on LLM interpretation | High (observed success) |
+
+### HandoffMetrics
+
+Metrics track handoff usage and effectiveness for scoring.
+
+```typescript
+interface HandoffMetrics {
+  /** Number of times this handoff was injected into a session */
+  citationCount: number
+
+  /** Number of sessions where injection led to successful outcome */
+  successfulCitations: number
+
+  /** Timestamp of most recent citation */
+  lastCitedAt: number
+
+  /** Whether this contains architectural decisions (longer half-life) */
+  isArchitectural: boolean
+
+  /** Whether user manually pinned this handoff */
+  manualPinned: boolean
+
+  /** Computed authority score (0-1), updated on citation */
+  authorityScore: number
+
+  /** IDs of sessions that cited this handoff (max 20, FIFO) */
+  citedBySessions: string[]
+}
+
+// Default for new handoffs
+const DEFAULT_HANDOFF_METRICS: HandoffMetrics = {
+  citationCount: 0,
+  successfulCitations: 0,
+  lastCitedAt: 0,
+  isArchitectural: false,
+  manualPinned: false,
+  authorityScore: 0.5,  // Neutral starting point
+  citedBySessions: [],
 }
 ```
 
 ---
 
-## Passive Extraction Flow
+## Active Handoff (Goal-Oriented)
 
-This flow runs automatically on session idle to archive session knowledge.
+Active Handoff transforms the handoff mechanism from "passive archive" to "active task launcher". Instead of waiting for session end, users can proactively transfer context with a specific goal.
+
+### Usage
+
+```
+/handoff <goal>
+```
+
+**Examples:**
+- `/handoff execute phase one of the plan`
+- `/handoff check if this bug exists elsewhere`
+- `/handoff build admin panel for this feature`
+
+### When to Use
+
+| Situation | Recommended Action |
+|-----------|-------------------|
+| Context limit reached, work ongoing | `/handoff <next-goal>` |
+| Compact failed multiple times | `/handoff <continue-goal>` |
+| Starting focused work on specific aspect | `/handoff <specific-task>` |
+| Session naturally ending | Automatic extraction on idle |
+
+### Active Handoff Flow
 
 ```mermaid
 flowchart TD
-    T["1. Trigger<br/>(session.idle OR /handoff &lt;goal&gt;)"]
-    L["2. Load session messages<br/>(via session-manager)"]
-    B["3. Build extraction context"]
-    B1["Filter to meaningful exchanges"]
-    B2["Identify tool calls with significant results"]
-    B3["Extract file modification events"]
-    LLM["4. LLM extraction<br/>(using HANDOFF_EXTRACTION_PROMPT)"]
-    LLM1["Model: configurable (default: haiku)"]
-    LLM2["Reuse summarizer session pool"]
-    LLM3["Circuit breaker for resilience"]
-    P["5. Parse and validate response"]
-    P1["Zod schema validation"]
-    P2["Fallback to metadata-only if LLM fails"]
-    E["6. Generate embedding index (if configured)"]
-    E1["Embed decisions, artifacts, antiPatterns separately"]
-    E2["Persist vectors to handoffs/embeddings/*.bin"]
-    S["7. Store HandoffPackage"]
-    S1["Save to ~/.config/opencode/oh-my-opencode/handoffs/{id}.json"]
-    S2["Update handoffs/index.json"]
-    S3["Atomic write for safety"]
+    U["User: /handoff &lt;goal&gt;"]
+    P["Parse Command"]
+    P1{"Management<br/>Command?"}
+    P2["Execute directly<br/>(list/show/delete/cleanup)"]
+    P3["Return via chat.message"]
+    G["Goal-oriented handoff"]
+    E["Extract Context"]
+    E1["Messages"]
+    E2["Tool calls"]
+    E3["File changes"]
+    E4["Recovery patterns"]
+    F["Filter by Goal"]
+    F1["Score decisions"]
+    F2["Score artifacts"]
+    F3["Keep ALL anti-patterns"]
+    B["Build Prompt"]
+    S["Save + Return"]
 
-    T --> L --> B
-    B --> B1 & B2 & B3
-    B1 & B2 & B3 --> LLM
-    LLM --> LLM1 & LLM2 & LLM3
-    LLM1 & LLM2 & LLM3 --> P
-    P --> P1 & P2
-    P1 & P2 --> E
-    E --> E1 & E2
-    E1 & E2 --> S
-    S --> S1 & S2 & S3
+    U --> P --> P1
+    P1 -->|Yes| P2 --> P3
+    P1 -->|No| G --> E
+    E --> E1 & E2 & E3 & E4
+    E1 & E2 & E3 & E4 --> F
+    F --> F1 & F2 & F3
+    F1 & F2 & F3 --> B --> S
 ```
 
-## Extraction Prompt
+### Goal Filtering
 
-The extraction prompt aligns with `compaction-context-injector` structure but focuses on **cross-session value**:
+The goal extractor filters payload items by relevance:
+
+1. Extract keywords from goal text (excluding stop words)
+2. Extract file-related keywords (extensions, directories)
+3. Score each item by keyword overlap
+4. Normalize scores and filter by threshold
+
+**Important:** Anti-patterns and recovery patterns are **ALWAYS** preserved (not filtered out) by goal filtering.
+They may still be *rendered* with per-mode caps to protect prompt budget.
+
+### Rendered Template
+
+Both Active Handoff and Auto-Injection use the same base template, with minor differences:
+
+| Aspect | Active Handoff (`/handoff <goal>`) | Auto-Injection (session start) |
+|--------|-----------------------------------|-------------------------------|
+| **Header** | "Session Handoff" | "Previous Session Context" |
+| **Goal section** | User-provided goal | Original session goal |
+| **Staleness warning** | Not included | Included if files modified |
+| **Filtering** | Filtered by goal relevance | All content included |
+| **Rendering** | Full prompt template | Compact multi-handoff blocks (token-efficient) |
+
+**Template Structure:**
+
+```markdown
+## [Header]
+
+[Introduction text]
+
+---
+
+## Goal
+<goal text>
+
+## Key Decisions
+1. **Decision topic**
+   - Chose: chosen approach
+   - Reason: rationale
+   - Rejected: alternatives
+
+## Recovery Patterns
+When you encounter similar errors, use these proven solutions:
+
+### RP-1: [ErrorCategory]
+**Failures:**
+1. `[Tool] [args]` → Error: [message]
+2. `[Tool] [args]` → Error: [message]
+
+**Resolution:**
+`[Tool] [args]` → [result]
+
+**Lesson:** [insight.summary]
+**Precheck:** [insight.precheck]
+
+## Approaches to AVOID
+- ❌ [approach]: [reason]
+
+## Domain Knowledge
+- [context item 1]
+- [context item 2]
+
+## Remaining Tasks
+- [ ] task 1
+- [ ] task 2
+```
+
+**Token Budget**: Anti-patterns and recovery patterns are capped at 10 items each during extraction (`extractor.ts` + recovery merge).
+Auto-injection may apply stricter per-section caps during rendering to keep startup context small.
+
+---
+
+## Passive Extraction Flow
+
+Automatic extraction on session idle:
+
+```mermaid
+flowchart TD
+    IDLE["session.idle event"]
+    CHECK{"Meets threshold?<br/>(msgs ≥ 5, files ≥ 1)"}
+    SKIP["Skip extraction"]
+    BUILD["Build context<br/>Messages + Tools + Files"]
+    LLM["LLM Extract<br/>(haiku default)"]
+    PARSE["Parse payload:<br/>• decisions<br/>• artifacts<br/>• antiPatterns<br/>• domainContext<br/>• remainingTasks"]
+    MERGE["Merge recovery patterns<br/>(accumulated in real-time)"]
+    METRICS["Initialize metrics<br/>(isArchitectural detection)"]
+    STORE["Store handoffs/{id}.json"]
+
+    IDLE --> CHECK
+    CHECK -->|No| SKIP
+    CHECK -->|Yes| BUILD --> LLM --> PARSE
+    PARSE --> MERGE --> METRICS --> STORE
+```
+
+**Important**: Recovery patterns are detected **in real-time** via `tool.execute.after` hook (see below), then **merged** into the handoff package on idle. The LLM extraction handles decisions/artifacts/antiPatterns/domainContext/remainingTasks.
+
+### Recovery Pattern Detection
+
+Recovery patterns are detected in real-time by monitoring tool execution:
+
+```mermaid
+flowchart TD
+    TE["tool.execute.after event"]
+    BUF["Add to sliding window<br/>(max 10 executions)"]
+    SUC{"Execution<br/>succeeded?"}
+    SKIP["Continue monitoring"]
+    SCAN["Scan backward for<br/>consecutive failures"]
+    SAME{"Failures target<br/>same intent?"}
+    COUNT{"≥2 failures<br/>before success?"}
+    BUILD["Build RecoveryPattern"]
+    SIG["Extract context signature"]
+    ADD["Add to session patterns"]
+
+    TE --> BUF --> SUC
+    SUC -->|No| SKIP
+    SUC -->|Yes| SCAN --> SAME
+    SAME -->|No| SKIP
+    SAME -->|Yes| COUNT
+    COUNT -->|No| SKIP
+    COUNT -->|Yes| BUILD --> SIG --> ADD
+```
+
+**Same-Intent Detection:**
+
+| Tool | Same Intent Criteria |
+|------|---------------------|
+| `Edit` / `Write` / `Read` | Same `file_path` |
+| `Bash` | Same command prefix (`npm`, `git`, etc.) |
+| `Grep` / `Glob` | Same `pattern` |
+| Other | Same tool name |
+
+**Error Classification:**
 
 ```typescript
-const HANDOFF_EXTRACTION_PROMPT = `
-You are extracting transferable knowledge from a completed coding session.
-
-Focus ONLY on information valuable to FUTURE sessions working on RELATED tasks.
-
-## Extraction Guidelines
-
-### Decisions (max 10)
-Extract technical decisions with clear rationale.
-- Focus on "why" over "what" - code can be re-read, reasoning cannot
-- Include rejected alternatives to prevent re-exploration
-- Tag with category: architecture | implementation | tooling | convention
-
-### Artifacts (max 20)
-List files created/modified with their purpose.
-- Include line ranges for significant changes
-- Note new dependencies introduced
-- Skip trivial changes (typo fixes, formatting)
-
-### Anti-Patterns (critical)
-Document approaches that FAILED.
-- Include error signatures when available
-- Explain why the approach didn't work
-- This prevents future sessions from repeating failures
-
-### Domain Context
-Capture non-obvious insights about the codebase:
-- Component relationships not evident from imports
-- Naming conventions and patterns
-- Gotchas and quirks
-- Performance considerations discovered
-
-## Output Format
-
-Return a JSON object matching the HandoffPayload schema.
-
-## Exclusions
-
-Do NOT include:
-- Debugging attempts that were just exploration
-- Typo fixes and formatting changes
-- Generic programming knowledge
-- Information obvious from reading the files
-`
+function classifyError(error: string): ErrorCategory {
+  // type-error: "Type error", "cannot assign", "is not assignable"
+  // module-not-found: "Cannot find module", "no such file", "ENOENT"
+  // syntax-error: "SyntaxError", "unexpected token", "parsing error"
+  // permission-denied: "EACCES", "permission denied"
+  // network-error: "ECONNREFUSED", "fetch failed"
+  // validation-error: "validation", "invalid", "required field"
+  // runtime-error: "runtime", "uncaught", "exception"
+  // unknown: fallback
+}
 ```
 
 ---
 
 ## Injection Flow
 
-When a new session starts, relevant handoffs are automatically injected:
+When a new session starts, relevant handoffs are automatically injected using multi-factor scoring.
+
+### Multi-Factor Scoring
+
+```
+Final Score = (Relevance × 0.5) + (Freshness × 0.25) + (Authority × 0.25)
+```
+
+| Factor | Description | Range |
+|--------|-------------|-------|
+| **Relevance** | Keyword overlap with query (embedding-ready) | 0-1 |
+| **Freshness** | Temporal decay (newer = higher) | 0-1 |
+| **Authority** | Citation success rate | 0-1 |
+
+**1. Relevance Calculation (Keyword-Based, Embedding-Ready):**
+
+Current implementation uses keyword matching. When embeddings are enabled, use `computeHandoffScoreWithEmbedding()` for true semantic similarity.
+
+```typescript
+function calculateKeywordRelevance(handoff: HandoffPackage, query: string): number {
+  // Extract meaningful words from query (excluding stop words)
+  // Count matches in handoff content (goal, decisions, files, domainContext)
+  // Return match ratio (0 = no overlap, 1 = full overlap)
+}
+```
+
+**2. Freshness Calculation (Half-Life Decay):**
+
+```typescript
+function calculateFreshness(metrics: HandoffMetrics, createdAt: number): number {
+  // Pinned → always 1.0
+  // Architectural → 90-day half-life
+  // Default → 14-day half-life
+  //
+  // freshness = 0.5^(ageDays / halfLifeDays)
+}
+```
+
+```mermaid
+xychart-beta
+    title "Freshness Decay Curves"
+    x-axis "Days" [0, 14, 28, 42, 56, 70, 84]
+    y-axis "Freshness" 0 --> 1
+    line "Pinned" [1, 1, 1, 1, 1, 1, 1]
+    line "Architectural (90d)" [1, 0.9, 0.81, 0.73, 0.66, 0.59, 0.54]
+    line "Default (14d)" [1, 0.5, 0.25, 0.125, 0.06, 0.03, 0.015]
+```
+
+**3. Authority Calculation (Bayesian-smoothed):**
+
+Authority is derived from citation success history, with Bayesian smoothing to avoid cold-start penalty.
+
+```typescript
+function calculateAuthorityScore(metrics: HandoffMetrics): number {
+  const { citationCount, successfulCitations } = metrics
+
+  // Beta(1, 1) prior expressed as pseudo-counts:
+  // priorSuccesses = 1, priorTotal = 2 => neutral 0.5 at citationCount = 0
+  const priorSuccesses = 1
+  const priorTotal = 2
+
+  const smoothedSuccessRate =
+    (successfulCitations + priorSuccesses) / (citationCount + priorTotal)
+
+  const citationBoost = Math.log10(citationCount + 1) / 2
+  return Math.min(1.0, smoothedSuccessRate * (1 + citationBoost))
+}
+```
+
+| Citations | Successful | Authority (examples) |
+|-----------|------------|----------------------|
+| 0 | 0 | 0.50 (neutral) |
+| 1 | 0 | 0.33 (mild drop, not 0) |
+| 1 | 1 | ~0.77 |
+| 10 | 8 | 1.00 (capped) |
+
+### Citation Tracking
 
 ```mermaid
 flowchart TD
-    SS["1. Session starts<br/>(user.prompt.submit, first message)"]
-    F["2. Find relevant handoffs"]
-    F1["Filter by projectPath"]
-    F2["Filter by expiration"]
-    F3["Semantic similarity ranking<br/>(if initial prompt available)"]
-    SEL["3. Select top N handoffs<br/>(default: 3)"]
-    FMT["4. Format for injection"]
-    FMT1["Prioritize decisions and antiPatterns"]
-    FMT2["Truncate if exceeds token budget"]
-    FMT3["Add source attribution"]
-    INJ["5. Inject via hook-message-injector"]
-    INJ1["Priority: normal<br/>(after user-memory baseline)"]
-    INJ2["Once per session<br/>(not per message)"]
+    INJ["Handoff injected<br/>into session"]
+    PEND["Record pending citation<br/>(no metrics update yet)"]
+    RUN["Session runs..."]
+    IDLE["session.idle (optional)"]
+    CACHE["Cache intermediate outcome<br/>(not final)"]
+    DEL["session.deleted (final)"]
+    SETTLE["Settle citation once"]
+    UPDATE["Update metrics per handoff:<br/>• citationCount++<br/>• successfulCitations++ (if completed)<br/>• lastCitedAt<br/>• citedBySessions<br/>• authorityScore<br/>Check L3 promotion"]
 
-    SS --> F
-    F --> F1 & F2 & F3
-    F1 & F2 & F3 --> SEL
-    SEL --> FMT
-    FMT --> FMT1 & FMT2 & FMT3
-    FMT1 & FMT2 & FMT3 --> INJ
-    INJ --> INJ1 & INJ2
+    INJ --> PEND --> RUN
+    RUN --> IDLE --> CACHE
+    RUN --> DEL --> SETTLE --> UPDATE
 ```
 
-## Injection Format
+**Two-phase model:**
+- **Injection** records a *pending citation* (no `citationCount` / `authorityScore` update).
+- **Idle** may cache an *intermediate outcome* (the session can continue).
+- **Deletion** is the authoritative settlement point: metrics are updated exactly once.
+
+### L3 Promotion (Long-Term Preservation)
+
+High-value handoffs are promoted to L3 (exempt from expiration):
+
+| Rule | Trigger |
+|------|---------|
+| `proven-valuable` | ≥3 successful citations |
+| `architectural-decision` | Contains architecture/convention decisions |
+| `user-pinned` | User manually pinned |
+| `high-authority` | Authority score ≥0.8 |
+
+L3 handoffs:
+- Never expire (exempt from cleanup)
+- Get extended half-life (architectural = 90 days)
+- Are prioritized in injection
+
+### Injection-Specific: Staleness Warning
+
+When auto-injecting, if related files have been modified since the handoff was created, a staleness warning is prepended:
 
 ```markdown
-## Previous Session Context
-
-The following context was extracted from recent sessions on this project.
-
-### Session: ho_1706500000_abc123 (2 days ago)
-**Goal**: Implement user authentication system
-
 ⚠️ **Staleness Warning**: 60% of related files have been modified since this session.
 Modified: src/stores/auth.ts, src/api/interceptors.ts
-*Some decisions or context may be outdated. Verify before applying.*
-
-**Key Decisions:**
-1. **JWT storage**: Chose httpOnly cookies over localStorage
-   - Why: XSS protection, automatic inclusion in requests
-   - Rejected: localStorage (XSS vulnerable), sessionStorage (no persistence)
-
-2. **Token refresh**: Implemented silent refresh with interceptor
-   - Why: Better UX than forcing re-login
-   - Related: src/api/interceptors.ts
-
-**Avoid These Approaches:**
-- ❌ Storing refresh token in memory: Lost on page reload
-- ❌ Using axios instance without interceptor: Refresh logic duplicated
-
-**Domain Knowledge:**
-- Auth state lives in src/stores/auth.ts, syncs with cookie on load
-- All protected routes check useAuth() hook, not direct store access
+*Some decisions may be outdated. Verify before applying.*
 ```
 
----
+This is **not** included in active handoff prompts (since they're created from the current session).
 
-## Staleness Detection
+### Staleness Detection
 
-When injecting handoffs, the system checks if related files have been modified after the handoff was created. This helps prevent outdated decisions from being applied blindly.
+When injecting, the system checks if related files have been modified:
 
-**Detection Logic:**
-1. Check all `keyFiles` and `artifacts` mentioned in the handoff
-2. Use `git log` to get accurate file modification times (falls back to filesystem mtime)
-3. Calculate staleness percentage: `modifiedFiles.length / totalFiles.length`
-
-**Staleness Triggers:**
 - **>50% files modified** → Mark as stale
 - **Handoff >3 days old AND any file modified** → Mark as stale
 
-**Warning Format:**
-```markdown
-⚠️ **Staleness Warning**: 60% of related files have been modified since this session.
-Modified: src/foo.ts, src/bar.ts and 3 more
-*Some decisions or context may be outdated. Verify before applying.*
-```
-
-This helps the LLM understand that handoff content may be outdated and should be verified against current code.
+This helps the LLM understand that handoff content may be outdated.
 
 ---
 
@@ -635,7 +728,7 @@ This helps the LLM understand that handoff content may be outdated and should be
 ```
 ~/.config/opencode/oh-my-opencode/
 └── handoffs/
-    ├── index.json                    # Metadata index for quick lookup
+    ├── index.json                    # Metadata index (v1 or v2)
     ├── ho_1706500000_abc123.json     # Individual handoff packages
     ├── ho_1706400000_def456.json
     └── embeddings/
@@ -643,18 +736,23 @@ This helps the LLM understand that handoff content may be outdated and should be
         └── ho_1706400000_def456.bin
 ```
 
-**Index Schema:**
+### Index Schema
 
 ```typescript
+type HandoffIndexVersion = 1 | 2
+
 interface HandoffIndex {
   /** Schema version */
-  version: 1
+  version: HandoffIndexVersion
 
   /** Indexed handoffs */
   handoffs: HandoffIndexEntry[]
 
   /** Last cleanup timestamp */
   lastCleanup: number
+
+  /** L3 promoted handoff IDs (exempt from expiration, v2+) */
+  l3Promoted?: string[]
 }
 
 interface HandoffIndexEntry {
@@ -667,6 +765,17 @@ interface HandoffIndexEntry {
   outcome: "completed" | "partial" | "blocked"
   decisionCount: number
   artifactCount: number
+
+  /** Metrics summary for quick filtering (v2+) */
+  metricsSummary?: {
+    authorityScore: number
+    citationCount: number
+    isArchitectural: boolean
+    manualPinned: boolean
+  }
+
+  /** Count of recovery patterns (v2+) */
+  recoveryPatternCount?: number
 }
 ```
 
@@ -679,11 +788,6 @@ interface HandoffIndexEntry {
 | Command | Description |
 |---------|-------------|
 | `/handoff <goal>` | Create goal-oriented handoff with context transfer |
-
-**Examples:**
-- `/handoff execute phase one of the plan`
-- `/handoff check if this bug exists elsewhere`
-- `/handoff build admin panel for this feature`
 
 ### Management Commands
 
@@ -712,7 +816,7 @@ interface SessionHandoffConfig {
   /** Minimum messages for auto-extraction */
   min_messages_for_extract: number  // default: 5
 
-  /** Minimum file modifications for auto-extraction (prevents chat-only sessions) */
+  /** Minimum file modifications for auto-extraction */
   min_file_changes_for_extract: number  // default: 1
 
   /** Maximum handoffs to inject */
@@ -726,18 +830,38 @@ interface SessionHandoffConfig {
 
   /** Extractor configuration */
   extractor: {
-    /** Model for extraction (haiku is cost-effective) */
     model: "haiku" | "sonnet" | "opus"  // default: "haiku"
-
-    /** Maximum decisions to extract */
     max_decisions: number  // default: 10
-
-    /** Maximum artifacts to track */
     max_artifacts: number  // default: 20
-
-    /** Generate embedding index */
     generate_embeddings: boolean  // default: true
   }
+}
+```
+
+**Scoring Configuration** (in code, via `InjectorScoringConfig`):
+
+```typescript
+interface ScoringConfig {
+  weights: {
+    relevance: number   // default: 0.5
+    freshness: number   // default: 0.25
+    authority: number   // default: 0.25
+  }
+  halfLife: {
+    default: number       // default: 14 (days)
+    architectural: number // default: 90 (days)
+  }
+  minScore: number  // default: 0.25
+}
+```
+
+**Recovery Pattern Configuration** (in code, via `RecoveryDetectorConfig`):
+
+```typescript
+interface RecoveryDetectorConfig {
+  minFailures: number  // default: 2
+  maxFailures: number  // default: 5
+  windowSize: number   // default: 10
 }
 ```
 
@@ -745,27 +869,14 @@ interface SessionHandoffConfig {
 
 ---
 
-## Known Limitations
-
-| Limitation | Impact | Mitigation |
-|------------|--------|------------|
-| LLM extraction cost | Each session idle may incur API cost | Use haiku model, skip short sessions |
-| Extraction quality | Depends on LLM's understanding | Structured prompt, fallback to metadata |
-| Storage growth | Handoffs accumulate over time | Auto-expiry, cleanup command |
-| Cross-project isolation | Handoffs filtered by project path | Could miss related work in different paths |
-| Goal filtering accuracy | Keyword-based scoring may miss semantic relevance | Anti-patterns always preserved; manual review recommended |
-| Manual session start | Active handoff returns prompt; user must start new session | Future: auto-launch with session API |
-| Quick handoff limits | Minimal context when session has few tracked changes | Falls back to file list only |
-
----
-
 ## Module Structure
 
 ```
 src/features/session-handoff/
-├── types.ts              # Core types and config
+├── types.ts              # Core types, schemas, defaults
 ├── extractor.ts          # LLM-based knowledge extraction
-├── injector.ts           # Handoff injection into sessions
+├── injector.ts           # Handoff injection selection (scoring + ranking)
+├── renderer.ts           # Unified formatting (prompt/injection/reference)
 ├── storage.ts            # Filesystem persistence
 ├── embeddings.ts         # Semantic search support
 ├── summarizer.ts         # Circuit-breaker wrapped summarizer
@@ -773,5 +884,43 @@ src/features/session-handoff/
 ├── goal-extractor.ts     # Goal-relevance filtering
 ├── prompt-builder.ts     # Handoff prompt construction
 ├── launcher.ts           # Active handoff execution
+├── staleness.ts          # Git-based staleness detection
+├── reference-resolver.ts # @session:id resolution
+├── command-parser.ts     # /handoff command parsing
+├── recovery-detector.ts  # Recovery pattern detection
+├── citation-tracker.ts   # Citation tracking + outcome
+├── scoring.ts            # Multi-factor scoring
 └── index.ts              # Public exports
 ```
+
+---
+
+## Known Limitations
+
+### Extraction & Detection
+
+| Limitation | Impact | Mitigation |
+|------------|--------|------------|
+| LLM extraction cost | Each session may incur API cost | Use haiku model, skip short sessions |
+| Extraction quality | Depends on LLM understanding | Structured prompt, fallback to metadata |
+| Same-intent heuristics | May miss related failures | Conservative matching, manual review |
+| Window size limit | Long failure sequences truncated | Configurable window size |
+
+### Scoring & Metrics
+
+| Limitation | Impact | Mitigation |
+|------------|--------|------------|
+| Cold start | New handoffs have no history | Neutral default score (0.5) |
+| Outcome detection | Heuristic-based success detection | Conservative success criteria |
+| Settlement latency | Authority and citation metrics update on `session.deleted` (final), not on every `idle` | Treat as eventual consistency; use manual pinning for immediately-important handoffs |
+| Citation tracking overhead | Additional storage I/O | Batch updates, async writes |
+| Architectural detection | Heuristic-based | User can manually pin |
+
+### Storage & Lifecycle
+
+| Limitation | Impact | Mitigation |
+|------------|--------|------------|
+| Storage growth | Handoffs accumulate | Auto-expiry (7 days default), cleanup command |
+| L3 no demotion | Once promoted, stays promoted | Manual cleanup |
+| Cross-project isolation | Filtered by project path | Could miss related work in different paths |
+| Goal filtering accuracy | Keyword-based scoring | Anti-patterns always preserved |

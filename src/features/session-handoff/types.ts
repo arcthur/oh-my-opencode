@@ -33,6 +33,9 @@ export interface HandoffPackage {
 
   /** Embedding index for semantic search (lazy-computed) */
   embeddingIndex?: EmbeddingIndexEntry[]
+
+  /** Usage metrics for scoring and L3 promotion (added in schema v2) */
+  metrics?: HandoffMetrics
 }
 
 /**
@@ -76,6 +79,9 @@ export interface HandoffPayload {
 
   /** Remaining tasks (optional, for continuation) */
   remainingTasks?: string[]
+
+  /** Captured recovery patterns: failure sequences that led to success */
+  recoveryPatterns?: RecoveryPattern[]
 }
 
 // ============================================================================
@@ -164,6 +170,228 @@ export interface AntiPattern {
 }
 
 // ============================================================================
+// Recovery Pattern Types
+// ============================================================================
+
+/**
+ * Error category for pattern matching
+ */
+export type ErrorCategory =
+  | "type-error"
+  | "module-not-found"
+  | "syntax-error"
+  | "runtime-error"
+  | "permission-denied"
+  | "network-error"
+  | "validation-error"
+  | "unknown"
+
+/**
+ * A failed tool attempt in a recovery sequence
+ */
+export interface FailedAttempt {
+  /** Tool that failed */
+  tool: string
+
+  /** Tool arguments (sanitized - no secrets) */
+  args: Record<string, unknown>
+
+  /** Error message or failure indicator */
+  error: string
+
+  /** Timestamp of attempt */
+  timestamp: number
+}
+
+/**
+ * A successful resolution that followed failures
+ */
+export interface SuccessfulResolution {
+  /** Tool that succeeded */
+  tool: string
+
+  /** Tool arguments */
+  args: Record<string, unknown>
+
+  /** Success indicator or result summary */
+  result: string
+
+  /** Timestamp of success */
+  timestamp: number
+}
+
+/**
+ * LLM-generated insight about a recovery pattern
+ */
+export interface RecoveryInsight {
+  /** One-sentence summary of the lesson */
+  summary: string
+
+  /** What to verify BEFORE attempting similar operations */
+  precheck: string
+
+  /** The critical change that led to success */
+  keyDifference: string
+
+  /** Confidence in the insight (0-1) */
+  confidence: number
+}
+
+/**
+ * Context signature for matching similar recovery scenarios
+ */
+export interface ContextSignature {
+  /** File patterns involved (e.g., ["*.tsx", "package.json"]) */
+  filePatterns: string[]
+
+  /** Error category for matching */
+  errorCategory: ErrorCategory
+
+  /** Tool chain that was used */
+  toolChain: string[]
+}
+
+/**
+ * Statistics for a recovery pattern
+ */
+export interface RecoveryPatternStats {
+  /** Number of times this pattern has been observed */
+  occurrences: number
+
+  /** Timestamp of first observation */
+  firstSeen: number
+
+  /** Timestamp of most recent observation */
+  lastSeen: number
+
+  /** Number of times this pattern was successfully applied in injection */
+  successfulApplications: number
+}
+
+/**
+ * A captured recovery sequence: failures followed by successful resolution.
+ * More actionable than AntiPattern because it includes "what worked".
+ */
+export interface RecoveryPattern {
+  /** Unique identifier (format: "rp_{timestamp}_{hash}") */
+  id: string
+
+  /** Sequence of failed attempts leading to resolution */
+  failureSequence: FailedAttempt[]
+
+  /** The successful resolution */
+  resolution: SuccessfulResolution
+
+  /** LLM-generated lesson learned (populated async) */
+  insight?: RecoveryInsight
+
+  /** Context signature for matching similar scenarios */
+  contextSignature: ContextSignature
+
+  /** Statistics */
+  stats: RecoveryPatternStats
+}
+
+// ============================================================================
+// Handoff Metrics Types
+// ============================================================================
+
+/**
+ * Usage metrics for a handoff package.
+ * Tracks citation history and successful application rate.
+ */
+export interface HandoffMetrics {
+  /** Number of times this handoff was injected into a session */
+  citationCount: number
+
+  /** Number of sessions where injection led to successful outcome */
+  successfulCitations: number
+
+  /** Timestamp of most recent citation */
+  lastCitedAt: number
+
+  /** Whether this contains architectural decisions (longer half-life) */
+  isArchitectural: boolean
+
+  /** Whether user manually pinned this handoff */
+  manualPinned: boolean
+
+  /** Computed authority score (0-1), updated on citation */
+  authorityScore: number
+
+  /** IDs of sessions that cited this handoff (max 20, FIFO) */
+  citedBySessions: string[]
+}
+
+/**
+ * Default metrics for new handoffs
+ */
+export const DEFAULT_HANDOFF_METRICS: HandoffMetrics = {
+  citationCount: 0,
+  successfulCitations: 0,
+  lastCitedAt: 0,
+  isArchitectural: false,
+  manualPinned: false,
+  authorityScore: 0.5, // Neutral starting point
+  citedBySessions: [],
+}
+
+/**
+ * Half-life configuration for temporal decay
+ */
+export interface HalfLifeConfig {
+  /** Default half-life in days */
+  default: number
+
+  /** Half-life for architectural decisions */
+  architectural: number
+}
+
+/**
+ * Default half-life configuration
+ */
+export const DEFAULT_HALF_LIFE_CONFIG: HalfLifeConfig = {
+  default: 14,
+  architectural: 90,
+}
+
+/**
+ * Scoring weights configuration
+ */
+export interface ScoringWeights {
+  /** Weight for semantic relevance (0-1) */
+  relevance: number
+
+  /** Weight for temporal freshness (0-1) */
+  freshness: number
+
+  /** Weight for authority score (0-1) */
+  authority: number
+}
+
+/**
+ * Default scoring weights (must sum to 1.0)
+ */
+export const DEFAULT_SCORING_WEIGHTS: ScoringWeights = {
+  relevance: 0.5,
+  freshness: 0.25,
+  authority: 0.25,
+}
+
+/**
+ * Handoff with computed score for injection selection
+ */
+export interface ScoredHandoff {
+  handoff: HandoffPackage
+  score: number
+  components: {
+    relevance: number
+    freshness: number
+    authority: number
+  }
+}
+
+// ============================================================================
 // Embedding Types
 // ============================================================================
 
@@ -194,15 +422,36 @@ export interface EmbeddingIndexEntry {
 // Index Types (for storage)
 // ============================================================================
 
+/**
+ * Handoff index schema version
+ */
+export type HandoffIndexVersion = 1 | 2
+
+/**
+ * Handoff index (v2 with metrics support)
+ */
 export interface HandoffIndex {
   /** Schema version */
-  version: 1
+  version: HandoffIndexVersion
 
   /** Indexed handoffs */
   handoffs: HandoffIndexEntry[]
 
   /** Last cleanup timestamp */
   lastCleanup: number
+
+  /** L3 promoted handoff IDs (exempt from expiration) */
+  l3Promoted?: string[]
+}
+
+/**
+ * Metrics summary for quick filtering (stored in index)
+ */
+export interface HandoffMetricsSummary {
+  authorityScore: number
+  citationCount: number
+  isArchitectural: boolean
+  manualPinned: boolean
 }
 
 export interface HandoffIndexEntry {
@@ -215,7 +464,22 @@ export interface HandoffIndexEntry {
   outcome: "completed" | "partial" | "blocked"
   decisionCount: number
   artifactCount: number
+
+  /** Metrics summary for scoring without loading full package */
+  metricsSummary?: HandoffMetricsSummary
+
+  /** Count of recovery patterns */
+  recoveryPatternCount?: number
 }
+
+/**
+ * L3 promotion reasons
+ */
+export type L3PromotionReason =
+  | "proven-valuable"
+  | "architectural-decision"
+  | "user-pinned"
+  | "high-authority"
 
 // ============================================================================
 // Configuration (re-exported from schema - single source of truth)

@@ -3,147 +3,85 @@
  *
  * Injects relevant handoff context into new sessions.
  * Handles handoff selection and content formatting for injection.
+ *
+ * Delegates all formatting to the unified renderer.
  */
 
 import type {
   HandoffPackage,
   SessionHandoffConfig,
-  Decision,
-  AntiPattern,
+  ScoredHandoff,
+  ScoringWeights,
+  HalfLifeConfig,
 } from "./types"
+import { DEFAULT_HALF_LIFE_CONFIG, DEFAULT_SCORING_WEIGHTS } from "./types"
 import { findHandoffsForProject, loadHandoff } from "./storage"
 import { log } from "../../shared/logger"
-import { checkHandoffStaleness, formatStalenessWarning } from "./staleness"
+import { renderMultipleHandoffsForInjection } from "./renderer"
+import {
+  scoreAndRankHandoffs,
+  filterByMinScore,
+  type ScoringConfig,
+  DEFAULT_SCORING_CONFIG,
+} from "./scoring"
 
 // Re-export reference resolver for backward compatibility
 export { resolveSessionReference, type ResolveSessionReferenceOptions } from "./reference-resolver"
 
 // ============================================================================
-// Injection Formatting
+// Scoring Configuration
 // ============================================================================
 
-/**
- * Get human-readable age string
- */
-function getAgeString(timestamp: number): string {
-  const ageMs = Date.now() - timestamp
-  const ageHours = ageMs / (1000 * 60 * 60)
-
-  if (ageHours < 1) return "just now"
-  if (ageHours < 24) return `${Math.round(ageHours)} hours ago`
-  const ageDays = Math.round(ageHours / 24)
-  if (ageDays === 1) return "yesterday"
-  return `${ageDays} days ago`
+export interface InjectorScoringConfig {
+  /** Enable authority-based scoring (default: true) */
+  enabled?: boolean
+  /** Scoring weights */
+  weights?: Partial<ScoringWeights>
+  /** Half-life configuration */
+  halfLife?: Partial<HalfLifeConfig>
+  /** Minimum score for injection (default: 0.25) */
+  minScore?: number
 }
 
-/**
- * Format a decision for display
- * @param decision The decision to format
- * @param index Optional 1-based index for numbered lists (omit for bullet format)
- */
-function formatDecision(decision: Decision, index?: number): string {
-  const lines: string[] = []
-  const prefix = index !== undefined ? `${index}.` : "-"
-
-  lines.push(`${prefix} **${decision.what}**: ${decision.chosen}`)
-  lines.push(`   - Why: ${decision.why}`)
-
-  if (decision.rejected && decision.rejected.length > 0) {
-    const rejectedList = decision.rejected
-      .slice(0, 2)
-      .map((r) => `${r.approach} (${r.reason})`)
-      .join(", ")
-    lines.push(`   - Rejected: ${rejectedList}`)
-  }
-
-  if (decision.relatedFiles && decision.relatedFiles.length > 0) {
-    lines.push(`   - Related: ${decision.relatedFiles.join(", ")}`)
-  }
-
-  return lines.join("\n")
-}
-
-/**
- * Format an anti-pattern for display
- */
-function formatAntiPattern(ap: AntiPattern): string {
-  let line = `- ${ap.approach}: ${ap.reason}`
-  if (ap.context) {
-    line += ` (in ${ap.context})`
-  }
-  return line
-}
-
-/**
- * Format a single handoff for injection
- */
-function formatHandoffForInjection(pkg: HandoffPackage, projectPath?: string): string {
-  const lines: string[] = []
-
-  const age = getAgeString(pkg.createdAt)
-  lines.push(`### Session: ${pkg.id} (${age})`)
-  lines.push(`**Goal**: ${pkg.metadata.originalGoal}`)
-  lines.push("")
-
-  // Add staleness warning if project path provided
-  if (projectPath) {
-    const staleness = checkHandoffStaleness(pkg, projectPath)
-    const warning = formatStalenessWarning(staleness)
-    if (warning) {
-      lines.push(warning)
-    }
-  }
-
-  // Decisions
-  if (pkg.payload.decisions.length > 0) {
-    lines.push("**Key Decisions:**")
-    pkg.payload.decisions.slice(0, 5).forEach((decision, idx) => {
-      lines.push(`${formatDecision(decision, idx + 1)}`)
-    })
-    lines.push("")
-  }
-
-  // Anti-patterns
-  if (pkg.payload.antiPatterns.length > 0) {
-    lines.push("**Avoid These Approaches:**")
-    for (const ap of pkg.payload.antiPatterns.slice(0, 5)) {
-      lines.push(formatAntiPattern(ap))
-    }
-    lines.push("")
-  }
-
-  // Domain knowledge
-  if (pkg.payload.domainContext.length > 0) {
-    lines.push("**Domain Knowledge:**")
-    for (const ctx of pkg.payload.domainContext.slice(0, 5)) {
-      lines.push(`- ${ctx}`)
-    }
-    lines.push("")
-  }
-
-  // Remaining tasks
-  if (pkg.payload.remainingTasks && pkg.payload.remainingTasks.length > 0) {
-    lines.push("**Remaining Tasks:**")
-    for (const task of pkg.payload.remainingTasks) {
-      lines.push(`- [ ] ${task}`)
-    }
-    lines.push("")
-  }
-
-  return lines.join("\n")
-}
 
 // ============================================================================
 // Handoff Selection
 // ============================================================================
 
 /**
+ * Build scoring config from injector config
+ */
+function buildScoringConfig(injectorConfig?: InjectorScoringConfig): ScoringConfig {
+  if (!injectorConfig?.enabled) {
+    return DEFAULT_SCORING_CONFIG
+  }
+
+  return {
+    weights: {
+      ...DEFAULT_SCORING_WEIGHTS,
+      ...injectorConfig.weights,
+    },
+    halfLife: {
+      ...DEFAULT_HALF_LIFE_CONFIG,
+      ...injectorConfig.halfLife,
+    },
+    minScore: injectorConfig.minScore ?? DEFAULT_SCORING_CONFIG.minScore,
+  }
+}
+
+/**
  * Select handoffs to inject based on project and optional prompt
+ *
+ * Uses the new multi-factor scoring system when enabled:
+ * - Semantic relevance (keyword matching)
+ * - Temporal freshness (half-life decay)
+ * - Authority score (citation success rate)
  */
 export function selectHandoffsForInjection(
   projectPath: string,
   config: SessionHandoffConfig,
-  initialPrompt?: string
+  initialPrompt?: string,
+  scoringConfig?: InjectorScoringConfig
 ): HandoffPackage[] {
   const indexEntries = findHandoffsForProject(projectPath)
 
@@ -152,7 +90,7 @@ export function selectHandoffsForInjection(
   }
 
   // Load full packages for top candidates
-  const maxCandidates = Math.min(indexEntries.length, config.max_inject_count * 2)
+  const maxCandidates = Math.min(indexEntries.length, config.max_inject_count * 3)
   const candidates: HandoffPackage[] = []
 
   for (const entry of indexEntries.slice(0, maxCandidates)) {
@@ -162,9 +100,39 @@ export function selectHandoffsForInjection(
     }
   }
 
-  // If we have an initial prompt, try to rank by relevance
+  if (candidates.length === 0) {
+    return []
+  }
+
+  // Use new scoring system if enabled and we have a prompt
+  const useNewScoring = scoringConfig?.enabled !== false
+  const query = initialPrompt || ""
+
+  if (useNewScoring && query) {
+    const builtConfig = buildScoringConfig(scoringConfig)
+    const scored = scoreAndRankHandoffs(candidates, query, builtConfig)
+    const filtered = filterByMinScore(scored, builtConfig.minScore)
+
+    log("[session-handoff] Scored handoffs for injection", {
+      total: candidates.length,
+      aboveThreshold: filtered.length,
+      topScores: filtered.slice(0, 3).map((s) => ({
+        id: s.handoff.id.slice(0, 15),
+        score: s.score.toFixed(2),
+        components: {
+          r: s.components.relevance.toFixed(2),
+          f: s.components.freshness.toFixed(2),
+          a: s.components.authority.toFixed(2),
+        },
+      })),
+    })
+
+    return filtered.slice(0, config.max_inject_count).map((s) => s.handoff)
+  }
+
+  // Fallback to simple relevance ranking
   if (initialPrompt && candidates.length > config.max_inject_count) {
-    return rankByRelevance(candidates, initialPrompt, config.max_inject_count)
+    return rankByRelevanceLegacy(candidates, initialPrompt, config.max_inject_count)
   }
 
   // Otherwise, return most recent
@@ -172,9 +140,40 @@ export function selectHandoffsForInjection(
 }
 
 /**
- * Simple relevance ranking based on keyword overlap
+ * Select handoffs with detailed scoring information
+ * Returns ScoredHandoff[] for inspection/debugging
  */
-function rankByRelevance(
+export function selectHandoffsWithScores(
+  projectPath: string,
+  config: SessionHandoffConfig,
+  initialPrompt: string,
+  scoringConfig?: InjectorScoringConfig
+): ScoredHandoff[] {
+  const indexEntries = findHandoffsForProject(projectPath)
+
+  if (indexEntries.length === 0) {
+    return []
+  }
+
+  const maxCandidates = Math.min(indexEntries.length, config.max_inject_count * 3)
+  const candidates: HandoffPackage[] = []
+
+  for (const entry of indexEntries.slice(0, maxCandidates)) {
+    const pkg = loadHandoff(entry.id)
+    if (pkg) {
+      candidates.push(pkg)
+    }
+  }
+
+  const builtConfig = buildScoringConfig(scoringConfig)
+  return scoreAndRankHandoffs(candidates, initialPrompt, builtConfig)
+}
+
+/**
+ * Legacy relevance ranking based on keyword overlap
+ * @deprecated Use selectHandoffsForInjection with scoringConfig instead
+ */
+function rankByRelevanceLegacy(
   packages: HandoffPackage[],
   prompt: string,
   limit: number
@@ -226,35 +225,43 @@ function rankByRelevance(
 // ============================================================================
 
 /**
- * Generate injection content for a session
+ * Format pre-selected handoff packages into injection content
+ * Use this when you already have selected packages (avoids duplicate selection)
+ *
+ * Delegates to the unified renderer for consistent formatting.
  */
-export function generateInjectionContent(
-  projectPath: string,
-  config: SessionHandoffConfig,
-  initialPrompt?: string
+export function formatInjectionContent(
+  packages: HandoffPackage[],
+  projectPath: string
 ): string | null {
-  if (!config.enabled || !config.auto_inject) {
-    return null
-  }
-
-  const packages = selectHandoffsForInjection(projectPath, config, initialPrompt)
-
   if (packages.length === 0) {
     return null
   }
 
-  const sections = packages.map((pkg) => formatHandoffForInjection(pkg, projectPath))
-
-  const content = `## Previous Session Context
-
-The following context was extracted from recent sessions on this project.
-
-${sections.join("\n---\n\n")}`
+  const content = renderMultipleHandoffsForInjection(packages, projectPath)
 
   log("[session-handoff] Generated injection content", {
     handoffCount: packages.length,
     contentLength: content.length,
   })
 
-  return content
+  return content || null
+}
+
+/**
+ * Generate injection content for a session
+ * Convenience function that selects and formats in one call
+ */
+export function generateInjectionContent(
+  projectPath: string,
+  config: SessionHandoffConfig,
+  initialPrompt?: string,
+  scoringConfig?: InjectorScoringConfig
+): string | null {
+  if (!config.enabled || !config.auto_inject) {
+    return null
+  }
+
+  const packages = selectHandoffsForInjection(projectPath, config, initialPrompt, scoringConfig)
+  return formatInjectionContent(packages, projectPath)
 }

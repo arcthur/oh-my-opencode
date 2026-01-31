@@ -3,14 +3,11 @@
  *
  * Resolves @session:id references to handoff content.
  * Supports section-based and semantic (embedding-based) queries.
+ *
+ * Uses unified renderer for consistent formatting.
  */
 
-import type {
-  HandoffPackage,
-  Decision,
-  AntiPattern,
-  EmbeddingIndexEntry,
-} from "./types"
+import type { HandoffPackage, EmbeddingIndexEntry } from "./types"
 import {
   loadHandoff,
   getRecentSessionHandoffs,
@@ -20,8 +17,13 @@ import {
   saveHandoff,
 } from "./storage"
 import { buildEmbeddingIndexEntries, cosineSimilarity, generateEmbeddingVectors } from "./embeddings"
-import { checkHandoffStaleness, formatStalenessWarning } from "./staleness"
 import { log } from "../../shared/logger"
+import {
+  renderHandoffForReference,
+  renderSection,
+  formatDecision,
+  formatAntiPattern,
+} from "./renderer"
 
 // ============================================================================
 // Types
@@ -48,149 +50,6 @@ function isSafeHandoffId(id: string): boolean {
   if (id.includes("/") || id.includes("\\")) return false
   if (id.includes("..")) return false
   return true
-}
-
-// ============================================================================
-// Formatting Utilities
-// ============================================================================
-
-/**
- * Get human-readable age string
- */
-function getAgeString(timestamp: number): string {
-  const ageMs = Date.now() - timestamp
-  const ageHours = ageMs / (1000 * 60 * 60)
-
-  if (ageHours < 1) return "just now"
-  if (ageHours < 24) return `${Math.round(ageHours)} hours ago`
-  const ageDays = Math.round(ageHours / 24)
-  if (ageDays === 1) return "yesterday"
-  return `${ageDays} days ago`
-}
-
-/**
- * Format a decision for display
- */
-function formatDecision(decision: Decision, index?: number): string {
-  const lines: string[] = []
-  const prefix = index !== undefined ? `${index}.` : "-"
-
-  lines.push(`${prefix} **${decision.what}**: ${decision.chosen}`)
-  lines.push(`   - Why: ${decision.why}`)
-
-  if (decision.rejected && decision.rejected.length > 0) {
-    const rejectedList = decision.rejected
-      .slice(0, 2)
-      .map((r) => `${r.approach} (${r.reason})`)
-      .join(", ")
-    lines.push(`   - Rejected: ${rejectedList}`)
-  }
-
-  if (decision.relatedFiles && decision.relatedFiles.length > 0) {
-    lines.push(`   - Related: ${decision.relatedFiles.join(", ")}`)
-  }
-
-  return lines.join("\n")
-}
-
-/**
- * Format an anti-pattern for display
- */
-function formatAntiPattern(ap: AntiPattern): string {
-  let line = `- ${ap.approach}: ${ap.reason}`
-  if (ap.context) {
-    line += ` (in ${ap.context})`
-  }
-  return line
-}
-
-/**
- * Format a handoff for display (used when returning full handoff)
- */
-function formatHandoffForReference(pkg: HandoffPackage, projectPath: string): string {
-  const lines: string[] = []
-
-  const age = getAgeString(pkg.createdAt)
-  lines.push(`### Session: ${pkg.id} (${age})`)
-  lines.push(`**Goal**: ${pkg.metadata.originalGoal}`)
-  lines.push("")
-
-  // Add staleness warning
-  const staleness = checkHandoffStaleness(pkg, projectPath)
-  const warning = formatStalenessWarning(staleness)
-  if (warning) {
-    lines.push(warning)
-  }
-
-  // Decisions
-  if (pkg.payload.decisions.length > 0) {
-    lines.push("**Key Decisions:**")
-    pkg.payload.decisions.slice(0, 5).forEach((decision, idx) => {
-      lines.push(`${formatDecision(decision, idx + 1)}`)
-    })
-    lines.push("")
-  }
-
-  // Anti-patterns
-  if (pkg.payload.antiPatterns.length > 0) {
-    lines.push("**Avoid These Approaches:**")
-    for (const ap of pkg.payload.antiPatterns.slice(0, 5)) {
-      lines.push(formatAntiPattern(ap))
-    }
-    lines.push("")
-  }
-
-  // Domain knowledge
-  if (pkg.payload.domainContext.length > 0) {
-    lines.push("**Domain Knowledge:**")
-    for (const ctx of pkg.payload.domainContext.slice(0, 5)) {
-      lines.push(`- ${ctx}`)
-    }
-    lines.push("")
-  }
-
-  // Remaining tasks
-  if (pkg.payload.remainingTasks && pkg.payload.remainingTasks.length > 0) {
-    lines.push("**Remaining Tasks:**")
-    for (const task of pkg.payload.remainingTasks) {
-      lines.push(`- [ ] ${task}`)
-    }
-    lines.push("")
-  }
-
-  return lines.join("\n")
-}
-
-// ============================================================================
-// Section Formatting
-// ============================================================================
-
-/**
- * Format a specific section of the handoff
- */
-function formatSection(pkg: HandoffPackage, section: string): string {
-  switch (section) {
-    case "decisions":
-      if (pkg.payload.decisions.length === 0) return "No decisions recorded."
-      return pkg.payload.decisions.map((d, i) => formatDecision(d, i + 1)).join("\n\n")
-
-    case "artifacts":
-      if (pkg.payload.artifacts.length === 0) return "No artifacts recorded."
-      return pkg.payload.artifacts
-        .map((a) => `- ${a.path} (${a.changeType}): ${a.summary}`)
-        .join("\n")
-
-    case "antiPatterns":
-      if (pkg.payload.antiPatterns.length === 0) return "No anti-patterns recorded."
-      return pkg.payload.antiPatterns.map(formatAntiPattern).join("\n")
-
-    case "context":
-      if (pkg.payload.domainContext.length === 0) return "No domain context recorded."
-      return pkg.payload.domainContext.map((c) => `- ${c}`).join("\n")
-
-    default:
-      return `Unknown section: ${section}`
-  }
 }
 
 // ============================================================================
@@ -265,6 +124,7 @@ async function formatSemanticMatch(
 
 /**
  * Fallback substring search when embeddings are not available
+ * Uses unified renderer for formatting
  */
 function fallbackSubstringSearch(pkg: HandoffPackage, query: string): string {
   const queryLower = query.toLowerCase()
@@ -310,7 +170,9 @@ async function getOrCreateEmbeddingIndex(
   generateIfMissing: boolean
 ): Promise<EmbeddingIndexEntry[] | null> {
   const existingRaw =
-    pkg.embeddingIndex?.filter((e) => e && typeof e.content === "string" && e.content.trim().length > 0) ?? []
+    pkg.embeddingIndex?.filter(
+      (e) => e && typeof e.content === "string" && e.content.trim().length > 0
+    ) ?? []
 
   const existing = normalizeEmbeddingIndex(pkg.id, existingRaw)
   if (existing.length > 0) {
@@ -383,7 +245,10 @@ function normalizeEmbeddingIndex(
       category,
       index,
       vector: Array.isArray(entry.vector) ? entry.vector : undefined,
-      vectorIndex: typeof entry.vectorIndex === "number" && Number.isFinite(entry.vectorIndex) ? entry.vectorIndex : i,
+      vectorIndex:
+        typeof entry.vectorIndex === "number" && Number.isFinite(entry.vectorIndex)
+          ? entry.vectorIndex
+          : i,
     })
   }
 
@@ -478,13 +343,13 @@ export async function resolveSessionReference(
   // Apply query filter if provided
   if (query) {
     if (query.type === "section") {
-      return formatSection(pkg, query.section)
+      return renderSection(pkg, query.section)
     }
     if (query.type === "semantic") {
       return await formatSemanticMatch(pkg, query.query, options)
     }
   }
 
-  // Return full handoff (with staleness check)
-  return formatHandoffForReference(pkg, projectPath)
+  // Return full handoff using unified renderer
+  return renderHandoffForReference(pkg, projectPath)
 }

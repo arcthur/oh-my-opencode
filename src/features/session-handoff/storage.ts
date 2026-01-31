@@ -5,7 +5,7 @@
  * Storage location: ~/.config/opencode/oh-my-opencode/handoffs/
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
 import type {
@@ -13,9 +13,12 @@ import type {
   HandoffIndex,
   HandoffIndexEntry,
   SessionHandoffConfig,
+  HandoffMetrics,
+  HandoffMetricsSummary,
 } from "./types"
-import { DEFAULT_HANDOFF_CONFIG } from "./types"
+import { DEFAULT_HANDOFF_CONFIG, DEFAULT_HANDOFF_METRICS } from "./types"
 import { log } from "../../shared/logger"
+import { checkL3Promotion, createMetricsSummary } from "./citation-tracker"
 
 // ============================================================================
 // Storage Paths
@@ -92,7 +95,6 @@ export function saveIndex(index: HandoffIndex): void {
     writeFileSync(tempPath, JSON.stringify(index, null, 2), "utf-8")
 
     // Rename is atomic on most filesystems
-    const { renameSync } = require("node:fs")
     renameSync(tempPath, INDEX_FILE)
   } catch (error) {
     log("[session-handoff] Failed to save index", {
@@ -106,7 +108,7 @@ export function saveIndex(index: HandoffIndex): void {
  * Create index entry from handoff package
  */
 function createIndexEntry(pkg: HandoffPackage): HandoffIndexEntry {
-  return {
+  const entry: HandoffIndexEntry = {
     id: pkg.id,
     sourceSessionId: pkg.sourceSessionId,
     projectPath: pkg.metadata.projectPath,
@@ -117,6 +119,18 @@ function createIndexEntry(pkg: HandoffPackage): HandoffIndexEntry {
     decisionCount: pkg.payload.decisions.length,
     artifactCount: pkg.payload.artifacts.length,
   }
+
+  // Add metrics summary if available
+  if (pkg.metrics) {
+    entry.metricsSummary = createMetricsSummary(pkg.metrics)
+  }
+
+  // Add recovery pattern count if available
+  if (pkg.payload.recoveryPatterns && pkg.payload.recoveryPatterns.length > 0) {
+    entry.recoveryPatternCount = pkg.payload.recoveryPatterns.length
+  }
+
+  return entry
 }
 
 // ============================================================================
@@ -157,7 +171,6 @@ export function saveHandoff(pkg: HandoffPackage): void {
     const tempPath = filePath + ".tmp"
     writeFileSync(tempPath, JSON.stringify(pkg, null, 2), "utf-8")
 
-    const { renameSync } = require("node:fs")
     renameSync(tempPath, filePath)
 
     // Update index
@@ -244,6 +257,63 @@ export function deleteHandoff(id: string): boolean {
 }
 
 // ============================================================================
+// Metrics Update
+// ============================================================================
+
+/**
+ * Update handoff metrics with an updater function
+ * Handles L3 promotion check and index update
+ */
+export function updateHandoffMetrics(
+  id: string,
+  updater: (metrics: HandoffMetrics) => HandoffMetrics
+): boolean {
+  const pkg = loadHandoff(id)
+  if (!pkg) {
+    log("[session-handoff] Cannot update metrics: handoff not found", { id })
+    return false
+  }
+
+  // Initialize metrics if not present
+  const currentMetrics = pkg.metrics ?? { ...DEFAULT_HANDOFF_METRICS }
+
+  // Apply updater
+  const updatedMetrics = updater(currentMetrics)
+  pkg.metrics = updatedMetrics
+
+  // Check for L3 promotion
+  const promotionReason = checkL3Promotion(pkg)
+  if (promotionReason) {
+    const index = loadIndex()
+    if (!index.l3Promoted) {
+      index.l3Promoted = []
+    }
+    if (!index.l3Promoted.includes(id)) {
+      index.l3Promoted.push(id)
+      log("[session-handoff] Handoff promoted to L3", { id, reason: promotionReason })
+    }
+    saveIndex(index)
+  }
+
+  // Save updated package (this also updates index entry)
+  try {
+    saveHandoff(pkg)
+    log("[session-handoff] Updated handoff metrics", {
+      id,
+      citationCount: updatedMetrics.citationCount,
+      authorityScore: updatedMetrics.authorityScore.toFixed(2),
+    })
+    return true
+  } catch (error) {
+    log("[session-handoff] Failed to save updated metrics", {
+      id,
+      error: String(error),
+    })
+    return false
+  }
+}
+
+// ============================================================================
 // Query Functions
 // ============================================================================
 
@@ -292,13 +362,17 @@ export function getRecentSessionHandoffs(projectPath: string, count = 5): Handof
 // ============================================================================
 
 /**
- * Remove expired handoffs
+ * Remove expired handoffs (excluding L3 promoted)
  */
 export function cleanupExpired(config: SessionHandoffConfig = DEFAULT_HANDOFF_CONFIG): number {
   const index = loadIndex()
   const now = Date.now()
+
+  // L3 promoted handoffs are exempt from expiration
+  const l3Set = new Set(index.l3Promoted ?? [])
+
   const expiredIds = index.handoffs
-    .filter((h) => h.expiresAt <= now)
+    .filter((h) => h.expiresAt <= now && !l3Set.has(h.id))
     .map((h) => h.id)
 
   let removed = 0
