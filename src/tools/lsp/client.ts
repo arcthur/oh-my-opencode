@@ -305,7 +305,7 @@ export class LSPClient {
       this.processExited = true
     })
 
-    this.connection.onError((error) => {
+    this.connection.onError(([error]) => {
       console.error("LSP connection error:", error)
     })
 

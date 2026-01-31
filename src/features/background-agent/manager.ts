@@ -1302,11 +1302,13 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     this.stopPolling()
 
     // Abort all running sessions to prevent zombie processes (#1240)
-    for (const task of this.tasks.values()) {
-      if (task.status === "running" && task.sessionID) {
-        this.client.session.abort({
-          path: { id: task.sessionID },
-        }).catch(() => {})
+    if (this.client.session?.abort) {
+      for (const task of this.tasks.values()) {
+        if (task.status === "running" && task.sessionID) {
+          this.client.session.abort({
+            path: { id: task.sessionID },
+          }).catch(() => {})
+        }
       }
     }
 
