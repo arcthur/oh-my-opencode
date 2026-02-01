@@ -100,6 +100,8 @@ export const HookNameSchema = z.enum([
   "question-label-truncator",
   "subagent-question-blocker",
   "stop-continuation-guard",
+  "category-skill-reminder",
+  "sisyphus-junior-notepad",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -206,6 +208,7 @@ export const CategoryConfigSchema = z.object({
 export const BuiltinCategoryNameSchema = z.enum([
   "visual-engineering",
   "ultrabrain",
+  "deep",
   "artistry",
   "quick",
   "unspecified-low",

@@ -153,7 +153,22 @@ Approach:
 - Documentation, READMEs, articles, technical writing
 </Category_Context>`
 
+export const DEEP_CATEGORY_PROMPT_APPEND = `<Category_Context>
+You are working on AUTONOMOUS PROBLEM-SOLVING tasks.
 
+Deep explorer mindset:
+- Thorough research before action
+- Goal-oriented autonomous problem-solving
+- Investigate root causes, not just symptoms
+- Build comprehensive understanding before proposing solutions
+
+Approach:
+- Explore multiple angles before committing
+- Document findings and reasoning
+- Consider edge cases and failure modes
+- Moderate complexity - not trivial, but not system-wide architecture
+- Self-sufficient: gather context independently, minimize back-and-forth
+</Category_Context>`
 
 // DEFAULT_CATEGORIES: Categories without explicit models use systemDefaultModel.
 // This ensures compatibility with any provider the user has configured.
@@ -161,6 +176,7 @@ Approach:
 export const DEFAULT_CATEGORIES: Record<string, CategoryConfig> = {
   "visual-engineering": {},
   ultrabrain: { variant: "xhigh" },
+  deep: { variant: "high" },
   artistry: { variant: "max" },
   quick: {},
   "unspecified-low": {},
@@ -171,6 +187,7 @@ export const DEFAULT_CATEGORIES: Record<string, CategoryConfig> = {
 export const CATEGORY_PROMPT_APPENDS: Record<string, string> = {
   "visual-engineering": VISUAL_CATEGORY_PROMPT_APPEND,
   ultrabrain: STRATEGIC_CATEGORY_PROMPT_APPEND,
+  deep: DEEP_CATEGORY_PROMPT_APPEND,
   artistry: ARTISTRY_CATEGORY_PROMPT_APPEND,
   quick: QUICK_CATEGORY_PROMPT_APPEND,
   "unspecified-low": UNSPECIFIED_LOW_CATEGORY_PROMPT_APPEND,
@@ -181,6 +198,7 @@ export const CATEGORY_PROMPT_APPENDS: Record<string, string> = {
 export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   "visual-engineering": "Frontend, UI/UX, design, styling, animation",
   ultrabrain: "Deep logical reasoning, complex architecture decisions requiring extensive analysis",
+  deep: "Autonomous problem-solving with thorough research, moderate complexity",
   artistry: "Highly creative/artistic tasks, novel ideas",
   quick: "Trivial tasks - single file changes, typo fixes, simple modifications",
   "unspecified-low": "Tasks that don't fit other categories, low effort required",

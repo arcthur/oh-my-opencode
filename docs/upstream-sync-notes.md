@@ -106,8 +106,8 @@ This section is the main source of “upstream decisions/features we might want 
 | ~~`stop-continuation-guard`~~ | ~~`/stop-continuation`: halts continuation mechanisms~~ | ✅ **Merged** (2026-01-31) |
 | ~~`subagent-question-blocker`~~ | ~~Prevent subagents from asking users via question tools~~ | ✅ **Merged** (2026-01-31) |
 | ~~`question-label-truncator`~~ | ~~Truncate long labels for question tool UI/protocol safety~~ | ✅ **Merged** (2026-01-31) |
-| `category-skill-reminder` | Remind orchestrators to delegate via category+skill system | Overlaps with our validator; consider merging |
-| `sisyphus-junior-notepad` | Inject notepad directive into delegated prompts | Evaluate; may improve stability/quality |
+| ~~`category-skill-reminder`~~ | ~~Remind orchestrators to delegate via category+skill system~~ | ✅ **Merged** (2026-01-31) - Complements delegation-validator |
+| ~~`sisyphus-junior-notepad`~~ | ~~Inject notepad directive into delegated prompts~~ | ✅ **Merged** (2026-01-31) - Dynamic injection, refactored agent prompt |
 
 #### Key Interfaces/Conventions That Changed Upstream (Now Aligned)
 
@@ -115,7 +115,7 @@ This section is the main source of “upstream decisions/features we might want 
 
 2) ~~**`delegate_task` arguments diverged**~~ ✅ **Aligned** (2026-01-31) - Now using upstream naming: `load_skills`, `session_id`, `command`.
 
-3) **Category system evolved upstream**: upstream added a `deep` category and continues to hardcode default models; we chose provider-agnostic defaults (see 3.2).
+3) ~~**Category system evolved upstream**~~ ✅ **Aligned** (2026-01-31) - Added `deep` category (provider-agnostic, no hardcoded model).
 
 ---
 
@@ -206,10 +206,10 @@ This is the main action section: identify upstream changes worth following to av
 
 ### 6.2 Medium Priority (Evaluate Before Deciding)
 
-- `category-skill-reminder`: overlaps with `delegation-validator`; may be merged into stronger “delegation governance”
-- `sisyphus-junior-notepad`: worth it if it measurably stabilizes subagent outputs
-- `sisyphus-tasks/`: evaluate whether it can reduce our custom state surface
-- `deep` category: can exist as an optional preset without hardcoding models by default
+- ~~`category-skill-reminder`~~ ✅ **Merged** (2026-01-31) - Complements delegation-validator as pre-decision nudge
+- ~~`sisyphus-junior-notepad`~~ ✅ **Merged** (2026-01-31) - Dynamic injection saves tokens, refactored agent prompt
+- `sisyphus-tasks/`: evaluate whether it can reduce our custom state surface (deferred - solves different problem than work-state)
+- ~~`deep` category~~ ✅ **Merged** (2026-01-31) - Added as optional category with `variant: "high"`, no model hardcoding
 
 ### 6.3 Low Priority (Can Defer)
 

@@ -20,12 +20,12 @@
       "items": {
         "type": "string",
         "enum": [
-          "Sisyphus",
+          "sisyphus",
           "oracle",
           "librarian",
           "explore",
           "multimodal-looker",
-          "Atlas",
+          "atlas",
           "plan-synthesizer"
         ]
       }
@@ -90,7 +90,12 @@
           "pre-completion-verification",
           "delegation-validator",
           "conditional-rules",
-          "session-handoff"
+          "session-handoff",
+          "question-label-truncator",
+          "subagent-question-blocker",
+          "stop-continuation-guard",
+          "category-skill-reminder",
+          "sisyphus-junior-notepad"
         ]
       }
     },
@@ -359,7 +364,7 @@
             }
           }
         },
-        "Sisyphus": {
+        "sisyphus": {
           "type": "object",
           "properties": {
             "model": {
@@ -485,7 +490,7 @@
             }
           }
         },
-        "Sisyphus-Junior": {
+        "sisyphus-junior": {
           "type": "object",
           "properties": {
             "model": {
@@ -737,7 +742,7 @@
             }
           }
         },
-        "Prometheus": {
+        "prometheus": {
           "type": "object",
           "properties": {
             "model": {
@@ -1378,7 +1383,7 @@
             }
           }
         },
-        "Atlas": {
+        "atlas": {
           "type": "object",
           "properties": {
             "model": {
@@ -3013,7 +3018,12 @@
           "type": "boolean"
         },
         "extractor": {
-          "default": {},
+          "default": {
+            "model": "haiku",
+            "max_decisions": 10,
+            "max_artifacts": 20,
+            "generate_embeddings": true
+          },
           "type": "object",
           "properties": {
             "model": {
@@ -3042,6 +3052,55 @@
               "type": "boolean"
             }
           }
+        },
+        "reference": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "strip_from_prompt": {
+              "default": false,
+              "type": "boolean"
+            },
+            "resolve_options": {
+              "default": {
+                "prefer_handoff": true,
+                "allow_session_fallback": true,
+                "create_handoff_if_missing": false,
+                "max_results": 5,
+                "min_relevance": 0.3
+              },
+              "type": "object",
+              "properties": {
+                "prefer_handoff": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "allow_session_fallback": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "create_handoff_if_missing": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "max_results": {
+                  "default": 5,
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 20
+                },
+                "min_relevance": {
+                  "default": 0.3,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -3057,7 +3116,13 @@
           "type": "boolean"
         },
         "resolve_options": {
-          "default": {},
+          "default": {
+            "prefer_handoff": true,
+            "allow_session_fallback": true,
+            "create_handoff_if_missing": false,
+            "max_results": 5,
+            "min_relevance": 0.3
+          },
           "type": "object",
           "properties": {
             "prefer_handoff": {

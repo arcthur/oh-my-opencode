@@ -39,6 +39,8 @@ import {
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
   createDelegationValidatorHook,
+  createCategorySkillReminderHook,
+  createSisyphusJuniorNotepadHook,
   createConditionalRulesHooks,
   createSessionHandoffHook,
 } from "./hooks";
@@ -341,6 +343,18 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const delegationValidator = isHookEnabled("delegation-validator")
     ? createDelegationValidatorHook(ctx)
+    : null;
+
+  // Category-skill reminder: pre-decision nudge for orchestrators
+  // Complements delegation-validator (post-decision validation)
+  const categorySkillReminder = isHookEnabled("category-skill-reminder")
+    ? createCategorySkillReminderHook(ctx)
+    : null;
+
+  // Sisyphus-junior notepad: dynamic injection of notepad context
+  // Saves tokens by only injecting when delegating to sisyphus-junior
+  const sisyphusJuniorNotepad = isHookEnabled("sisyphus-junior-notepad")
+    ? createSisyphusJuniorNotepadHook(ctx)
     : null;
 
   // Conditional rules for path-sensitive rule injection
@@ -711,6 +725,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await conditionalRulesHooks?.event?.(input as { event: { type: string; properties?: unknown } });
       await sessionHandoffHook?.event?.(input);
 
+      // Category-skill reminder cleanup on session deletion
+      if (input.event?.type === "session.deleted") {
+        const sessionInfo = (input.event.properties as Record<string, unknown>)?.info as { id?: string } | undefined;
+        if (sessionInfo?.id) {
+          await categorySkillReminder?.event?.({ type: "session.deleted", session: { id: sessionInfo.id } });
+        }
+      }
+
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
 
@@ -823,6 +845,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
       await planningWithFiles?.["tool.execute.before"]?.(input, output);
       await delegationValidator?.["tool.execute.before"]?.(input, output);
+      await categorySkillReminder?.["tool.execute.before"]?.(input, output);
+      await sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output);
 
       // Conditional rules for file operations
       if (conditionalRulesHooks) {

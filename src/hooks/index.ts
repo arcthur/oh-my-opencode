@@ -41,5 +41,7 @@ export { createRuntimeTrackerHook, type RuntimeTrackerConfig } from "./runtime-t
 export { createAntiSlopEnforcerHook, type AntiSlopEnforcerOptions } from "./anti-slop-enforcer";
 export { createPreCompletionVerificationHook, type PreCompletionVerificationOptions } from "./pre-completion-verification";
 export { createDelegationValidatorHook } from "./delegation-validator";
+export { createCategorySkillReminderHook } from "./category-skill-reminder";
+export { createSisyphusJuniorNotepadHook } from "./sisyphus-junior-notepad";
 export { createConditionalRulesHooks, clearConditionalRulesCache, reloadRules, type ConditionalRulesHookContext } from "../features/conditional-rules";
 export { createSessionHandoffHook, clearAllSessionStates, type SessionHandoffHookContext } from "../features/session-handoff";
