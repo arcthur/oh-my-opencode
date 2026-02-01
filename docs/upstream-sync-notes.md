@@ -283,6 +283,8 @@ This is the main action section: identify upstream changes worth following to av
 
 ### 6.3 Low Priority (Evaluated)
 
+- ~~`bb181ee5` background-agent memory leak~~ ✅ **Merged** (2026-02-01) - Track and cancel completion timers
+- ~~`b03e463b` zombie processes fix~~ ✅ **Merged** (2026-02-01) - Proper process lifecycle in LSP/skill-mcp-manager/interactive-bash
 - ~~`tmux-subagent/`~~ → **Merged as `tmux-parallel-agents` hook** (2026-02-01)
   - Hybrid approach: upstream's automatic `session.created` triggering + user's parallel-agents skill patterns
   - Features: wm-* naming, git worktree isolation, status detection, auto-rescue, @workmux_status icons

@@ -72,6 +72,8 @@ export class BackgroundManager {
 
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
+  /** Track completion timers to prevent memory leaks (#1043) */
+  private completionTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
   constructor(ctx: PluginInput, config?: BackgroundTaskConfig) {
     this.tasks = new Map()
@@ -644,6 +646,12 @@ export class BackgroundManager {
          this.concurrencyManager.release(task.concurrencyKey)
          task.concurrencyKey = undefined
        }
+      // Clear any pending completion timer to prevent memory leaks
+      const existingTimer = this.completionTimers.get(task.id)
+      if (existingTimer) {
+        clearTimeout(existingTimer)
+        this.completionTimers.delete(task.id)
+      }
       // Clean up pendingByParent to prevent stale entries
       this.cleanupPendingByParent(task)
       this.tasks.delete(task.id)
@@ -1025,8 +1033,9 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
       log("[background-agent] Failed to send notification:", error)
     }
 
-    // Cleanup after retention period
-    setTimeout(() => {
+    // Cleanup after retention period (track timer to prevent memory leaks)
+    const timer = setTimeout(() => {
+      this.completionTimers.delete(taskId)
       // Guard: Only delete if task still exists (could have been deleted by session.deleted event)
       if (this.tasks.has(taskId)) {
         this.clearNotificationsForTask(taskId)
@@ -1034,6 +1043,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
         log("[background-agent] Removed completed task from memory:", taskId)
       }
     }, 5 * 60 * 1000)
+    this.completionTimers.set(taskId, timer)
   }
 
   private formatDuration(start: Date, end?: Date): string {
@@ -1320,6 +1330,12 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
         task.concurrencyKey = undefined
       }
     }
+
+    // Clear all completion timers to prevent memory leaks
+    for (const timer of this.completionTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.completionTimers.clear()
 
     // Then clear all state (cancels any remaining waiters)
     this.concurrencyManager.clear()
