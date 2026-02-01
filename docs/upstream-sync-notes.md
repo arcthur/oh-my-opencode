@@ -1,9 +1,9 @@
 # Upstream Sync Notes
 
-> Last updated: 2026-01-31  
-> Local `dev`: `5f68dc77`  
+> Last updated: 2026-02-01  
+> Local `dev`: `beddc1f5`  
 > Remote `upstream/dev`: `96e7b39a`  
-> Status: `dev` is **ahead 92** / **behind 336** vs `upstream/dev` (merge-base: `66fd761a`)
+> Status: `dev` is **ahead 94** / **behind 336** vs `upstream/dev` (merge-base: `66fd761a`)
 
 This document tracks the key architectural deltas between our `dev` branch and `upstream/dev`, and records the design decisions behind intentional divergence.
 
@@ -31,7 +31,7 @@ Note: output is `<behind> <ahead>` i.e. “commits only in upstream / commits on
 merge-base: 66fd761a
 
 upstream/dev: 96e7b39a  (we are behind 336 commits)
-dev:         5f68dc77   (we are ahead 92 commits)
+dev:         beddc1f5   (we are ahead 94 commits)
 ```
 
 Conclusion: this is a **bidirectionally diverged** fork (not “ahead-only”). Over time, “small cherry-picks” become less effective; prefer periodic merge/rebase with explicit conflict resolution on known hotspots.
@@ -106,8 +106,8 @@ This section is the main source of “upstream decisions/features we might want 
 | ~~`stop-continuation-guard`~~ | ~~`/stop-continuation`: halts continuation mechanisms~~ | ✅ **Merged** (2026-01-31) |
 | ~~`subagent-question-blocker`~~ | ~~Prevent subagents from asking users via question tools~~ | ✅ **Merged** (2026-01-31) |
 | ~~`question-label-truncator`~~ | ~~Truncate long labels for question tool UI/protocol safety~~ | ✅ **Merged** (2026-01-31) |
-| ~~`category-skill-reminder`~~ | ~~Remind orchestrators to delegate via category+skill system~~ | ✅ **Merged** (2026-01-31) - Complements delegation-validator |
-| ~~`sisyphus-junior-notepad`~~ | ~~Inject notepad directive into delegated prompts~~ | ✅ **Merged** (2026-01-31) - Dynamic injection, refactored agent prompt |
+| ~~`category-skill-reminder`~~ | ~~Remind orchestrators to delegate via category+skill system~~ | ✅ **Merged** (2026-02-01) - Complements delegation-validator |
+| ~~`sisyphus-junior-notepad`~~ | ~~Inject notepad directive into delegated prompts~~ | ✅ **Merged** (2026-02-01) - Dynamic injection, refactored agent prompt |
 
 #### Key Interfaces/Conventions That Changed Upstream (Now Aligned)
 
@@ -115,7 +115,7 @@ This section is the main source of “upstream decisions/features we might want 
 
 2) ~~**`delegate_task` arguments diverged**~~ ✅ **Aligned** (2026-01-31) - Now using upstream naming: `load_skills`, `session_id`, `command`.
 
-3) ~~**Category system evolved upstream**~~ ✅ **Aligned** (2026-01-31) - Added `deep` category (provider-agnostic, no hardcoded model).
+3) ~~**Category system evolved upstream**~~ ✅ **Aligned** (2026-02-01) - Added `deep` category (provider-agnostic, no hardcoded model).
 
 ---
 
@@ -206,10 +206,10 @@ This is the main action section: identify upstream changes worth following to av
 
 ### 6.2 Medium Priority (Evaluate Before Deciding)
 
-- ~~`category-skill-reminder`~~ ✅ **Merged** (2026-01-31) - Complements delegation-validator as pre-decision nudge
-- ~~`sisyphus-junior-notepad`~~ ✅ **Merged** (2026-01-31) - Dynamic injection saves tokens, refactored agent prompt
+- ~~`category-skill-reminder`~~ ✅ **Merged** (2026-02-01) - Complements delegation-validator as pre-decision nudge
+- ~~`sisyphus-junior-notepad`~~ ✅ **Merged** (2026-02-01) - Dynamic injection saves tokens, refactored agent prompt
 - `sisyphus-tasks/`: evaluate whether it can reduce our custom state surface (deferred - solves different problem than work-state)
-- ~~`deep` category~~ ✅ **Merged** (2026-01-31) - Added as optional category with `variant: "high"`, no model hardcoding
+- ~~`deep` category~~ ✅ **Merged** (2026-02-01) - Added as optional category with `variant: "high"`, no model hardcoding
 
 ### 6.3 Low Priority (Can Defer)
 

@@ -55,8 +55,10 @@ You're directly executing work that could be delegated. Consider using \`delegat
 **Example:**
 \`\`\`
 delegate_task({
+  description: "Implement login form",
   category: "visual-engineering",
   load_skills: ["frontend-ui-ux"],
+  run_in_background: false,
   prompt: "Implement the login form with validation"
 })
 \`\`\`
@@ -94,7 +96,7 @@ export function createCategorySkillReminderHook(_ctx: PluginInput) {
       output: ToolExecuteBeforeOutput
     ): Promise<void> => {
       // Only trigger on delegatable work tools
-      if (!DELEGATABLE_WORK_TOOLS.has(input.tool)) {
+      if (!DELEGATABLE_WORK_TOOLS.has(input.tool.toLowerCase())) {
         return
       }
 

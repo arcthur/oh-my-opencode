@@ -6,6 +6,8 @@ export const AGENT_NAME_MAP: Record<string, string> = {
   omo: "sisyphus",
   "OmO": "sisyphus",
   sisyphus: "sisyphus",
+  "sisyphus-junior": "sisyphus-junior",
+  "Sisyphus-Junior": "sisyphus-junior",
   build: "build",
   oracle: "oracle",
   librarian: "librarian",

@@ -30,7 +30,7 @@ describe("sisyphus-junior-notepad hook", () => {
       const hook = createHook(createMockCtx())
       const output = {
         args: {
-          agent: "sisyphus-junior",
+          subagent_type: "sisyphus-junior",
           prompt: "Implement the feature",
         },
       }
@@ -53,7 +53,7 @@ describe("sisyphus-junior-notepad hook", () => {
       const hook = createHook(createMockCtx())
       const output = {
         args: {
-          agent: "sisyphus-junior",
+          subagent_type: "sisyphus-junior",
           prompt: "Execute task",
         },
       }
@@ -96,7 +96,7 @@ describe("sisyphus-junior-notepad hook", () => {
       const hook = createHook(createMockCtx())
       const output = {
         args: {
-          agent: "oracle",
+          subagent_type: "oracle",
           prompt: "Analyze the architecture",
         },
       }
@@ -118,7 +118,7 @@ describe("sisyphus-junior-notepad hook", () => {
       const hook = createHook(createMockCtx())
       const output = {
         args: {
-          agent: "sisyphus-junior",
+          subagent_type: "sisyphus-junior",
           prompt: "Some task",
         },
       }
@@ -160,7 +160,7 @@ describe("sisyphus-junior-notepad hook", () => {
       const existingPrompt = "<Work_Context>Already has context</Work_Context>\nDo the work"
       const output = {
         args: {
-          agent: "sisyphus-junior",
+          subagent_type: "sisyphus-junior",
           prompt: existingPrompt,
         },
       }
@@ -180,7 +180,7 @@ describe("sisyphus-junior-notepad hook", () => {
       const hook = createHook(createMockCtx())
       const output = {
         args: {
-          agent: "sisyphus-junior",
+          subagent_type: "sisyphus-junior",
           prompt: "Task",
         },
       }
@@ -222,7 +222,7 @@ describe("sisyphus-junior-notepad hook", () => {
       const hook = createHook(createMockCtx())
       const output = {
         args: {
-          agent: "sisyphus-junior",
+          subagent_type: "sisyphus-junior",
         },
       }
 
@@ -254,9 +254,8 @@ describe("sisyphus-junior-notepad hook", () => {
       const hook = createHook(createMockCtx())
       const output = {
         args: {
-          agent: "sisyphus-junior",
-          prompt: "Do work",
           category: "visual-engineering",
+          prompt: "Do work",
           load_skills: ["frontend-ui-ux"],
           run_in_background: true,
         },

@@ -91,12 +91,12 @@ export function createSisyphusJuniorNotepadHook(_ctx: PluginInput) {
 
       // Check if target is sisyphus-junior or category-based (which spawns sisyphus-junior)
       const args = output.args
-      const targetAgent = args.agent as string | undefined
+      const targetSubagentType = args.subagent_type as string | undefined
       const category = args.category as string | undefined
 
       // Category-based delegation spawns sisyphus-junior
       const isSisyphusJuniorTarget =
-        targetAgent === "sisyphus-junior" || (category && !targetAgent)
+        targetSubagentType === "sisyphus-junior" || (category && !targetSubagentType)
 
       if (!isSisyphusJuniorTarget) {
         return
@@ -121,7 +121,7 @@ export function createSisyphusJuniorNotepadHook(_ctx: PluginInput) {
       log(`[${HOOK_NAME}] Injected notepad directive`, {
         sessionID,
         callerAgent,
-        targetAgent: targetAgent || `category:${category}`,
+        targetAgent: targetSubagentType || `category:${category}`,
       })
     },
   }
