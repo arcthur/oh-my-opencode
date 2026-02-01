@@ -102,6 +102,7 @@ export const HookNameSchema = z.enum([
   "stop-continuation-guard",
   "category-skill-reminder",
   "sisyphus-junior-notepad",
+  "tmux-parallel-agents",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -331,6 +332,39 @@ export const BackgroundTaskConfigSchema = z.object({
   modelConcurrency: z.record(z.string(), z.number().min(1)).optional(),
   /** Stale timeout in milliseconds - interrupt tasks with no activity for this duration (default: 180000 = 3 minutes, minimum: 60000 = 1 minute) */
   staleTimeoutMs: z.number().min(60000).optional(),
+})
+
+/** Tmux Parallel Agents Configuration - auto-create tmux windows and git worktrees for background tasks */
+export const TmuxParallelAgentsConfigSchema = z.object({
+  /** Enable tmux window auto-creation for background tasks (default: false) */
+  enabled: z.boolean().default(false),
+  /** Tmux layout for agent windows (default: main-vertical) */
+  layout: z.enum(["main-vertical", "main-horizontal", "tiled", "even-horizontal", "even-vertical"]).default("main-vertical"),
+  /** Auto-rescue stuck agents by sending 'y' when (y/n) prompt detected (default: false) */
+  auto_rescue: z.boolean().default(false),
+  /** Rescue check interval in milliseconds (default: 10000) */
+  rescue_interval_ms: z.number().min(1000).default(10000),
+  /** Status icons shown in tmux window names */
+  status_icons: z.object({
+    waiting: z.string().default("..."),
+    working: z.string().default(">>>"),
+    done: z.string().default("OK"),
+    error: z.string().default("ERR"),
+    idle: z.string().default(""),
+  }).optional(),
+  /** Git worktree configuration for file system isolation */
+  worktree: z.object({
+    /** Enable git worktree creation for each background task (default: false) */
+    enabled: z.boolean().default(false),
+    /** Directory pattern for worktrees, {project} replaced with project name (default: ../{project}__worktrees) */
+    dir_pattern: z.string().default("../{project}__worktrees"),
+    /** Files to copy to worktree (default: [".env", ".env.local"]) */
+    copy_files: z.array(z.string()).default([".env", ".env.local"]),
+    /** Files/dirs to symlink to worktree (default: ["node_modules"]) */
+    symlink: z.array(z.string()).default(["node_modules"]),
+    /** Auto-cleanup worktree and branch on session end (default: false - keep for manual merge) */
+    auto_cleanup: z.boolean().default(false),
+  }).optional(),
 })
 
 export const NotificationConfigSchema = z.object({
@@ -884,12 +918,15 @@ export const OhMyOpenCodeConfigSchema = z.object({
   session_handoff: SessionHandoffConfigSchema.optional(),
   /** Session reference configuration for @session:id syntax */
   session_reference: SessionReferenceConfigSchema.optional(),
+  /** Tmux parallel agents configuration for auto-creating tmux windows */
+  tmux_parallel_agents: TmuxParallelAgentsConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
 export type AgentOverrideConfig = z.infer<typeof AgentOverrideConfigSchema>
 export type AgentOverrides = z.infer<typeof AgentOverridesSchema>
 export type BackgroundTaskConfig = z.infer<typeof BackgroundTaskConfigSchema>
+export type TmuxParallelAgentsConfig = z.infer<typeof TmuxParallelAgentsConfigSchema>
 export type AgentName = z.infer<typeof AgentNameSchema>
 export type HookName = z.infer<typeof HookNameSchema>
 export type BuiltinCommandName = z.infer<typeof BuiltinCommandNameSchema>

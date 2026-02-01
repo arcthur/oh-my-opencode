@@ -41,6 +41,7 @@ import {
   createDelegationValidatorHook,
   createCategorySkillReminderHook,
   createSisyphusJuniorNotepadHook,
+  createTmuxParallelAgentsHook,
   createConditionalRulesHooks,
   createSessionHandoffHook,
 } from "./hooks";
@@ -355,6 +356,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   // Saves tokens by only injecting when delegating to sisyphus-junior
   const sisyphusJuniorNotepad = isHookEnabled("sisyphus-junior-notepad")
     ? createSisyphusJuniorNotepadHook(ctx)
+    : null;
+
+  // Tmux parallel agents: auto-create tmux windows for background tasks
+  // Integrates with BackgroundManager lifecycle for visual monitoring
+  const tmuxParallelAgents = isHookEnabled("tmux-parallel-agents") && pluginConfig.tmux_parallel_agents?.enabled
+    ? createTmuxParallelAgentsHook(ctx, pluginConfig.tmux_parallel_agents)
     : null;
 
   // Conditional rules for path-sensitive rule injection
@@ -724,6 +731,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await atlasHook?.handler(input);
       await conditionalRulesHooks?.event?.(input as { event: { type: string; properties?: unknown } });
       await sessionHandoffHook?.event?.(input);
+      await tmuxParallelAgents?.event?.(input);
 
       // Category-skill reminder cleanup on session deletion
       if (input.event?.type === "session.deleted") {
@@ -847,6 +855,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await delegationValidator?.["tool.execute.before"]?.(input, output);
       await categorySkillReminder?.["tool.execute.before"]?.(input, output);
       await sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output);
+      await tmuxParallelAgents?.["tool.execute.before"]?.(input, output);
 
       // Conditional rules for file operations
       if (conditionalRulesHooks) {

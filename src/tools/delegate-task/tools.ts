@@ -634,6 +634,9 @@ ${textContent || "(No text output)"}`
 
       if (runInBackground) {
         try {
+          // Check for worktree path injected by tmux-parallel-agents hook
+          const worktreePath = (args as unknown as Record<string, unknown>).__worktree_path as string | undefined
+
           const task = await manager.launch({
             description: args.description,
             prompt: args.prompt,
@@ -645,6 +648,7 @@ ${textContent || "(No text output)"}`
             model: categoryModel,
             skills: args.load_skills.length > 0 ? args.load_skills : undefined,
             skillContent: systemContent,
+            directory: worktreePath,
           })
 
           ctx.metadata?.({

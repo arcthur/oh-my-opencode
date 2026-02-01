@@ -82,6 +82,7 @@ These are the core differentiators of our fork. If upstream later introduces sim
 | `anti-slop-enforcer` | Enforce anti-slop formatting/guardrails | Not in upstream |
 | `repo-overview-injector` | Inject repository overview context | Not in upstream |
 | `runtime-tracker` | Runtime / performance tracking | Not in upstream |
+| `tmux-parallel-agents` | Tmux window automation for background agents | Hybrid: upstream auto-trigger + parallel-agents skill patterns |
 
 Note: we renamed upstream `anthropic-context-window-limit-recovery` to `context-window-limit-recovery` and expanded capabilities (see 2.3 / 3.3).
 
@@ -96,8 +97,8 @@ This section is the main source of “upstream decisions/features we might want 
 | Module | Potential Value | Recommendation |
 |--------|----------|------|
 | `tmux-subagent/` | tmux-pane automation/collaboration | Evaluate relevance; may be tmux-only |
-| `sisyphus-tasks/` | Task storage/types | Likely worth evaluating; may reduce our custom state surface |
-| `sisyphus-swarm/` | Swarm-related primitives | Small today; can defer |
+| `sisyphus-tasks/` | JSON task storage with dependency tracking | Future: Swarm task pool; complements work-state (see §3.5) |
+| `sisyphus-swarm/` | Multi-agent coordination via mailbox | Future: parallel agent orchestration (see §3.6) |
 
 #### `src/hooks/` (New Upstream Hooks)
 
@@ -171,6 +172,75 @@ Ours: YAML state (`.sisyphus/work.yaml`) with richer fields (errors/blockers/dec
 
 Risk: as upstream evolves `boulder-state`, we need to decide whether to reintroduce compatibility or keep the forked model.
 
+### 3.5 sisyphus-tasks: Task Storage vs Work State
+
+**What it is:** JSON-based task storage system with per-task files and dependency tracking.
+
+```
+.sisyphus/tasks/{listId}/{taskId}.json
+```
+
+**Upstream implementation (~100 LOC):**
+- Task schema: `id`, `subject`, `description`, `status`, `blocks`, `blockedBy`, `owner`, `metadata`
+- Atomic writes via temp file + rename
+- `claude_code_compat` mode for Claude Code TodoWrite compatibility
+- Zod validation
+
+**Relationship to work-state:**
+
+| Concern | sisyphus-tasks | work-state |
+|---------|----------------|------------|
+| **Purpose** | Task storage/distribution | Session execution state |
+| **Question answered** | "What tasks exist? Who owns them?" | "How is current session progressing?" |
+| **Scope** | Multi-agent task pool | Single orchestrator workflow |
+| **Features** | CRUD + dependencies | 2-action rule, 3-strike protocol, blockers, decisions, phase reflection |
+
+**Conclusion:** Not competing systems. Future integration path:
+- `sisyphus-tasks`: Swarm task pool (shared across agents)
+- `work-state`: Per-agent execution state (errors, progress, decisions)
+
+### 3.6 sisyphus-swarm: Multi-Agent Coordination
+
+**What it is:** Distributed agent coordination via file-based mailbox protocol.
+
+**Architecture difference:**
+
+```
+Current: Single Orchestrator + Subagents (synchronous)
+┌─────────────┐
+│  Sisyphus   │ ──delegate_task()──► sisyphus-junior (sync call, same process)
+└─────────────┘
+
+Swarm: Multiple Independent Agents (asynchronous)
+┌─────────┐     ┌─────────┐     ┌─────────┐
+│ Agent A │     │ Agent B │     │ Agent C │   ← separate terminals/processes
+└────┬────┘     └────┬────┘     └────┬────┘
+     └───────────────┼───────────────┘
+                     ▼
+        .sisyphus/teams/{team}/inboxes/*.json   ← async mailbox
+```
+
+**Mailbox protocol messages (upstream):**
+- `join_request` / `join_approved` / `join_rejected`: Team membership
+- `task_assignment` / `task_completed` / `idle_notification`: Task lifecycle
+- `permission_request` / `permission_response`: Cross-agent permissions
+- `plan_approval_request` / `plan_approval_response`: Plan review
+- `shutdown_request` / `shutdown_approved` / `shutdown_rejected`: Graceful termination
+- `mode_set_request`: Change agent mode (plan, delegate, acceptEdits, etc.)
+
+**Why Swarm matters (future):**
+1. **Breaks single-instance limits** - Multiple Claude Code instances in parallel
+2. **True parallelism** - Not just subagent calls, but independent processes
+3. **Fault tolerance** - One agent crash doesn't kill others
+4. **Human observability** - tmux panes show each agent's work
+
+**Current status:** Upstream has only `mailbox/types.ts` (~120 LOC). No runtime implementation yet.
+
+**Integration plan when ready:**
+1. Sync `sisyphus-tasks/` as shared task pool
+2. Sync `sisyphus-swarm/` for mailbox protocol
+3. Keep `work-state/` as per-agent execution state (complementary, not replaced)
+
 ---
 
 ## 4. Dependency Differences (vs `upstream/dev`)
@@ -208,13 +278,29 @@ This is the main action section: identify upstream changes worth following to av
 
 - ~~`category-skill-reminder`~~ ✅ **Merged** (2026-02-01) - Complements delegation-validator as pre-decision nudge
 - ~~`sisyphus-junior-notepad`~~ ✅ **Merged** (2026-02-01) - Dynamic injection saves tokens, refactored agent prompt
-- `sisyphus-tasks/`: evaluate whether it can reduce our custom state surface (deferred - solves different problem than work-state)
+- ~~`sisyphus-tasks/`~~ → **Deferred to §6.4** - Complements work-state, not replaces; sync with Swarm (see §3.5)
 - ~~`deep` category~~ ✅ **Merged** (2026-02-01) - Added as optional category with `variant: "high"`, no model hardcoding
 
-### 6.3 Low Priority (Can Defer)
+### 6.3 Low Priority (Evaluated)
 
-- `tmux-subagent/`: environment-specific, narrow applicability
-- `sisyphus-swarm/`: currently small (mailbox types); revisit when upstream matures
+- ~~`tmux-subagent/`~~ → **Merged as `tmux-parallel-agents` hook** (2026-02-01)
+  - Hybrid approach: upstream's automatic `session.created` triggering + user's parallel-agents skill patterns
+  - Features: wm-* naming, git worktree isolation, status detection, auto-rescue, @workmux_status icons
+  - Config: `tmux_parallel_agents: { enabled, auto_rescue, status_icons, worktree: { enabled, dir_pattern, copy_files, symlink, auto_cleanup } }`
+
+### 6.4 Future Priority (Swarm Infrastructure)
+
+These modules form the foundation for multi-agent coordination. Defer until upstream has runtime implementation, then sync together.
+
+- `sisyphus-tasks/`: JSON task storage with dependency tracking (see §3.5)
+  - Status: Schema + storage utilities only (~100 LOC)
+  - When to sync: When Swarm runtime is ready, or if we want Claude Code TodoWrite compatibility
+  - Integration: Complements work-state (task pool vs execution state)
+
+- `sisyphus-swarm/`: Mailbox-based multi-agent coordination (see §3.6)
+  - Status: Type definitions only (~120 LOC), no runtime yet
+  - When to sync: When upstream adds actual mailbox read/write + agent coordination logic
+  - Integration: Each Swarm agent would use work-state for local execution tracking
 
 ---
 

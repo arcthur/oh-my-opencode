@@ -57,6 +57,8 @@ export interface LaunchInput {
   skillContent?: string
   /** If true, skip parent session notification on completion (for internal orchestration tasks) */
   silent?: boolean
+  /** Custom working directory (e.g., git worktree path) - overrides parent directory */
+  directory?: string
 }
 
 export interface ResumeInput {

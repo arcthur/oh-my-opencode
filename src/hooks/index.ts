@@ -43,5 +43,6 @@ export { createPreCompletionVerificationHook, type PreCompletionVerificationOpti
 export { createDelegationValidatorHook } from "./delegation-validator";
 export { createCategorySkillReminderHook } from "./category-skill-reminder";
 export { createSisyphusJuniorNotepadHook } from "./sisyphus-junior-notepad";
+export { createTmuxParallelAgentsHook, type TmuxParallelAgentsConfig } from "./tmux-parallel-agents";
 export { createConditionalRulesHooks, clearConditionalRulesCache, reloadRules, type ConditionalRulesHookContext } from "../features/conditional-rules";
 export { createSessionHandoffHook, clearAllSessionStates, type SessionHandoffHookContext } from "../features/session-handoff";
