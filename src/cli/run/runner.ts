@@ -10,6 +10,10 @@ const SESSION_CREATE_MAX_RETRIES = 3
 const SESSION_CREATE_RETRY_DELAY_MS = 1000
 
 export async function run(options: RunOptions): Promise<number> {
+  // Set CLI run mode environment variable before any config loading
+  // This signals to config-handler to deny Question tool (no TUI to answer)
+  process.env.OPENCODE_CLI_RUN_MODE = "true"
+
   const {
     message,
     agent,
