@@ -1,9 +1,9 @@
 # Upstream Sync Notes
 
-> Last updated: 2026-02-01  
-> Local `dev`: `beddc1f5`  
-> Remote `upstream/dev`: `96e7b39a`  
-> Status: `dev` is **ahead 94** / **behind 336** vs `upstream/dev` (merge-base: `66fd761a`)
+> Last updated: 2026-02-03
+> Local `dev`: `5cb51004`
+> Remote `upstream/dev`: `159fccdd`
+> Status: `dev` is **ahead 105** / **behind 407** vs `upstream/dev`
 
 This document tracks the key architectural deltas between our `dev` branch and `upstream/dev`, and records the design decisions behind intentional divergence.
 
@@ -122,12 +122,12 @@ This section is the main source of “upstream decisions/features we might want 
 
 ### 2.3 Both-modified Areas (High Conflict / Requires an Explicit Strategy)
 
-These paths are likely to conflict in future syncs. Decide up front “who wins” and how to merge:
+These paths are likely to conflict in future syncs. Decide up front "who wins" and how to merge:
 
 - `src/index.ts`: main entry for registering hooks/tools/features (highest conflict rate)
 - `src/config/schema.ts`: naming, fields, defaults, and migration compatibility
 - `src/tools/delegate-task/*`: rapidly evolving args/behavior/default categories
-- `src/agents/sisyphus.ts`, `src/agents/atlas.ts`: prompt/protocol changes; tightly coupled to tool args
+- `src/agents/sisyphus.ts`, `src/agents/atlas/*`: prompt/protocol changes; tightly coupled to tool args
 - `src/features/boulder-state/*` vs `src/features/work-state/*`: state system divergence
 - `src/features/builtin-skills/skills.ts`: upstream-added skills (e.g. `agent-browser`) vs our additions
 - `src/hooks/*`: both sides add hooks; requires consistent HookNameSchema + exports
@@ -289,6 +289,55 @@ This is the main action section: identify upstream changes worth following to av
   - Hybrid approach: upstream's automatic `session.created` triggering + user's parallel-agents skill patterns
   - Features: wm-* naming, git worktree isolation, status detection, auto-rescue, @workmux_status icons
   - Config: `tmux_parallel_agents: { enabled, auto_rescue, status_icons, worktree: { enabled, dir_pattern, copy_files, symlink, auto_cleanup } }`
+
+### 6.5 Latest Sync (2026-02-03)
+
+This section documents the most recent upstream sync session.
+
+#### Merged Commits
+
+| Commit | Description | Notes |
+|--------|-------------|-------|
+| `1edf7d5a` | Model resolution + case-insensitive matching | 3-step fallback: override → chain → default |
+| `5199fed8` | OPENCODE_CONFIG_DIR environment variable | Profile isolation (OCX ghost mode) |
+| `654eca16` | Three critical bug fixes | variant override, Windows compat, prompt_append |
+| `5cb51004` | Atlas modular structure | Model-based routing (Claude vs GPT prompts) |
+
+#### Key Changes
+
+1. **Model Resolution (`resolveModelWithFallback`)**
+   - 3-step fallback: user override → provider fallback chain → system default
+   - Fuzzy matching with availability check
+   - Integrated in `createBuiltinAgents()` for all agents
+
+2. **Case-Insensitive Agent Names**
+   - `findCaseInsensitive`, `includesCaseInsensitive`, `equalsIgnoreCase` utilities
+   - Applied to disabled agents, agent overrides, tool restrictions
+   - Validates in `delegate_task` and `call_omo_agent`
+
+3. **Variant Override Priority (`resolveVariantForModel`)**
+   - User's explicit variant override takes precedence over fallback chain default
+   - Case-insensitive agent name lookup in variant resolution
+
+4. **Windows Compatibility**
+   - `Bun.which()` replaces `which`/`where` command spawning
+   - Fixes doctor checks on Windows
+
+5. **Atlas Modular Structure**
+   - Split into `atlas/index.ts`, `default.ts`, `gpt.ts`, `utils.ts`
+   - Model-based routing: GPT models → gpt.ts, others → default.ts
+
+6. **Prometheus QA Enhancement**
+   - Mandatory Agent-Executed QA Scenarios for all tasks
+   - Zero human intervention requirement
+   - Detailed scenario format with specific selectors/data
+
+#### Intentionally NOT Merged
+
+| Commit | Reason |
+|--------|--------|
+| `8d29a1c5` Claude Tasks system | Our fork has better task system |
+| `b4054948` Deadlock fix | Not applicable (our architecture uses sync function) |
 
 ### 6.4 Future Priority (Swarm Infrastructure)
 

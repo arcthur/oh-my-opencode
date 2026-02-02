@@ -8,7 +8,11 @@
 
 ```
 agents/
-├── atlas.ts    # Orchestrator (1383 lines) - 7-phase delegation
+├── atlas/                      # Orchestrator - modular structure
+│   ├── index.ts                # Routing: model detection, exports
+│   ├── default.ts              # Claude-optimized prompt
+│   ├── gpt.ts                  # GPT-5.2 optimized prompt
+│   └── utils.ts                # Section builders (categories, skills, agents)
 ├── sisyphus.ts                 # Main prompt (615 lines)
 ├── sisyphus-junior.ts          # Delegated task executor
 ├── dynamic-agent-prompt-builder.ts  # Dynamic prompt generation
@@ -16,7 +20,7 @@ agents/
 ├── librarian.ts                # Multi-repo research (GLM-4.7-free)
 ├── explore.ts                  # Fast grep (Grok Code)
 ├── multimodal-looker.ts        # Media analyzer (Gemini 3 Flash)
-├── prometheus-prompt.ts        # Planning (1196 lines) - interview mode
+├── prometheus-prompt.ts        # Planning - interview mode, Agent-Executed QA
 ├── plan-synthesizer.ts         # Multi-plan synthesis (Metis+Momus consolidated)
 ├── hephaestus.ts               # Autonomous deep worker (GPT 5.2 Codex)
 ├── types.ts                    # AgentModelConfig interface
