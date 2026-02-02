@@ -10,7 +10,7 @@ import { createAtlasAgent } from "./atlas"
 import { createPlanSynthesizerAgent } from "./plan-synthesizer"
 import { createHephaestusAgent } from "./hephaestus"
 import type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynamic-agent-prompt-builder"
-import { deepMerge } from "../shared"
+import { deepMerge, AGENT_MODEL_REQUIREMENTS, isModelAvailable, isAnyFallbackModelAvailable, resolveModelWithFallback, findCaseInsensitive, includesCaseInsensitive } from "../shared"
 import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "../tools/delegate-task/constants"
 import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-content"
 
@@ -145,7 +145,8 @@ export function createBuiltinAgents(
   systemDefaultModel?: string,
   categories?: CategoriesConfig,
   gitMasterConfig?: GitMasterConfig,
-  availableSkills: AvailableSkill[] = []
+  availableSkills: AvailableSkill[] = [],
+  availableModels?: Set<string>
 ): Record<string, AgentConfig> {
   if (!systemDefaultModel) {
     throw new Error("createBuiltinAgents requires systemDefaultModel")
@@ -167,14 +168,47 @@ export function createBuiltinAgents(
     const agentName = name as BuiltinAgentName
 
     if (agentName === "sisyphus") continue
+    if (agentName === "hephaestus") continue // Handle separately with model requirement check
     if (agentName === "atlas") continue
-    if (disabledAgents.includes(agentName)) continue
+    // Use case-insensitive matching for disabled agents
+    if (includesCaseInsensitive(disabledAgents, agentName)) continue
 
-    const override = agentOverrides[agentName]
-    const rawModel = override?.model ?? systemDefaultModel
-    const model = extractSingleModel(rawModel)
+    // Use case-insensitive lookup for agent overrides
+    // Cast to AgentOverrideConfig since we're not handling prometheus here (which has array model)
+    const override = findCaseInsensitive(agentOverrides, agentName) as AgentOverrideConfig | undefined
+    const requirement = AGENT_MODEL_REQUIREMENTS[agentName]
+
+    // Check if agent requires a specific model
+    if (requirement?.requiresModel && availableModels) {
+      if (!isModelAvailable(requirement.requiresModel, availableModels)) {
+        continue
+      }
+    }
+
+    // Use resolveModelWithFallback when availableModels is provided and agent has fallback chain
+    // extractSingleModel handles array models (only Prometheus uses arrays)
+    const userModelOverride = override?.model ? extractSingleModel(override.model) : undefined
+    let model: string
+    if (availableModels && availableModels.size > 0 && requirement?.fallbackChain) {
+      const resolved = resolveModelWithFallback({
+        userModel: userModelOverride,
+        fallbackChain: requirement.fallbackChain,
+        availableModels,
+        systemDefaultModel,
+      })
+      model = resolved.model
+    } else {
+      model = userModelOverride ?? systemDefaultModel
+    }
 
     let config = buildAgent(source, model, mergedCategories, gitMasterConfig)
+
+    // Apply variant from override or requirement
+    if (override?.variant) {
+      config = { ...config, variant: override.variant }
+    } else if (requirement?.variant) {
+      config = { ...config, variant: requirement.variant }
+    }
 
     if (agentName === "librarian" && directory && config.prompt) {
       const envContext = createEnvContext()
@@ -197,41 +231,149 @@ export function createBuiltinAgents(
     }
   }
 
-  if (!disabledAgents.includes("sisyphus")) {
-    const sisyphusOverride = agentOverrides["sisyphus"]
-    const rawSisyphusModel = sisyphusOverride?.model ?? systemDefaultModel
-    const sisyphusModel = extractSingleModel(rawSisyphusModel)
+  // Handle Hephaestus with model requirement check
+  // Hephaestus requires gpt-5.2-codex - only create if model is available or user has explicit config
+  if (!includesCaseInsensitive(disabledAgents, "hephaestus")) {
+    const hephaestusOverride = findCaseInsensitive(agentOverrides, "hephaestus") as AgentOverrideConfig | undefined
+    const hephaestusRequirement = AGENT_MODEL_REQUIREMENTS["hephaestus"]
+    const hasHephaestusExplicitConfig = hephaestusOverride !== undefined
 
-    let sisyphusConfig = createSisyphusAgent(
-      sisyphusModel,
-      availableAgents,
-      undefined,
-      availableSkills,
-      availableCategories
-    )
+    const hasRequiredModel =
+      !hephaestusRequirement?.requiresModel ||
+      hasHephaestusExplicitConfig ||
+      (availableModels && availableModels.size > 0 && isModelAvailable(hephaestusRequirement.requiresModel, availableModels))
 
-    if (directory && sisyphusConfig.prompt) {
-      const envContext = createEnvContext()
-      sisyphusConfig = { ...sisyphusConfig, prompt: sisyphusConfig.prompt + envContext }
+    if (hasRequiredModel) {
+      // Use resolveModelWithFallback when availableModels is provided
+      const hephaestusUserModel = hephaestusOverride?.model ? extractSingleModel(hephaestusOverride.model) : undefined
+      let hephaestusModel: string
+      if (availableModels && availableModels.size > 0 && hephaestusRequirement?.fallbackChain) {
+        const resolved = resolveModelWithFallback({
+          userModel: hephaestusUserModel,
+          fallbackChain: hephaestusRequirement.fallbackChain,
+          availableModels,
+          systemDefaultModel,
+        })
+        hephaestusModel = resolved.model
+      } else {
+        hephaestusModel = hephaestusUserModel ?? systemDefaultModel
+      }
+
+      let hephaestusConfig = createHephaestusAgent(
+        hephaestusModel,
+        availableAgents,
+        undefined,
+        availableSkills,
+        availableCategories
+      )
+
+      // Apply variant from override or requirement (default: medium reasoning effort)
+      if (hephaestusOverride?.variant) {
+        hephaestusConfig = { ...hephaestusConfig, variant: hephaestusOverride.variant }
+      } else if (hephaestusRequirement?.variant) {
+        hephaestusConfig = { ...hephaestusConfig, variant: hephaestusRequirement.variant }
+      } else {
+        hephaestusConfig = { ...hephaestusConfig, variant: hephaestusConfig.variant ?? "medium" }
+      }
+
+      if (hephaestusOverride) {
+        hephaestusConfig = mergeAgentConfig(hephaestusConfig, hephaestusOverride)
+      }
+
+      result["hephaestus"] = hephaestusConfig
     }
-
-    if (sisyphusOverride) {
-      sisyphusConfig = mergeAgentConfig(sisyphusConfig, sisyphusOverride)
-    }
-
-    result["sisyphus"] = sisyphusConfig
   }
 
-  if (!disabledAgents.includes("atlas")) {
-    const orchestratorOverride = agentOverrides["atlas"]
-    const rawOrchestratorModel = orchestratorOverride?.model ?? systemDefaultModel
-    const orchestratorModel = extractSingleModel(rawOrchestratorModel)
+  // Handle Sisyphus with model requirement check
+  // Sisyphus requires at least one model from its fallback chain
+  if (!includesCaseInsensitive(disabledAgents, "sisyphus")) {
+    const sisyphusOverride = findCaseInsensitive(agentOverrides, "sisyphus") as AgentOverrideConfig | undefined
+    const sisyphusRequirement = AGENT_MODEL_REQUIREMENTS["sisyphus"]
+    const hasSisyphusExplicitConfig = sisyphusOverride !== undefined
+
+    const meetsSisyphusAnyModelRequirement =
+      !sisyphusRequirement?.requiresAnyModel ||
+      hasSisyphusExplicitConfig ||
+      !availableModels ||
+      availableModels.size === 0 ||
+      isAnyFallbackModelAvailable(sisyphusRequirement.fallbackChain, availableModels)
+
+    if (meetsSisyphusAnyModelRequirement) {
+      // Use resolveModelWithFallback when availableModels is provided
+      const sisyphusUserModel = sisyphusOverride?.model ? extractSingleModel(sisyphusOverride.model) : undefined
+      let sisyphusModel: string
+      if (availableModels && availableModels.size > 0 && sisyphusRequirement?.fallbackChain) {
+        const resolved = resolveModelWithFallback({
+          userModel: sisyphusUserModel,
+          fallbackChain: sisyphusRequirement.fallbackChain,
+          availableModels,
+          systemDefaultModel,
+        })
+        sisyphusModel = resolved.model
+      } else {
+        sisyphusModel = sisyphusUserModel ?? systemDefaultModel
+      }
+
+      let sisyphusConfig = createSisyphusAgent(
+        sisyphusModel,
+        availableAgents,
+        undefined,
+        availableSkills,
+        availableCategories
+      )
+
+      // Apply variant from override or requirement
+      if (sisyphusOverride?.variant) {
+        sisyphusConfig = { ...sisyphusConfig, variant: sisyphusOverride.variant }
+      } else if (sisyphusRequirement?.variant) {
+        sisyphusConfig = { ...sisyphusConfig, variant: sisyphusRequirement.variant }
+      }
+
+      if (directory && sisyphusConfig.prompt) {
+        const envContext = createEnvContext()
+        sisyphusConfig = { ...sisyphusConfig, prompt: sisyphusConfig.prompt + envContext }
+      }
+
+      if (sisyphusOverride) {
+        sisyphusConfig = mergeAgentConfig(sisyphusConfig, sisyphusOverride)
+      }
+
+      result["sisyphus"] = sisyphusConfig
+    }
+  }
+
+  if (!includesCaseInsensitive(disabledAgents, "atlas")) {
+    const orchestratorOverride = findCaseInsensitive(agentOverrides, "atlas") as AgentOverrideConfig | undefined
+    const atlasRequirement = AGENT_MODEL_REQUIREMENTS["atlas"]
+
+    // Use resolveModelWithFallback when availableModels is provided
+    const atlasUserModel = orchestratorOverride?.model ? extractSingleModel(orchestratorOverride.model) : undefined
+    let orchestratorModel: string
+    if (availableModels && availableModels.size > 0 && atlasRequirement?.fallbackChain) {
+      const resolved = resolveModelWithFallback({
+        userModel: atlasUserModel,
+        fallbackChain: atlasRequirement.fallbackChain,
+        availableModels,
+        systemDefaultModel,
+      })
+      orchestratorModel = resolved.model
+    } else {
+      orchestratorModel = atlasUserModel ?? systemDefaultModel
+    }
+
     let orchestratorConfig = createAtlasAgent({
       model: orchestratorModel,
-       availableAgents,
-       availableSkills,
-       userCategories: categories,
-     })
+      availableAgents,
+      availableSkills,
+      userCategories: categories,
+    })
+
+    // Apply variant from override or requirement
+    if (orchestratorOverride?.variant) {
+      orchestratorConfig = { ...orchestratorConfig, variant: orchestratorOverride.variant }
+    } else if (atlasRequirement?.variant) {
+      orchestratorConfig = { ...orchestratorConfig, variant: atlasRequirement.variant }
+    }
 
     if (orchestratorOverride) {
       orchestratorConfig = mergeAgentConfig(orchestratorConfig, orchestratorOverride)

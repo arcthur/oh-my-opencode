@@ -93,7 +93,7 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION, includesCaseInsensitive } from "./shared";
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
 import { DEFAULT_HANDOFF_CONFIG } from "./features/session-handoff";
 import { loadPluginConfig } from "./plugin-config";
@@ -898,8 +898,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
         const subagentType = args.subagent_type as string;
-        const isExploreOrLibrarian = ["explore", "librarian"].includes(
-          subagentType
+        const isExploreOrLibrarian = includesCaseInsensitive(
+          ["explore", "librarian"],
+          subagentType ?? ""
         );
 
         args.tools = {

@@ -20,3 +20,27 @@ export function getDataDir(): string {
 export function getOpenCodeStorageDir(): string {
   return path.join(getDataDir(), "opencode", "storage")
 }
+
+/**
+ * Returns the user-level cache directory.
+ * Respects XDG_CACHE_HOME or defaults to ~/.cache
+ */
+export function getCacheDir(): string {
+  return process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), ".cache")
+}
+
+/**
+ * Returns the oh-my-opencode cache directory.
+ * All platforms: ~/.cache/oh-my-opencode
+ */
+export function getOmoOpenCodeCacheDir(): string {
+  return path.join(getCacheDir(), "oh-my-opencode")
+}
+
+/**
+ * Returns the OpenCode cache directory.
+ * All platforms: ~/.cache/opencode
+ */
+export function getOpenCodeCacheDir(): string {
+  return path.join(getCacheDir(), "opencode")
+}

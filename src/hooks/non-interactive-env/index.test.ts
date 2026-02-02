@@ -221,7 +221,9 @@ describe("non-interactive-env hook", () => {
       expect(cmd).toContain("; git commit")
     })
 
-    test("#given Windows with PowerShell #when git command executes #then uses powershell $env syntax", async () => {
+    // NOTE: Bash tool always runs in Unix-like shell (Git Bash, WSL), even on Windows.
+    // See GitHub issues #983 and #889 for context on this design decision.
+    test("#given Windows with PowerShell #when git command executes #then still uses unix export syntax", async () => {
       process.env.PSModulePath = "C:\\Program Files\\PowerShell\\Modules"
       Object.defineProperty(process, "platform", { value: "win32" })
 
@@ -236,13 +238,12 @@ describe("non-interactive-env hook", () => {
       )
 
       const cmd = output.args.command as string
-      expect(cmd).toContain("$env:")
+      // Bash tool always runs in Unix-like shell, so always use export syntax
+      expect(cmd).toStartWith("export ")
       expect(cmd).toContain("; git status")
-      expect(cmd).not.toStartWith("export ")
-      expect(cmd).not.toContain("set ")
     })
 
-    test("#given Windows without PowerShell #when git command executes #then uses cmd set syntax", async () => {
+    test("#given Windows without PowerShell #when git command executes #then still uses unix export syntax", async () => {
       delete process.env.PSModulePath
       delete process.env.SHELL
       Object.defineProperty(process, "platform", { value: "win32" })
@@ -258,13 +259,12 @@ describe("non-interactive-env hook", () => {
       )
 
       const cmd = output.args.command as string
-      expect(cmd).toContain("set ")
-      expect(cmd).toContain("&&")
-      expect(cmd).not.toStartWith("export ")
-      expect(cmd).not.toContain("$env:")
+      // Bash tool always runs in Unix-like shell, so always use export syntax
+      expect(cmd).toStartWith("export ")
+      expect(cmd).toContain("; git log")
     })
 
-    test("#given PowerShell #when values contain quotes #then escapes correctly", async () => {
+    test("#given Windows #when values contain special chars #then uses unix export with proper escaping", async () => {
       process.env.PSModulePath = "C:\\Program Files\\PowerShell\\Modules"
       Object.defineProperty(process, "platform", { value: "win32" })
 
@@ -279,30 +279,12 @@ describe("non-interactive-env hook", () => {
       )
 
       const cmd = output.args.command as string
-      expect(cmd).toMatch(/\$env:\w+='[^']*'/)
+      // Bash tool always runs in Unix-like shell, so always use export syntax
+      expect(cmd).toStartWith("export ")
+      expect(cmd).toContain("; git status")
     })
 
-    test("#given cmd.exe #when values contain spaces #then escapes correctly", async () => {
-      delete process.env.PSModulePath
-      delete process.env.SHELL
-      Object.defineProperty(process, "platform", { value: "win32" })
-
-      const hook = createNonInteractiveEnvHook(mockCtx)
-      const output: { args: Record<string, unknown>; message?: string } = {
-        args: { command: "git status" },
-      }
-
-      await hook["tool.execute.before"](
-        { tool: "bash", sessionID: "test", callID: "1" },
-        output
-      )
-
-      const cmd = output.args.command as string
-      expect(cmd).toMatch(/set \w+="[^"]*"/)
-    })
-
-    test("#given PowerShell #when chained git commands #then env vars apply to all commands", async () => {
-      process.env.PSModulePath = "C:\\Program Files\\PowerShell\\Modules"
+    test("#given Windows #when chained git commands #then env vars apply with unix export syntax", async () => {
       Object.defineProperty(process, "platform", { value: "win32" })
 
       const hook = createNonInteractiveEnvHook(mockCtx)
@@ -316,7 +298,8 @@ describe("non-interactive-env hook", () => {
       )
 
       const cmd = output.args.command as string
-      expect(cmd).toContain("$env:")
+      // Bash tool always runs in Unix-like shell, so always use export syntax
+      expect(cmd).toStartWith("export ")
       expect(cmd).toContain("; git add file && git commit")
     })
   })
