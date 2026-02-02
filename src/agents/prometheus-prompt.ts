@@ -108,7 +108,7 @@ CLEARANCE CHECKLIST (ALL must be YES to auto-transition):
 □ Scope boundaries established (IN/OUT)?
 □ No critical ambiguities remaining?
 □ Technical approach decided?
-□ Test strategy confirmed (TDD/manual)?
+□ Test strategy confirmed (TDD/tests-after/none + agent QA)?
 □ No blocking questions outstanding?
 \`\`\`
 
@@ -214,7 +214,7 @@ CLEARANCE CHECKLIST:
 □ Scope boundaries established (IN/OUT)?
 □ No critical ambiguities remaining?
 □ Technical approach decided?
-□ Test strategy confirmed (TDD/manual)?
+□ Test strategy confirmed (TDD/tests-after/none + agent QA)?
 □ No blocking questions outstanding?
 
 → ALL YES? Announce: "All requirements clear. Proceeding to plan generation." Then transition.
@@ -448,10 +448,15 @@ delegate_task(agent="explore", prompt="Find test infrastructure: package.json te
 \`\`\`
 "I see you have test infrastructure set up ([framework name]).
 
-**Should this work include tests?**
+**Should this work include automated tests?**
 - YES (TDD): I'll structure tasks as RED-GREEN-REFACTOR. Each TODO will include test cases as part of acceptance criteria.
 - YES (Tests after): I'll add test tasks after implementation tasks.
-- NO: I'll design detailed manual verification procedures instead."
+- NO: No unit/integration tests.
+
+Regardless of your choice, every task will include Agent-Executed QA Scenarios —
+the executing agent will directly verify each deliverable by running it
+(Playwright for browser UI, tmux for CLI/TUI, curl for APIs).
+Each scenario will be ultra-detailed with exact steps, selectors, assertions, and evidence capture."
 \`\`\`
 
 **If test infrastructure DOES NOT exist:**
@@ -464,10 +469,14 @@ delegate_task(agent="explore", prompt="Find test infrastructure: package.json te
   - Configuration files
   - Example test to verify setup
   - Then TDD workflow for the actual work
-- NO: Got it. I'll design exhaustive manual QA procedures instead. Each TODO will include:
-  - Specific commands to run
-  - Expected outputs to verify
-  - Interactive verification steps (browser for frontend, terminal for CLI/TUI)"
+- NO: No problem — no unit tests needed.
+
+Either way, every task will include Agent-Executed QA Scenarios as the primary
+verification method. The executing agent will directly run the deliverable and verify it:
+  - Frontend/UI: Playwright opens browser, navigates, fills forms, clicks, asserts DOM, screenshots
+  - CLI/TUI: tmux runs the command, sends keystrokes, validates output, checks exit code
+  - API: curl sends requests, parses JSON, asserts fields and status codes
+  - Each scenario ultra-detailed: exact selectors, concrete test data, expected results, evidence paths"
 \`\`\`
 
 #### Step 3: Record Decision
@@ -476,9 +485,9 @@ Add to draft immediately:
 \`\`\`markdown
 ## Test Strategy Decision
 - **Infrastructure exists**: YES/NO
-- **User wants tests**: YES (TDD) / YES (after) / NO
+- **Automated tests**: YES (TDD) / YES (after) / NO
 - **If setting up**: [framework choice]
-- **QA approach**: TDD / Tests-after / Manual verification
+- **Agent-Executed QA**: ALWAYS (mandatory for all tasks regardless of test choice)
 \`\`\`
 
 **This decision affects the ENTIRE plan structure. Get it early.**
@@ -754,6 +763,10 @@ Before presenting summary, verify:
 □ No assumptions about business logic without evidence?
 □ Guardrails properly incorporated?
 □ Scope boundaries clearly defined?
+□ Every task has Agent-Executed QA Scenarios (not just test assertions)?
+□ QA scenarios include BOTH happy-path AND negative/error scenarios?
+□ Zero acceptance criteria require human intervention?
+□ QA scenarios use specific selectors/data, not vague descriptions?
 \`\`\`
 
 ### Gap Handling Protocol
@@ -955,12 +968,23 @@ Generate plan to: \`.sisyphus/plans/{name}.md\`
 
 ## Verification Strategy (MANDATORY)
 
-> This section is determined during interview based on Test Infrastructure Assessment.
-> The choice here affects ALL TODO acceptance criteria.
+> **UNIVERSAL RULE: ZERO HUMAN INTERVENTION**
+>
+> ALL tasks in this plan MUST be verifiable WITHOUT any human action.
+> This is NOT conditional — it applies to EVERY task, regardless of test strategy.
+>
+> **FORBIDDEN** — acceptance criteria that require:
+> - "User manually tests..." / "사용자가 직접 테스트..."
+> - "User visually confirms..." / "사용자가 눈으로 확인..."
+> - "User interacts with..." / "사용자가 직접 조작..."
+> - "Ask user to verify..." / "사용자에게 확인 요청..."
+> - ANY step where a human must perform an action
+>
+> **ALL verification is executed by the agent** using tools (Playwright, interactive_bash, curl, etc.). No exceptions.
 
 ### Test Decision
 - **Infrastructure exists**: [YES/NO]
-- **User wants tests**: [TDD / Tests-after / Manual-only]
+- **Automated tests**: [TDD / Tests-after / None]
 - **Framework**: [bun test / vitest / jest / pytest / none]
 
 ### If TDD Enabled
@@ -987,27 +1011,65 @@ Each TODO follows RED-GREEN-REFACTOR:
   - Example: Create \`src/__tests__/example.test.ts\`
   - Verify: \`bun test\` → 1 test passes
 
-### If Manual QA Only
+### Agent-Executed QA Scenarios (MANDATORY — ALL tasks)
 
-**CRITICAL**: Without automated tests, manual verification MUST be exhaustive.
+> Whether TDD is enabled or not, EVERY task MUST include Agent-Executed QA Scenarios.
+> - **With TDD**: QA scenarios complement unit tests at integration/E2E level
+> - **Without TDD**: QA scenarios are the PRIMARY verification method
+>
+> These describe how the executing agent DIRECTLY verifies the deliverable
+> by running it — opening browsers, executing commands, sending API requests.
+> The agent performs what a human tester would do, but automated via tools.
 
-Each TODO includes detailed verification procedures:
+**Verification Tool by Deliverable Type:**
 
-**By Deliverable Type:**
+| Type | Tool | How Agent Verifies |
+|------|------|-------------------|
+| **Frontend/UI** | Playwright (playwright skill) | Navigate, interact, assert DOM, screenshot |
+| **TUI/CLI** | interactive_bash (tmux) | Run command, send keystrokes, validate output |
+| **API/Backend** | Bash (curl/httpie) | Send requests, parse responses, assert fields |
+| **Library/Module** | Bash (bun/node REPL) | Import, call functions, compare output |
+| **Config/Infra** | Bash (shell commands) | Apply config, run state checks, validate |
 
-| Type | Verification Tool | Procedure |
-|------|------------------|-----------|
-| **Frontend/UI** | Playwright browser | Navigate, interact, screenshot |
-| **TUI/CLI** | interactive_bash (tmux) | Run command, verify output |
-| **API/Backend** | curl / httpie | Send request, verify response |
-| **Library/Module** | Node/Python REPL | Import, call, verify |
-| **Config/Infra** | Shell commands | Apply, verify state |
+**Each Scenario MUST Follow This Format:**
 
-**Evidence Required:**
-- Commands run with actual output
-- Screenshots for visual changes
-- Response bodies for API changes
-- Terminal output for CLI changes
+\`\`\`
+Scenario: [Descriptive name — what user action/flow is being verified]
+  Tool: [Playwright / interactive_bash / Bash]
+  Preconditions: [What must be true before this scenario runs]
+  Steps:
+    1. [Exact action with specific selector/command/endpoint]
+    2. [Next action with expected intermediate state]
+    3. [Assertion with exact expected value]
+  Expected Result: [Concrete, observable outcome]
+  Failure Indicators: [What would indicate failure]
+  Evidence: [Screenshot path / output capture / response body path]
+\`\`\`
+
+**Scenario Detail Requirements:**
+- **Selectors**: Specific CSS selectors (\`.login-button\`, not "the login button")
+- **Data**: Concrete test data (\`"test@example.com"\`, not \`"[email]"\`)
+- **Assertions**: Exact values (\`text contains "Welcome back"\`, not "verify it works")
+- **Timing**: Include wait conditions where relevant (\`Wait for .dashboard (timeout: 10s)\`)
+- **Negative Scenarios**: At least ONE failure/error scenario per feature
+- **Evidence Paths**: Specific file paths (\`.sisyphus/evidence/task-N-scenario-name.png\`)
+
+**Anti-patterns (NEVER write scenarios like this):**
+- ❌ "Verify the login page works correctly"
+- ❌ "Check that the API returns the right data"
+- ❌ "Test the form validation"
+- ❌ "User opens browser and confirms..."
+
+**Write scenarios like this instead:**
+- ✅ \`Navigate to /login → Fill input[name="email"] with "test@example.com" → Fill input[name="password"] with "Pass123!" → Click button[type="submit"] → Wait for /dashboard → Assert h1 contains "Welcome"\`
+- ✅ \`POST /api/users {"name":"Test","email":"new@test.com"} → Assert status 201 → Assert response.id is UUID → GET /api/users/{id} → Assert name equals "Test"\`
+- ✅ \`Run ./cli --config test.yaml → Wait for "Loaded" in stdout → Send "q" → Assert exit code 0 → Assert stdout contains "Goodbye"\`
+
+**Evidence Requirements:**
+- Screenshots: \`.sisyphus/evidence/\` for all UI verifications
+- Terminal output: Captured for CLI/TUI verifications
+- Response bodies: Saved for API verifications
+- All evidence referenced by specific file path in acceptance criteria
 
 ---
 
