@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-8 AI agents for multi-model orchestration. Sisyphus (primary), oracle, librarian, explore, multimodal-looker, Prometheus, Atlas, Plan-Synthesizer.
+9 AI agents for multi-model orchestration. Sisyphus (primary), oracle, librarian, explore, multimodal-looker, Prometheus, Atlas, Plan-Synthesizer, Hephaestus.
 
 ## STRUCTURE
 
@@ -18,6 +18,7 @@ agents/
 ├── multimodal-looker.ts        # Media analyzer (Gemini 3 Flash)
 ├── prometheus-prompt.ts        # Planning (1196 lines) - interview mode
 ├── plan-synthesizer.ts         # Multi-plan synthesis (Metis+Momus consolidated)
+├── hephaestus.ts               # Autonomous deep worker (GPT 5.2 Codex)
 ├── types.ts                    # AgentModelConfig interface
 ├── utils.ts                    # createBuiltinAgents(), getAgentName()
 └── index.ts                    # builtinAgents export
@@ -35,6 +36,7 @@ agents/
 | Prometheus | anthropic/claude-opus-4-5 | 0.1 | Strategic planning, interview mode |
 | Atlas | anthropic/claude-opus-4-5 | 0.1 | Orchestrator, 7-phase delegation |
 | Plan-Synthesizer | anthropic/claude-sonnet-4-5 | 0.1 | Multi-plan synthesis (replaces Metis+Momus) |
+| Hephaestus | openai/gpt-5.2-codex | 0.1 | Autonomous deep worker, AmpCode-inspired |
 
 ## HOW TO ADD
 

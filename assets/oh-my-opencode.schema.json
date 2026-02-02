@@ -26,7 +26,8 @@
           "explore",
           "multimodal-looker",
           "atlas",
-          "plan-synthesizer"
+          "plan-synthesizer",
+          "hephaestus"
         ]
       }
     },
@@ -96,7 +97,8 @@
           "stop-continuation-guard",
           "category-skill-reminder",
           "sisyphus-junior-notepad",
-          "tmux-parallel-agents"
+          "tmux-parallel-agents",
+          "swarm-agent"
         ]
       }
     },

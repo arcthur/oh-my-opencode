@@ -64,6 +64,12 @@ export type BuiltinAgentName =
   | "multimodal-looker"
   | "atlas"
   | "plan-synthesizer"
+  | "hephaestus"
+
+/**
+ * Agent mode - primary agents appear in main selection, subagent for delegation
+ */
+export type AgentMode = "primary" | "subagent"
 
 export type OverridableAgentName =
   | "build"
