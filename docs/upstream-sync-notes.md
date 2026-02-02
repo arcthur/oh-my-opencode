@@ -302,6 +302,7 @@ This section documents the most recent upstream sync session.
 | `5199fed8` | OPENCODE_CONFIG_DIR environment variable | Profile isolation (OCX ghost mode) |
 | `654eca16` | Three critical bug fixes | variant override, Windows compat, prompt_append |
 | `5cb51004` | Atlas modular structure | Model-based routing (Claude vs GPT prompts) |
+| `e969ca55` | Prometheus layered agent-executed QA | Zero-human-intervention, ultra-detailed QA format |
 
 #### Key Changes
 
@@ -327,10 +328,12 @@ This section documents the most recent upstream sync session.
    - Split into `atlas/index.ts`, `default.ts`, `gpt.ts`, `utils.ts`
    - Model-based routing: GPT models → gpt.ts, others → default.ts
 
-6. **Prometheus QA Enhancement**
+6. **Prometheus Layered QA Refactor** (`e969ca55`)
+   - Replace binary verification (TDD xor manual) with layered (TDD AND/OR agent QA)
+   - Zero-human-intervention as universal principle
    - Mandatory Agent-Executed QA Scenarios for all tasks
-   - Zero human intervention requirement
-   - Detailed scenario format with specific selectors/data
+   - Ultra-detailed per-scenario format: named scenarios, negative cases, evidence capture
+   - Remove ambiguous 'manual QA' terminology
 
 #### Intentionally NOT Merged
 
