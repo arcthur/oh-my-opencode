@@ -1,6 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { HOOK_NAME, NON_INTERACTIVE_ENV, SHELL_COMMAND_PATTERNS } from "./constants"
-import { isNonInteractive } from "./detector"
 import { log, buildEnvPrefix } from "../../shared"
 import type { ShellType } from "../../shared"
 
@@ -48,13 +47,14 @@ export function createNonInteractiveEnvHook(_ctx: PluginInput) {
       }
 
       // NOTE: We intentionally removed the isNonInteractive() check here.
-      // Git commands should ALWAYS get non-interactive env vars when run via
-      // the bash tool, regardless of the detected environment. This fixes
-      // issues where git commands would hang waiting for editor input even
-      // in CI/non-interactive contexts that weren't properly detected.
+      // Even when OpenCode runs in a TTY, the agent cannot interact with
+      // spawned bash processes. Git commands like `git rebase --continue`
+      // would open editors (vim/nvim) that hang forever.
+      // The env vars (GIT_EDITOR=:, EDITOR=:, etc.) must ALWAYS be injected
+      // for git commands to prevent interactive prompts.
       //
-      // The bash tool always runs in a Unix-like shell (bash/sh), even on
-      // Windows (via Git Bash, WSL, etc.), so we always use unix export syntax.
+      // The bash tool always runs in a Unix-like shell (bash/sh), even on Windows
+      // (via Git Bash, WSL, etc.), so we always use unix export syntax.
       // This fixes GitHub issues #983 and #889.
       const shellType: "unix" = "unix"
       const envPrefix = buildEnvPrefix(NON_INTERACTIVE_ENV, shellType)
