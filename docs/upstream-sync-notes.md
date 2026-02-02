@@ -1,9 +1,9 @@
 # Upstream Sync Notes
 
 > Last updated: 2026-02-03
-> Local `dev`: `5cb51004`
-> Remote `upstream/dev`: `159fccdd`
-> Status: `dev` is **ahead 105** / **behind 407** vs `upstream/dev`
+> Local `dev`: `9dec1654`
+> Remote `upstream/dev`: `0f81d4c1`
+> Status: `dev` is **ahead 113** / **behind 411** vs `upstream/dev`
 
 This document tracks the key architectural deltas between our `dev` branch and `upstream/dev`, and records the design decisions behind intentional divergence.
 
@@ -303,6 +303,12 @@ This section documents the most recent upstream sync session.
 | `654eca16` | Three critical bug fixes | variant override, Windows compat, prompt_append |
 | `5cb51004` | Atlas modular structure | Model-based routing (Claude vs GPT prompts) |
 | `e969ca55` | Prometheus layered agent-executed QA | Zero-human-intervention, ultra-detailed QA format |
+| `961ce194` | Deny Question tool in CLI run mode | No TUI in CLI → set question permission to deny |
+| `011eb48f` | Windows compatibility + event listener fixes | comment-checker 'check' subcommand, remove dead listeners |
+| `dbe1b257` | Show remaining tasks in continuation prompt | Include incomplete todos list in continuation |
+| `d80adac3` | grok-code-fast-1 as primary explore model | Updated fallback chain priority |
+| `e48be69a` | Remove dead batch code in rules-injector | Cleanup non-functional batch tool handling |
+| `8bf32025` | Always inject env vars for git commands | Fix git commands hanging with editors |
 
 #### Key Changes
 
@@ -341,6 +347,22 @@ This section documents the most recent upstream sync session.
 |--------|--------|
 | `8d29a1c5` Claude Tasks system | Our fork has better task system |
 | `b4054948` Deadlock fix | Not applicable (our architecture uses sync function) |
+| `62e16874` Agent fallback + preemptive-compaction | Too many conflicts, needs manual merge |
+| `159fccdd` Background-agent cache timer optimization | Conflicts with our refactored manager.ts |
+| `3e9a0ef9` Abort session on completion | Large refactor, conflicts with our structure |
+| `80ee52fe` Model resolution with client API fallback | File structure conflicts |
+| `f146aeff` Major codebase cleanup | 50+ file changes, too many conflicts |
+| `6389da3c` tmux Ctrl+C before kill-pane | We don't have tmux-subagent feature |
+
+#### Already Present (No Changes Needed)
+
+| Commit | Description |
+|--------|-------------|
+| `25dcd2a3` | Concurrency slot leaks fix - already in our code |
+| `64825158` | Hephaestus agent - already present |
+| `ffbca5e4` | prompt_append for Prometheus - our version is better |
+| `61361030` | Copilot Gemini -preview suffix - already present |
+| `520bf9cb` | thinking_max_chars option - already present |
 
 ### 6.4 Future Priority (Swarm Infrastructure)
 
