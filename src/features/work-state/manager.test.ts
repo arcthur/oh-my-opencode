@@ -256,6 +256,9 @@ Done
       manager.getPlanProgress()
       const snapshot1 = manager.getTaskSnapshot()
 
+      // Wait 1ms to ensure different timestamp (ISO string precision is ms)
+      Bun.sleepSync(1)
+
       // #when - force sync
       const progress = manager.syncTaskSnapshot()
 

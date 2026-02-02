@@ -19,6 +19,9 @@ packages/*/bin/oh-my-opencode.exe
 .DS_Store
 Thumbs.db
 
+# Test temp files (macOS creates these with relative path bug)
+var/
+
 # Logs
 *.log
 npm-debug.log*

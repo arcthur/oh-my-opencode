@@ -796,8 +796,7 @@ describe("ralph-loop", () => {
   })
 
   describe("API timeout protection", () => {
-    // FIXME: Flaky in CI - times out intermittently
-    test.skip("should not hang when session.messages() times out", async () => {
+    test("should not hang when session.messages() times out", async () => {
       // #given - slow API that takes longer than timeout
       const slowMock = {
         ...createMockPluginInput(),
@@ -826,8 +825,9 @@ describe("ralph-loop", () => {
       })
       const elapsed = Date.now() - startTime
 
-      // #then - should complete within timeout + buffer (not hang for 10s)
-      expect(elapsed).toBeLessThan(500)
+      // #then - should complete well before mock's 10s delay (proves timeout works)
+      // Using 5000ms tolerance for CI environments with high load
+      expect(elapsed).toBeLessThan(5000)
       // #then - loop should continue (API timeout = no completion detected)
       expect(promptCalls.length).toBe(1)
     })

@@ -332,7 +332,13 @@ export function createRalphLoopHook(
         let model: { providerID: string; modelID: string } | undefined
 
         try {
-          const messagesResp = await ctx.client.session.messages({ path: { id: sessionID } })
+          // Use Promise.race with timeout to prevent hanging on slow API
+          const messagesResp = await Promise.race([
+            ctx.client.session.messages({ path: { id: sessionID } }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("API timeout")), apiTimeout)
+            ),
+          ])
           const messages = (messagesResp.data ?? []) as Array<{
             info?: { agent?: string; model?: { providerID: string; modelID: string }; modelID?: string; providerID?: string }
           }>
@@ -345,6 +351,7 @@ export function createRalphLoopHook(
             }
           }
         } catch {
+          // Fallback to file-based detection on API timeout/error
           const messageDir = getMessageDir(sessionID)
           const currentMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
           agent = currentMessage?.agent
