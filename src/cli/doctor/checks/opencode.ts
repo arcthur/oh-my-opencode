@@ -53,18 +53,13 @@ export function buildVersionCommand(
 }
 
 export async function findOpenCodeBinary(): Promise<{ binary: string; path: string } | null> {
+  // Use cross-platform Bun.which() instead of spawning 'which'/'where' commands
+  // This fixes Windows compatibility issues (#599, #1005)
   for (const binary of OPENCODE_BINARIES) {
     try {
-      const lookupCommand = getBinaryLookupCommand(process.platform)
-      const proc = Bun.spawn([lookupCommand, binary], { stdout: "pipe", stderr: "pipe" })
-      const output = await new Response(proc.stdout).text()
-      await proc.exited
-      if (proc.exitCode === 0) {
-        const paths = parseBinaryPaths(output)
-        const selectedPath = selectBinaryPath(paths, process.platform)
-        if (selectedPath) {
-          return { binary, path: selectedPath }
-        }
+      const path = Bun.which(binary)
+      if (path) {
+        return { binary, path }
       }
     } catch {
       continue

@@ -220,13 +220,16 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         // Prometheus override supports "category" and multi-model "model" for multi-plan,
         // but the actual OpenCode agent definition MUST have a single model string.
         // We strip config-only keys before merging overrides into the agent definition.
+        // Also extract prompt_append separately to append it instead of overwriting prompt.
         const {
           category: prometheusOverrideCategory,
           model: prometheusOverrideModel,
+          prompt_append: prometheusPromptAppend,
           ...prometheusOverrideAgentFields
         } = (prometheusOverride ?? {}) as Record<string, unknown> & {
           category?: string
           model?: string | string[]
+          prompt_append?: string
         }
 
         // Resolve full category config (model, temperature, top_p, tools, etc.)
@@ -272,14 +275,23 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
             : {}),
         };
 
-        agentConfig["prometheus"] = prometheusOverride
-          ? {
-              ...prometheusBase,
-              ...prometheusOverrideAgentFields,
-              // Ensure model is always a single string even if config provided an array.
-              ...(resolvedModel ? { model: resolvedModel } : {}),
-            }
-          : prometheusBase;
+        // Properly handle prompt_append for Prometheus
+        // Append it to prompt instead of shallow spread overwriting
+        // Fixes: https://github.com/code-yeongyu/oh-my-opencode/issues/723
+        if (prometheusOverride) {
+          const merged = {
+            ...prometheusBase,
+            ...prometheusOverrideAgentFields,
+            // Ensure model is always a single string even if config provided an array.
+            ...(resolvedModel ? { model: resolvedModel } : {}),
+          };
+          if (prometheusPromptAppend && merged.prompt) {
+            merged.prompt = merged.prompt + "\n" + prometheusPromptAppend;
+          }
+          agentConfig["prometheus"] = merged;
+        } else {
+          agentConfig["prometheus"] = prometheusBase;
+        }
       }
 
     const filteredConfigAgents = configAgent

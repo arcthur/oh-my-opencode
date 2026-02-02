@@ -3,11 +3,11 @@ import { CHECK_IDS, CHECK_NAMES } from "../constants"
 
 async function checkBinaryExists(binary: string): Promise<{ exists: boolean; path: string | null }> {
   try {
-    const proc = Bun.spawn(["which", binary], { stdout: "pipe", stderr: "pipe" })
-    const output = await new Response(proc.stdout).text()
-    await proc.exited
-    if (proc.exitCode === 0) {
-      return { exists: true, path: output.trim() }
+    // Use cross-platform Bun.which() instead of spawning 'which'/'where' commands
+    // This fixes Windows compatibility issues (#599, #1005)
+    const path = Bun.which(binary)
+    if (path) {
+      return { exists: true, path }
     }
   } catch {
     // intentionally empty - binary not found

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { OhMyOpenCodeConfig } from "../config"
-import { applyAgentVariant, resolveAgentVariant } from "./agent-variant"
+import { applyAgentVariant, resolveAgentVariant, resolveVariantForModel } from "./agent-variant"
 
 describe("resolveAgentVariant", () => {
   test("returns undefined when agent name missing", () => {
@@ -45,6 +45,65 @@ describe("resolveAgentVariant", () => {
 
     // #then
     expect(variant).toBe("xhigh")
+  })
+})
+
+describe("resolveVariantForModel", () => {
+  test("returns undefined when no override and no fallback chain match", () => {
+    // #given
+    const config = {} as OhMyOpenCodeConfig
+    const model = { providerID: "unknown", modelID: "unknown-model" }
+
+    // #when
+    const variant = resolveVariantForModel(config, "sisyphus", model)
+
+    // #then
+    expect(variant).toBeUndefined()
+  })
+
+  test("returns variant from fallback chain when model matches", () => {
+    // #given - sisyphus has claude-opus-4-5 with variant "max" in fallback chain
+    const config = {} as OhMyOpenCodeConfig
+    const model = { providerID: "anthropic", modelID: "claude-opus-4-5" }
+
+    // #when
+    const variant = resolveVariantForModel(config, "sisyphus", model)
+
+    // #then
+    expect(variant).toBe("max")
+  })
+
+  test("user override variant takes precedence over fallback chain default", () => {
+    // #given - sisyphus has claude-opus-4-5 with "max" variant by default
+    // but user overrides with "high"
+    const config = {
+      agents: {
+        sisyphus: { variant: "high" },
+      },
+    } as OhMyOpenCodeConfig
+    const model = { providerID: "anthropic", modelID: "claude-opus-4-5" }
+
+    // #when
+    const variant = resolveVariantForModel(config, "sisyphus", model)
+
+    // #then - user's "high" override takes precedence over fallback chain's "max"
+    expect(variant).toBe("high")
+  })
+
+  test("case-insensitive agent name lookup", () => {
+    // #given
+    const config = {
+      agents: {
+        Sisyphus: { variant: "low" },
+      },
+    } as OhMyOpenCodeConfig
+    const model = { providerID: "anthropic", modelID: "claude-opus-4-5" }
+
+    // #when - using lowercase agent name
+    const variant = resolveVariantForModel(config, "sisyphus", model)
+
+    // #then
+    expect(variant).toBe("low")
   })
 })
 
