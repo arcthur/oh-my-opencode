@@ -95,7 +95,8 @@
           "subagent-question-blocker",
           "stop-continuation-guard",
           "category-skill-reminder",
-          "sisyphus-junior-notepad"
+          "sisyphus-junior-notepad",
+          "tmux-parallel-agents"
         ]
       }
     },
@@ -3148,6 +3149,140 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "tmux_parallel_agents": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "layout": {
+          "default": "main-vertical",
+          "type": "string",
+          "enum": [
+            "main-vertical",
+            "main-horizontal",
+            "tiled",
+            "even-horizontal",
+            "even-vertical"
+          ]
+        },
+        "auto_rescue": {
+          "default": false,
+          "type": "boolean"
+        },
+        "rescue_interval_ms": {
+          "default": 10000,
+          "type": "number",
+          "minimum": 1000
+        },
+        "status_icons": {
+          "type": "object",
+          "properties": {
+            "waiting": {
+              "default": "...",
+              "type": "string"
+            },
+            "working": {
+              "default": ">>>",
+              "type": "string"
+            },
+            "done": {
+              "default": "OK",
+              "type": "string"
+            },
+            "error": {
+              "default": "ERR",
+              "type": "string"
+            },
+            "idle": {
+              "default": "",
+              "type": "string"
+            }
+          }
+        },
+        "worktree": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "dir_pattern": {
+              "default": "../{project}__worktrees",
+              "type": "string"
+            },
+            "copy_files": {
+              "default": [
+                ".env",
+                ".env.local"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "symlink": {
+              "default": [
+                "node_modules"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "auto_cleanup": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "sisyphus": {
+      "type": "object",
+      "properties": {
+        "tasks": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "storage_path": {
+              "default": ".sisyphus/tasks",
+              "type": "string"
+            },
+            "claude_code_compat": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        },
+        "swarm": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "storage_path": {
+              "default": ".sisyphus/teams",
+              "type": "string"
+            },
+            "ui_mode": {
+              "default": "toast",
+              "type": "string",
+              "enum": [
+                "toast",
+                "tmux",
+                "both"
+              ]
             }
           }
         }

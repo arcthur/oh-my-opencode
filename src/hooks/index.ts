@@ -46,3 +46,4 @@ export { createSisyphusJuniorNotepadHook } from "./sisyphus-junior-notepad";
 export { createTmuxParallelAgentsHook, type TmuxParallelAgentsConfig } from "./tmux-parallel-agents";
 export { createConditionalRulesHooks, clearConditionalRulesCache, reloadRules, type ConditionalRulesHookContext } from "../features/conditional-rules";
 export { createSessionHandoffHook, clearAllSessionStates, type SessionHandoffHookContext } from "../features/session-handoff";
+export { createSwarmAgentHook, type SwarmAgentHook, type SwarmAgentHookOptions } from "./swarm-agent";

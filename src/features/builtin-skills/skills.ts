@@ -2300,6 +2300,60 @@ Context transferred:
 `,
 }
 
+// =============================================================================
+// Swarm Multi-Agent Skill
+// =============================================================================
+
+const swarmSkill: BuiltinSkill = {
+  name: "swarm",
+  description: "Multi-agent coordination via Sisyphus Swarm. Spawn parallel workers, manage teams, and coordinate distributed work. Use the swarm tool for team operations. Triggers: 'spawn workers', 'create swarm', 'parallel agents', 'team status'.",
+  argumentHint: "[create <team> | spawn <count> | status | stop]",
+  template: `# Sisyphus Swarm - Multi-Agent Coordination
+
+Use the \`swarm\` tool to manage multi-agent teams.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| \`swarm("create <team>")\` | Create team, become coordinator |
+| \`swarm("spawn <count>")\` | Spawn N workers in tmux windows |
+| \`swarm("status")\` | Show team status |
+| \`swarm("stop [--cleanup]")\` | Stop workers, optionally cleanup worktrees |
+
+## Workflow
+
+1. Create a team: \`swarm("create feature-x")\`
+2. Add tasks using TodoWrite
+3. Spawn workers: \`swarm("spawn 3")\`
+4. Monitor: \`swarm("status")\`
+5. When done: \`swarm("stop --cleanup")\`
+
+## Requirements
+
+- Must run inside tmux
+- Enable in config:
+  \`\`\`json
+  {
+    "tmux_parallel_agents": { "enabled": true }
+  }
+  \`\`\`
+
+## Status Icons
+
+| Icon | Status |
+|------|--------|
+| ... | joining |
+| ⏸ | idle |
+| ▶ | working |
+| ? | waiting |
+| ← | leaving |
+| ✗ | dead |
+
+**Execute swarm commands using the swarm tool.**
+`,
+}
+
 export function createBuiltinSkills(): BuiltinSkill[] {
   return [
     playwrightSkill,
@@ -2315,5 +2369,7 @@ export function createBuiltinSkills(): BuiltinSkill[] {
     debugSkill,
     // Session Management
     handoffSkill,
+    // Multi-Agent
+    swarmSkill,
   ]
 }

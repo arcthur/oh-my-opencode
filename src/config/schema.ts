@@ -103,6 +103,7 @@ export const HookNameSchema = z.enum([
   "category-skill-reminder",
   "sisyphus-junior-notepad",
   "tmux-parallel-agents",
+  "swarm-agent",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -335,6 +336,33 @@ export const BackgroundTaskConfigSchema = z.object({
 })
 
 /** Tmux Parallel Agents Configuration - auto-create tmux windows and git worktrees for background tasks */
+// ============================================================================
+// Sisyphus Tasks & Swarm Configuration
+// ============================================================================
+
+export const SisyphusTasksConfigSchema = z.object({
+  /** Enable Sisyphus Tasks system (default: false) */
+  enabled: z.boolean().default(false),
+  /** Storage path for tasks (default: .sisyphus/tasks) */
+  storage_path: z.string().default(".sisyphus/tasks"),
+  /** Enable Claude Code path compatibility mode */
+  claude_code_compat: z.boolean().default(false),
+})
+
+export const SisyphusSwarmConfigSchema = z.object({
+  /** Enable Sisyphus Swarm system (default: false) */
+  enabled: z.boolean().default(false),
+  /** Storage path for teams (default: .sisyphus/teams) */
+  storage_path: z.string().default(".sisyphus/teams"),
+  /** UI mode: toast notifications, tmux panes, or both */
+  ui_mode: z.enum(["toast", "tmux", "both"]).default("toast"),
+})
+
+export const SisyphusConfigSchema = z.object({
+  tasks: SisyphusTasksConfigSchema.optional(),
+  swarm: SisyphusSwarmConfigSchema.optional(),
+})
+
 export const TmuxParallelAgentsConfigSchema = z.object({
   /** Enable tmux window auto-creation for background tasks (default: false) */
   enabled: z.boolean().default(false),
@@ -920,6 +948,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   session_reference: SessionReferenceConfigSchema.optional(),
   /** Tmux parallel agents configuration for auto-creating tmux windows */
   tmux_parallel_agents: TmuxParallelAgentsConfigSchema.optional(),
+  /** Sisyphus Tasks & Swarm configuration */
+  sisyphus: SisyphusConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -967,5 +997,8 @@ export type SessionHandoffConfig = z.infer<typeof SessionHandoffConfigSchema>
 export type HandoffExtractorConfig = z.infer<typeof HandoffExtractorConfigSchema>
 export type SessionReferenceConfig = z.infer<typeof SessionReferenceConfigSchema>
 export type SessionReferenceResolveOptions = z.infer<typeof SessionReferenceResolveOptionsSchema>
+export type SisyphusTasksConfig = z.infer<typeof SisyphusTasksConfigSchema>
+export type SisyphusSwarmConfig = z.infer<typeof SisyphusSwarmConfigSchema>
+export type SisyphusConfig = z.infer<typeof SisyphusConfigSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

@@ -12,7 +12,6 @@ import {
   createThinkModeHook,
   createClaudeCodeHooksHook,
   createContextWindowLimitRecoveryHook,
-  // NOTE: createCompactionContextInjector removed - OpenCode API does not yet support experimental.session.compacting
   createRulesInjectorHook,
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
@@ -44,6 +43,7 @@ import {
   createTmuxParallelAgentsHook,
   createConditionalRulesHooks,
   createSessionHandoffHook,
+  createSwarmAgentHook,
 } from "./hooks";
 import { createHandoffSummarizer } from "./features/session-handoff";
 import {
@@ -84,6 +84,7 @@ import {
   sessionExists,
   createDelegateTask,
   createMultiPlanTool,
+  createSwarmTool,
   interactive_bash,
   startTmuxCheck,
   lspManager,
@@ -364,6 +365,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createTmuxParallelAgentsHook(ctx, pluginConfig.tmux_parallel_agents)
     : null;
 
+  // Swarm agent: auto-initialize worker when running with OPENCODE_SWARM_* env vars
+  // Enables multi-agent coordination via Sisyphus Swarm
+  const swarmAgent = isHookEnabled("swarm-agent")
+    ? createSwarmAgentHook(ctx, { config: pluginConfig })
+    : null;
+
   // Conditional rules for path-sensitive rule injection
   // Deep merge user config with defaults to ensure all required fields are present
   const conditionalRulesConfig = deepMerge(
@@ -484,6 +491,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     model: prometheusModel,
     pipelineConfig: pluginConfig.multi_plan_pipeline,
   });
+  const swarmTool = createSwarmTool({
+    directory: ctx.directory,
+    config: pluginConfig,
+    sessionId: getMainSessionID(),
+  });
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();
   const builtinSkills = createBuiltinSkills().filter((skill) => {
@@ -548,6 +560,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       look_at: lookAt,
       delegate_task: delegateTask,
       multi_plan: multiPlanTool,
+      swarm: swarmTool,
       skill: skillTool,
       skill_mcp: skillMcpTool,
       slashcommand: slashcommandTool,
@@ -732,6 +745,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await conditionalRulesHooks?.event?.(input as { event: { type: string; properties?: unknown } });
       await sessionHandoffHook?.event?.(input);
       await tmuxParallelAgents?.event?.(input);
+      await swarmAgent?.event?.(input);
 
       // Category-skill reminder cleanup on session deletion
       if (input.event?.type === "session.deleted") {
@@ -856,6 +870,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await categorySkillReminder?.["tool.execute.before"]?.(input, output);
       await sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output);
       await tmuxParallelAgents?.["tool.execute.before"]?.(input, output);
+      await swarmAgent?.["tool.execute.before"]?.(input, output);
 
       // Conditional rules for file operations
       if (conditionalRulesHooks) {
@@ -1078,6 +1093,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await atlasHook?.["tool.execute.after"]?.(input, output);
       await taskResumeInfo["tool.execute.after"](input, output);
       await sessionHandoffHook?.["tool.execute.after"]?.(input, output);
+      await swarmAgent?.["tool.execute.after"]?.(input, output);
     },
   };
 };
