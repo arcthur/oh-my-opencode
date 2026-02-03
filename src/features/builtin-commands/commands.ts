@@ -2,6 +2,7 @@ import type { CommandDefinition } from "../claude-code-command-loader"
 import type { BuiltinCommandName, BuiltinCommands } from "./types"
 import { INIT_DEEP_TEMPLATE } from "./templates/init-deep"
 import { RALPH_LOOP_TEMPLATE, CANCEL_RALPH_TEMPLATE } from "./templates/ralph-loop"
+import { STOP_CONTINUATION_TEMPLATE } from "./templates/stop-continuation"
 import { REFACTOR_TEMPLATE } from "./templates/refactor"
 import { START_WORK_TEMPLATE } from "./templates/start-work"
 
@@ -70,6 +71,12 @@ $ARGUMENTS
 </user-request>`,
     argumentHint: "[plan-name]",
   },
+  "stop-continuation": {
+    description: "(builtin) Stop all continuation mechanisms (ralph loop, todo continuation, boulder) for this session",
+    template: `<command-instruction>
+${STOP_CONTINUATION_TEMPLATE}
+</command-instruction>`,
+  },
 }
 
 export function loadBuiltinCommands(
@@ -81,7 +88,7 @@ export function loadBuiltinCommands(
   for (const [name, definition] of Object.entries(BUILTIN_COMMAND_DEFINITIONS)) {
     if (!disabled.has(name as BuiltinCommandName)) {
       const { argumentHint: _argumentHint, ...openCodeCompatible } = definition
-      commands[name] = openCodeCompatible as CommandDefinition
+      commands[name] = { ...openCodeCompatible, name } as CommandDefinition
     }
   }
 

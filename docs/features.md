@@ -292,7 +292,6 @@ Hooks intercept and modify behavior at key points in the agent lifecycle.
 |------|-------|-------------|
 | **comment-checker** | PostToolUse | Reminds agents to reduce excessive comments. Smartly ignores BDD, directives, docstrings. |
 | **thinking-block-validator** | PreToolUse | Validates thinking blocks to prevent API errors. |
-| **empty-message-sanitizer** | PreToolUse | Prevents API errors from empty chat messages. |
 | **edit-error-recovery** | PostToolUse | Recovers from edit tool failures. |
 
 #### Recovery & Stability
@@ -300,14 +299,12 @@ Hooks intercept and modify behavior at key points in the agent lifecycle.
 | Hook | Event | Description |
 |------|-------|-------------|
 | **session-recovery** | Stop | Recovers from session errors - missing tool results, thinking block issues, empty messages. |
-| **anthropic-context-window-limit-recovery** | Stop | Handles Claude context window limits gracefully. |
-| **background-compaction** | Stop | Auto-compacts sessions hitting token limits. |
+| **context-window-limit-recovery** | Stop | Handles context window limits gracefully. |
 
 #### Truncation & Context Management
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **grep-output-truncator** | PostToolUse | Dynamically truncates grep output based on context window. Keeps 50% headroom, caps at 50k tokens. |
 | **tool-output-truncator** | PostToolUse | Truncates output from Grep, Glob, LSP, AST-grep tools. |
 
 #### Notifications & UX

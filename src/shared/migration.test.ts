@@ -185,7 +185,13 @@ describe("migrateHookNames", () => {
 
   test("removes obsolete hooks and returns them in removed array", () => {
     // given: Config with removed hooks from v3.0.0
-    const hooks = ["preemptive-compaction", "empty-message-sanitizer", "comment-checker"]
+    const hooks = [
+      "preemptive-compaction",
+      "empty-message-sanitizer",
+      "grep-output-truncator",
+      "tasks-todowrite-disabler",
+      "comment-checker",
+    ]
 
     // when: Migrate hook names
     const { migrated, changed, removed } = migrateHookNames(hooks)
@@ -195,7 +201,9 @@ describe("migrateHookNames", () => {
     expect(migrated).toEqual(["comment-checker"])
     expect(removed).toContain("preemptive-compaction")
     expect(removed).toContain("empty-message-sanitizer")
-    expect(removed).toHaveLength(2)
+    expect(removed).toContain("grep-output-truncator")
+    expect(removed).toContain("tasks-todowrite-disabler")
+    expect(removed).toHaveLength(4)
   })
 
   test("handles mixed migration and removal", () => {

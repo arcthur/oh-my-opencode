@@ -9,8 +9,8 @@ import type { CategoryConfig } from "../../config/schema"
 import type { AvailableAgent, AvailableSkill } from "../dynamic-agent-prompt-builder"
 import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "../../tools/delegate-task/constants"
 
-export const getCategoryDescription = (name: string, _userCategories?: Record<string, CategoryConfig>) =>
-  CATEGORY_DESCRIPTIONS[name] ?? "General tasks"
+export const getCategoryDescription = (name: string, userCategories?: Record<string, CategoryConfig>) =>
+  userCategories?.[name]?.description ?? CATEGORY_DESCRIPTIONS[name] ?? "General tasks"
 
 export function buildAgentSelectionSection(agents: AvailableAgent[]): string {
   if (agents.length === 0) {
@@ -47,7 +47,7 @@ Categories spawn \`Sisyphus-Junior-{category}\` with optimized settings:
 ${categoryRows.join("\n")}
 
 \`\`\`typescript
-delegate_task(category="[category-name]", load_skills=[...], prompt="...")
+delegate_task(description="...", category="[category-name]", load_skills=[...], run_in_background=false, prompt="...")
 \`\`\``
 }
 
@@ -78,7 +78,7 @@ Read each skill's description and ask: "Does this skill's domain overlap with my
 
 **Usage:**
 \`\`\`typescript
-delegate_task(category="[category]", load_skills=["skill-1", "skill-2"], prompt="...")
+delegate_task(description="...", category="[category]", load_skills=["skill-1", "skill-2"], run_in_background=false, prompt="...")
 \`\`\`
 
 **IMPORTANT:**
@@ -91,12 +91,12 @@ export function buildDecisionMatrix(agents: AvailableAgent[], userCategories?: R
   const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
 
   const categoryRows = Object.entries(allCategories).map(([name]) =>
-    `| ${getCategoryDescription(name, userCategories)} | \`category="${name}", load_skills=[...]\` |`
+    `| ${getCategoryDescription(name, userCategories)} | \`delegate_task(description="...", category="${name}", load_skills=[...], run_in_background=false, prompt="...")\` |`
   )
 
   const agentRows = agents.map((a) => {
     const shortDesc = a.description.split(".")[0] || a.description
-    return `| ${shortDesc} | \`agent="${a.name}"\` |`
+    return `| ${shortDesc} | \`delegate_task(description="...", subagent_type="${a.name}", load_skills=[], run_in_background=false, prompt="...")\` |`
   })
 
   return `##### Decision Matrix

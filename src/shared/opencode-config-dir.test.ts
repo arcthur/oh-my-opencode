@@ -261,6 +261,7 @@ describe("opencode-config-dir", () => {
       // given opencode CLI binary on Linux
       Object.defineProperty(process, "platform", { value: "linux" })
       delete process.env.XDG_CONFIG_HOME
+      delete process.env.OPENCODE_CONFIG_DIR
 
       // when getOpenCodeConfigPaths is called
       const paths = getOpenCodeConfigPaths({ binary: "opencode", version: "1.0.200" })

@@ -8,7 +8,6 @@ export const MIN_RUNTIME_BEFORE_STALE_MS = 30_000
 export const MIN_IDLE_TIME_MS = 5000
 export const POLLING_INTERVAL_MS = 2000
 export const TASK_CLEANUP_DELAY_MS = 5 * 60 * 1000
-export const TMUX_CALLBACK_DELAY_MS = 200
 
 export type ProcessCleanupEvent = NodeJS.Signals | "beforeExit" | "exit"
 
@@ -42,11 +41,3 @@ export interface QueueItem {
   task: BackgroundTask
   input: LaunchInput
 }
-
-export interface SubagentSessionCreatedEvent {
-  sessionID: string
-  parentID: string
-  title: string
-}
-
-export type OnSubagentSessionCreated = (event: SubagentSessionCreatedEvent) => Promise<void>

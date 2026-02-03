@@ -4,4 +4,6 @@ export const CALL_OMO_AGENT_DESCRIPTION = `Spawn explore/librarian agent. run_in
 
 Available: {agents}
 
-Pass \`resume=session_id\` to continue previous agent with full context. Prompts MUST be in English. Use \`background_output\` for async results.`
+- session_id: Continue an existing session with full context (ONLY supported with run_in_background=false). For background follow-ups, use delegate_task with session_id.
+
+Prompts MUST be in English. Use \`background_output\` for async results.`

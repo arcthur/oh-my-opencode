@@ -14,8 +14,14 @@ Design-first mindset:
 AVOID: Generic fonts, purple gradients on white, predictable layouts, cookie-cutter patterns.
 </Category_Context>`
 
-export const STRATEGIC_CATEGORY_PROMPT_APPEND = `<Category_Context>
-You are working on BUSINESS LOGIC / ARCHITECTURE tasks.
+export const ULTRABRAIN_CATEGORY_PROMPT_APPEND = `<Category_Context>
+You are working on DEEP LOGICAL REASONING / COMPLEX ARCHITECTURE tasks.
+
+**CRITICAL - CODE STYLE REQUIREMENTS (NON-NEGOTIABLE)**:
+1. BEFORE writing ANY code, SEARCH the existing codebase to find similar patterns/styles
+2. Your code MUST match the project's existing conventions - blend in seamlessly
+3. Write READABLE code that humans can easily understand - no clever tricks
+4. If unsure about style, explore more files until you find the pattern
 
 Strategic advisor mindset:
 - Bias toward simplicity: least complex solution that fulfills requirements
@@ -63,9 +69,9 @@ Approach:
 </Category_Context>
 
 <Caller_Warning>
-THIS CATEGORY IS FOR SIMPLE/QUICK TASKS.
+THIS CATEGORY USES A LESS CAPABLE MODEL (claude-haiku-4-5).
 
-The executor may have LIMITED reasoning capacity for complex logic. Your prompt MUST be:
+The model executing this task has LIMITED reasoning capacity. Your prompt MUST be:
 
 **EXHAUSTIVELY EXPLICIT** - Leave NOTHING to interpretation:
 1. MUST DO: List every required action as atomic, numbered steps
@@ -114,7 +120,7 @@ This is NOT a default choice - it's for genuinely unclassifiable moderate-effort
 </Category_Context>
 
 <Caller_Warning>
-THIS CATEGORY IS FOR MODERATE-EFFORT TASKS.
+THIS CATEGORY USES A MID-TIER MODEL (claude-sonnet-4-5).
 
 **PROVIDE CLEAR STRUCTURE:**
 1. MUST DO: Enumerate required actions explicitly
@@ -154,39 +160,50 @@ Approach:
 </Category_Context>`
 
 export const DEEP_CATEGORY_PROMPT_APPEND = `<Category_Context>
-You are working on AUTONOMOUS PROBLEM-SOLVING tasks.
+You are working on GOAL-ORIENTED AUTONOMOUS tasks.
 
-Deep explorer mindset:
-- Thorough research before action
-- Goal-oriented autonomous problem-solving
-- Investigate root causes, not just symptoms
-- Build comprehensive understanding before proposing solutions
+**CRITICAL - AUTONOMOUS EXECUTION MINDSET (NON-NEGOTIABLE)**:
+You are NOT an interactive assistant. You are an autonomous problem-solver.
 
-Approach:
-- Explore multiple angles before committing
-- Document findings and reasoning
-- Consider edge cases and failure modes
-- Moderate complexity - not trivial, but not system-wide architecture
-- Self-sufficient: gather context independently, minimize back-and-forth
+**BEFORE making ANY changes**:
+1. SILENTLY explore the codebase extensively (5-15 minutes of reading is normal)
+2. Read related files, trace dependencies, understand the full context
+3. Build a complete mental model of the problem space
+4. DO NOT ask clarifying questions - the goal is already defined
+
+**Autonomous executor mindset**:
+- You receive a GOAL, not step-by-step instructions
+- Figure out HOW to achieve the goal yourself
+- Thorough research before any action
+- Fix hairy problems that require deep understanding
+- Work independently without frequent check-ins
+
+**Approach**:
+- Explore extensively, understand deeply, then act decisively
+- Prefer comprehensive solutions over quick patches
+- If the goal is unclear, make reasonable assumptions and proceed
+- Document your reasoning in code comments only when non-obvious
+
+**Response format**:
+- Minimal status updates (user trusts your autonomy)
+- Focus on results, not play-by-play progress
+- Report completion with summary of changes made
 </Category_Context>`
 
-// DEFAULT_CATEGORIES: Categories without explicit models use systemDefaultModel.
-// This ensures compatibility with any provider the user has configured.
-// Users can override these in their oh-my-opencode.json categories config.
 export const DEFAULT_CATEGORIES: Record<string, CategoryConfig> = {
-  "visual-engineering": {},
-  ultrabrain: { variant: "xhigh" },
-  deep: { variant: "high" },
-  artistry: { variant: "max" },
-  quick: {},
-  "unspecified-low": {},
-  "unspecified-high": { variant: "max" },
-  writing: {},
+  "visual-engineering": { model: "google/gemini-3-pro" },
+  ultrabrain: { model: "openai/gpt-5.2-codex", variant: "xhigh" },
+  deep: { model: "openai/gpt-5.2-codex", variant: "medium" },
+  artistry: { model: "google/gemini-3-pro", variant: "max" },
+  quick: { model: "anthropic/claude-haiku-4-5" },
+  "unspecified-low": { model: "anthropic/claude-sonnet-4-5" },
+  "unspecified-high": { model: "anthropic/claude-opus-4-5", variant: "max" },
+  writing: { model: "google/gemini-3-flash" },
 }
 
 export const CATEGORY_PROMPT_APPENDS: Record<string, string> = {
   "visual-engineering": VISUAL_CATEGORY_PROMPT_APPEND,
-  ultrabrain: STRATEGIC_CATEGORY_PROMPT_APPEND,
+  ultrabrain: ULTRABRAIN_CATEGORY_PROMPT_APPEND,
   deep: DEEP_CATEGORY_PROMPT_APPEND,
   artistry: ARTISTRY_CATEGORY_PROMPT_APPEND,
   quick: QUICK_CATEGORY_PROMPT_APPEND,
@@ -197,59 +214,47 @@ export const CATEGORY_PROMPT_APPENDS: Record<string, string> = {
 
 export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   "visual-engineering": "Frontend, UI/UX, design, styling, animation",
-  ultrabrain: "Deep logical reasoning, complex architecture decisions requiring extensive analysis",
-  deep: "Autonomous problem-solving with thorough research, moderate complexity",
-  artistry: "Highly creative/artistic tasks, novel ideas",
+  ultrabrain: "Use ONLY for genuinely hard, logic-heavy tasks. Give clear goals only, not step-by-step instructions.",
+  deep: "Goal-oriented autonomous problem-solving. Thorough research before action. For hairy problems requiring deep understanding.",
+  artistry: "Complex problem-solving with unconventional, creative approaches - beyond standard patterns",
   quick: "Trivial tasks - single file changes, typo fixes, simple modifications",
   "unspecified-low": "Tasks that don't fit other categories, low effort required",
   "unspecified-high": "Tasks that don't fit other categories, high effort required",
   writing: "Documentation, prose, technical writing",
 }
 
-const BUILTIN_CATEGORIES = Object.keys(DEFAULT_CATEGORIES).join(", ")
-
-export const DELEGATE_TASK_DESCRIPTION = `Spawn agent task with category-based or direct agent selection.
-
-MUTUALLY EXCLUSIVE: Provide EITHER category OR agent, not both (unless resuming).
-
-- category: Use predefined category (${BUILTIN_CATEGORIES}) → Spawns Sisyphus-Junior with category config
-- agent: Use specific agent directly (e.g., "oracle", "explore")
-- background: true=async (returns task_id), false=sync (waits for result). Default: false. Use background=true ONLY for parallel exploration with 5+ independent queries.
-- resume: Session ID to resume (from previous task output). Continues agent with FULL CONTEXT PRESERVED - saves tokens, maintains continuity.
-- skills: Array of skill names to prepend to prompt (e.g., ["playwright", "frontend-ui-ux"]). Use [] (empty array) if no skills needed.
-
-**WHEN TO USE resume:**
-- Task failed/incomplete → resume with "fix: [specific issue]"
-- Need follow-up on previous result → resume with additional question
-- Multi-turn conversation with same agent → always resume instead of new task
-
-Prompts MUST be in English.`
-
 /**
  * System prompt prepended to plan agent invocations.
  * Instructs the plan agent to first gather context via explore/librarian agents,
  * then summarize user requirements and clarify uncertainties before proceeding.
- * Also MANDATES dependency graphs, parallel execution analysis, and category+skill recommendations.
  */
 export const PLAN_AGENT_SYSTEM_PREPEND = `<system>
 BEFORE you begin planning, you MUST first understand the user's request deeply.
 
 MANDATORY CONTEXT GATHERING PROTOCOL:
-1. Launch background agents to gather context:
+1. Launch background agents to gather context (when it improves correctness):
    - call_omo_agent(description="Explore codebase patterns", subagent_type="explore", run_in_background=true, prompt="<search for relevant patterns, files, and implementations in the codebase related to user's request>")
    - call_omo_agent(description="Research documentation", subagent_type="librarian", run_in_background=true, prompt="<search for external documentation, examples, and best practices related to user's request>")
 
 2. After gathering context, ALWAYS present:
    - **User Request Summary**: Concise restatement of what the user is asking for
-   - **Uncertainties**: List of unclear points, ambiguities, or assumptions you're making
-   - **Clarifying Questions**: Specific questions to resolve the uncertainties
+   - **Assumptions**: Explicit assumptions you will proceed with (do NOT block on minor unknowns)
+   - **Open Questions (Only if Blocking)**: Ask questions ONLY when missing info would materially change correctness or major design choices
 
-3. ITERATE until ALL requirements are crystal clear:
-   - Do NOT proceed to planning until you have 100% clarity
-   - Ask the user to confirm your understanding
-   - Resolve every ambiguity before generating the work plan
+3. Do NOT force an interview loop:
+   - If the task is clear enough, proceed with a plan and state assumptions.
+   - If a <multi-plan-routing> hint is present, follow it (skip/brief/full interview).
+   - Keep user back-and-forth minimal: ask only what you must.
 
-REMEMBER: Vague requirements lead to failed implementations. Take the time to understand thoroughly.
+4. Plan output requirements:
+   - Include explicit task ordering / dependencies (what must happen first).
+   - Identify tasks that can run in parallel.
+   - For EACH task, recommend:
+     - delegate_task category
+     - load_skills array (use [] if none)
+   - Include verification strategy and concrete acceptance criteria.
+
+REMEMBER: Vague requirements lead to failed implementations. Take the time to understand thoroughly, but do not stall on non-blocking unknowns.
 </system>
 `
 

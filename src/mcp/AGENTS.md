@@ -1,8 +1,13 @@
-# BUILT-IN MCP CONFIGURATIONS
+# MCP KNOWLEDGE BASE
 
 ## OVERVIEW
 
-3 remote MCP servers for web search, documentation, and code search. All use HTTP/SSE transport, no OAuth.
+Tier 1 of three-tier MCP system: 3 built-in remote HTTP MCPs.
+
+**Three-Tier System**:
+1. **Built-in** (this directory): websearch, context7, grep_app
+2. **Claude Code compat**: `.mcp.json` with `${VAR}` expansion
+3. **Skill-embedded**: YAML frontmatter in skills
 
 ## STRUCTURE
 
@@ -20,20 +25,25 @@ mcp/
 
 | Name | URL | Purpose | Auth |
 |------|-----|---------|------|
-| **websearch** | `mcp.exa.ai` | Real-time web search | `EXA_API_KEY` header |
-| **context7** | `mcp.context7.com` | Official library docs | None |
-| **grep_app** | `mcp.grep.app` | GitHub code search | None |
+| websearch | mcp.exa.ai/mcp?tools=web_search_exa | Real-time web search | EXA_API_KEY |
+| context7 | mcp.context7.com/mcp | Library docs | CONTEXT7_API_KEY |
+| grep_app | mcp.grep.app | GitHub code search | None |
+
+## THREE-TIER MCP SYSTEM
+
+1. **Built-in** (this directory): websearch, context7, grep_app
+2. **Claude Code compat**: `.mcp.json` with `${VAR}` expansion
+3. **Skill-embedded**: YAML frontmatter in skills (handled by skill-mcp-manager)
 
 ## CONFIG PATTERN
 
-All MCPs follow identical structure:
 ```typescript
 export const mcp_name = {
   type: "remote" as const,
   url: "https://...",
   enabled: true,
-  oauth: false as const,  // Explicit disable
-  headers?: { ... },      // Optional auth
+  oauth: false as const,
+  headers?: { ... },
 }
 ```
 
@@ -42,29 +52,19 @@ export const mcp_name = {
 ```typescript
 import { createBuiltinMcps } from "./mcp"
 
-// Enable all
-const mcps = createBuiltinMcps()
-
-// Disable specific
-const mcps = createBuiltinMcps(["websearch"])
+const mcps = createBuiltinMcps()  // Enable all
+const mcps = createBuiltinMcps(["websearch"])  // Disable specific
 ```
 
 ## HOW TO ADD
 
-1. Create `src/mcp/my-mcp.ts`:
-   ```typescript
-   export const my_mcp = {
-     type: "remote" as const,
-     url: "https://mcp.example.com",
-     enabled: true,
-     oauth: false as const,
-   }
-   ```
+1. Create `src/mcp/my-mcp.ts`
 2. Add to `allBuiltinMcps` in `index.ts`
 3. Add to `McpNameSchema` in `types.ts`
 
 ## NOTES
 
-- **Remote only**: All built-in MCPs use HTTP/SSE, no stdio
-- **Disable config**: User can disable via `disabled_mcps: ["name"]`
-- **Exa requires key**: Set `EXA_API_KEY` env var for websearch
+- **Remote only**: HTTP/SSE, no stdio
+- **Disable**: User can set `disabled_mcps: ["name"]` in config
+- **Context7**: Optional auth using `CONTEXT7_API_KEY` env var
+- **Exa**: Optional auth using `EXA_API_KEY` env var

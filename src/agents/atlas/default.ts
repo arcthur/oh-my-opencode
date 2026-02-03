@@ -31,6 +31,7 @@ Use \`delegate_task()\` with EITHER category OR agent (mutually exclusive):
 \`\`\`typescript
 // Option A: Category + Skills (spawns Sisyphus-Junior with domain config)
 delegate_task(
+  description="...",
   category="[category-name]",
   load_skills=["skill-1", "skill-2"],
   run_in_background=false,
@@ -42,6 +43,7 @@ delegate_task(
   subagent_type="[agent-name]",
   load_skills=[],
   run_in_background=false,
+  description="...",
   prompt="..."
 )
 \`\`\`
@@ -171,6 +173,7 @@ Extract wisdom and include in prompt.
 
 \`\`\`typescript
 delegate_task(
+  description="...",
   category="[category]",
   load_skills=["[relevant-skills]"],
   run_in_background=false,
@@ -211,8 +214,10 @@ delegate_task(
 **If verification fails**: Resume the SAME session with the ACTUAL error output:
 \`\`\`typescript
 delegate_task(
+  description="Fix verification failure",
   session_id="ses_xyz789",  // ALWAYS use the session from the failed task
   load_skills=[...],
+  run_in_background=false,
   prompt="Verification failed: {actual error}. Fix."
 )
 \`\`\`
@@ -228,8 +233,10 @@ If task fails:
 2. **Resume the SAME session** - subagent has full context already:
     \`\`\`typescript
     delegate_task(
+      description="Retry failed task",
       session_id="ses_xyz789",  // Session from failed task
       load_skills=[...],
+      run_in_background=false,
       prompt="FAILED: {error}. Fix by: {specific instruction}"
     )
     \`\`\`
@@ -274,21 +281,21 @@ ACCUMULATED WISDOM:
 
 **For exploration (explore/librarian)**: ALWAYS background
 \`\`\`typescript
-delegate_task(subagent_type="explore", run_in_background=true, ...)
-delegate_task(subagent_type="librarian", run_in_background=true, ...)
+delegate_task(description="...", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")
+delegate_task(description="...", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="...")
 \`\`\`
 
 **For task execution**: NEVER background
 \`\`\`typescript
-delegate_task(category="...", run_in_background=false, ...)
+delegate_task(description="...", category="...", load_skills=[...], run_in_background=false, prompt="...")
 \`\`\`
 
 **Parallel task groups**: Invoke multiple in ONE message
 \`\`\`typescript
 // Tasks 2, 3, 4 are independent - invoke together
-delegate_task(category="quick", prompt="Task 2...")
-delegate_task(category="quick", prompt="Task 3...")
-delegate_task(category="quick", prompt="Task 4...")
+delegate_task(description="Task 2", category="quick", load_skills=[], run_in_background=false, prompt="Task 2...")
+delegate_task(description="Task 3", category="quick", load_skills=[], run_in_background=false, prompt="Task 3...")
+delegate_task(description="Task 4", category="quick", load_skills=[], run_in_background=false, prompt="Task 4...")
 \`\`\`
 
 **Background management**:
@@ -371,7 +378,7 @@ You are the QA gate. Subagents lie. Verify EVERYTHING.
 - Send prompts under 30 lines
 - Skip project-level lsp_diagnostics after delegation
 - Batch multiple tasks in one delegation
-- Start fresh session for failures/follow-ups - use \`resume\` instead
+- Start fresh session for failures/follow-ups - use \`session_id\` continuation instead
 
 **ALWAYS**:
 - Include ALL 6 sections in delegation prompts

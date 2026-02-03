@@ -24,7 +24,7 @@ export type ModelResolutionProvenance =
   | "provider-fallback"
   | "system-default"
 
-export type ModelResolutionResult = {
+export type ModelResolutionPipelineResult = {
   model: string
   provenance: ModelResolutionProvenance
   variant?: string
@@ -39,7 +39,7 @@ function normalizeModel(model?: string): string | undefined {
 
 export function resolveModelPipeline(
   request: ModelResolutionRequest,
-): ModelResolutionResult | undefined {
+): ModelResolutionPipelineResult | undefined {
   const attempted: string[] = []
   const { intent, constraints, policy } = request
   const availableModels = constraints.availableModels

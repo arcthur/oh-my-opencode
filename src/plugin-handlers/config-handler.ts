@@ -1,6 +1,4 @@
 import { createBuiltinAgents } from "../agents";
-import { createBuiltinSkills } from "../features/builtin-skills";
-import type { AvailableSkill } from "../agents/dynamic-agent-prompt-builder";
 import { createSisyphusJuniorAgentWithOverrides } from "../agents/sisyphus-junior";
 import {
   loadUserCommands,
@@ -14,6 +12,10 @@ import {
   loadProjectSkills,
   loadOpencodeGlobalSkills,
   loadOpencodeProjectSkills,
+  discoverUserClaudeSkills,
+  discoverProjectClaudeSkills,
+  discoverOpencodeGlobalSkills as discoverOpencodeGlobalSkillsForAwareness,
+  discoverOpencodeProjectSkills as discoverOpencodeProjectSkillsForAwareness,
 } from "../features/opencode-skill-loader";
 import {
   loadUserAgents,
@@ -113,12 +115,25 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       )
     }
 
-    const builtinSkillsList = createBuiltinSkills();
-    const availableSkills: AvailableSkill[] = builtinSkillsList.map((skill) => ({
-      name: skill.name,
-      description: skill.description,
-      location: "builtin" as const,
-    }));
+    const includeClaudeSkillsForAwareness = pluginConfig.claude_code?.skills ?? true;
+    const [
+      discoveredUserSkills,
+      discoveredProjectSkills,
+      discoveredOpencodeGlobalSkills,
+      discoveredOpencodeProjectSkills,
+    ] = await Promise.all([
+      includeClaudeSkillsForAwareness ? discoverUserClaudeSkills() : Promise.resolve([]),
+      includeClaudeSkillsForAwareness ? discoverProjectClaudeSkills() : Promise.resolve([]),
+      discoverOpencodeGlobalSkillsForAwareness(),
+      discoverOpencodeProjectSkillsForAwareness(),
+    ]);
+
+    const allDiscoveredSkills = [
+      ...discoveredOpencodeProjectSkills,
+      ...discoveredProjectSkills,
+      ...discoveredOpencodeGlobalSkills,
+      ...discoveredUserSkills,
+    ];
 
     // Migrate disabled_agents from old names to new names
     const migratedDisabledAgents = (pluginConfig.disabled_agents ?? []).map(agent => {
@@ -137,7 +152,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       config.model as string | undefined,
       pluginConfig.categories,
       pluginConfig.git_master,
-      availableSkills
+      allDiscoveredSkills,
+      undefined,
+      undefined,
+      config.model as string | undefined
     );
 
     // Claude Code agents: Do NOT apply permission migration

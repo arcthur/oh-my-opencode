@@ -85,6 +85,17 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       expect(result.model).toBe(TEST_SYSTEM_DEFAULT_MODEL)
     })
 
+    test("falls back to built-in default model when systemDefaultModel is missing", () => {
+      // given
+      const override = {}
+
+      // when
+      const result = createSisyphusJuniorAgentWithOverrides(override, undefined)
+
+      // then
+      expect(result.model).toBe(SISYPHUS_JUNIOR_DEFAULTS.model)
+    })
+
     test("uses default temperature when no override", () => {
       // given
       const override = {}

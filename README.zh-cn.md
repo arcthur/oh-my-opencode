@@ -16,8 +16,8 @@
 
 > [!TIP]
 >
-> [![Orchestrator 现已进入测试阶段。](./.github/assets/orchestrator-atlas.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0-beta.10)
-> > **Orchestrator 现已进入测试阶段。使用 `oh-my-opencode@3.0.0-beta.10` 安装。**
+> [![Oh My OpenCode 3.0 正式发布！](./.github/assets/orchestrator-atlas.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0)
+> > **Oh My OpenCode 3.0 正式发布！使用 `oh-my-opencode@latest` 安装。**
 >
 > 加入我们！
 >
@@ -74,7 +74,9 @@
 [![GitHub Issues](https://img.shields.io/github/issues/code-yeongyu/oh-my-opencode?color=ff80eb&labelColor=black&style=flat-square)](https://github.com/code-yeongyu/oh-my-opencode/issues)
 [![许可证](https://img.shields.io/badge/license-SUL--1.0-white?labelColor=black&style=flat-square)](https://github.com/code-yeongyu/oh-my-opencode/blob/master/LICENSE.md)
 
-[English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh-cn.md)
+[English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [简体中文](README.zh-cn.md)
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/code-yeongyu/oh-my-opencode)
 
 </div>
 
@@ -112,6 +114,7 @@
     - [这是智能体时代](#这是智能体时代)
     - [🪄 魔法词：`ultrawork`](#-魔法词ultrawork)
     - [给想阅读的人：认识 Sisyphus](#给想阅读的人认识-sisyphus)
+    - [追求自主性：认识赫菲斯托斯](#追求自主性认识赫菲斯托斯)
       - [直接安装就行。](#直接安装就行)
   - [安装](#安装)
     - [面向人类用户](#面向人类用户)
@@ -188,10 +191,11 @@
 *以下所有内容都是可配置的。按需选取。所有功能默认启用。你不需要做任何事情。开箱即用，电池已包含。*
 
 - Sisyphus 的队友（精选智能体）
+  - Hephaestus：自主深度工作者，目标导向执行（GPT 5.2 Codex Medium）— *合法的工匠*
   - Oracle：设计、调试 (GPT 5.2 Medium)
   - Frontend UI/UX Engineer：前端开发 (Gemini 3 Pro)
   - Librarian：官方文档、开源实现、代码库探索 (Claude Sonnet 4.5)
-  - Explore：极速代码库探索（上下文感知 Grep）(Grok Code)
+   - Explore：极速代码库探索（上下文感知 Grep）(Claude Haiku 4.5)
 - 完整 LSP / AstGrep 支持：果断重构。
 - Todo 继续执行器：如果智能体中途退出，强制它继续。**这就是让 Sisyphus 继续推动巨石的关键。**
 - 注释检查器：防止 AI 添加过多注释。Sisyphus 生成的代码应该与人类编写的代码无法区分。
@@ -203,6 +207,24 @@
 - 支持交互式终端 - Tmux 集成
 - 异步智能体
 - ...
+
+### 追求自主性：认识赫菲斯托斯
+
+![Meet Hephaestus](.github/assets/hephaestus.png)
+
+在希腊神话中，赫菲斯托斯是锻造、火焰、金属加工和工艺之神——他是神圣的铁匠，以无与伦比的精准和奉献为众神打造武器。
+**介绍我们的自主深度工作者：赫菲斯托斯（GPT 5.2 Codex Medium）。合法的工匠代理。**
+
+*为什么是"合法的"？当Anthropic以违反服务条款为由封锁第三方访问时，社区开始调侃"合法"使用。赫菲斯托斯拥抱这种讽刺——他是那种用正确的方式、有条不紊、彻底地构建事物的工匠，绝不走捷径。*
+
+赫菲斯托斯的灵感来自[AmpCode的深度模式](https://ampcode.com)——在采取决定性行动之前进行彻底研究的自主问题解决。他不需要逐步指示；给他一个目标，他会自己找出方法。
+
+**核心特性：**
+- **目标导向**：给他目标，而不是配方。他自己决定步骤。
+- **行动前探索**：在写一行代码之前，并行启动2-5个explore/librarian代理。
+- **端到端完成**：在有验证证据证明100%完成之前不会停止。
+- **模式匹配**：搜索现有代码库以匹配您项目的风格——没有AI垃圾。
+- **合法的精准**：像大师铁匠一样编写代码——精准、最小化、只做需要的。
 
 #### 直接安装就行。
 

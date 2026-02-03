@@ -66,6 +66,9 @@ export class SkillMcpManager {
   private cleanupRegistered = false
   private cleanupInterval: ReturnType<typeof setInterval> | null = null
   private readonly IDLE_TIMEOUT = 5 * 60 * 1000
+  private sigintHandler: (() => void) | null = null
+  private sigtermHandler: (() => void) | null = null
+  private sigbreakHandler: (() => void) | null = null
 
   private getClientKey(info: SkillMcpClientInfo): string {
     return `${info.sessionID}:${info.skillName}:${info.serverName}`
@@ -119,11 +122,34 @@ export class SkillMcpManager {
     // Don't call process.exit() here - let the background-agent manager handle the final process exit.
     // Use void + catch to trigger async cleanup without awaiting it in the signal handler.
 
-    process.on("SIGINT", () => void cleanup().catch(() => {}))
-    process.on("SIGTERM", () => void cleanup().catch(() => {}))
+    this.sigintHandler = () => void cleanup().catch(() => {})
+    this.sigtermHandler = () => void cleanup().catch(() => {})
+
+    process.on("SIGINT", this.sigintHandler)
+    process.on("SIGTERM", this.sigtermHandler)
     if (process.platform === "win32") {
-      process.on("SIGBREAK", () => void cleanup().catch(() => {}))
+      this.sigbreakHandler = () => void cleanup().catch(() => {})
+      process.on("SIGBREAK", this.sigbreakHandler)
     }
+  }
+
+  private unregisterProcessCleanup(): void {
+    if (!this.cleanupRegistered) return
+
+    if (this.sigintHandler) {
+      process.off("SIGINT", this.sigintHandler)
+      this.sigintHandler = null
+    }
+    if (this.sigtermHandler) {
+      process.off("SIGTERM", this.sigtermHandler)
+      this.sigtermHandler = null
+    }
+    if (this.sigbreakHandler) {
+      process.off("SIGBREAK", this.sigbreakHandler)
+      this.sigbreakHandler = null
+    }
+
+    this.cleanupRegistered = false
   }
 
   async getOrCreateClient(
@@ -390,6 +416,7 @@ export class SkillMcpManager {
         await managed.transport.close()
       } catch { /* transport may already be terminated */ }
     }
+    this.unregisterProcessCleanup()
   }
 
   private startCleanupTimer(): void {

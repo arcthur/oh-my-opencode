@@ -45,12 +45,12 @@ Don't wait—these run async while main session works.
 
 \`\`\`
 // Fire all at once, collect results later
-delegate_task(agent="explore", prompt="Project structure: PREDICT standard patterns for detected language → REPORT deviations only")
-delegate_task(agent="explore", prompt="Entry points: FIND main files → REPORT non-standard organization")
-delegate_task(agent="explore", prompt="Conventions: FIND config files (.eslintrc, pyproject.toml, .editorconfig) → REPORT project-specific rules")
-delegate_task(agent="explore", prompt="Anti-patterns: FIND 'DO NOT', 'NEVER', 'ALWAYS', 'DEPRECATED' comments → LIST forbidden patterns")
-delegate_task(agent="explore", prompt="Build/CI: FIND .github/workflows, Makefile → REPORT non-standard patterns")
-delegate_task(agent="explore", prompt="Test patterns: FIND test configs, test structure → REPORT unique conventions")
+delegate_task(description="Project structure", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Project structure: PREDICT standard patterns for detected language → REPORT deviations only")
+delegate_task(description="Entry points", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Entry points: FIND main files → REPORT non-standard organization")
+delegate_task(description="Conventions", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Conventions: FIND config files (.eslintrc, pyproject.toml, .editorconfig) → REPORT project-specific rules")
+delegate_task(description="Anti-pattern scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Anti-patterns: FIND 'DO NOT', 'NEVER', 'ALWAYS', 'DEPRECATED' comments → LIST forbidden patterns")
+delegate_task(description="Build/CI scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Build/CI: FIND .github/workflows, Makefile → REPORT non-standard patterns")
+delegate_task(description="Test patterns", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Test patterns: FIND test configs, test structure → REPORT unique conventions")
 \`\`\`
 
 <dynamic-agents>
@@ -76,9 +76,9 @@ max_depth=$(find . -type d -not -path '*/node_modules/*' -not -path '*/.git/*' |
 Example spawning:
 \`\`\`
 // 500 files, 50k lines, depth 6, 15 large files → spawn 5+5+2+1 = 13 additional agents
-delegate_task(agent="explore", prompt="Large file analysis: FIND files >500 lines, REPORT complexity hotspots")
-delegate_task(agent="explore", prompt="Deep modules at depth 4+: FIND hidden patterns, internal conventions")
-delegate_task(agent="explore", prompt="Cross-cutting concerns: FIND shared utilities across directories")
+delegate_task(description="Large file analysis", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Large file analysis: FIND files >500 lines, REPORT complexity hotspots")
+delegate_task(description="Deep modules scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Deep modules at depth 4+: FIND hidden patterns, internal conventions")
+delegate_task(description="Cross-cutting scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Cross-cutting concerns: FIND shared utilities across directories")
 // ... more based on calculation
 \`\`\`
 </dynamic-agents>
@@ -240,7 +240,7 @@ Launch writing tasks for each location:
 
 \`\`\`
 for loc in AGENTS_LOCATIONS (except root):
-  delegate_task(category="writing", prompt=\\\`
+  delegate_task(description="Write AGENTS.md", category="writing", load_skills=[], run_in_background=false, prompt=\\\`
     Generate AGENTS.md for: \${loc.path}
     - Reason: \${loc.reason}
     - 30-80 lines max
@@ -275,8 +275,8 @@ For each generated file:
 Mode: {update | create-new}
 
 Files:
-  ✓ ./AGENTS.md (root, {N} lines)
-  ✓ ./src/hooks/AGENTS.md ({N} lines)
+  [OK] ./AGENTS.md (root, {N} lines)
+  [OK] ./src/hooks/AGENTS.md ({N} lines)
 
 Dirs Analyzed: {N}
 AGENTS.md Created: {N}

@@ -1,10 +1,29 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import { findAvailablePort, startCallbackServer, type CallbackServer } from "./callback-server"
 
-describe("findAvailablePort", () => {
+function canListenOnLocalhost(): boolean {
+  for (let port = 30_000; port < 30_050; port++) {
+    try {
+      const server = Bun.serve({
+        port,
+        hostname: "127.0.0.1",
+        fetch: () => new Response(),
+      })
+      server.stop(true)
+      return true
+    } catch {
+      // try next port
+    }
+  }
+  return false
+}
+
+const describeIfCanListen = canListenOnLocalhost() ? describe : describe.skip
+
+describeIfCanListen("findAvailablePort", () => {
   it("returns the start port when it is available", async () => {
     // given
-    const startPort = 19877
+    const startPort = 30_000
 
     // when
     const port = await findAvailablePort(startPort)
@@ -16,22 +35,23 @@ describe("findAvailablePort", () => {
 
   it("skips busy ports and returns next available", async () => {
     // given
+    const basePort = await findAvailablePort(30_000)
     const blocker = Bun.serve({
-      port: 19877,
+      port: basePort,
       hostname: "127.0.0.1",
       fetch: () => new Response(),
     })
 
     // when
-    const port = await findAvailablePort(19877)
+    const port = await findAvailablePort(basePort)
 
     // then
-    expect(port).toBeGreaterThan(19877)
+    expect(port).toBeGreaterThan(basePort)
     blocker.stop(true)
   })
 })
 
-describe("startCallbackServer", () => {
+describeIfCanListen("startCallbackServer", () => {
   let server: CallbackServer | null = null
 
   afterEach(() => {

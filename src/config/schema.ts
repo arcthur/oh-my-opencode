@@ -64,7 +64,6 @@ export const HookNameSchema = z.enum([
   "session-recovery",
   "session-notification",
   "comment-checker",
-  "grep-output-truncator",
   "tool-output-truncator",
   "directory-agents-injector",
   "directory-readme-injector",
@@ -209,6 +208,8 @@ export const CategoryConfigSchema = z.object({
   prompt_append: z.string().optional(),
   /** Mark agent as unstable - forces background mode for monitoring. Auto-enabled for gemini models. */
   is_unstable_agent: z.boolean().optional(),
+  /** Human-readable description for this category */
+  description: z.string().optional(),
 })
 
 export const BuiltinCategoryNameSchema = z.enum([
@@ -344,6 +345,14 @@ export const BackgroundTaskConfigSchema = z.object({
 // Sisyphus Tasks & Swarm Configuration
 // ============================================================================
 
+export const TmuxLayoutSchema = z.enum([
+  "main-horizontal",
+  "main-vertical",
+  "tiled",
+  "even-horizontal",
+  "even-vertical",
+])
+
 export const SisyphusTasksConfigSchema = z.object({
   /** Enable Sisyphus Tasks system (default: false) */
   enabled: z.boolean().default(false),
@@ -371,7 +380,7 @@ export const TmuxParallelAgentsConfigSchema = z.object({
   /** Enable tmux window auto-creation for background tasks (default: false) */
   enabled: z.boolean().default(false),
   /** Tmux layout for agent windows (default: main-vertical) */
-  layout: z.enum(["main-vertical", "main-horizontal", "tiled", "even-horizontal", "even-vertical"]).default("main-vertical"),
+  layout: TmuxLayoutSchema.default("main-vertical"),
   /** Auto-rescue stuck agents by sending 'y' when (y/n) prompt detected (default: false) */
   auto_rescue: z.boolean().default(false),
   /** Rescue check interval in milliseconds (default: 10000) */
@@ -918,6 +927,10 @@ export const DEFAULT_SESSION_REFERENCE_CONFIG = SessionReferenceConfigSchema.par
 
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
+  /** Enable new task system (default: false) */
+  new_task_system_enabled: z.boolean().optional(),
+  /** Default agent name for `oh-my-opencode run` (env: OPENCODE_DEFAULT_AGENT) */
+  default_run_agent: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
   disabled_agents: z.array(BuiltinAgentNameSchema).optional(),
   disabled_skills: z.array(BuiltinSkillNameSchema).optional(),
@@ -960,6 +973,7 @@ export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
 export type AgentOverrideConfig = z.infer<typeof AgentOverrideConfigSchema>
 export type AgentOverrides = z.infer<typeof AgentOverridesSchema>
 export type BackgroundTaskConfig = z.infer<typeof BackgroundTaskConfigSchema>
+export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>
 export type TmuxParallelAgentsConfig = z.infer<typeof TmuxParallelAgentsConfigSchema>
 export type AgentName = z.infer<typeof AgentNameSchema>
 export type HookName = z.infer<typeof HookNameSchema>

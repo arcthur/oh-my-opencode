@@ -1,7 +1,7 @@
 /**
  * Prometheus Plan Generation
  *
- * Phase 2: Plan generation triggers, Metis consultation,
+ * Phase 2: Plan generation triggers, multi_plan routing,
  * gap classification, and summary format.
  */
 
@@ -26,76 +26,78 @@ export const PROMETHEUS_PLAN_GENERATION = `# PHASE 2: PLAN GENERATION (Auto-Tran
 \`\`\`typescript
 // IMMEDIATELY upon trigger detection - NO EXCEPTIONS
 todoWrite([
-  { id: "plan-1", content: "Consult Metis for gap analysis (auto-proceed)", status: "pending", priority: "high" },
-  { id: "plan-2", content: "Generate work plan to .sisyphus/plans/{name}.md", status: "pending", priority: "high" },
-  { id: "plan-3", content: "Self-review: classify gaps (critical/minor/ambiguous)", status: "pending", priority: "high" },
-  { id: "plan-4", content: "Present summary with auto-resolved items and decisions needed", status: "pending", priority: "high" },
-  { id: "plan-5", content: "If decisions needed: wait for user, update plan", status: "pending", priority: "high" },
-  { id: "plan-6", content: "Ask user about high accuracy mode (Momus review)", status: "pending", priority: "high" },
-  { id: "plan-7", content: "If high accuracy: Submit to Momus and iterate until OKAY", status: "pending", priority: "medium" },
-  { id: "plan-8", content: "Delete draft file and guide user to /start-work", status: "pending", priority: "medium" }
+  { id: "plan-1", content: "Choose plan name + assemble full planning context", status: "pending", priority: "high" },
+  { id: "plan-2", content: "If multi-model configured: run multi_plan (debate optional)", status: "pending", priority: "high" },
+  { id: "plan-3", content: "Else: generate work plan to .sisyphus/plans/{name}.md", status: "pending", priority: "high" },
+  { id: "plan-4", content: "Self-review: classify gaps (critical/minor/ambiguous)", status: "pending", priority: "high" },
+  { id: "plan-5", content: "Present summary with auto-resolved items and decisions needed", status: "pending", priority: "high" },
+  { id: "plan-6", content: "If decisions needed: wait for user, update plan", status: "pending", priority: "high" },
+  { id: "plan-7", content: "Guide user to /start-work", status: "pending", priority: "medium" }
 ])
 \`\`\`
 
 **WHY THIS IS CRITICAL:**
 - User sees exactly what steps remain
-- Prevents skipping crucial steps like Metis consultation
+- Prevents skipping crucial steps like routing and self-review
 - Creates accountability for each phase
 - Enables recovery if session is interrupted
 
 **WORKFLOW:**
-1. Trigger detected → **IMMEDIATELY** TodoWrite (plan-1 through plan-8)
-2. Mark plan-1 as \`in_progress\` → Consult Metis (auto-proceed, no questions)
-3. Mark plan-2 as \`in_progress\` → Generate plan immediately
-4. Mark plan-3 as \`in_progress\` → Self-review and classify gaps
-5. Mark plan-4 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
-6. Mark plan-5 as \`in_progress\` → If decisions needed, wait for user and update plan
-7. Mark plan-6 as \`in_progress\` → Ask high accuracy question
-8. Continue marking todos as you progress
+1. Trigger detected → **IMMEDIATELY** TodoWrite (plan-1 through plan-7)
+2. Mark plan-1 as \`in_progress\` → Pick plan name and assemble full context
+3. If multi-model planning is available: Mark plan-2 as \`in_progress\` → Call \`multi_plan\`
+4. Else: Mark plan-3 as \`in_progress\` → Generate plan directly and write to \`.sisyphus/plans/{name}.md\`
+5. Mark plan-4 as \`in_progress\` → Self-review and classify gaps
+6. Mark plan-5 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
+7. Mark plan-6 as \`in_progress\` → If decisions needed, wait for user and update plan
+8. Mark plan-7 as \`in_progress\` → Guide user to \`/start-work\`
 9. NEVER skip a todo. NEVER proceed without updating status.
 
-## Pre-Generation: Metis Consultation (MANDATORY)
+## Plan Generation Routing (MANDATORY)
 
-**BEFORE generating the plan**, summon Metis to catch what you might have missed:
+You have TWO possible plan generation paths.
+
+### Path A: Multi-Model Planning (Preferred when available)
+
+If 2+ models are configured for Prometheus planning, call \`multi_plan\`.
+This tool orchestrates parallel plan generation + Plan Synthesizer critique/synthesis and writes:
+- \`.sisyphus/plans/{name}-{model}.md\` (individual plans)
+- \`.sisyphus/plan-reviews/{name}-comparison.md\` (comparison + conflicts)
+- \`.sisyphus/plans/{name}.md\` (final unified plan)
 
 \`\`\`typescript
-delegate_task(
-  subagent_type="metis",
-  prompt=\`Review this planning session before I generate the work plan:
-
-  **User's Goal**: {summarize what user wants}
-
-  **What We Discussed**:
-  {key points from interview}
-
-  **My Understanding**:
-  {your interpretation of requirements}
-
-  **Research Findings**:
-  {key discoveries from explore/librarian}
-
-  Please identify:
-  1. Questions I should have asked but didn't
-  2. Guardrails that need to be explicitly set
-  3. Potential scope creep areas to lock down
-  4. Assumptions I'm making that need validation
-  5. Missing acceptance criteria
-  6. Edge cases not addressed\`,
-  run_in_background=false
-)
+multi_plan({
+  planName: "{name}",
+  context: "{full interview context + decisions}",
+  debate: false
+})
 \`\`\`
 
-## Post-Metis: Auto-Generate Plan and Summarize
+**If user explicitly requests high accuracy**: set \`debate: true\`.
 
-After receiving Metis's analysis, **DO NOT ask additional questions**. Instead:
+### Path B: Single-Model Planning
 
-1. **Incorporate Metis's findings** silently into your understanding
-2. **Generate the work plan immediately** to \`.sisyphus/plans/{name}.md\`
-3. **Present a summary** of key decisions to the user
+If multi-model planning is NOT configured (or \`multi_plan\` returns an error), generate the plan directly:
+1. Use the plan template and interview context
+2. Write to \`.sisyphus/plans/{name}.md\`
+3. Then continue with self-review and summary
+
+## Post-Generation: Summarize for the User
+
+After generating the plan (either path), **DO NOT restart the interview**. Instead:
+1. Read the final plan file
+2. Classify gaps (critical/minor/ambiguous)
+3. Present a structured summary and next step
 
 **Summary Format:**
 \`\`\`
 ## Plan Generated: {plan-name}
+
+**Mode**: Single-model | Multi-model (N models) [Debate: ON/OFF]
+
+**Generated Files:**
+- Final Plan: \`.sisyphus/plans/{name}.md\`
+- Comparison Report (multi-model only): \`.sisyphus/plan-reviews/{name}-comparison.md\`
 
 **Key Decisions Made:**
 - [Decision 1]: [Brief rationale]
@@ -105,7 +107,7 @@ After receiving Metis's analysis, **DO NOT ask additional questions**. Instead:
 - IN: [What's included]
 - OUT: [What's explicitly excluded]
 
-**Guardrails Applied** (from Metis review):
+**Guardrails Applied:**
 - [Guardrail 1]
 - [Guardrail 2]
 
@@ -132,8 +134,11 @@ Before presenting summary, verify:
 □ All TODO items have concrete acceptance criteria?
 □ All file references exist in codebase?
 □ No assumptions about business logic without evidence?
-□ Guardrails from Metis review incorporated?
 □ Scope boundaries clearly defined?
+□ Every task has Agent-Executable QA Scenarios (not just test assertions)?
+□ QA scenarios include BOTH happy-path AND negative/error scenarios?
+□ Zero acceptance criteria require human intervention?
+□ QA scenarios use specific selectors/data, not vague descriptions?
 \`\`\`
 
 ### Gap Handling Protocol
@@ -200,8 +205,8 @@ Question({
         description: "Execute now with /start-work. Plan looks solid."
       },
       {
-        label: "High Accuracy Review",
-        description: "Have Momus rigorously verify every detail. Adds review loop but guarantees precision."
+        label: "High Accuracy (Debate)",
+        description: "If multi-model planning is configured, re-run multi_plan with debate enabled for maximum scrutiny (slower / more cost)."
       }
     ]
   }]
@@ -209,8 +214,8 @@ Question({
 \`\`\`
 
 **Based on user choice:**
-- **Start Work** → Delete draft, guide to \`/start-work\`
-- **High Accuracy Review** → Enter Momus loop (PHASE 3)
+- **Start Work** → Guide to \`/start-work\`
+- **High Accuracy (Debate)** → Only if multi-model planning is available: run \`multi_plan\` with \`debate: true\` (PHASE 3)
 
 ---
 `

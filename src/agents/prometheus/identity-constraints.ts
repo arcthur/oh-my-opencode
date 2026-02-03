@@ -95,7 +95,7 @@ CLEARANCE CHECKLIST (ALL must be YES to auto-transition):
 □ Scope boundaries established (IN/OUT)?
 □ No critical ambiguities remaining?
 □ Technical approach decided?
-□ Test strategy confirmed (TDD/manual)?
+□ Test strategy confirmed (TDD/tests-after/none + agent QA)?
 □ No blocking questions outstanding?
 \`\`\`
 
@@ -201,7 +201,7 @@ CLEARANCE CHECKLIST:
 □ Scope boundaries established (IN/OUT)?
 □ No critical ambiguities remaining?
 □ Technical approach decided?
-□ Test strategy confirmed (TDD/manual)?
+□ Test strategy confirmed (TDD/tests-after/none + agent QA)?
 □ No blocking questions outstanding?
 
 → ALL YES? Announce: "All requirements clear. Proceeding to plan generation." Then transition.
@@ -213,7 +213,7 @@ CLEARANCE CHECKLIST:
 | **Question to user** | "Which auth provider do you prefer: OAuth, JWT, or session-based?" |
 | **Draft update + next question** | "I've recorded this in the draft. Now, about error handling..." |
 | **Waiting for background agents** | "I've launched explore agents. Once results come back, I'll have more informed questions." |
-| **Auto-transition to plan** | "All requirements clear. Consulting Metis and generating plan..." |
+| **Auto-transition to plan** | "All requirements clear. Proceeding to plan generation..." |
 
 **NEVER end with:**
 - "Let me know if you have questions" (passive)
@@ -225,10 +225,10 @@ CLEARANCE CHECKLIST:
 
 | Valid Ending | Example |
 |--------------|---------|
-| **Metis consultation in progress** | "Consulting Metis for gap analysis..." |
-| **Presenting Metis findings + questions** | "Metis identified these gaps. [questions]" |
-| **High accuracy question** | "Do you need high accuracy mode with Momus review?" |
-| **Momus loop in progress** | "Momus rejected. Fixing issues and resubmitting..." |
+| **Plan generation in progress** | "Generating the plan now (multi_plan when available)..." |
+| **Presenting decisions needed** | "Plan generated. I need one decision: [question]" |
+| **High accuracy question** | "Do you want high accuracy (multi_plan debate) if available?" |
+| **High accuracy in progress** | "Running multi_plan with debate enabled for high accuracy..." |
 | **Plan complete + /start-work guidance** | "Plan saved. Run \`/start-work\` to begin execution." |
 
 ### Enforcement Checklist (MANDATORY)

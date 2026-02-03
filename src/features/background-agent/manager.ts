@@ -1,6 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundTask, LaunchInput, ResumeInput } from "./types"
-import type { BackgroundTaskConfig, TmuxConfig } from "../../config/schema"
+import type { BackgroundTaskConfig } from "../../config/schema"
 import {
   TASK_TTL_MS,
   MIN_STABILITY_TIME_MS,
@@ -27,8 +27,6 @@ import { ConcurrencyManager } from "./concurrency"
 import { subagentSessions } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
 
-export { type SubagentSessionCreatedEvent, type OnSubagentSessionCreated } from "./constants"
-
 type ProcessCleanupHandler = () => void
 
 export class BackgroundManager {
@@ -42,8 +40,6 @@ export class BackgroundManager {
   private concurrencyManager: ConcurrencyManager
   private shutdownTriggered = false
   private config?: BackgroundTaskConfig
-  private tmuxEnabled: boolean
-  private onSubagentSessionCreated?: (event: { sessionID: string; parentID: string; title: string }) => Promise<void>
   private onShutdown?: () => void
   private state: TaskStateManager
 
@@ -51,8 +47,6 @@ export class BackgroundManager {
     ctx: PluginInput,
     config?: BackgroundTaskConfig,
     options?: {
-      tmuxConfig?: TmuxConfig
-      onSubagentSessionCreated?: (event: { sessionID: string; parentID: string; title: string }) => Promise<void>
       onShutdown?: () => void
     }
   ) {
@@ -61,8 +55,6 @@ export class BackgroundManager {
     this.directory = ctx.directory
     this.concurrencyManager = new ConcurrencyManager(config)
     this.config = config
-    this.tmuxEnabled = options?.tmuxConfig?.enabled ?? false
-    this.onSubagentSessionCreated = options?.onSubagentSessionCreated
     this.onShutdown = options?.onShutdown
     this.registerProcessCleanup()
   }
@@ -72,8 +64,6 @@ export class BackgroundManager {
       client: this.client,
       directory: this.directory,
       concurrencyManager: this.concurrencyManager,
-      tmuxEnabled: this.tmuxEnabled,
-      onSubagentSessionCreated: this.onSubagentSessionCreated,
       onTaskError: (task, error) => this.handleTaskError(task, error),
     }
   }
@@ -114,6 +104,7 @@ export class BackgroundManager {
       agent: input.agent,
       model: input.model,
       description: input.description,
+      category: input.category,
       parentSessionID: input.parentSessionID,
     })
 
@@ -141,6 +132,7 @@ export class BackgroundManager {
         agent: input.agent,
         isBackground: true,
         status: "queued",
+        category: input.category,
         skills: input.skills,
       })
     }

@@ -75,10 +75,10 @@ Use \`delegate_task()\` with EITHER category OR agent (mutually exclusive):
 
 \`\`\`typescript
 // Category + Skills (spawns Sisyphus-Junior)
-delegate_task(category="[name]", load_skills=["skill-1"], run_in_background=false, prompt="...")
+delegate_task(description="...", category="[name]", load_skills=["skill-1"], run_in_background=false, prompt="...")
 
 // Specialized Agent
-delegate_task(subagent_type="[agent]", load_skills=[], run_in_background=false, prompt="...")
+delegate_task(description="...", subagent_type="[agent]", load_skills=[], run_in_background=false, prompt="...")
 \`\`\`
 
 {CATEGORY_SECTION}
@@ -179,7 +179,7 @@ Extract wisdom → include in prompt.
 ### 3.3 Invoke delegate_task()
 
 \`\`\`typescript
-delegate_task(category="[cat]", load_skills=["[skills]"], run_in_background=false, prompt=\`[6-SECTION PROMPT]\`)
+delegate_task(description="...", category="[cat]", load_skills=["[skills]"], run_in_background=false, prompt=\`[6-SECTION PROMPT]\`)
 \`\`\`
 
 ### 3.4 Verify (PROJECT-LEVEL QA)
@@ -201,7 +201,7 @@ Checklist:
 **CRITICAL: Use \`session_id\` for retries.**
 
 \`\`\`typescript
-delegate_task(session_id="ses_xyz789", load_skills=[...], prompt="FAILED: {error}. Fix by: {instruction}")
+delegate_task(description="Retry: ...", session_id="ses_xyz789", load_skills=[], run_in_background=false, prompt="FAILED: {error}. Fix by: {instruction}")
 \`\`\`
 
 - Maximum 3 retries per task
@@ -231,18 +231,18 @@ ACCUMULATED WISDOM: [from notepad]
 <parallel_execution>
 **Exploration (explore/librarian)**: ALWAYS background
 \`\`\`typescript
-delegate_task(subagent_type="explore", run_in_background=true, ...)
+delegate_task(description="Explore: ...", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")
 \`\`\`
 
 **Task execution**: NEVER background
 \`\`\`typescript
-delegate_task(category="...", run_in_background=false, ...)
+delegate_task(description="Task: ...", category="...", load_skills=[...], run_in_background=false, prompt="...")
 \`\`\`
 
 **Parallel task groups**: Invoke multiple in ONE message
 \`\`\`typescript
-delegate_task(category="quick", prompt="Task 2...")
-delegate_task(category="quick", prompt="Task 3...")
+delegate_task(description="Task 2", category="quick", load_skills=[], run_in_background=false, prompt="Task 2...")
+delegate_task(description="Task 3", category="quick", load_skills=[], run_in_background=false, prompt="Task 3...")
 \`\`\`
 
 **Background management**:

@@ -28,17 +28,19 @@ export function resolveCategoryConfig(
 ): ResolveCategoryConfigResult | null {
   const { userCategories, inheritedModel, systemDefaultModel, availableModels } = options
 
-  // Check if category requires a specific model
+  const defaultConfig = DEFAULT_CATEGORIES[categoryName]
+  const userConfig = userCategories?.[categoryName]
+  const hasExplicitUserConfig = userConfig !== undefined
+
+  // Check if category requires a specific model - bypass if user explicitly provides config
   const categoryReq = CATEGORY_MODEL_REQUIREMENTS[categoryName]
-  if (categoryReq?.requiresModel && availableModels) {
+  if (categoryReq?.requiresModel && availableModels && !hasExplicitUserConfig) {
     if (!isModelAvailable(categoryReq.requiresModel, availableModels)) {
       log(`[resolveCategoryConfig] Category ${categoryName} requires ${categoryReq.requiresModel} but not available`)
       return null
     }
   }
 
-  const defaultConfig = DEFAULT_CATEGORIES[categoryName]
-  const userConfig = userCategories?.[categoryName]
   const defaultPromptAppend = CATEGORY_PROMPT_APPENDS[categoryName] ?? ""
 
   if (!defaultConfig && !userConfig) {
@@ -47,11 +49,13 @@ export function resolveCategoryConfig(
 
   // Model priority for categories: user override > category default > system default
   // Categories have explicit models - no inheritance from parent session
-  const model = resolveModel({
-    userModel: userConfig?.model,
-    inheritedModel: defaultConfig?.model, // Category's built-in model takes precedence over system default
-    systemDefault: systemDefaultModel,
-  })
+  const model = systemDefaultModel
+    ? resolveModel({
+        userModel: userConfig?.model,
+        inheritedModel: defaultConfig?.model, // Category's built-in model takes precedence over system default
+        systemDefault: systemDefaultModel,
+      })
+    : normalizeModel(userConfig?.model) ?? normalizeModel(defaultConfig?.model)
   const config: CategoryConfig = {
     ...defaultConfig,
     ...userConfig,
@@ -67,4 +71,9 @@ export function resolveCategoryConfig(
   }
 
   return { config, promptAppend, model }
+}
+
+function normalizeModel(model?: string): string | undefined {
+  const trimmed = model?.trim()
+  return trimmed || undefined
 }

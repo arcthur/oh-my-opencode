@@ -40,6 +40,10 @@ export function truncateToTokenLimit(
 	maxTokens: number,
 	preserveHeaderLines = 3,
 ): TruncationResult {
+	if (typeof output !== 'string') {
+		return { result: String(output ?? ''), truncated: false };
+	}
+
 	const currentTokens = estimateTokens(output);
 
 	if (currentTokens <= maxTokens) {
@@ -144,6 +148,10 @@ export async function dynamicTruncate(
 	output: string,
 	options: TruncationOptions = {},
 ): Promise<TruncationResult> {
+	if (typeof output !== 'string') {
+		return { result: String(output ?? ''), truncated: false };
+	}
+
 	const {
 		targetMaxTokens = DEFAULT_TARGET_MAX_TOKENS,
 		preserveHeaderLines = 3,

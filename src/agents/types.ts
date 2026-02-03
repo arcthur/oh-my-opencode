@@ -1,6 +1,20 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 
-export type AgentFactory = (model: string) => AgentConfig
+/**
+ * Agent mode determines UI model selection behavior:
+ * - "primary": Respects user's UI-selected model (sisyphus, atlas)
+ * - "subagent": Uses own fallback chain, ignores UI selection (oracle, explore, etc.)
+ * - "all": Available in both contexts (OpenCode compatibility)
+ */
+export type AgentMode = "primary" | "subagent" | "all"
+
+/**
+ * Agent factory function with static mode property.
+ * Mode is exposed as static property for pre-instantiation access.
+ */
+export type AgentFactory = ((model: string) => AgentConfig) & {
+  mode: AgentMode
+}
 
 /**
  * Agent category for grouping in Sisyphus prompt sections
@@ -58,18 +72,13 @@ export function isGptModel(model: string): boolean {
 
 export type BuiltinAgentName =
   | "sisyphus"
+  | "hephaestus"
   | "oracle"
   | "librarian"
   | "explore"
   | "multimodal-looker"
   | "atlas"
   | "plan-synthesizer"
-  | "hephaestus"
-
-/**
- * Agent mode - primary agents appear in main selection, subagent for delegation
- */
-export type AgentMode = "primary" | "subagent"
 
 export type OverridableAgentName =
   | "build"
@@ -80,6 +89,12 @@ export type AgentName = BuiltinAgentName
 export type AgentOverrideConfig = Partial<Omit<AgentConfig, 'model'>> & {
   /** Model specification - string for single model, array for multi-model planning (Prometheus only) */
   model?: string | string[]
+  /** Category name to inherit model and other settings from CategoryConfig */
+  category?: string
+  /** Skill names to inject into agent prompt */
+  skills?: string[]
+  /** Agent mode - primary/subagent/all */
+  mode?: AgentMode
   prompt_append?: string
   variant?: string
 }

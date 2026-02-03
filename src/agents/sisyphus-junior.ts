@@ -1,10 +1,13 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
+import type { AgentMode } from "./types"
 import { isGptModel } from "./types"
 import type { AgentOverrideConfig } from "../config/schema"
 import {
   createAgentToolRestrictions,
   type PermissionValue,
 } from "../shared/permission-compat"
+
+const MODE: AgentMode = "subagent"
 
 const SISYPHUS_JUNIOR_PROMPT = `<Role>
 Sisyphus-Junior - Focused executor from OhMyOpenCode.
@@ -53,7 +56,7 @@ function buildSisyphusJuniorPrompt(promptAppend?: string): string {
 const BLOCKED_TOOLS = ["task", "delegate_task"]
 
 export const SISYPHUS_JUNIOR_DEFAULTS = {
-  // model: Uses systemDefaultModel - no hardcoded default
+  model: "anthropic/claude-sonnet-4-5",
   temperature: 0.1,
 } as const
 
@@ -65,12 +68,7 @@ export function createSisyphusJuniorAgentWithOverrides(
     override = undefined
   }
 
-  // If model is an array (only valid for Prometheus), use the first element
-  const rawModel = override?.model ?? systemDefaultModel
-  if (!rawModel) {
-    throw new Error("Sisyphus-Junior requires a model. Provide via override.model or systemDefaultModel.")
-  }
-  const model = Array.isArray(rawModel) ? rawModel[0] : rawModel
+  const model = override?.model ?? systemDefaultModel ?? SISYPHUS_JUNIOR_DEFAULTS.model
   const temperature = override?.temperature ?? SISYPHUS_JUNIOR_DEFAULTS.temperature
 
   const promptAppend = override?.prompt_append
@@ -89,8 +87,8 @@ export function createSisyphusJuniorAgentWithOverrides(
 
   const base: AgentConfig = {
     description: override?.description ??
-      "Sisyphus-Junior - Focused task executor. Same discipline, no delegation.",
-    mode: "subagent" as const,
+      "Focused task executor. Same discipline, no delegation. (Sisyphus-Junior - OhMyOpenCode)",
+    mode: MODE,
     model,
     temperature,
     maxTokens: 64000,
@@ -112,3 +110,5 @@ export function createSisyphusJuniorAgentWithOverrides(
     thinking: { type: "enabled", budgetTokens: 32000 },
   } as AgentConfig
 }
+
+createSisyphusJuniorAgentWithOverrides.mode = MODE

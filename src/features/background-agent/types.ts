@@ -21,6 +21,9 @@ export interface BackgroundTask {
   description: string
   prompt: string
   agent: string
+  category?: string
+  /** True when the selected model/category is considered unstable (e.g. Gemini); used for babysitting/monitoring. */
+  isUnstableAgent?: boolean
   status: BackgroundTaskStatus
   queuedAt?: Date
   startedAt?: Date
@@ -48,6 +51,7 @@ export interface LaunchInput {
   description: string
   prompt: string
   agent: string
+  category?: string
   parentSessionID: string
   parentMessageID: string
   parentModel?: { providerID: string; modelID: string }

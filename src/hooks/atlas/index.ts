@@ -139,7 +139,10 @@ But for any substantial changes, USE \`delegate_task\`.
 **CORRECT APPROACH:**
 \`\`\`
 delegate_task(
+  description="Verify fix",
   category="...",
+  load_skills=[],
+  run_in_background=false,
   prompt="[specific single task with clear acceptance criteria]"
 )
 \`\`\`
@@ -181,7 +184,13 @@ function buildVerificationReminder(sessionId: string): string {
 
 **If ANY verification fails, use this immediately:**
 \`\`\`
-delegate_task(resume="${sessionId}", prompt="fix: [describe the specific failure]")
+delegate_task(
+  description="Fix verification",
+  session_id="${sessionId}",
+  load_skills=[],
+  run_in_background=false,
+  prompt="fix: [describe the specific failure]"
+)
 \`\`\``
 }
 

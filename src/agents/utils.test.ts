@@ -1,8 +1,26 @@
-import { describe, test, expect } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { createBuiltinAgents } from "./utils"
 import type { AgentConfig } from "@opencode-ai/sdk"
+import { mkdtempSync } from "fs"
+import { tmpdir } from "os"
+import { join } from "path"
 
 const TEST_DEFAULT_MODEL = "anthropic/claude-opus-4-5"
+
+let originalXdgCacheHome: string | undefined
+
+beforeEach(() => {
+  originalXdgCacheHome = process.env.XDG_CACHE_HOME
+  process.env.XDG_CACHE_HOME = mkdtempSync(join(tmpdir(), "omo-test-cache-"))
+})
+
+afterEach(() => {
+  if (originalXdgCacheHome === undefined) {
+    delete process.env.XDG_CACHE_HOME
+  } else {
+    process.env.XDG_CACHE_HOME = originalXdgCacheHome
+  }
+})
 
 describe("createBuiltinAgents with model overrides", () => {
   test("Sisyphus with default model has thinking config", async () => {
@@ -15,6 +33,30 @@ describe("createBuiltinAgents with model overrides", () => {
     expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-5")
     expect(agents.sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
     expect(agents.sisyphus.reasoningEffort).toBeUndefined()
+  })
+
+  test("Sisyphus respects uiSelectedModel when provided", async () => {
+    // given
+    const uiSelectedModel = "openai/gpt-5.2"
+
+    // when
+    const agents = await createBuiltinAgents(
+      [],
+      {},
+      undefined,
+      TEST_DEFAULT_MODEL,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      uiSelectedModel
+    )
+
+    // then
+    expect(agents.sisyphus.model).toBe(uiSelectedModel)
+    expect(agents.sisyphus.reasoningEffort).toBe("medium")
+    expect(agents.sisyphus.thinking).toBeUndefined()
   })
 
   test("Sisyphus with GPT model override has reasoningEffort, no thinking", async () => {
@@ -57,6 +99,42 @@ describe("createBuiltinAgents with model overrides", () => {
 
     // then - Oracle uses systemDefaultModel since model is now required
     expect(agents.oracle.model).toBe("anthropic/claude-opus-4-5")
+    expect(agents.oracle.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.oracle.reasoningEffort).toBeUndefined()
+  })
+
+  test("agent override category influences model resolution (without inconsistent thinking/reasoning)", async () => {
+    // given
+    const overrides = {
+      oracle: { category: "gpt-category" },
+    }
+    const categories = {
+      "gpt-category": { model: "openai/gpt-5.2" },
+    }
+
+    // when
+    const agents = await createBuiltinAgents([], overrides, undefined, TEST_DEFAULT_MODEL, categories)
+
+    // then
+    expect(agents.oracle.model).toBe("openai/gpt-5.2")
+    expect(agents.oracle.reasoningEffort).toBe("medium")
+    expect(agents.oracle.thinking).toBeUndefined()
+  })
+
+  test("agent override model takes precedence over category", async () => {
+    // given
+    const overrides = {
+      oracle: { category: "gpt-category", model: "anthropic/claude-sonnet-4" },
+    }
+    const categories = {
+      "gpt-category": { model: "openai/gpt-5.2" },
+    }
+
+    // when
+    const agents = await createBuiltinAgents([], overrides, undefined, TEST_DEFAULT_MODEL, categories)
+
+    // then
+    expect(agents.oracle.model).toBe("anthropic/claude-sonnet-4")
     expect(agents.oracle.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
     expect(agents.oracle.reasoningEffort).toBeUndefined()
   })
@@ -106,13 +184,26 @@ describe("createBuiltinAgents with model overrides", () => {
     expect(agents.sisyphus.model).toBe("github-copilot/gpt-5.2")
     expect(agents.sisyphus.temperature).toBe(0.5)
   })
+
+  test("agent override skills are injected into prompt content", async () => {
+    // given
+    const overrides = {
+      sisyphus: { skills: ["frontend-ui-ux"] },
+    }
+
+    // when
+    const agents = await createBuiltinAgents([], overrides, undefined, TEST_DEFAULT_MODEL)
+
+    // then
+    expect(agents.sisyphus.prompt).toContain("Role: Designer-Turned-Developer")
+  })
 })
 
 describe("buildAgent with category and skills", () => {
   const { buildAgent } = require("./utils")
   const TEST_MODEL = "anthropic/claude-opus-4-5"
 
-  test("agent with category but no model stays without model (uses systemDefaultModel at runtime)", () => {
+  test("agent with category but no model inherits the category's default model", () => {
     // given - agent factory that sets category but no model
     const source = {
       "test-agent": () =>
@@ -125,9 +216,8 @@ describe("buildAgent with category and skills", () => {
     // when
     const agent = buildAgent(source["test-agent"], TEST_MODEL)
 
-    // then - DEFAULT_CATEGORIES no longer has hardcoded models, so agent has no model
-    // The systemDefaultModel will be applied at runtime by createBuiltinAgents
-    expect(agent.model).toBeUndefined()
+    // then - DEFAULT_CATEGORIES provides the model for this category
+    expect(agent.model).toBe("google/gemini-3-pro")
   })
 
   test("agent with category and existing model keeps existing model", () => {
@@ -248,8 +338,8 @@ describe("buildAgent with category and skills", () => {
     // when
     const agent = buildAgent(source["test-agent"], TEST_MODEL)
 
-    // then - category's variant and skills are applied; model comes from systemDefaultModel at runtime
-    expect(agent.model).toBeUndefined() // DEFAULT_CATEGORIES no longer has hardcoded models
+    // then - category's model/variant and skills are applied
+    expect(agent.model).toBe("openai/gpt-5.2-codex")
     expect(agent.variant).toBe("xhigh")
     expect(agent.prompt).toContain("Role: Designer-Turned-Developer")
     expect(agent.prompt).toContain("Task description")
@@ -293,6 +383,27 @@ describe("buildAgent with category and skills", () => {
     // then
     expect(agent.prompt).toContain("Role: Designer-Turned-Developer")
     expect(agent.prompt).toContain("Base prompt")
+  })
+
+  test("agent-browser skill resolves only when browserProvider is 'agent-browser'", () => {
+    // given
+    const source = {
+      "test-agent": () =>
+        ({
+          description: "Test agent",
+          skills: ["agent-browser"],
+          prompt: "Base prompt",
+        }) as AgentConfig,
+    }
+
+    // when
+    const agentWithoutProvider = buildAgent(source["test-agent"], TEST_MODEL)
+    const agentWithProvider = buildAgent(source["test-agent"], TEST_MODEL, undefined, undefined, "agent-browser")
+
+    // then
+    expect(agentWithoutProvider.prompt).toBe("Base prompt")
+    expect(agentWithProvider.prompt).toContain("agent-browser open")
+    expect(agentWithProvider.prompt).toContain("Base prompt")
   })
 
   test("agent with empty skills array keeps original prompt", () => {

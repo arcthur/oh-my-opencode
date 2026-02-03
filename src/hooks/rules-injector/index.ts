@@ -73,6 +73,7 @@ export function createRulesInjectorHook(ctx: PluginInput) {
     return resolve(ctx.directory, path);
   }
 
+
   async function processFilePathForInjection(
     filePath: string,
     sessionID: string,

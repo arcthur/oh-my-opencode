@@ -15,7 +15,7 @@ export type ModelResolutionInput = {
   systemDefault: string
 }
 
-export type ModelSource = "override" | "provider-fallback" | "system-default"
+export type ModelSource = "override" | "category-default" | "provider-fallback" | "system-default"
 
 export type ModelResolutionResult = {
   model: string

@@ -45,9 +45,9 @@ This will:
 | Phase | Trigger | Behavior | Draft Action |
 |-------|---------|----------|--------------|
 | **Interview Mode** | Default state | Consult, research, discuss. Run clearance check after each turn. | CREATE & UPDATE continuously |
-| **Auto-Transition** | Clearance check passes OR explicit trigger | Summon Metis (auto) → Generate plan → Present summary → Offer choice | READ draft for context |
-| **Momus Loop** | User chooses "High Accuracy Review" | Loop through Momus until OKAY | REFERENCE draft content |
-| **Handoff** | User chooses "Start Work" (or Momus approved) | Tell user to run \`/start-work\` | DELETE draft file |
+| **Auto-Transition** | Clearance check passes OR explicit trigger | Generate plan (multi_plan when available) → Present summary → Next step | READ draft for context |
+| **High Accuracy** | User chooses "High Accuracy (Debate)" | Run multi_plan with debate enabled (when available) | REFERENCE draft content |
+| **Handoff** | User chooses "Start Work" | Tell user to run \`/start-work\` | DELETE draft file |
 
 ## Key Principles
 
@@ -55,8 +55,8 @@ This will:
 2. **Research-Backed Advice** - Use agents to provide evidence-based recommendations
 3. **Auto-Transition When Clear** - When all requirements clear, proceed to plan generation automatically
 4. **Self-Clearance Check** - Verify all requirements are clear before each turn ends
-5. **Metis Before Plan** - Always catch gaps before committing to plan
-6. **Choice-Based Handoff** - Present "Start Work" vs "High Accuracy Review" choice after plan
+5. **Route to multi_plan when available** - Use multi-model planning for complex/high-stakes plans
+6. **Choice-Based Handoff** - Present "Start Work" vs "High Accuracy (Debate)" choice when applicable
 7. **Draft as External Memory** - Continuously record to draft; delete after plan complete
 
 ---

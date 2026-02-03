@@ -10,7 +10,7 @@
  */
 
 import type { AgentConfig } from "@opencode-ai/sdk"
-import type { AgentPromptMetadata } from "../types"
+import type { AgentMode, AgentPromptMetadata } from "../types"
 import { isGptModel } from "../types"
 import type { AvailableAgent, AvailableSkill, AvailableCategory } from "../dynamic-agent-prompt-builder"
 import { buildCategorySkillsDelegationGuide } from "../dynamic-agent-prompt-builder"
@@ -38,6 +38,8 @@ export {
   buildDecisionMatrix,
 } from "./utils"
 export { isGptModel }
+
+const MODE: AgentMode = "primary"
 
 export type AtlasPromptSource = "default" | "gpt"
 
@@ -110,7 +112,7 @@ export function createAtlasAgent(ctx: OrchestratorContext): AgentConfig {
   const baseConfig = {
     description:
       "Orchestrates work via delegate_task() to complete ALL tasks in a todo list until fully done. (Atlas - OhMyOpenCode)",
-    mode: "primary" as const,
+    mode: MODE,
     ...(ctx.model ? { model: ctx.model } : {}),
     temperature: 0.1,
     prompt: buildDynamicOrchestratorPrompt(ctx),
@@ -120,6 +122,7 @@ export function createAtlasAgent(ctx: OrchestratorContext): AgentConfig {
 
   return baseConfig as AgentConfig
 }
+createAtlasAgent.mode = MODE
 
 export const atlasPromptMetadata: AgentPromptMetadata = {
   category: "advisor",

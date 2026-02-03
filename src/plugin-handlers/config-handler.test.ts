@@ -3,29 +3,29 @@ import { resolveCategoryConfig } from "./config-handler"
 import type { CategoryConfig } from "../config/schema"
 
 describe("Prometheus category config resolution", () => {
-  test("resolves ultrabrain category config (no default model, only variant)", () => {
+  test("resolves ultrabrain category config (model + variant)", () => {
     // given
     const categoryName = "ultrabrain"
 
     // when
     const config = resolveCategoryConfig(categoryName)
 
-    // then - DEFAULT_CATEGORIES no longer has hardcoded models
+    // then - DEFAULT_CATEGORIES provides model + variant for builtin categories
     expect(config).toBeDefined()
-    expect(config?.model).toBeUndefined()
+    expect(config?.model).toBe("openai/gpt-5.2-codex")
     expect(config?.variant).toBe("xhigh")
   })
 
-  test("resolves visual-engineering category config (no default model)", () => {
+  test("resolves visual-engineering category config (model)", () => {
     // given
     const categoryName = "visual-engineering"
 
     // when
     const config = resolveCategoryConfig(categoryName)
 
-    // then - DEFAULT_CATEGORIES no longer has hardcoded models
+    // then - DEFAULT_CATEGORIES provides model config for builtin categories
     expect(config).toBeDefined()
-    expect(config?.model).toBeUndefined()
+    expect(config?.model).toBe("google/gemini-3-pro")
   })
 
   test("user categories override default categories", () => {
@@ -70,9 +70,9 @@ describe("Prometheus category config resolution", () => {
     // when
     const config = resolveCategoryConfig(categoryName, userCategories)
 
-    // then - falls back to DEFAULT_CATEGORIES (no hardcoded model, only variant)
+    // then - falls back to DEFAULT_CATEGORIES
     expect(config).toBeDefined()
-    expect(config?.model).toBeUndefined()
+    expect(config?.model).toBe("openai/gpt-5.2-codex")
     expect(config?.variant).toBe("xhigh")
   })
 

@@ -40,7 +40,7 @@ Generate plan to: \`.sisyphus/plans/{name}.md\`
 - [Finding 1]: [Implication]
 - [Finding 2]: [Recommendation]
 
-### Metis Review
+### Review Notes
 **Identified Gaps** (addressed):
 - [Gap 1]: [How resolved]
 - [Gap 2]: [How resolved]
@@ -62,20 +62,49 @@ Generate plan to: \`.sisyphus/plans/{name}.md\`
 - [Non-negotiable requirement]
 
 ### Must NOT Have (Guardrails)
-- [Explicit exclusion from Metis review]
+- [Explicit exclusion from review/guardrails]
 - [AI slop pattern to avoid]
 - [Scope boundary]
 
 ---
 
+## Assumptions (REQUIRED)
+
+List ALL assumptions with confidence levels. If confidence is not High, add a validation TODO.
+
+| # | Assumption | Confidence (High/Med/Low) | If Wrong, Impact | Validation |
+|---|------------|---------------------------|------------------|------------|
+| 1 | ... | High | ... | ... |
+
+## Risks (REQUIRED)
+
+Identify what could go wrong (technical, integration, scope, testing).
+
+| # | Risk | Probability (H/M/L) | Impact (H/M/L) | Mitigation |
+|---|------|----------------------|----------------|------------|
+| 1 | ... | M | H | ... |
+
+---
+
 ## Verification Strategy (MANDATORY)
 
-> This section is determined during interview based on Test Infrastructure Assessment.
-> The choice here affects ALL TODO acceptance criteria.
+> **UNIVERSAL RULE: ZERO HUMAN INTERVENTION**
+>
+> ALL tasks in this plan MUST be verifiable WITHOUT any human action.
+> This is NOT conditional — it applies to EVERY task, regardless of test strategy.
+>
+> **FORBIDDEN** — acceptance criteria that require:
+> - "User manually tests..." / "사용자가 직접 테스트..."
+> - "User visually confirms..." / "사용자가 눈으로 확인..."
+> - "User interacts with..." / "사용자가 직접 조작..."
+> - "Ask user to verify..." / "사용자에게 확인 요청..."
+> - ANY step where a human must perform an action
+>
+> **ALL verification is executed by the agent** using tools (Playwright, interactive_bash, curl, etc.). No exceptions.
 
 ### Test Decision
 - **Infrastructure exists**: [YES/NO]
-- **User wants tests**: [TDD / Tests-after / Manual-only]
+- **Automated tests**: [TDD / Tests-after / None]
 - **Framework**: [bun test / vitest / jest / pytest / none]
 
 ### If TDD Enabled
@@ -102,37 +131,50 @@ Each TODO follows RED-GREEN-REFACTOR:
   - Example: Create \`src/__tests__/example.test.ts\`
   - Verify: \`bun test\` → 1 test passes
 
-### If Automated Verification Only (NO User Intervention)
+### Agent-Executed QA Scenarios (MANDATORY — ALL tasks)
 
-> **CRITICAL PRINCIPLE: ZERO USER INTERVENTION**
+> Whether TDD is enabled or not, EVERY task MUST include Agent-Executed QA Scenarios.
+> - **With TDD**: QA scenarios complement unit tests at integration/E2E level
+> - **Without TDD**: QA scenarios are the PRIMARY verification method
 >
-> **NEVER** create acceptance criteria that require:
-> - "User manually tests..." / "사용자가 직접 테스트..."
-> - "User visually confirms..." / "사용자가 눈으로 확인..."
-> - "User interacts with..." / "사용자가 직접 조작..."
-> - "Ask user to verify..." / "사용자에게 확인 요청..."
-> - ANY step that requires a human to perform an action
->
-> **ALL verification MUST be automated and executable by the agent.**
-> If a verification cannot be automated, find an automated alternative or explicitly note it as a known limitation.
+> These describe how the executing agent DIRECTLY verifies the deliverable by running it — opening browsers, executing commands, sending API requests.
 
-Each TODO includes EXECUTABLE verification procedures that agents can run directly:
+**Verification Tool by Deliverable Type:**
 
-**By Deliverable Type:**
+| Type | Tool | How Agent Verifies |
+|------|------|-------------------|
+| **Frontend/UI** | Playwright (playwright skill) | Navigate, interact, assert DOM, screenshot |
+| **TUI/CLI** | interactive_bash (tmux) | Run command, send keystrokes, validate output |
+| **API/Backend** | Bash (curl/httpie) | Send requests, parse responses, assert fields |
+| **Library/Module** | Bash (bun/node REPL) | Import, call functions, compare output |
+| **Config/Infra** | Bash (shell commands) | Apply config, run state checks, validate |
 
-| Type | Verification Tool | Automated Procedure |
-|------|------------------|---------------------|
-| **Frontend/UI** | Playwright browser via playwright skill | Agent navigates, clicks, screenshots, asserts DOM state |
-| **TUI/CLI** | interactive_bash (tmux) | Agent runs command, captures output, validates expected strings |
-| **API/Backend** | curl / httpie via Bash | Agent sends request, parses response, validates JSON fields |
-| **Library/Module** | Node/Python REPL via Bash | Agent imports, calls function, compares output |
-| **Config/Infra** | Shell commands via Bash | Agent applies config, runs state check, validates output |
+**Each Scenario MUST Follow This Format:**
 
-**Evidence Requirements (Agent-Executable):**
-- Command output captured and compared against expected patterns
-- Screenshots saved to .sisyphus/evidence/ for visual verification
-- JSON response fields validated with specific assertions
-- Exit codes checked (0 = success)
+\`\`\`
+Scenario: [Descriptive name — what user action/flow is being verified]
+  Tool: [Playwright / interactive_bash / Bash]
+  Preconditions: [What must be true before this scenario runs]
+  Steps:
+    1. [Exact action with specific selector/command/endpoint]
+    2. [Next action with expected intermediate state]
+    3. [Assertion with exact expected value]
+  Expected Result: [Concrete, observable outcome]
+  Failure Indicators: [What would indicate failure]
+  Evidence: .sisyphus/evidence/task-{N}-{scenario-slug}.{ext}
+\`\`\`
+
+**Scenario Detail Requirements:**
+- **Selectors**: Specific CSS selectors (\`.login-button\`, not "the login button")
+- **Data**: Concrete test data (\`"test@example.com"\`, not \`"[email]"\`)
+- **Assertions**: Exact values (\`text contains "Welcome back"\`, not "verify it works")
+- **Negative Scenarios**: At least ONE failure/error scenario per feature
+- **Evidence Paths**: Use \`.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}\`
+
+**Evidence Requirements:**
+- Screenshots: \`.sisyphus/evidence/\` for all UI scenarios
+- Terminal output: Captured for CLI/TUI scenarios
+- Response bodies: Saved for API scenarios
 
 ---
 
@@ -175,7 +217,7 @@ Parallel Speedup: ~40% faster than sequential
 
 | Wave | Tasks | Recommended Agents |
 |------|-------|-------------------|
-| 1 | 1, 5 | delegate_task(category="...", load_skills=[...], run_in_background=true) |
+| 1 | 1, 5 | delegate_task(description="Task 1", category="...", load_skills=[...], run_in_background=false, prompt="...") |
 | 2 | 2, 3, 6 | dispatch parallel after Wave 1 completes |
 | 3 | 4 | final integration task |
 
@@ -242,76 +284,19 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  > **CRITICAL: AGENT-EXECUTABLE VERIFICATION ONLY**
-  >
-  > - Acceptance = EXECUTION by the agent, not "user checks if it works"
-  > - Every criterion MUST be verifiable by running a command or using a tool
-  > - NO steps like "user opens browser", "user clicks", "user confirms"
-  > - If you write "[placeholder]" - REPLACE IT with actual values based on task context
+  > **AGENT-EXECUTABLE VERIFICATION ONLY** — No human action permitted.
+  > Every criterion MUST be verifiable by running a command or using a tool.
+  > REPLACE all placeholders with actual values from task context.
 
   **If TDD (tests enabled):**
   - [ ] Test file created: src/auth/login.test.ts
   - [ ] Test covers: successful login returns JWT token
-  - [ ] bun test src/auth/login.test.ts → PASS (3 tests, 0 failures)
+  - [ ] \`bun test src/auth/login.test.ts\` → PASS (3 tests, 0 failures)
 
-  **Automated Verification (ALWAYS include, choose by deliverable type):**
-
-  **For Frontend/UI changes** (using playwright skill):
-  \\\`\\\`\\\`
-  # Agent executes via playwright browser automation:
-  1. Navigate to: http://localhost:3000/login
-  2. Fill: input[name="email"] with "test@example.com"
-  3. Fill: input[name="password"] with "password123"
-  4. Click: button[type="submit"]
-  5. Wait for: selector ".dashboard-welcome" to be visible
-  6. Assert: text "Welcome back" appears on page
-  7. Screenshot: .sisyphus/evidence/task-1-login-success.png
-  \\\`\\\`\\\`
-
-  **For TUI/CLI changes** (using interactive_bash):
-  \\\`\\\`\\\`
-  # Agent executes via tmux session:
-  1. Command: ./my-cli --config test.yaml
-  2. Wait for: "Configuration loaded" in output
-  3. Send keys: "q" to quit
-  4. Assert: Exit code 0
-  5. Assert: Output contains "Goodbye"
-  \\\`\\\`\\\`
-
-  **For API/Backend changes** (using Bash curl):
-  \\\`\\\`\\\`bash
-  # Agent runs:
-  curl -s -X POST http://localhost:8080/api/users \\
-    -H "Content-Type: application/json" \\
-    -d '{"email":"new@test.com","name":"Test User"}' \\
-    | jq '.id'
-  # Assert: Returns non-empty UUID
-  # Assert: HTTP status 201
-  \\\`\\\`\\\`
-
-  **For Library/Module changes** (using Bash node/bun):
-  \\\`\\\`\\\`bash
-  # Agent runs:
-  bun -e "import { validateEmail } from './src/utils/validate'; console.log(validateEmail('test@example.com'))"
-  # Assert: Output is "true"
-  
-  bun -e "import { validateEmail } from './src/utils/validate'; console.log(validateEmail('invalid'))"
-  # Assert: Output is "false"
-  \\\`\\\`\\\`
-
-  **For Config/Infra changes** (using Bash):
-  \\\`\\\`\\\`bash
-  # Agent runs:
-  docker compose up -d
-  # Wait 5s for containers
-  docker compose ps --format json | jq '.[].State'
-  # Assert: All states are "running"
-  \\\`\\\`\\\`
-
-  **Evidence to Capture:**
-  - [ ] Terminal output from verification commands (actual output, not expected)
-  - [ ] Screenshot files in .sisyphus/evidence/ for UI changes
-  - [ ] JSON response bodies for API changes
+  **Agent-Executed QA Scenarios (MANDATORY):**
+  - Include 2+ named scenarios (happy path + failure case)
+  - Follow the scenario format defined in "Verification Strategy" above
+  - Evidence saved under: \`.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}\`
 
   **Commit**: YES | NO (groups with N)
   - Message: \`type(scope): desc\`
@@ -324,7 +309,7 @@ Parallel Speedup: ~40% faster than sequential
 
 | After Task | Message | Files | Verification |
 |------------|---------|-------|--------------|
-| 1 | \`type(scope): desc\` | file.ts | npm test |
+| 1 | \`type(scope): desc\` | file.ts | bun test |
 
 ---
 
@@ -342,4 +327,5 @@ command  # Expected: output
 \`\`\`
 
 ---
+\`\`\`
 `

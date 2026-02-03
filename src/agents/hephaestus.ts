@@ -1,5 +1,5 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
-import type { AgentMode } from "./types"
+import type { AgentMode, AgentPromptMetadata } from "./types"
 import type { AvailableAgent, AvailableTool, AvailableSkill, AvailableCategory } from "./dynamic-agent-prompt-builder"
 import {
   buildKeyTriggersSection,
@@ -15,6 +15,9 @@ import {
 } from "./dynamic-agent-prompt-builder"
 
 const MODE: AgentMode = "primary"
+
+const HEPHAESTUS_DESCRIPTION =
+  "Autonomous Deep Worker - goal-oriented execution with GPT 5.2 Codex. Explores thoroughly before acting, uses explore/librarian agents for comprehensive context, completes tasks end-to-end. Inspired by AmpCode deep mode. (Hephaestus - OhMyOpenCode)"
 
 /**
  * Hephaestus - The Autonomous Deep Worker
@@ -137,7 +140,7 @@ Agent: *runs gh pr list, gh pr view, searches recent commits*
 **Delegation Check (MANDATORY before acting directly):**
 1. Is there a specialized agent that perfectly matches this request?
 2. If not, is there a \`delegate_task\` category that best describes this task? What skills are available to equip the agent with?
-   - MUST FIND skills to use: \`delegate_task(load_skills=[{skill1}, ...])\`
+   - MUST FIND skills to use: \`delegate_task(description="...", load_skills=["skill1", ...], run_in_background=false, prompt="...")\`
 3. Can I do it myself for the best result, FOR SURE?
 
 **Default Bias: DELEGATE for complex tasks. Work yourself ONLY when trivial.**
@@ -189,11 +192,11 @@ ${librarianSection}
 // CORRECT: Always background, always parallel
 // Prompt structure: [CONTEXT: what I'm doing] + [GOAL: what I'm trying to achieve] + [QUESTION: what I need to know] + [REQUEST: what to find]
 // Contextual Grep (internal)
-delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], prompt="I'm implementing user authentication for our API. I need to understand how auth is currently structured in this codebase. Find existing auth implementations, patterns, and where credentials are validated.")
-delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], prompt="I'm adding error handling to the auth flow. I want to follow existing project conventions for consistency. Find how errors are handled elsewhere - patterns, custom error classes, and response formats used.")
+delegate_task(description="Explore auth implementation", subagent_type="explore", run_in_background=true, load_skills=[], prompt="I'm implementing user authentication for our API. I need to understand how auth is currently structured in this codebase. Find existing auth implementations, patterns, and where credentials are validated.")
+delegate_task(description="Explore error handling patterns", subagent_type="explore", run_in_background=true, load_skills=[], prompt="I'm adding error handling to the auth flow. I want to follow existing project conventions for consistency. Find how errors are handled elsewhere - patterns, custom error classes, and response formats used.")
 // Reference Grep (external)
-delegate_task(subagent_type="librarian", run_in_background=true, load_skills=[], prompt="I'm implementing JWT-based auth and need to ensure security best practices. Find official JWT documentation and security recommendations - token expiration, refresh strategies, and common vulnerabilities to avoid.")
-delegate_task(subagent_type="librarian", run_in_background=true, load_skills=[], prompt="I'm building Express middleware for auth and want production-quality patterns. Find how established Express apps handle authentication - middleware structure, session management, and error handling examples.")
+delegate_task(description="Research JWT best practices", subagent_type="librarian", run_in_background=true, load_skills=[], prompt="I'm implementing JWT-based auth and need to ensure security best practices. Find official JWT documentation and security recommendations - token expiration, refresh strategies, and common vulnerabilities to avoid.")
+delegate_task(description="Research Express auth patterns", subagent_type="librarian", run_in_background=true, load_skills=[], prompt="I'm building Express middleware for auth and want production-quality patterns. Find how established Express apps handle authentication - middleware structure, session management, and error handling examples.")
 // Continue immediately - collect results when needed
 
 // WRONG: Sequential or blocking - NEVER DO THIS
@@ -299,6 +302,8 @@ AFTER THE WORK YOU DELEGATED SEEMS DONE, ALWAYS VERIFY THE RESULTS AS FOLLOWING:
 ### Session Continuity (MANDATORY)
 
 Every \`delegate_task()\` output includes a session_id. **USE IT.**
+
+NOTE: Even when resuming, you MUST still pass required args: \`description\`, \`prompt\`, \`run_in_background\`, \`load_skills\`.
 
 **ALWAYS continue when:**
 | Scenario | Action |
@@ -480,9 +485,26 @@ When working on long sessions or complex multi-file tasks:
 - When uncertain about scope, ask`
 }
 
-export const HEPHAESTUS_PROMPT_METADATA = {
-  name: "hephaestus",
-  description: "Autonomous Deep Worker - goal-oriented execution with GPT 5.2 Codex. Explores thoroughly before acting, uses explore/librarian agents for comprehensive context, completes tasks end-to-end. Inspired by AmpCode deep mode.",
+export const HEPHAESTUS_PROMPT_METADATA: AgentPromptMetadata = {
+  category: "specialist",
+  cost: "EXPENSIVE",
+  promptAlias: "Hephaestus",
+  triggers: [
+    { domain: "Autonomous execution", trigger: "Need end-to-end implementation with minimal back-and-forth" },
+    { domain: "Deep investigation", trigger: "Root cause unclear; requires thorough repo exploration" },
+  ],
+  useWhen: [
+    "Large implementation tasks with many moving parts",
+    "Multi-file refactors requiring strong codebase pattern matching",
+    "Debugging complex failures after multiple attempts",
+    "Tasks that benefit from parallel exploration and verification",
+  ],
+  avoidWhen: [
+    "Simple one-file edits (<10 lines)",
+    "Pure Q&A with no code changes needed",
+    "When a dedicated agent (e.g. explore/librarian) is sufficient",
+  ],
+  keyTrigger: "Large implementation task → consider Hephaestus for deep execution",
 }
 
 export function createHephaestusAgent(
@@ -500,7 +522,7 @@ export function createHephaestusAgent(
     : buildHephaestusPrompt([], tools, skills, categories)
 
   return {
-    description: HEPHAESTUS_PROMPT_METADATA.description,
+    description: HEPHAESTUS_DESCRIPTION,
     mode: MODE,
     model,
     maxTokens: 32000,

@@ -1,5 +1,5 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
-import type { AgentPromptMetadata } from "./types"
+import type { AgentMode, AgentPromptMetadata } from "./types"
 import { isGptModel } from "./types"
 import { createAgentToolRestrictions } from "../shared/permission-compat"
 
@@ -16,6 +16,8 @@ import { createAgentToolRestrictions } from "../shared/permission-compat"
  */
 
 // No hardcoded default model - must be provided by caller
+
+const MODE: AgentMode = "subagent"
 
 export const PLAN_SYNTHESIZER_SYSTEM_PROMPT = `You are the **Plan Synthesizer** - the ruthless arbiter of competing AI-generated plans.
 
@@ -704,7 +706,7 @@ export function createPlanSynthesizerAgent(model: string): AgentConfig {
   const base = {
     description:
       "Ruthless arbiter that reviews multiple AI-generated plans, finds conflicts, and synthesizes the best unified approach.",
-    mode: "subagent" as const,
+    mode: MODE,
     model,
     temperature: 0.2,
     ...restrictions,
@@ -717,6 +719,7 @@ export function createPlanSynthesizerAgent(model: string): AgentConfig {
 
   return { ...base, thinking: { type: "enabled", budgetTokens: 32000 } } as AgentConfig
 }
+createPlanSynthesizerAgent.mode = MODE
 
 // planSynthesizerAgent instance removed - use createPlanSynthesizerAgent(model) with explicit model
 

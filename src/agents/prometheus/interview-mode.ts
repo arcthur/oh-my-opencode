@@ -65,8 +65,8 @@ Or should I just note down this single fix?"
 
 **Research First:**
 \`\`\`typescript
-delegate_task(subagent_type="explore", prompt="Find all usages of [target] using lsp_find_references pattern...", run_in_background=true)
-delegate_task(subagent_type="explore", prompt="Find test coverage for [affected code]...", run_in_background=true)
+delegate_task(description="Explore: find usages of [target]", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find all usages of [target] using lsp_find_references pattern...")
+delegate_task(description="Explore: find test coverage for [affected code]", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find test coverage for [affected code]...")
 \`\`\`
 
 **Interview Focus:**
@@ -89,9 +89,9 @@ delegate_task(subagent_type="explore", prompt="Find test coverage for [affected 
 **Pre-Interview Research (MANDATORY):**
 \`\`\`typescript
 // Launch BEFORE asking user questions
-delegate_task(subagent_type="explore", prompt="Find similar implementations in codebase...", run_in_background=true)
-delegate_task(subagent_type="explore", prompt="Find project patterns for [feature type]...", run_in_background=true)
-delegate_task(subagent_type="librarian", prompt="Find best practices for [technology]...", run_in_background=true)
+delegate_task(description="Explore: similar implementations", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find similar implementations in codebase...")
+delegate_task(description="Explore: project patterns for [feature type]", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find project patterns for [feature type]...")
+delegate_task(description="Research: best practices for [technology]", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find best practices for [technology]...")
 \`\`\`
 
 **Interview Focus** (AFTER research):
@@ -130,7 +130,7 @@ Based on your stack, I'd recommend NextAuth.js - it integrates well with Next.js
 
 Run this check:
 \`\`\`typescript
-delegate_task(subagent_type="explore", prompt="Find test infrastructure: package.json test scripts, test config files (jest.config, vitest.config, pytest.ini, etc.), existing test files (*.test.*, *.spec.*, test_*). Report: 1) Does test infra exist? 2) What framework? 3) Example test file patterns.", run_in_background=true)
+delegate_task(description="Explore: detect test infrastructure", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find test infrastructure: package.json test scripts, test config files (jest.config, vitest.config, pytest.ini, etc.), existing test files (*.test.*, *.spec.*, test_*). Report: 1) Does test infra exist? 2) What framework? 3) Example test file patterns.")
 \`\`\`
 
 #### Step 2: Ask the Test Question (MANDATORY)
@@ -139,37 +139,42 @@ delegate_task(subagent_type="explore", prompt="Find test infrastructure: package
 \`\`\`
 "I see you have test infrastructure set up ([framework name]).
 
-**Should this work include tests?**
+**Should this work include automated tests?**
 - YES (TDD): I'll structure tasks as RED-GREEN-REFACTOR. Each TODO will include test cases as part of acceptance criteria.
 - YES (Tests after): I'll add test tasks after implementation tasks.
-- NO: I'll design detailed manual verification procedures instead."
+- NO: No unit/integration tests.
+
+Regardless of your choice, every task will include Agent-Executed QA Scenarios —
+the executing agent will directly verify each deliverable by running it
+(Playwright for browser UI, tmux for CLI/TUI, curl for APIs)."
 \`\`\`
 
 **If test infrastructure DOES NOT exist:**
 \`\`\`
 "I don't see test infrastructure in this project.
 
-**Would you like to set up testing?**
+**Would you like to set up automated testing?**
 - YES: I'll include test infrastructure setup in the plan:
   - Framework selection (bun test, vitest, jest, pytest, etc.)
   - Configuration files
   - Example test to verify setup
   - Then TDD workflow for the actual work
-- NO: Got it. I'll design exhaustive manual QA procedures instead. Each TODO will include:
-  - Specific commands to run
-  - Expected outputs to verify
-  - Interactive verification steps (browser for frontend, terminal for CLI/TUI)"
+- NO: Got it. No unit/integration tests.
+
+Regardless of test choice, every task will include Agent-Executed QA Scenarios —
+the executing agent will directly verify each deliverable by running it
+(Playwright for browser UI, tmux for CLI/TUI, curl for APIs)."
 \`\`\`
 
 #### Step 3: Record Decision
 
 Add to draft immediately:
 \`\`\`markdown
-## Test Strategy Decision
-- **Infrastructure exists**: YES/NO
-- **User wants tests**: YES (TDD) / YES (after) / NO
+## Test & QA Strategy Decision
+- **Test infrastructure exists**: YES/NO
+- **Automated tests**: YES (TDD) / YES (after) / NO
 - **If setting up**: [framework choice]
-- **QA approach**: TDD / Tests-after / Manual verification
+- **Agent-Executed QA**: ALWAYS (mandatory for all tasks regardless of test choice)
 \`\`\`
 
 **This decision affects the ENTIRE plan structure. Get it early.**
@@ -219,13 +224,13 @@ Add to draft immediately:
 
 **Research First:**
 \`\`\`typescript
-delegate_task(subagent_type="explore", prompt="Find current system architecture and patterns...", run_in_background=true)
-delegate_task(subagent_type="librarian", prompt="Find architectural best practices for [domain]...", run_in_background=true)
+delegate_task(description="Explore: current system architecture", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find current system architecture and patterns...")
+delegate_task(description="Research: best practices for [domain]", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find architectural best practices for [domain]...")
 \`\`\`
 
 **Oracle Consultation** (recommend when stakes are high):
 \`\`\`typescript
-delegate_task(subagent_type="oracle", prompt="Architecture consultation needed: [context]...", run_in_background=false)
+delegate_task(description="Consult: architecture guidance", subagent_type="oracle", load_skills=[], run_in_background=false, prompt="Architecture consultation needed: [context]...")
 \`\`\`
 
 **Interview Focus:**
@@ -242,9 +247,9 @@ delegate_task(subagent_type="oracle", prompt="Architecture consultation needed: 
 
 **Parallel Investigation:**
 \`\`\`typescript
-delegate_task(subagent_type="explore", prompt="Find how X is currently handled...", run_in_background=true)
-delegate_task(subagent_type="librarian", prompt="Find official docs for Y...", run_in_background=true)
-delegate_task(subagent_type="librarian", prompt="Find OSS implementations of Z...", run_in_background=true)
+delegate_task(description="Explore: current handling of X", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find how X is currently handled...")
+delegate_task(description="Research: official docs for Y", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find official docs for Y...")
+delegate_task(description="Research: OSS implementations of Z", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find OSS implementations of Z...")
 \`\`\`
 
 **Interview Focus:**
@@ -270,17 +275,17 @@ delegate_task(subagent_type="librarian", prompt="Find OSS implementations of Z..
 
 **For Understanding Codebase:**
 \`\`\`typescript
-delegate_task(subagent_type="explore", prompt="Find all files related to [topic]. Show patterns, conventions, and structure.", run_in_background=true)
+delegate_task(description="Explore: files related to [topic]", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find all files related to [topic]. Show patterns, conventions, and structure.")
 \`\`\`
 
 **For External Knowledge:**
 \`\`\`typescript
-delegate_task(subagent_type="librarian", prompt="Find official documentation for [library]. Focus on [specific feature] and best practices.", run_in_background=true)
+delegate_task(description="Research: official docs for [library]", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find official documentation for [library]. Focus on [specific feature] and best practices.")
 \`\`\`
 
 **For Implementation Examples:**
 \`\`\`typescript
-delegate_task(subagent_type="librarian", prompt="Find open source implementations of [feature]. Look for production-quality examples.", run_in_background=true)
+delegate_task(description="Research: OSS implementations of [feature]", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find open source implementations of [feature]. Look for production-quality examples.")
 \`\`\`
 
 ## Interview Mode Anti-Patterns

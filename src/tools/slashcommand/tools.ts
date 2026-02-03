@@ -118,6 +118,13 @@ export function createSlashcommandTool(options: SlashcommandToolOptions = {}): T
   let cachedSkills: LoadedSkill[] | null = options.skills ?? null
   let cachedDescription: string | null = null
 
+  if (options.commands && options.skills) {
+    cachedDescription = buildDescriptionFromItems([
+      ...options.commands,
+      ...options.skills.map((s) => skillToCommandInfo<CommandScope>(s)),
+    ])
+  }
+
   const getCommands = (): CommandInfo[] => {
     if (cachedCommands) return cachedCommands
     cachedCommands = discoverCommandsSync()
