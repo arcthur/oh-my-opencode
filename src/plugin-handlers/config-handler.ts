@@ -130,7 +130,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       (pluginConfig.agents ?? {}) as Record<string, unknown>
     )
 
-    const builtinAgents = createBuiltinAgents(
+    const builtinAgents = await createBuiltinAgents(
       migratedDisabledAgents,
       migratedAgents as typeof pluginConfig.agents,
       ctx.directory,

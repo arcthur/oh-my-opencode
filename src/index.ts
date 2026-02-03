@@ -44,6 +44,7 @@ import {
   createConditionalRulesHooks,
   createSessionHandoffHook,
   createSwarmAgentHook,
+  createPreemptiveCompactionHook,
 } from "./hooks";
 import { createHandoffSummarizer } from "./features/session-handoff";
 import {
@@ -122,6 +123,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const contextWindowMonitor = isHookEnabled("context-window-monitor")
     ? createContextWindowMonitorHook(ctx)
+    : null;
+
+  // Preemptive compaction: auto-trigger session summarization before hitting context limit
+  // Controlled by experimental.preemptive_compaction (default: true since v2.9.0)
+  const preemptiveCompactionEnabled = pluginConfig.experimental?.preemptive_compaction !== false;
+  const preemptiveCompaction = preemptiveCompactionEnabled
+    ? createPreemptiveCompactionHook(ctx, {
+        threshold: pluginConfig.experimental?.preemptive_compaction_threshold,
+      })
     : null;
   const sessionRecovery = isHookEnabled("session-recovery")
     ? createSessionRecoveryHook(ctx, { experimental: pluginConfig.experimental })
@@ -733,6 +743,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await userMemory?.event(input);
       await orgMemory?.event(input);
       await contextWindowMonitor?.event(input);
+      await preemptiveCompaction?.event?.(input);
       await directoryAgentsInjector?.event(input);
       await directoryReadmeInjector?.event(input);
       await rulesInjector?.event(input);
@@ -1082,6 +1093,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await userMemory?.["tool.execute.after"]?.(input, output);
       await orgMemory?.["tool.execute.after"]?.(input, output);
       await contextWindowMonitor?.["tool.execute.after"](input, output);
+      await preemptiveCompaction?.["tool.execute.after"]?.(input, output);
       await commentChecker?.["tool.execute.after"](input, output);
       await directoryAgentsInjector?.["tool.execute.after"](input, output);
       await directoryReadmeInjector?.["tool.execute.after"](input, output);

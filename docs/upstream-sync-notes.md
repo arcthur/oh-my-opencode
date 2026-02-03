@@ -309,6 +309,7 @@ This section documents the most recent upstream sync session.
 | `d80adac3` | grok-code-fast-1 as primary explore model | Updated fallback chain priority |
 | `e48be69a` | Remove dead batch code in rules-injector | Cleanup non-functional batch tool handling |
 | `8bf32025` | Always inject env vars for git commands | Fix git commands hanging with editors |
+| `62e16874` | Agent visibility fallback + preemptive-compaction | First-run UX + auto context management |
 
 #### Key Changes
 
@@ -341,13 +342,20 @@ This section documents the most recent upstream sync session.
    - Ultra-detailed per-scenario format: named scenarios, negative cases, evidence capture
    - Remove ambiguous 'manual QA' terminology
 
+7. **Agent Visibility Fallback + Preemptive Compaction** (`62e16874`)
+   - `createBuiltinAgents` is now **async** (aligned with upstream)
+   - Internally calls `fetchAvailableModels()` with `readConnectedProvidersCache()` for model availability
+   - `getFirstFallbackModel()`: First-run scenario uses fallback chain's first model when no cache
+   - Sisyphus/Hephaestus agents visible on first run before any provider is connected
+   - `createPreemptiveCompactionHook`: Auto-trigger session summarization at configurable threshold
+   - Configuration: `experimental.preemptive_compaction` (default: true), `preemptive_compaction_threshold` (default: 0.85)
+
 #### Intentionally NOT Merged
 
 | Commit | Reason |
 |--------|--------|
 | `8d29a1c5` Claude Tasks system | Our fork has better task system |
 | `b4054948` Deadlock fix | Not applicable (our architecture uses sync function) |
-| `62e16874` Agent fallback + preemptive-compaction | Too many conflicts, needs manual merge |
 | `159fccdd` Background-agent cache timer optimization | Conflicts with our refactored manager.ts |
 | `3e9a0ef9` Abort session on completion | Large refactor, conflicts with our structure |
 | `80ee52fe` Model resolution with client API fallback | File structure conflicts |

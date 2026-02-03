@@ -10,7 +10,7 @@ import { createAtlasAgent } from "./atlas"
 import { createPlanSynthesizerAgent } from "./plan-synthesizer"
 import { createHephaestusAgent } from "./hephaestus"
 import type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynamic-agent-prompt-builder"
-import { deepMerge, AGENT_MODEL_REQUIREMENTS, isModelAvailable, isAnyFallbackModelAvailable, resolveModelWithFallback, findCaseInsensitive, includesCaseInsensitive } from "../shared"
+import { deepMerge, AGENT_MODEL_REQUIREMENTS, isModelAvailable, isAnyFallbackModelAvailable, resolveModelWithFallback, findCaseInsensitive, includesCaseInsensitive, fetchAvailableModels, readConnectedProvidersCache } from "../shared"
 import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "../tools/delegate-task/constants"
 import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-content"
 
@@ -124,6 +124,22 @@ export function createEnvContext(): string {
 </omo-env>`
 }
 
+/**
+ * Get the first model from a fallback chain for first-run scenarios.
+ * When no providers are connected and no cache exists, use this to provide
+ * a sensible default model so agents are still visible/usable.
+ */
+function getFirstFallbackModel(requirement?: {
+  fallbackChain?: { providers: string[]; model: string; variant?: string }[]
+}): { model: string; variant?: string } | undefined {
+  const entry = requirement?.fallbackChain?.[0]
+  if (!entry || entry.providers.length === 0) return undefined
+  return {
+    model: `${entry.providers[0]}/${entry.model}`,
+    variant: entry.variant,
+  }
+}
+
 function mergeAgentConfig(
   base: AgentConfig,
   override: AgentOverrideConfig
@@ -138,19 +154,27 @@ function mergeAgentConfig(
   return merged
 }
 
-export function createBuiltinAgents(
+export async function createBuiltinAgents(
   disabledAgents: BuiltinAgentName[] = [],
   agentOverrides: AgentOverrides = {},
   directory?: string,
   systemDefaultModel?: string,
   categories?: CategoriesConfig,
   gitMasterConfig?: GitMasterConfig,
-  availableSkills: AvailableSkill[] = [],
-  availableModels?: Set<string>
-): Record<string, AgentConfig> {
+  availableSkills: AvailableSkill[] = []
+): Promise<Record<string, AgentConfig>> {
   if (!systemDefaultModel) {
     throw new Error("createBuiltinAgents requires systemDefaultModel")
   }
+
+  // Fetch available models from cache (no client API call to avoid deadlock)
+  // See: https://github.com/code-yeongyu/oh-my-opencode/issues/1301
+  const connectedProviders = readConnectedProvidersCache()
+  const availableModels = await fetchAvailableModels(undefined, {
+    connectedProviders: connectedProviders ?? undefined,
+  })
+  const isFirstRunNoCache =
+    availableModels.size === 0 && (!connectedProviders || connectedProviders.length === 0)
 
   const result: Record<string, AgentConfig> = {}
   const availableAgents: AvailableAgent[] = []
@@ -233,6 +257,7 @@ export function createBuiltinAgents(
 
   // Handle Hephaestus with model requirement check
   // Hephaestus requires gpt-5.2-codex - only create if model is available or user has explicit config
+  // Also create on first-run (no cache) for better UX
   if (!includesCaseInsensitive(disabledAgents, "hephaestus")) {
     const hephaestusOverride = findCaseInsensitive(agentOverrides, "hephaestus") as AgentOverrideConfig | undefined
     const hephaestusRequirement = AGENT_MODEL_REQUIREMENTS["hephaestus"]
@@ -241,12 +266,14 @@ export function createBuiltinAgents(
     const hasRequiredModel =
       !hephaestusRequirement?.requiresModel ||
       hasHephaestusExplicitConfig ||
+      isFirstRunNoCache ||
       (availableModels && availableModels.size > 0 && isModelAvailable(hephaestusRequirement.requiresModel, availableModels))
 
     if (hasRequiredModel) {
       // Use resolveModelWithFallback when availableModels is provided
       const hephaestusUserModel = hephaestusOverride?.model ? extractSingleModel(hephaestusOverride.model) : undefined
       let hephaestusModel: string
+      let hephaestusFirstRunVariant: string | undefined
       if (availableModels && availableModels.size > 0 && hephaestusRequirement?.fallbackChain) {
         const resolved = resolveModelWithFallback({
           userModel: hephaestusUserModel,
@@ -255,8 +282,13 @@ export function createBuiltinAgents(
           systemDefaultModel,
         })
         hephaestusModel = resolved.model
+      } else if (!hephaestusUserModel) {
+        // First-run scenario: use fallback chain's first model
+        const fallbackResult = getFirstFallbackModel(hephaestusRequirement)
+        hephaestusModel = fallbackResult?.model ?? systemDefaultModel
+        hephaestusFirstRunVariant = fallbackResult?.variant
       } else {
-        hephaestusModel = hephaestusUserModel ?? systemDefaultModel
+        hephaestusModel = hephaestusUserModel
       }
 
       let hephaestusConfig = createHephaestusAgent(
@@ -267,9 +299,11 @@ export function createBuiltinAgents(
         availableCategories
       )
 
-      // Apply variant from override or requirement (default: medium reasoning effort)
+      // Apply variant: user override > first-run fallback variant > requirement default > "medium"
       if (hephaestusOverride?.variant) {
         hephaestusConfig = { ...hephaestusConfig, variant: hephaestusOverride.variant }
+      } else if (hephaestusFirstRunVariant) {
+        hephaestusConfig = { ...hephaestusConfig, variant: hephaestusFirstRunVariant }
       } else if (hephaestusRequirement?.variant) {
         hephaestusConfig = { ...hephaestusConfig, variant: hephaestusRequirement.variant }
       } else {
@@ -294,14 +328,14 @@ export function createBuiltinAgents(
     const meetsSisyphusAnyModelRequirement =
       !sisyphusRequirement?.requiresAnyModel ||
       hasSisyphusExplicitConfig ||
-      !availableModels ||
-      availableModels.size === 0 ||
+      isFirstRunNoCache ||
       isAnyFallbackModelAvailable(sisyphusRequirement.fallbackChain, availableModels)
 
     if (meetsSisyphusAnyModelRequirement) {
       // Use resolveModelWithFallback when availableModels is provided
       const sisyphusUserModel = sisyphusOverride?.model ? extractSingleModel(sisyphusOverride.model) : undefined
       let sisyphusModel: string
+      let sisyphusFirstRunVariant: string | undefined
       if (availableModels && availableModels.size > 0 && sisyphusRequirement?.fallbackChain) {
         const resolved = resolveModelWithFallback({
           userModel: sisyphusUserModel,
@@ -310,8 +344,14 @@ export function createBuiltinAgents(
           systemDefaultModel,
         })
         sisyphusModel = resolved.model
+      } else if (!sisyphusUserModel) {
+        // First-run scenario: no available models and no user config
+        // Use fallback chain's first model for better UX
+        const fallbackResult = getFirstFallbackModel(sisyphusRequirement)
+        sisyphusModel = fallbackResult?.model ?? systemDefaultModel
+        sisyphusFirstRunVariant = fallbackResult?.variant
       } else {
-        sisyphusModel = sisyphusUserModel ?? systemDefaultModel
+        sisyphusModel = sisyphusUserModel
       }
 
       let sisyphusConfig = createSisyphusAgent(
@@ -322,9 +362,11 @@ export function createBuiltinAgents(
         availableCategories
       )
 
-      // Apply variant from override or requirement
+      // Apply variant: user override > first-run fallback variant > requirement default
       if (sisyphusOverride?.variant) {
         sisyphusConfig = { ...sisyphusConfig, variant: sisyphusOverride.variant }
+      } else if (sisyphusFirstRunVariant) {
+        sisyphusConfig = { ...sisyphusConfig, variant: sisyphusFirstRunVariant }
       } else if (sisyphusRequirement?.variant) {
         sisyphusConfig = { ...sisyphusConfig, variant: sisyphusRequirement.variant }
       }

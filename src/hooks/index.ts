@@ -47,3 +47,4 @@ export { createTmuxParallelAgentsHook, type TmuxParallelAgentsConfig } from "./t
 export { createConditionalRulesHooks, clearConditionalRulesCache, reloadRules, type ConditionalRulesHookContext } from "../features/conditional-rules";
 export { createSessionHandoffHook, clearAllSessionStates, type SessionHandoffHookContext } from "../features/session-handoff";
 export { createSwarmAgentHook, type SwarmAgentHook, type SwarmAgentHookOptions } from "./swarm-agent";
+export { createPreemptiveCompactionHook, type PreemptiveCompactionOptions } from "./preemptive-compaction";
