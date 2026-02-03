@@ -15,7 +15,6 @@ import {
   parsePhases,
   readTaskPlan,
   saveState,
-  wasFindingsModified,
 } from "../../features/planning-with-files/manager"
 import {
   isBlockerLikely,
@@ -116,7 +115,7 @@ function parseInitDirective(prompt: string): { planName: string } | null {
   return { planName }
 }
 
-function buildActiveNotice(cwd: string, planName: string, config: PlanningWithFilesConfig): string {
+function buildActiveNotice(planName: string, config: PlanningWithFilesConfig): string {
   // Use a stable, relative path to reduce prompt noise and improve cache hits.
   const planDir = `.sisyphus/${config.directory}/${planName}`
   return `<planning-with-files-active plan="${planName}">
@@ -249,7 +248,7 @@ export function createPlanningWithFilesHook(
     const textPartIndex = output.parts.findIndex((p) => p.type === "text" && p.text)
     if (textPartIndex === -1) return
 
-    const notice = buildActiveNotice(ctx.directory, planName, config)
+    const notice = buildActiveNotice(planName, config)
     output.parts[textPartIndex].text = `${output.parts[textPartIndex].text}\n\n${notice}`
 
     injectedSessions.add(input.sessionID)
@@ -349,10 +348,6 @@ Planning files initialized at \`.sisyphus/${config.directory}/${planName}/\`.
 
     const errorText = extractToolError({ output: output.output })
     if (errorText) {
-      const taskPlan = await readTaskPlan(ctx.directory, planName, config)
-      const phases = taskPlan ? parsePhases(taskPlan) : []
-      const currentPhase = phases.find((p) => p.status === "in_progress")?.id ?? null
-
       // 3-strike protocol - use WorkStateManager for state, Manus state for backup
       if (config.three_strike_protocol) {
         const errorKey = `${input.tool}:${errorText.slice(0, 80)}`

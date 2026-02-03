@@ -42,6 +42,22 @@ export class WorkStateManager {
     return `${this.directory}:${this.state?.plan_name ?? "unknown"}`
   }
 
+  private isManusTaskPlanPath(planPath: string): boolean {
+    const file = basename(planPath).toLowerCase()
+    return file === "task_plan.md" || file === "task-plan.md"
+  }
+
+  private derivePlanName(planPath: string): string {
+    // Manus plans store the plan as a folder containing task_plan.md.
+    // Use the directory name as plan_name to keep work-state stable and human-readable.
+    if (this.isManusTaskPlanPath(planPath)) {
+      const parent = basename(dirname(planPath))
+      return parent || basename(planPath, ".md")
+    }
+
+    return basename(planPath, ".md")
+  }
+
   // === File Paths ===
 
   private get statePath(): string {
@@ -102,7 +118,7 @@ export class WorkStateManager {
    */
   initialize(planPath: string, sessionId: string): WorkState {
     const normalizedPlanPath = this.normalizePlanPath(planPath)
-    const planName = basename(normalizedPlanPath, ".md")
+    const planName = this.derivePlanName(normalizedPlanPath)
 
     this.state = {
       active_plan: normalizedPlanPath,
@@ -140,12 +156,15 @@ export class WorkStateManager {
 
       // Normalize plan path for portability (best-effort).
       const normalized = this.normalizePlanPath(validated.active_plan)
-      this.state =
-        normalized !== validated.active_plan
-          ? { ...validated, active_plan: normalized, plan_name: basename(normalized, ".md") }
-          : validated
+      const derivedPlanName = this.derivePlanName(normalized)
+      const shouldRewrite =
+        normalized !== validated.active_plan || derivedPlanName !== validated.plan_name
 
-      if (normalized !== validated.active_plan) {
+      this.state = shouldRewrite
+        ? { ...validated, active_plan: normalized, plan_name: derivedPlanName }
+        : validated
+
+      if (shouldRewrite) {
         this.save()
       }
 
@@ -532,7 +551,10 @@ export class WorkStateManager {
       const phases = this.parsePhases()
       if (phases.length > 0) {
         const phaseTotal = phases.length
-        const phaseCompleted = phases.filter((p) => p.status === "complete").length
+        const isManusTaskPlan = this.isManusTaskPlanPath(planPath)
+        const phaseCompleted = phases.filter(
+          (p) => p.status === "complete" || (isManusTaskPlan && p.status === "blocked")
+        ).length
         return {
           total: phaseTotal,
           completed: phaseCompleted,
@@ -624,6 +646,23 @@ export class WorkStateManager {
         }
 
         phases.push({ id, name, status })
+      }
+
+      // Manus-style phases table under "## Phases"
+      if (phases.length === 0) {
+        const phasesSectionMatch = content.match(
+          /##\s*Phases\b[\s\S]*?(?=\n##\s|\n#\s|$)/i
+        )
+        const phasesSection = phasesSectionMatch?.[0] ?? content
+        const tableRowRegex =
+          /^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*(pending|in_progress|complete|blocked)\s*\|/gim
+
+        while ((match = tableRowRegex.exec(phasesSection)) !== null) {
+          const id = match[1]
+          const name = match[2].trim()
+          const status = match[3].toLowerCase() as PhaseStatus
+          phases.push({ id, name, status })
+        }
       }
 
       // If no explicit phases, treat checkboxes as tasks

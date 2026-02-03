@@ -35,4 +35,24 @@ describe("PROMETHEUS_SYSTEM_PROMPT multi-plan policy", () => {
     expect(prompt).toContain("assumptions (required)")
     expect(prompt).toContain("risks (required)")
   })
+
+  test("should include brainstorming mode invariants for non-trivial work", () => {
+    // #given
+    const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
+
+    // #when / #then
+    expect(prompt).toContain("phase 0")
+    expect(prompt).toContain("one question at a time")
+    expect(prompt).toMatch(/2\s*-\s*3/)
+    expect(prompt).toContain(".sisyphus/designs/")
+  })
+
+  test("should gate plan generation behind brainstorming design docs for non-trivial work", () => {
+    // #given
+    const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
+
+    // #when / #then
+    expect(prompt).toContain("phase 2 entry preconditions")
+    expect(prompt).toContain(".sisyphus/designs/")
+  })
 })

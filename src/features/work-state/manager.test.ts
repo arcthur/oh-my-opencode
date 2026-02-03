@@ -58,6 +58,37 @@ describe("WorkStateManager", () => {
       expect(loaded!.active_plan).toBe(".sisyphus/plans/abs-plan.md")
       expect(loaded!.plan_name).toBe("abs-plan")
     })
+
+    test("should derive plan_name from Manus plan directory (task_plan.md)", () => {
+      // given - work.yaml exists with task_plan.md (Manus-style)
+      const planDir = join(PLANS_DIR, "manus-plan")
+      mkdirSync(planDir, { recursive: true })
+      const taskPlanAbs = join(planDir, "task_plan.md")
+      writeFileSync(taskPlanAbs, "# Task Plan\n")
+
+      const workState: Partial<WorkState> = {
+        active_plan: ".sisyphus/plans/manus-plan/task_plan.md",
+        // Legacy/incorrect value that older versions may have persisted
+        plan_name: "task_plan",
+        started_at: "2026-01-02T10:00:00Z",
+        session_ids: ["session-1"],
+        research_ops: 0,
+        last_findings_mtime: 0,
+        errors: [],
+        blockers: [],
+        phase_completions: [],
+        decisions: [],
+      }
+      writeFileSync(join(SISYPHUS_DIR, "work.yaml"), yaml.dump(workState))
+
+      const manager = createWorkStateManager(TEST_DIR)
+      // when
+      const loaded = manager.load()
+      // then
+      expect(loaded).not.toBeNull()
+      expect(loaded!.active_plan).toBe(".sisyphus/plans/manus-plan/task_plan.md")
+      expect(loaded!.plan_name).toBe("manus-plan")
+    })
   })
 
   describe("getPlanProgress() phase fallback (P0-3)", () => {
@@ -109,6 +140,68 @@ Description of testing
       expect(progress.total).toBe(3)
       expect(progress.completed).toBe(1) // Only Phase 1 is complete
       expect(progress.isComplete).toBe(false)
+    })
+
+    test("should parse Manus task_plan.md phases table when no checkboxes exist", () => {
+      // given - Manus task_plan.md with phases table
+      const planDir = join(PLANS_DIR, "manus-table-plan")
+      mkdirSync(planDir, { recursive: true })
+      const planPath = join(planDir, "task_plan.md")
+      writeFileSync(
+        planPath,
+        `# Task Plan: manus-table-plan
+
+## Phases
+
+| # | Phase | Status | Notes |
+|---|-------|--------|-------|
+| 1 | Discovery | complete | -
+| 2 | Implementation | in_progress | -
+| 3 | Verification | pending | -
+`
+      )
+
+      const manager = createWorkStateManager(TEST_DIR)
+      manager.initialize(planPath, "session-1")
+
+      // when
+      const progress = manager.getPlanProgress()
+
+      // then - phase-table progress fallback
+      expect(progress.total).toBe(3)
+      expect(progress.completed).toBe(1)
+      expect(progress.isComplete).toBe(false)
+    })
+
+    test("should treat Manus blocked phases as non-actionable for completion", () => {
+      // given - all phases are complete or blocked in Manus task_plan.md
+      const planDir = join(PLANS_DIR, "manus-blocked-plan")
+      mkdirSync(planDir, { recursive: true })
+      const planPath = join(planDir, "task_plan.md")
+      writeFileSync(
+        planPath,
+        `# Task Plan: manus-blocked-plan
+
+## Phases
+
+| # | Phase | Status | Notes |
+|---|-------|--------|-------|
+| 1 | Discovery | complete | -
+| 2 | Implementation | blocked | waiting on user
+| 3 | Verification | blocked | waiting on infra
+`
+      )
+
+      const manager = createWorkStateManager(TEST_DIR)
+      manager.initialize(planPath, "session-1")
+
+      // when
+      const progress = manager.getPlanProgress()
+
+      // then - consider blocked as non-actionable completion for Manus
+      expect(progress.total).toBe(3)
+      expect(progress.completed).toBe(3)
+      expect(progress.isComplete).toBe(true)
     })
 
     test("should not report complete when plan has no checkboxes and no phases", () => {

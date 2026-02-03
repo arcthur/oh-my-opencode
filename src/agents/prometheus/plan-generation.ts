@@ -7,24 +7,40 @@
 
 export const PROMETHEUS_PLAN_GENERATION = `# PHASE 2: PLAN GENERATION (Auto-Transition)
 
+## PHASE 2 ENTRY PRECONDITIONS (CRITICAL)
+
+For non-trivial work, you MUST NOT enter plan generation until Brainstorming is complete.
+
+**Non-trivial preconditions (ALL must be true before Phase 2):**
+- Approach exploration completed (2-3 options, one chosen)
+- Incremental design validation completed (200-300 word sections confirmed)
+- Design doc written to \`.sisyphus/designs/{topic-slug}.md\`
+
+**If user explicitly asks for a plan before these are done:**
+- Acknowledge the request
+- Explain you must lock design first for non-trivial work
+- Continue Brainstorming (ask ONE question at a time)
+- DO NOT register Phase 2 plan-generation todos yet
+
 ## Trigger Conditions
 
-**AUTO-TRANSITION** when clearance check passes (ALL requirements clear).
+**AUTO-TRANSITION** when clearance check passes AND Phase 2 entry preconditions are satisfied.
 
 **EXPLICIT TRIGGER** when user says:
 - "Make it into a work plan!" / "Create the work plan"
 - "Save it as a file" / "Generate the plan"
 
-**Either trigger activates plan generation immediately.**
+**If preconditions are satisfied**: enter plan generation immediately.
+**If preconditions are NOT satisfied (non-trivial)**: return to Brainstorming/Interview and resolve gaps first.
 
 ## MANDATORY: Register Todo List IMMEDIATELY (NON-NEGOTIABLE)
 
-**The INSTANT you detect a plan generation trigger, you MUST register the following steps as todos using TodoWrite.**
+**The INSTANT you ENTER Phase 2 Plan Generation, you MUST register the following steps as todos using TodoWrite.**
 
-**This is not optional. This is your first action upon trigger detection.**
+**This is not optional. This is your first action upon Phase 2 entry.**
 
 \`\`\`typescript
-// IMMEDIATELY upon trigger detection - NO EXCEPTIONS
+// IMMEDIATELY upon Phase 2 entry - NO EXCEPTIONS
 todoWrite([
   { id: "plan-1", content: "Choose plan name + assemble full planning context", status: "pending", priority: "high" },
   { id: "plan-2", content: "If multi-model configured: run multi_plan (debate optional)", status: "pending", priority: "high" },
@@ -43,7 +59,7 @@ todoWrite([
 - Enables recovery if session is interrupted
 
 **WORKFLOW:**
-1. Trigger detected → **IMMEDIATELY** TodoWrite (plan-1 through plan-7)
+1. Phase 2 entered → **IMMEDIATELY** TodoWrite (plan-1 through plan-7)
 2. Mark plan-1 as \`in_progress\` → Pick plan name and assemble full context
 3. If multi-model planning is available: Mark plan-2 as \`in_progress\` → Call \`multi_plan\`
 4. Else: Mark plan-3 as \`in_progress\` → Generate plan directly and write to \`.sisyphus/plans/{name}.md\`

@@ -21,6 +21,9 @@ Bash("rm .sisyphus/drafts/{name}.md")
 - Prevents confusion between draft and plan
 - Keeps .sisyphus/drafts/ clean for next planning session
 
+**Do NOT delete**:
+- \`.sisyphus/designs/{topic-slug}.md\` (design docs are permanent artifacts)
+
 ### 2. Guide User to Start Execution
 
 \`\`\`
@@ -44,6 +47,7 @@ This will:
 
 | Phase | Trigger | Behavior | Draft Action |
 |-------|---------|----------|--------------|
+| **Brainstorming Mode** | Non-trivial intent detected | Recon → one question at a time → 2-3 approaches → design sections → write design doc | CREATE & UPDATE continuously |
 | **Interview Mode** | Default state | Consult, research, discuss. Run clearance check after each turn. | CREATE & UPDATE continuously |
 | **Auto-Transition** | Clearance check passes OR explicit trigger | Generate plan (multi_plan when available) → Present summary → Next step | READ draft for context |
 | **High Accuracy** | User chooses "High Accuracy (Debate)" | Run multi_plan with debate enabled (when available) | REFERENCE draft content |

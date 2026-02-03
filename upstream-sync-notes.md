@@ -125,3 +125,11 @@ bun run build:schema
 - `src/tools/delegate-task/constants.ts`: Do NOT merge upstream’s Momus-gated mega prompt; instead, port the underlying intent (dependency/parallelism analysis + category/skills recommendations) in a fork-aligned minimal form consistent with the multi-plan philosophy (minimal back-and-forth, explicit assumptions).
 - `src/tools/delegate-task/tools.ts`: Clarified that `run_in_background` is REQUIRED to prevent missing-arg tool-call failures.
 - `src/tools/call-omo-agent/*`: Kept `<task_metadata>` (background outputs include `session_id`) to preserve stable continuation flows; updated tool description to state `session_id` is not supported in background mode and recommend continuing via `delegate_task(session_id=...)`.
+- `src/hooks/atlas/index.ts`: Ported upstream-safe orchestration improvements without reintroducing `boulder-state`; fixed background-task output handling (`Background task continued`), and made `session_id` continuation extraction robust (supports `<task_metadata>`).
+- `src/hooks/atlas/index.test.ts`: Added regression coverage for background continuation skip + `<task_metadata>` `session_id` extraction to prevent silent infinite loops.
+- `src/hooks/claude-code-hooks/*`: Fully aligned with upstream (no fork-specific divergence). Verified the end-to-end chain (`src/index.ts` → `createClaudeCodeHooksHook` → Pre/PostToolUse/UserPromptSubmit/Stop/PreCompact), and kept transcript + todo compatibility behavior unchanged.
+- `src/hooks/planning-with-files/index.ts`: Fork-only (no upstream equivalent). Reviewed end-to-end hook chain (ContextCollector injection + multi_plan structured result parsing) and removed dead code (unused imports/locals) to keep the workflow minimal and non-redundant.
+- `src/features/work-state/manager.ts`: Improved Manus compatibility for fork-owned `work-state`:
+  - Derive `plan_name` from the plan directory when `active_plan` is `*/task_plan.md` (fixes Atlas plan naming).
+  - Parse Manus `## Phases` table rows for progress + phase utilities.
+  - Treat Manus `blocked` phases as non-actionable completion for `getPlanProgress()` (prevents Atlas auto-continuation loops when all remaining work is blocked).
