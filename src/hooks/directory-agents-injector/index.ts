@@ -32,9 +32,16 @@ interface EventInput {
   };
 }
 
+interface BatchToolCall {
+  tool: string;
+  parameters?: { filePath?: string; file_path?: string };
+}
+
 export function createDirectoryAgentsInjectorHook(ctx: PluginInput) {
   const sessionCaches = new Map<string, Set<string>>();
   const truncator = createDynamicTruncator(ctx);
+  // Track pending paths for Batch tool processing (keyed by callID)
+  const pendingBatchPaths = new Map<string, string[]>();
 
   function getSessionCache(sessionID: string): Set<string> {
     if (!sessionCaches.has(sessionID)) {
@@ -114,14 +121,45 @@ export function createDirectoryAgentsInjectorHook(ctx: PluginInput) {
       await processFilePathForInjection(output.title, input.sessionID, output);
       return;
     }
+
+    // Handle Batch tool: process all pending paths captured in tool.execute.before
+    if (toolName === "batch") {
+      const paths = pendingBatchPaths.get(input.callID);
+      if (paths && paths.length > 0) {
+        for (const filePath of paths) {
+          await processFilePathForInjection(filePath, input.sessionID, output);
+        }
+        // Clear pending paths after processing
+        pendingBatchPaths.delete(input.callID);
+      }
+    }
   };
 
   const toolExecuteBefore = async (
     input: ToolExecuteInput,
     output: ToolExecuteBeforeOutput,
   ): Promise<void> => {
-    void input;
-    void output;
+    const toolName = input.tool.toLowerCase();
+
+    // For Batch tool, extract Read file paths from tool_calls
+    if (toolName === "batch") {
+      const args = output.args as { tool_calls?: BatchToolCall[] } | undefined;
+      const toolCalls = args?.tool_calls;
+      if (toolCalls && Array.isArray(toolCalls)) {
+        const paths: string[] = [];
+        for (const call of toolCalls) {
+          if (call.tool?.toLowerCase() === "read") {
+            const filePath = call.parameters?.filePath ?? call.parameters?.file_path;
+            if (filePath) {
+              paths.push(filePath);
+            }
+          }
+        }
+        if (paths.length > 0) {
+          pendingBatchPaths.set(input.callID, paths);
+        }
+      }
+    }
   };
 
   const eventHandler = async ({ event }: EventInput) => {

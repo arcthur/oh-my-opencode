@@ -156,10 +156,17 @@ export function createTmuxWindow(options: {
 
 /**
  * Close a tmux window by index
+ * Sends Ctrl+C first to allow graceful process termination and prevent orphaned processes
  */
 export function closeTmuxWindow(sessionName: string, windowIndex: string): boolean {
+  const target = `${sessionName}:${windowIndex}`
   try {
-    execSync(`tmux kill-window -t "${sessionName}:${windowIndex}" 2>/dev/null`, { timeout: 5000 })
+    // Send Ctrl+C to trigger graceful exit of running processes
+    execSync(`tmux send-keys -t "${target}" C-c`, { timeout: 5000, stdio: "ignore" })
+    // Brief delay for graceful shutdown
+    execSync("sleep 0.25", { timeout: 1000 })
+    // Kill the window
+    execSync(`tmux kill-window -t "${target}" 2>/dev/null`, { timeout: 5000 })
     return true
   } catch {
     return false

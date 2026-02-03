@@ -897,6 +897,13 @@ export class BackgroundManager {
 
     this.markForNotification(task)
 
+    // Abort the session to prevent zombie attach processes (#1240)
+    if (task.sessionID) {
+      this.client.session.abort({
+        path: { id: task.sessionID },
+      }).catch(() => {})
+    }
+
     try {
       await this.notifyParentSession(task)
       log(`[background-agent] Task completed via ${source}:`, task.id)
@@ -959,9 +966,11 @@ export class BackgroundManager {
     const errorInfo = task.error ? `\n**Error:** ${task.error}` : ""
 
     let notification: string
+    let completedTasks: BackgroundTask[] = []
     if (allComplete) {
-      const completedTasks = Array.from(this.tasks.values())
+      completedTasks = Array.from(this.tasks.values())
         .filter(t => t.parentSessionID === task.parentSessionID && t.status !== "running" && t.status !== "pending")
+      const completedTasksText = completedTasks
         .map(t => `- \`${t.id}\`: ${t.description}`)
         .join("\n")
 
@@ -969,7 +978,7 @@ export class BackgroundManager {
 [ALL BACKGROUND TASKS COMPLETE]
 
 **Completed:**
-${completedTasks || `- \`${task.id}\`: ${task.description}`}
+${completedTasksText || `- \`${task.id}\`: ${task.description}`}
 
 Use \`background_output(task_id="<id>")\` to retrieve each result.
 </system-reminder>`
@@ -1039,16 +1048,38 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     }
 
     // Cleanup after retention period (track timer to prevent memory leaks)
-    const timer = setTimeout(() => {
-      this.completionTimers.delete(taskId)
-      // Guard: Only delete if task still exists (could have been deleted by session.deleted event)
-      if (this.tasks.has(taskId)) {
-        this.clearNotificationsForTask(taskId)
-        this.tasks.delete(taskId)
-        log("[background-agent] Removed completed task from memory:", taskId)
+    // When allComplete, set timers for ALL completed tasks to ensure proper cleanup
+    if (allComplete) {
+      for (const completedTask of completedTasks) {
+        const id = completedTask.id
+        // Clear existing timer if any (prevents duplicate timers)
+        const existingTimer = this.completionTimers.get(id)
+        if (existingTimer) {
+          clearTimeout(existingTimer)
+          this.completionTimers.delete(id)
+        }
+        const timer = setTimeout(() => {
+          this.completionTimers.delete(id)
+          if (this.tasks.has(id)) {
+            this.clearNotificationsForTask(id)
+            this.tasks.delete(id)
+            log("[background-agent] Removed completed task from memory:", id)
+          }
+        }, 5 * 60 * 1000)
+        this.completionTimers.set(id, timer)
       }
-    }, 5 * 60 * 1000)
-    this.completionTimers.set(taskId, timer)
+    } else {
+      // Single task completion - only set timer for this task
+      const timer = setTimeout(() => {
+        this.completionTimers.delete(taskId)
+        if (this.tasks.has(taskId)) {
+          this.clearNotificationsForTask(taskId)
+          this.tasks.delete(taskId)
+          log("[background-agent] Removed completed task from memory:", taskId)
+        }
+      }, 5 * 60 * 1000)
+      this.completionTimers.set(taskId, timer)
+    }
   }
 
   private formatDuration(start: Date, end?: Date): string {

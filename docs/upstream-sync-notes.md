@@ -350,17 +350,22 @@ This section documents the most recent upstream sync session.
    - `createPreemptiveCompactionHook`: Auto-trigger session summarization at configurable threshold
    - Configuration: `experimental.preemptive_compaction` (default: true), `preemptive_compaction_threshold` (default: 0.85)
 
+#### Manually Merged (Conflict Resolution Required)
+
+| Commit | Changes Applied | Notes |
+|--------|-----------------|-------|
+| `159fccdd` | Timer lifecycle for ALL completed tasks | Prevents memory leaks when multiple tasks complete |
+| `3e9a0ef9` | Abort session on task completion | Added `session.abort()` call in `tryCompleteTask` to prevent zombie attach processes |
+| `80ee52fe` | Explicit model passing in look-at tool | Resolves registered agent's model and passes to session.prompt |
+| `6389da3c` | Ctrl+C before tmux kill-window | Applied to our `closeTmuxWindow` for graceful process termination |
+
 #### Intentionally NOT Merged
 
 | Commit | Reason |
 |--------|--------|
-| `8d29a1c5` Claude Tasks system | Our fork has better task system |
-| `b4054948` Deadlock fix | Not applicable (our architecture uses sync function) |
-| `159fccdd` Background-agent cache timer optimization | Conflicts with our refactored manager.ts |
-| `3e9a0ef9` Abort session on completion | Large refactor, conflicts with our structure |
-| `80ee52fe` Model resolution with client API fallback | File structure conflicts |
-| `f146aeff` Major codebase cleanup | 50+ file changes, too many conflicts |
-| `6389da3c` tmux Ctrl+C before kill-pane | We don't have tmux-subagent feature |
+| `8d29a1c5` Claude Tasks system | Our fork has Sisyphus Swarm as core differentiation |
+| `b4054948` Deadlock fix | Already included in our async `createBuiltinAgents` changes |
+| `f146aeff` Major codebase cleanup | Massive 145-file refactor, BDD comment style change (`// #given` → `// given`), file splitting conflicts with our architecture |
 
 #### Already Present (No Changes Needed)
 

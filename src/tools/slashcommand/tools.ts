@@ -17,7 +17,7 @@ export function discoverCommandsSync(): CommandInfo[] {
   return [...opencodeProjectCommands, ...projectCommands, ...opencodeGlobalCommands, ...userCommands]
 }
 
-async function formatLoadedCommand(cmd: CommandInfo): Promise<string> {
+async function formatLoadedCommand(cmd: CommandInfo, userMessage?: string): Promise<string> {
   const sections: string[] = []
 
   sections.push(`# /${cmd.name} Command\n`)
@@ -28,6 +28,10 @@ async function formatLoadedCommand(cmd: CommandInfo): Promise<string> {
 
   if (cmd.metadata.argumentHint) {
     sections.push(`**Usage**: /${cmd.name} ${cmd.metadata.argumentHint}\n`)
+  }
+
+  if (userMessage) {
+    sections.push(`**Arguments**: ${userMessage}\n`)
   }
 
   if (cmd.metadata.model) {
@@ -54,7 +58,14 @@ async function formatLoadedCommand(cmd: CommandInfo): Promise<string> {
   const commandDir = cmd.path ? dirname(cmd.path) : process.cwd()
   const withFileRefs = await resolveFileReferencesInText(content, commandDir)
   const resolvedContent = await resolveCommandsInText(withFileRefs)
-  sections.push(resolvedContent.trim())
+
+  // Substitute user_message into content if provided
+  let finalContent = resolvedContent.trim()
+  if (userMessage) {
+    finalContent = finalContent.replace(/\$\{user_message\}/g, userMessage)
+  }
+
+  sections.push(finalContent)
 
   return sections.join("\n")
 }
@@ -77,10 +88,15 @@ function formatCommandList(items: CommandInfo[]): string {
   return lines.join("\n")
 }
 
-const TOOL_DESCRIPTION_PREFIX = `Load a skill to get detailed instructions for a specific task.
+const TOOL_DESCRIPTION_PREFIX = `Load a skill or execute a command to get detailed instructions for a specific task.
 
-Skills provide specialized knowledge and step-by-step guidance.
-Use this when a task matches an available skill's description.
+Skills and commands provide specialized knowledge and step-by-step guidance.
+Use this when a task matches an available skill's or command's description.
+
+**How to use:**
+- Call with command name only: command='publish'
+- Call with command and arguments: command='publish' user_message='patch'
+- The tool will return detailed instructions for the command with your arguments substituted.
 `
 
 function buildDescriptionFromItems(items: CommandInfo[]): string {
@@ -139,7 +155,13 @@ export function createSlashcommandTool(options: SlashcommandToolOptions = {}): T
       command: tool.schema
         .string()
         .describe(
-          "The slash command to execute (without the leading slash). E.g., 'commit', 'plan', 'execute'."
+          "The slash command name (without leading slash). E.g., 'publish', 'commit', 'plan'"
+        ),
+      user_message: tool.schema
+        .string()
+        .optional()
+        .describe(
+          "Optional arguments or context to pass to the command. E.g., for '/publish patch', command='publish' user_message='patch'"
         ),
     },
 
@@ -157,7 +179,7 @@ export function createSlashcommandTool(options: SlashcommandToolOptions = {}): T
       )
 
       if (exactMatch) {
-        return await formatLoadedCommand(exactMatch)
+        return await formatLoadedCommand(exactMatch, args.user_message)
       }
 
       const partialMatches = allItems.filter((cmd) =>

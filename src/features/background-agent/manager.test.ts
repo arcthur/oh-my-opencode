@@ -170,6 +170,7 @@ function createBackgroundManager(): BackgroundManager {
   const client = {
     session: {
       prompt: async () => ({}),
+      abort: async () => ({}),
     },
   }
   return new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
@@ -961,6 +962,41 @@ describe("BackgroundManager.tryCompleteTask", () => {
     expect(secondAttempt).toBe(false)
     expect(task.status).toBe("completed")
     expect(concurrencyManager.getCount(concurrencyKey)).toBe(0)
+  })
+
+  test("should abort session on completion", async () => {
+    // #given
+    const abortedSessionIDs: string[] = []
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        abort: async (args: { path: { id: string } }) => {
+          abortedSessionIDs.push(args.path.id)
+          return {}
+        },
+      },
+    }
+    manager.shutdown()
+    manager = new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
+    stubNotifyParentSession(manager)
+
+    const task: BackgroundTask = {
+      id: "task-1",
+      sessionID: "session-1",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-1",
+      description: "test task",
+      prompt: "test",
+      agent: "explore",
+      status: "running",
+      startedAt: new Date(),
+    }
+
+    // #when
+    await tryCompleteTaskForTest(manager, task)
+
+    // #then
+    expect(abortedSessionIDs).toEqual(["session-1"])
   })
 })
 
