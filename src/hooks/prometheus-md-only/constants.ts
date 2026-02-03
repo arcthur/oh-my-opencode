@@ -1,4 +1,5 @@
 import { createSystemDirective, SystemDirectiveTypes } from "../../shared/system-directive"
+import { getAgentDisplayName } from "../../shared/agent-display-names"
 
 export const HOOK_NAME = "prometheus-md-only"
 
@@ -16,7 +17,7 @@ export const PLANNING_CONSULT_WARNING = `
 
 ${createSystemDirective(SystemDirectiveTypes.PROMETHEUS_READ_ONLY)}
 
-You are being invoked by Prometheus, a READ-ONLY planning agent.
+You are being invoked by ${getAgentDisplayName("prometheus")}, a READ-ONLY planning agent.
 
 **CRITICAL CONSTRAINTS:**
 - DO NOT modify any files (no Write, Edit, or any file mutations)
@@ -26,6 +27,31 @@ You are being invoked by Prometheus, a READ-ONLY planning agent.
 
 **YOUR ROLE**: Provide consultation, research, and analysis to assist with planning.
 Return your findings and recommendations. The actual implementation will be handled separately after planning is complete.
+
+---
+
+`
+
+export const PROMETHEUS_WORKFLOW_REMINDER = `
+
+---
+
+${createSystemDirective(SystemDirectiveTypes.PROMETHEUS_READ_ONLY)}
+
+## PROMETHEUS PLAN-WRITING CHECKLIST
+
+Before writing a plan to \`.sisyphus/plans/*.md\`, confirm:
+
+- Interview complete (requirements, scope IN/OUT, ambiguities resolved)
+- Recon done (codebase/docs) and approach chosen (2-3 options for non-trivial work)
+- If non-trivial: design validated incrementally and design doc written to \`.sisyphus/designs/*.md\`
+- Test/verification strategy defined (what to run, what to check)
+- If high accuracy requested: consider multi-model planning + synthesis (Plan Synthesizer)
+
+After writing the plan:
+
+- Summarize key decisions and risks
+- Instruct the user to run \`/start-work\` to execute (Prometheus does not implement)
 
 ---
 

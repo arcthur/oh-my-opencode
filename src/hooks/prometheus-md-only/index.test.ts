@@ -1,16 +1,21 @@
-import { describe, expect, test, beforeEach, afterEach, mock } from "bun:test"
+import { describe, expect, test, beforeEach, afterEach } from "bun:test"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
+import { randomUUID } from "node:crypto"
 import { createPrometheusMdOnlyHook } from "./index"
-import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
-import { SYSTEM_DIRECTIVE_PREFIX, createSystemDirective, SystemDirectiveTypes } from "../../shared/system-directive"
+import {
+  MESSAGE_STORAGE,
+  setOpenCodeStorageDirForTesting,
+  resetOpenCodeStorageDirForTesting,
+} from "../../features/hook-message-injector"
+import { SYSTEM_DIRECTIVE_PREFIX } from "../../shared/system-directive"
 import { clearSessionAgent } from "../../features/claude-code-session-state"
 
 describe("prometheus-md-only", () => {
   const TEST_SESSION_ID = "test-session-prometheus"
   let testMessageDir: string
-  const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-test")
+  const TEST_STORAGE_DIR = join(tmpdir(), `opencode-storage-test-${randomUUID()}`)
 
   function createMockPluginInput() {
     return {
@@ -33,6 +38,10 @@ describe("prometheus-md-only", () => {
     )
   }
 
+  beforeEach(() => {
+    setOpenCodeStorageDirForTesting(TEST_STORAGE_DIR)
+  })
+
   afterEach(() => {
     clearSessionAgent(TEST_SESSION_ID)
     if (testMessageDir) {
@@ -42,6 +51,8 @@ describe("prometheus-md-only", () => {
         // ignore
       }
     }
+    rmSync(TEST_STORAGE_DIR, { recursive: true, force: true })
+    resetOpenCodeStorageDirForTesting()
   })
 
   describe("with Prometheus agent in message storage", () => {
@@ -83,6 +94,45 @@ describe("prometheus-md-only", () => {
       await expect(
         hook["tool.execute.before"](input, output)
       ).resolves.toBeUndefined()
+    })
+
+    test("should inject workflow reminder when Prometheus writes to .sisyphus/plans/", async () => {
+      // given
+      const hook = createPrometheusMdOnlyHook(createMockPluginInput())
+      const input = {
+        tool: "Write",
+        sessionID: TEST_SESSION_ID,
+        callID: "call-1",
+      }
+      const output: { args: Record<string, unknown>; message?: string } = {
+        args: { filePath: "/tmp/test/.sisyphus/plans/work-plan.md" },
+      }
+
+      // when
+      await hook["tool.execute.before"](input, output)
+
+      // then
+      expect(output.message).toContain("PROMETHEUS PLAN-WRITING CHECKLIST")
+      expect(output.message).toContain("/start-work")
+    })
+
+    test("should NOT inject workflow reminder for .sisyphus/drafts/", async () => {
+      // given
+      const hook = createPrometheusMdOnlyHook(createMockPluginInput())
+      const input = {
+        tool: "Write",
+        sessionID: TEST_SESSION_ID,
+        callID: "call-1",
+      }
+      const output: { args: Record<string, unknown>; message?: string } = {
+        args: { filePath: "/tmp/test/.sisyphus/drafts/notes.md" },
+      }
+
+      // when
+      await hook["tool.execute.before"](input, output)
+
+      // then
+      expect(output.message).toBeUndefined()
     })
 
     test("should block Prometheus from writing .md files outside .sisyphus/", async () => {

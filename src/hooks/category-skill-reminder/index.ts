@@ -1,12 +1,20 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { log } from "../../shared/logger"
 import { getSessionAgent } from "../../features/claude-code-session-state"
-
-export const HOOK_NAME = "category-skill-reminder"
+import { log } from "../../shared"
 
 /**
- * Tools that indicate delegatable work is happening.
- * When orchestrators use these directly, they may benefit from delegation.
+ * Target agents that should receive category+skill reminders.
+ * These are orchestrator agents that delegate work to specialized agents.
+ */
+const TARGET_AGENTS = new Set([
+  "sisyphus",
+  "sisyphus-junior",
+  "atlas",
+])
+
+/**
+ * Tools that indicate the agent is doing work that could potentially be delegated.
+ * When these tools are used, we remind the agent about the category+skill system.
  */
 const DELEGATABLE_WORK_TOOLS = new Set([
   "edit",
@@ -15,123 +23,146 @@ const DELEGATABLE_WORK_TOOLS = new Set([
   "read",
   "grep",
   "glob",
-  "multi_edit",
 ])
 
 /**
- * Orchestrator agents that can delegate work.
- * Sisyphus-Junior is excluded - it's the executor, not delegator.
+ * Tools that indicate the agent is already using delegation properly.
  */
-const ORCHESTRATOR_AGENTS = new Set([
-  "sisyphus",
-  "atlas",
+const DELEGATION_TOOLS = new Set([
+  "delegate_task",
+  "call_omo_agent",
+  "task",
 ])
 
-/**
- * Track which sessions have already received the reminder.
- * Only remind once per session to avoid noise.
- */
-const remindedSessions = new Set<string>()
+const REMINDER_MESSAGE = `
+[Category+Skill Reminder]
 
-const CATEGORY_SKILL_REMINDER = `
-<system-reminder type="delegation-hint">
-**Category + Skill System Available**
+You are an orchestrator agent. Consider whether this work should be delegated:
 
-You're directly executing work that could be delegated. Consider using \`delegate_task\` with:
+**DELEGATE when:**
+- UI/Frontend work → category: "visual-engineering", skills: ["frontend-ui-ux"]
+- Complex logic/architecture → category: "ultrabrain"
+- Quick/trivial tasks → category: "quick"
+- Git operations → skills: ["git-master"]
+- Browser automation → skills: ["playwright"] or ["agent-browser"]
 
-**Categories** (determines model/reasoning level):
-- \`visual-engineering\`: UI/UX, frontend, styling
-- \`ultrabrain\`: Complex architecture, deep reasoning (xhigh variant)
-- \`deep\`: Autonomous problem-solving, moderate complexity
-- \`artistry\`: Creative tasks (max variant)
-- \`quick\`: Trivial tasks
-- \`writing\`: Documentation, prose
+**DO IT YOURSELF when:**
+- Gathering context/exploring codebase
+- Simple edits that are part of a larger task you're coordinating
+- Tasks requiring your full context understanding
 
-**Skills** (prepends domain expertise):
-- \`frontend-ui-ux\`: Design-first mindset
-- \`playwright\`: E2E testing patterns
-- Custom skills from \`.opencode/skills/\`
-
-**Example:**
+Example delegation:
 \`\`\`
-delegate_task({
-  description: "Implement login form",
-  category: "visual-engineering",
-  load_skills: ["frontend-ui-ux"],
-  run_in_background: false,
-  prompt: "Implement the login form with validation"
-})
+delegate_task(
+  description="Implement responsive navbar with animations",
+  category="visual-engineering",
+  load_skills=["frontend-ui-ux"],
+  run_in_background=false,
+  prompt="Implement a responsive navbar with animations"
+)
 \`\`\`
-
-This reminder appears once per session. Choose: delegate for efficiency, or continue if the task is trivial.
-</system-reminder>
 `
 
-interface ToolExecuteBeforeInput {
+interface ToolExecuteInput {
   tool: string
-  sessionID?: string
+  sessionID: string
+  callID: string
+  agent?: string
 }
 
-interface ToolExecuteBeforeOutput {
-  args: Record<string, unknown>
-  message?: string
+interface ToolExecuteOutput {
+  title: string
+  output: string
+  metadata: unknown
 }
 
-/**
- * Category-Skill Reminder Hook
- *
- * Complements delegation-validator by reminding orchestrators BEFORE delegation:
- * - Triggers when orchestrators use work tools directly (edit, write, bash, etc.)
- * - Suggests category + skill delegation as an alternative
- * - Only fires once per session to avoid noise
- *
- * Two-stage delegation governance:
- * 1. category-skill-reminder: Pre-decision nudge (this hook)
- * 2. delegation-validator: Post-decision validation
- */
+interface SessionState {
+  delegationUsed: boolean
+  reminderShown: boolean
+  toolCallCount: number
+}
+
 export function createCategorySkillReminderHook(_ctx: PluginInput) {
-  return {
-    "tool.execute.before": async (
-      input: ToolExecuteBeforeInput,
-      output: ToolExecuteBeforeOutput
-    ): Promise<void> => {
-      // Only trigger on delegatable work tools
-      if (!DELEGATABLE_WORK_TOOLS.has(input.tool.toLowerCase())) {
-        return
-      }
+  const sessionStates = new Map<string, SessionState>()
 
-      const sessionID = input.sessionID
-      if (!sessionID) {
-        return
-      }
-
-      // Check if this is an orchestrator session
-      const sessionAgent = getSessionAgent(sessionID)
-      if (!sessionAgent || !ORCHESTRATOR_AGENTS.has(sessionAgent)) {
-        return
-      }
-
-      // Only remind once per session
-      if (remindedSessions.has(sessionID)) {
-        return
-      }
-
-      // Mark as reminded and inject the reminder
-      remindedSessions.add(sessionID)
-      output.message = (output.message || "") + CATEGORY_SKILL_REMINDER
-
-      log(`[${HOOK_NAME}] Injected category-skill reminder`, {
-        sessionID,
-        agent: sessionAgent,
-        tool: input.tool,
+  function getOrCreateState(sessionID: string): SessionState {
+    if (!sessionStates.has(sessionID)) {
+      sessionStates.set(sessionID, {
+        delegationUsed: false,
+        reminderShown: false,
+        toolCallCount: 0,
       })
-    },
+    }
+    return sessionStates.get(sessionID)!
+  }
 
-    // Clean up when session ends
-    event: async (input: { type: string; session?: { id?: string } }): Promise<void> => {
-      if (input.type === "session.deleted" && input.session?.id) {
-        remindedSessions.delete(input.session.id)
+  function isTargetAgent(sessionID: string, inputAgent?: string): boolean {
+    const agent = getSessionAgent(sessionID) ?? inputAgent
+    if (!agent) return false
+    const agentLower = agent.toLowerCase()
+    return (
+      TARGET_AGENTS.has(agentLower) ||
+      agentLower.includes("sisyphus") ||
+      agentLower.includes("atlas")
+    )
+  }
+
+  const toolExecuteAfter = async (
+    input: ToolExecuteInput,
+    output: ToolExecuteOutput,
+  ) => {
+    const { tool, sessionID } = input
+    const toolLower = tool.toLowerCase()
+
+    if (!isTargetAgent(sessionID, input.agent)) {
+      return
+    }
+
+    const state = getOrCreateState(sessionID)
+
+    if (DELEGATION_TOOLS.has(toolLower)) {
+      state.delegationUsed = true
+      log("[category-skill-reminder] Delegation tool used", { sessionID, tool })
+      return
+    }
+
+    if (!DELEGATABLE_WORK_TOOLS.has(toolLower)) {
+      return
+    }
+
+    state.toolCallCount++
+
+    if (state.toolCallCount >= 3 && !state.delegationUsed && !state.reminderShown) {
+      output.output += REMINDER_MESSAGE
+      state.reminderShown = true
+      log("[category-skill-reminder] Reminder injected", {
+        sessionID,
+        toolCallCount: state.toolCallCount,
+      })
+    }
+  }
+
+  const eventHandler = async ({ event }: { event: { type: string; properties?: unknown } }) => {
+    const props = event.properties as Record<string, unknown> | undefined
+
+    if (event.type === "session.deleted") {
+      const sessionInfo = props?.info as { id?: string } | undefined
+      if (sessionInfo?.id) {
+        sessionStates.delete(sessionInfo.id)
       }
-    },
+    }
+
+    if (event.type === "session.compacted") {
+      const sessionID = (props?.sessionID ??
+        (props?.info as { id?: string } | undefined)?.id) as string | undefined
+      if (sessionID) {
+        sessionStates.delete(sessionID)
+      }
+    }
+  }
+
+  return {
+    "tool.execute.after": toolExecuteAfter,
+    event: eventHandler,
   }
 }

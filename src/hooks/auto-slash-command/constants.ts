@@ -9,6 +9,4 @@ export const EXCLUDED_COMMANDS = new Set([
   "ralph-loop",
   "cancel-ralph",
   "ulw-loop",
-  // handoff has its own goal-oriented command parsing in session-handoff hook
-  "handoff",
 ])

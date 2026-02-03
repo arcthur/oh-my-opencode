@@ -1,7 +1,8 @@
 import { describe, expect, test, beforeEach, afterEach, spyOn } from "bun:test"
-import { existsSync, mkdirSync, rmSync, writeFileSync, unlinkSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { tmpdir, homedir } from "node:os"
+import { tmpdir } from "node:os"
+import { randomUUID } from "node:crypto"
 import * as yaml from "js-yaml"
 import { createStartWorkHook } from "./index"
 import type { WorkState } from "../../features/work-state"
@@ -28,40 +29,32 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
 }
 
-// Helper to clear work.yaml (replaces clearWorkState)
-function clearWorkState(directory: string): void {
-  const workPath = join(directory, ".sisyphus", "work.yaml")
-  if (existsSync(workPath)) {
-    unlinkSync(workPath)
-  }
-}
-
-
 describe("start-work hook", () => {
-  const TEST_DIR = join(tmpdir(), "start-work-test-" + Date.now())
-  const SISYPHUS_DIR = join(TEST_DIR, ".sisyphus")
+  let testDir: string
+  let sisyphusDir: string
 
   function createMockPluginInput() {
     return {
-      directory: TEST_DIR,
+      directory: testDir,
       client: {},
     } as Parameters<typeof createStartWorkHook>[0]
   }
 
   beforeEach(() => {
-    if (!existsSync(TEST_DIR)) {
-      mkdirSync(TEST_DIR, { recursive: true })
+    testDir = join(tmpdir(), `start-work-test-${randomUUID()}`)
+    sisyphusDir = join(testDir, ".sisyphus")
+
+    if (!existsSync(testDir)) {
+      mkdirSync(testDir, { recursive: true })
     }
-    if (!existsSync(SISYPHUS_DIR)) {
-      mkdirSync(SISYPHUS_DIR, { recursive: true })
+    if (!existsSync(sisyphusDir)) {
+      mkdirSync(sisyphusDir, { recursive: true })
     }
-    clearWorkState(TEST_DIR)
   })
 
   afterEach(() => {
-    clearWorkState(TEST_DIR)
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true })
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true })
     }
   })
 
@@ -107,7 +100,7 @@ describe("start-work hook", () => {
 
     test("should inject resume info when existing work state found", async () => {
       // given - existing work state with incomplete plan
-      const planPath = join(TEST_DIR, "test-plan.md")
+      const planPath = join(testDir, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2")
 
       const state: Partial<WorkState> = {
@@ -116,7 +109,7 @@ describe("start-work hook", () => {
         session_ids: ["session-1"],
         plan_name: "test-plan",
       }
-      writeWorkState(TEST_DIR, state)
+      writeWorkState(testDir, state)
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
@@ -182,7 +175,7 @@ describe("start-work hook", () => {
 
     test("should auto-select when only one incomplete plan among multiple plans", async () => {
       // given - multiple plans but only one incomplete
-      const plansDir = join(TEST_DIR, ".sisyphus", "plans")
+      const plansDir = join(testDir, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
       // Plan 1: complete (all checked)
@@ -212,7 +205,7 @@ describe("start-work hook", () => {
 
     test("should wrap multiple plans message in system-reminder tag", async () => {
       // given - multiple incomplete plans
-      const plansDir = join(TEST_DIR, ".sisyphus", "plans")
+      const plansDir = join(testDir, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
       const plan1Path = join(plansDir, "plan-a.md")
@@ -240,7 +233,7 @@ describe("start-work hook", () => {
 
     test("should use 'ask user' prompt style for multiple plans", async () => {
       // given - multiple incomplete plans
-      const plansDir = join(TEST_DIR, ".sisyphus", "plans")
+      const plansDir = join(testDir, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
       const plan1Path = join(plansDir, "plan-x.md")
@@ -267,7 +260,7 @@ describe("start-work hook", () => {
 
     test("should select explicitly specified plan name from user-request, ignoring existing work state", async () => {
       // given - existing work state pointing to old plan
-      const plansDir = join(TEST_DIR, ".sisyphus", "plans")
+      const plansDir = join(testDir, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
       // Old plan (in work state)
@@ -285,7 +278,7 @@ describe("start-work hook", () => {
         session_ids: ["old-session"],
         plan_name: "old-plan",
       }
-      writeWorkState(TEST_DIR, staleState)
+      writeWorkState(testDir, staleState)
 
       const hook = createStartWorkHook(createMockPluginInput())
       const output = {
@@ -308,14 +301,12 @@ describe("start-work hook", () => {
       // then - should select new-plan, NOT resume old-plan
       expect(output.parts[0].text).toContain("new-plan")
       expect(output.parts[0].text).not.toContain("RESUMING")
-      // Note: output may mention "old-plan" in the switch note, but should not be RESUMING it
-      expect(output.parts[0].text).toContain("Starting New Plan")
-      expect(output.parts[0].text).toContain("Switched from previous plan")
+      expect(output.parts[0].text).not.toContain("old-plan")
     })
 
     test("should strip ultrawork/ulw keywords from plan name argument", async () => {
       // given - plan with ultrawork keyword in user-request
-      const plansDir = join(TEST_DIR, ".sisyphus", "plans")
+      const plansDir = join(testDir, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
       const planPath = join(plansDir, "my-feature-plan.md")
@@ -341,13 +332,12 @@ describe("start-work hook", () => {
 
       // then - should find plan without ultrawork suffix
       expect(output.parts[0].text).toContain("my-feature-plan")
-      // Explicit plan request results in "Starting New Plan" (not auto-selected)
-      expect(output.parts[0].text).toContain("Starting New Plan")
+      expect(output.parts[0].text).toContain("Auto-Selected Plan")
     })
 
     test("should strip ulw keyword from plan name argument", async () => {
       // given - plan with ulw keyword in user-request
-      const plansDir = join(TEST_DIR, ".sisyphus", "plans")
+      const plansDir = join(testDir, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
       const planPath = join(plansDir, "api-refactor.md")
@@ -373,13 +363,12 @@ describe("start-work hook", () => {
 
       // then - should find plan without ulw suffix
       expect(output.parts[0].text).toContain("api-refactor")
-      // Explicit plan request results in "Starting New Plan" (not auto-selected)
-      expect(output.parts[0].text).toContain("Starting New Plan")
+      expect(output.parts[0].text).toContain("Auto-Selected Plan")
     })
 
     test("should match plan by partial name", async () => {
       // given - user specifies partial plan name
-      const plansDir = join(TEST_DIR, ".sisyphus", "plans")
+      const plansDir = join(testDir, ".sisyphus", "plans")
       mkdirSync(plansDir, { recursive: true })
 
       const planPath = join(plansDir, "2026-01-15-feature-implementation.md")
@@ -405,8 +394,7 @@ describe("start-work hook", () => {
 
       // then - should find plan by partial match
       expect(output.parts[0].text).toContain("2026-01-15-feature-implementation")
-      // Explicit plan request results in "Starting New Plan" (not auto-selected)
-      expect(output.parts[0].text).toContain("Starting New Plan")
+      expect(output.parts[0].text).toContain("Auto-Selected Plan")
     })
   })
 

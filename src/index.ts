@@ -750,6 +750,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await thinkMode?.event(input);
       await anthropicContextWindowLimitRecovery?.event(input);
       await agentUsageReminder?.event(input);
+      await categorySkillReminder?.event?.(input);
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
       await atlasHook?.handler(input);
@@ -757,14 +758,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await sessionHandoffHook?.event?.(input);
       await tmuxParallelAgents?.event?.(input);
       await swarmAgent?.event?.(input);
-
-      // Category-skill reminder cleanup on session deletion
-      if (input.event?.type === "session.deleted") {
-        const sessionInfo = (input.event.properties as Record<string, unknown>)?.info as { id?: string } | undefined;
-        if (sessionInfo?.id) {
-          await categorySkillReminder?.event?.({ type: "session.deleted", session: { id: sessionInfo.id } });
-        }
-      }
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
@@ -878,7 +871,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
       await planningWithFiles?.["tool.execute.before"]?.(input, output);
       await delegationValidator?.["tool.execute.before"]?.(input, output);
-      await categorySkillReminder?.["tool.execute.before"]?.(input, output);
       await sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output);
       await tmuxParallelAgents?.["tool.execute.before"]?.(input, output);
       await swarmAgent?.["tool.execute.before"]?.(input, output);
@@ -1100,6 +1092,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await rulesInjector?.["tool.execute.after"](input, output);
       await emptyTaskResponseDetector?.["tool.execute.after"](input, output);
       await agentUsageReminder?.["tool.execute.after"](input, output);
+      await categorySkillReminder?.["tool.execute.after"]?.(input, output);
       await interactiveBashSession?.["tool.execute.after"](input, output);
       await editErrorRecovery?.["tool.execute.after"](input, output);
       await delegateTaskRetry?.["tool.execute.after"](input, output);
