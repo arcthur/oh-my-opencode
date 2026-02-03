@@ -80,11 +80,11 @@ describe("createRepoOverviewInjectorHook", () => {
   // #region configuration
   describe("configuration", () => {
     test("uses default config when not provided", () => {
-      // #given: No config
+      // given: No config
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx)
 
-      // #then: Hook should be created with defaults
+      // then: Hook should be created with defaults
       expect(hook["tool.execute.after"]).toBeDefined()
       expect(hook.event).toBeDefined()
       expect(DEFAULT_CONFIG.enabled).toBe(true)
@@ -93,13 +93,13 @@ describe("createRepoOverviewInjectorHook", () => {
     })
 
     test("merges user config with defaults", async () => {
-      // #given: Custom min_tool_calls
+      // given: Custom min_tool_calls
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx, {
         min_tool_calls: 3,
       })
 
-      // #when: First two tool calls
+      // when: First two tool calls
       const input = createToolInput("Read")
       const output1 = createToolOutput()
       await hook["tool.execute.after"](input, output1)
@@ -109,14 +109,14 @@ describe("createRepoOverviewInjectorHook", () => {
       await hook["tool.execute.after"](input, output2)
       expect(output2.output).toBe("test output") // Still not injected
 
-      // #then: Third call should inject
+      // then: Third call should inject
       const output3 = createToolOutput()
       await hook["tool.execute.after"](input, output3)
       expect(output3.output).toContain("Repository Overview")
     })
 
     test("respects auto_generate flag", async () => {
-      // #given: auto_generate disabled
+      // given: auto_generate disabled
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx, {
         auto_generate: false,
@@ -124,10 +124,10 @@ describe("createRepoOverviewInjectorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Tool call
+      // when: Tool call
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not inject
+      // then: Should not inject
       expect(output.output).toBe("test output")
       expect(generateSpy).not.toHaveBeenCalled()
     })
@@ -137,23 +137,23 @@ describe("createRepoOverviewInjectorHook", () => {
   // #region tool.execute.after
   describe("tool.execute.after", () => {
     test("does not inject before min_tool_calls reached", async () => {
-      // #given: Hook with min_tool_calls=2
+      // given: Hook with min_tool_calls=2
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx, {
         min_tool_calls: 2,
       })
 
-      // #when: First tool call
+      // when: First tool call
       const input = createToolInput("Read")
       const output = createToolOutput()
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not inject yet
+      // then: Should not inject yet
       expect(output.output).toBe("test output")
     })
 
     test("injects after min_tool_calls threshold", async () => {
-      // #given: Hook with min_tool_calls=2
+      // given: Hook with min_tool_calls=2
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx, {
         min_tool_calls: 2,
@@ -164,32 +164,32 @@ describe("createRepoOverviewInjectorHook", () => {
       const output1 = createToolOutput()
       await hook["tool.execute.after"](input, output1)
 
-      // #when: Second call (reaches threshold)
+      // when: Second call (reaches threshold)
       const output2 = createToolOutput()
       await hook["tool.execute.after"](input, output2)
 
-      // #then: Should inject on second call
+      // then: Should inject on second call
       expect(output2.output).toContain("Repository Overview")
     })
 
     test("appends overview to output", async () => {
-      // #given: Hook
+      // given: Hook
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx)
       const input = createToolInput("Read")
       const output = createToolOutput("file content")
 
-      // #when: Tool call
+      // when: Tool call
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should append (not replace) output
+      // then: Should append (not replace) output
       expect(output.output).toContain("file content")
       expect(output.output).toContain("Repository Overview")
       expect(output.output).toContain("End Repository Overview")
     })
 
     test("calls generator with correct directory and depth", async () => {
-      // #given: Hook with unique directory
+      // given: Hook with unique directory
       const uniqueDir = path.join(tmpDir, "unique-project")
       const mockCtx = createMockCtx(uniqueDir)
       const hook = createRepoOverviewInjectorHook(mockCtx, {
@@ -198,15 +198,15 @@ describe("createRepoOverviewInjectorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Tool call
+      // when: Tool call
       await hook["tool.execute.after"](input, output)
 
-      // #then: Generator should be called with correct params
+      // then: Generator should be called with correct params
       expect(generateSpy).toHaveBeenCalledWith(uniqueDir, 100)
     })
 
     test("tracks tool calls per session independently", async () => {
-      // #given: Hook with min_tool_calls=2
+      // given: Hook with min_tool_calls=2
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx, {
         min_tool_calls: 2,
@@ -241,7 +241,7 @@ describe("createRepoOverviewInjectorHook", () => {
   describe("event handling", () => {
     describe("session.deleted", () => {
       test("clears injected state", async () => {
-        // #given: Session that has been injected
+        // given: Session that has been injected
         const mockCtx = createMockCtx()
         const hook = createRepoOverviewInjectorHook(mockCtx)
         const sessionID = "session-to-delete"
@@ -252,7 +252,7 @@ describe("createRepoOverviewInjectorHook", () => {
         await hook["tool.execute.after"](input, output1)
         expect(output1.output).toContain("Repository Overview")
 
-        // #when: Delete session
+        // when: Delete session
         await hook.event({
           event: {
             type: "session.deleted",
@@ -260,7 +260,7 @@ describe("createRepoOverviewInjectorHook", () => {
           },
         })
 
-        // #then: New call should inject again
+        // then: New call should inject again
         const output2 = createToolOutput()
         await hook["tool.execute.after"](input, output2)
         expect(output2.output).toContain("Repository Overview")
@@ -270,7 +270,7 @@ describe("createRepoOverviewInjectorHook", () => {
 
     describe("session.compacted", () => {
       test("clears injected state to allow re-injection", async () => {
-        // #given: Session that has been injected
+        // given: Session that has been injected
         const mockCtx = createMockCtx()
         const hook = createRepoOverviewInjectorHook(mockCtx)
         const sessionID = "session-to-compact"
@@ -281,7 +281,7 @@ describe("createRepoOverviewInjectorHook", () => {
         await hook["tool.execute.after"](input, output1)
         expect(output1.output).toContain("Repository Overview")
 
-        // #when: Compact session
+        // when: Compact session
         await hook.event({
           event: {
             type: "session.compacted",
@@ -289,14 +289,14 @@ describe("createRepoOverviewInjectorHook", () => {
           },
         })
 
-        // #then: Should inject again after compaction
+        // then: Should inject again after compaction
         const output2 = createToolOutput()
         await hook["tool.execute.after"](input, output2)
         expect(output2.output).toContain("Repository Overview")
       })
 
       test("handles sessionID from info property", async () => {
-        // #given: Session with injection
+        // given: Session with injection
         const mockCtx = createMockCtx()
         const hook = createRepoOverviewInjectorHook(mockCtx)
         const sessionID = "session-info"
@@ -305,7 +305,7 @@ describe("createRepoOverviewInjectorHook", () => {
         const output1 = createToolOutput()
         await hook["tool.execute.after"](input, output1)
 
-        // #when: Compact with sessionID in info
+        // when: Compact with sessionID in info
         await hook.event({
           event: {
             type: "session.compacted",
@@ -313,7 +313,7 @@ describe("createRepoOverviewInjectorHook", () => {
           },
         })
 
-        // #then: Should allow re-injection
+        // then: Should allow re-injection
         const output2 = createToolOutput()
         await hook["tool.execute.after"](input, output2)
         expect(output2.output).toContain("Repository Overview")
@@ -321,7 +321,7 @@ describe("createRepoOverviewInjectorHook", () => {
     })
 
     test("ignores unknown event types", async () => {
-      // #given: Hook with existing session state
+      // given: Hook with existing session state
       const mockCtx = createMockCtx()
       const hook = createRepoOverviewInjectorHook(mockCtx)
       const sessionID = "session-unknown-event"
@@ -332,7 +332,7 @@ describe("createRepoOverviewInjectorHook", () => {
       await hook["tool.execute.after"](input, output1)
       expect(output1.output).toContain("Repository Overview")
 
-      // #when: Unknown event
+      // when: Unknown event
       await hook.event({
         event: {
           type: "session.unknown",
@@ -340,7 +340,7 @@ describe("createRepoOverviewInjectorHook", () => {
         },
       })
 
-      // #then: State should be preserved (session still marked as injected)
+      // then: State should be preserved (session still marked as injected)
       const output2 = createToolOutput()
       await hook["tool.execute.after"](input, output2)
       expect(output2.output).toBe("test output") // Still blocked
@@ -351,7 +351,7 @@ describe("createRepoOverviewInjectorHook", () => {
   // #region caching (integration with file system)
   describe("caching", () => {
     test("uses cached overview when valid", async () => {
-      // #given: Hook with unique directory
+      // given: Hook with unique directory
       const uniqueDir = path.join(tmpDir, "cached-project")
       const mockCtx = createMockCtx(uniqueDir)
       const hook = createRepoOverviewInjectorHook(mockCtx)
@@ -362,19 +362,19 @@ describe("createRepoOverviewInjectorHook", () => {
       await hook["tool.execute.after"](input, output1)
       expect(generateSpy).toHaveBeenCalledTimes(1)
 
-      // #when: New session, same directory (same hook instance)
+      // when: New session, same directory (same hook instance)
       generateSpy.mockClear()
       const input2 = createToolInput("Read", "session-2")
       const output2 = createToolOutput()
       await hook["tool.execute.after"](input2, output2)
 
-      // #then: Should use cache (generator not called again for same dir within same hook)
+      // then: Should use cache (generator not called again for same dir within same hook)
       // Note: This tests the internal caching behavior
       expect(output2.output).toContain("Repository Overview")
     })
 
     test("handles generator errors gracefully", async () => {
-      // #given: Generator that throws
+      // given: Generator that throws
       const errorDir = path.join(tmpDir, "error-project")
       generateSpy.mockImplementation(() => {
         throw new Error("Generator failed")
@@ -385,14 +385,14 @@ describe("createRepoOverviewInjectorHook", () => {
       const output = createToolOutput()
       let caughtError = false
 
-      // #when: Tool call
+      // when: Tool call
       try {
         await hook["tool.execute.after"](input, output)
       } catch {
         caughtError = true
       }
 
-      // #then: Either completes without injecting, or throws
+      // then: Either completes without injecting, or throws
       // The key is it doesn't hang or cause unhandled rejection
       if (!caughtError) {
         // If no error, output should either be unchanged or have partial content
@@ -406,7 +406,7 @@ describe("createRepoOverviewInjectorHook", () => {
   // #region edge cases
   describe("edge cases", () => {
     test("handles empty properties gracefully", async () => {
-      // #given: Hook with existing session state
+      // given: Hook with existing session state
       const propsDir = path.join(tmpDir, "props-project")
       const mockCtx = createMockCtx(propsDir)
       const hook = createRepoOverviewInjectorHook(mockCtx)
@@ -418,7 +418,7 @@ describe("createRepoOverviewInjectorHook", () => {
       await hook["tool.execute.after"](input, output1)
       expect(output1.output).toContain("Repository Overview")
 
-      // #when: Events with missing properties
+      // when: Events with missing properties
       await hook.event({
         event: {
           type: "session.deleted",
@@ -433,7 +433,7 @@ describe("createRepoOverviewInjectorHook", () => {
         },
       })
 
-      // #then: Session state should be unaffected (no valid sessionID to clear)
+      // then: Session state should be unaffected (no valid sessionID to clear)
       const output2 = createToolOutput()
       await hook["tool.execute.after"](input, output2)
       expect(output2.output).toBe("test output") // Still blocked
@@ -444,7 +444,7 @@ describe("createRepoOverviewInjectorHook", () => {
   // #region complex state transitions
   describe("complex state transitions", () => {
     test("complete flow: inject → session.compacted → re-inject", async () => {
-      // #given: Hook with unique directory
+      // given: Hook with unique directory
       const flowDir = path.join(tmpDir, "flow-project")
       const mockCtx = createMockCtx(flowDir)
       const hook = createRepoOverviewInjectorHook(mockCtx)
@@ -473,7 +473,7 @@ describe("createRepoOverviewInjectorHook", () => {
     })
 
     test("min_tool_calls reset after session deletion", async () => {
-      // #given: Hook with min_tool_calls=3
+      // given: Hook with min_tool_calls=3
       const minCallsDir = path.join(tmpDir, "min-calls-project")
       const mockCtx = createMockCtx(minCallsDir)
       const hook = createRepoOverviewInjectorHook(mockCtx, {
@@ -511,12 +511,12 @@ describe("createRepoOverviewInjectorHook", () => {
     })
 
     test("multiple sessions share same cache but track injection separately", async () => {
-      // #given: Hook
+      // given: Hook
       const sharedDir = path.join(tmpDir, "shared-cache-project")
       const mockCtx = createMockCtx(sharedDir)
       const hook = createRepoOverviewInjectorHook(mockCtx)
 
-      // #when: Session A injects
+      // when: Session A injects
       const inputA = createToolInput("Read", "session-A")
       const outputA = createToolOutput()
       await hook["tool.execute.after"](inputA, outputA)
@@ -531,7 +531,7 @@ describe("createRepoOverviewInjectorHook", () => {
       expect(outputB.output).toContain("Repository Overview")
       // Generator may or may not be called again depending on cache implementation
 
-      // #then: Both sessions are marked as injected
+      // then: Both sessions are marked as injected
       const outputA2 = createToolOutput()
       await hook["tool.execute.after"](inputA, outputA2)
       expect(outputA2.output).toBe("test output")
@@ -542,14 +542,14 @@ describe("createRepoOverviewInjectorHook", () => {
     })
 
     test("disabled hook never injects regardless of state", async () => {
-      // #given: Disabled hook
+      // given: Disabled hook
       const disabledDir = path.join(tmpDir, "disabled-project")
       const mockCtx = createMockCtx(disabledDir)
       const hook = createRepoOverviewInjectorHook(mockCtx, {
         enabled: false,
       })
 
-      // #when: Multiple calls
+      // when: Multiple calls
       for (let i = 0; i < 5; i++) {
         const input = createToolInput("Read", "session-disabled", `call-${i}`)
         const output = createToolOutput()
@@ -557,7 +557,7 @@ describe("createRepoOverviewInjectorHook", () => {
         expect(output.output).toBe("test output")
       }
 
-      // #then: Generator never called
+      // then: Generator never called
       expect(generateSpy).not.toHaveBeenCalled()
     })
   })

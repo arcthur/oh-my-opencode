@@ -16,7 +16,7 @@ describe("conditional-rules hook", () => {
   })
 
   test("injects rules for file tools when args use filePath (camelCase)", async () => {
-    //#given
+    // given
     const hooks = createConditionalRulesHooks({
       config: {
         ...DEFAULT_CONDITIONAL_RULES_CONFIG,
@@ -33,7 +33,7 @@ describe("conditional-rules hook", () => {
       },
     })
 
-    //#when
+    // when
     await hooks["tool.execute.before"]?.({
       tool: "Read",
       args: { filePath: "src/foo.ts" },
@@ -41,12 +41,12 @@ describe("conditional-rules hook", () => {
       context: { cwd: "/project", agent: "general" },
     })
 
-    //#then
+    // then
     expect(injectHookMessage).toHaveBeenCalledTimes(1)
   })
 
   test("injects rules for MultiEdit tool (case-insensitive)", async () => {
-    //#given
+    // given
     const hooks = createConditionalRulesHooks({
       config: {
         ...DEFAULT_CONDITIONAL_RULES_CONFIG,
@@ -63,7 +63,7 @@ describe("conditional-rules hook", () => {
       },
     })
 
-    //#when
+    // when
     await hooks["tool.execute.before"]?.({
       tool: "MultiEdit",
       args: { filePath: "src/foo.ts" },
@@ -71,7 +71,7 @@ describe("conditional-rules hook", () => {
       context: { cwd: "/project", agent: "general" },
     })
 
-    //#then
+    // then
     expect(injectHookMessage).toHaveBeenCalledTimes(1)
   })
 })

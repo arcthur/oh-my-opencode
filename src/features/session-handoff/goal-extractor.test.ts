@@ -35,7 +35,7 @@ function createRecoveryPattern(id: string): RecoveryPattern {
 
 describe("filterPayloadByGoal", () => {
   it("preserves antiPatterns and recoveryPatterns", () => {
-    // #given
+    // given
     const payload: HandoffPayload = {
       decisions: [
         { what: "Auth approach", chosen: "JWT", why: "Simple" },
@@ -54,7 +54,7 @@ describe("filterPayloadByGoal", () => {
       recoveryPatterns: [createRecoveryPattern("rp_1"), createRecoveryPattern("rp_2")],
     }
 
-    // #when
+    // when
     const result = filterPayloadByGoal(payload, {
       goal: "Implement auth",
       maxDecisions: 1,
@@ -62,7 +62,7 @@ describe("filterPayloadByGoal", () => {
       maxDomainContext: 1,
     })
 
-    // #then
+    // then
     expect(result.payload.antiPatterns).toHaveLength(2)
     expect(result.payload.recoveryPatterns).toHaveLength(2)
     expect(result.payload.recoveryPatterns?.map((p) => p.id)).toEqual(["rp_1", "rp_2"])

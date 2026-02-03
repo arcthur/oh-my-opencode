@@ -4,13 +4,13 @@ import { normalizeScoresMinMax } from "./hybrid"
 describe("embeddings/hybrid", () => {
   describe("normalizeScoresMinMax", () => {
     test("maps min->0 and max->1", () => {
-      //#given
+      // given
       const scores = [0.2, 0.4, 0.3]
 
-      //#when
+      // when
       const normalized = normalizeScoresMinMax(scores)
 
-      //#then
+      // then
       expect(normalized).toHaveLength(3)
       expect(normalized[0]).toBe(0) // min
       expect(normalized[1]).toBe(1) // max
@@ -18,13 +18,13 @@ describe("embeddings/hybrid", () => {
     })
 
     test("returns 0.5 for all when scores are identical", () => {
-      //#given
+      // given
       const scores = [0.1, 0.1, 0.1]
 
-      //#when
+      // when
       const normalized = normalizeScoresMinMax(scores)
 
-      //#then
+      // then
       expect(normalized).toEqual([0.5, 0.5, 0.5])
     })
   })

@@ -3,36 +3,36 @@ import { expandWithSynonyms, preprocessText } from "./text-processing"
 
 describe("text-processing", () => {
   test("keeps meaningful 2-letter tokens like 'ci'", () => {
-    //#given
+    // given
     const text = "CI pipeline"
 
-    //#when
+    // when
     const tokens = preprocessText(text)
 
-    //#then
+    // then
     expect(tokens.has("ci")).toBe(true)
   })
 
   test("can disable synonym canonicalization and stemming", () => {
-    //#given
+    // given
     const text = "CI pipeline"
 
-    //#when
+    // when
     const tokens = preprocessText(text, { useSynonyms: false, useStemming: false })
 
-    //#then
+    // then
     expect(tokens.has("ci")).toBe(true)
     expect(tokens.has("pipeline")).toBe(true)
   })
 
   test("preserves compound tokens and also emits split parts", () => {
-    //#given
+    // given
     const text = "snake_case kebab-case"
 
-    //#when
+    // when
     const tokens = preprocessText(text, { useSynonyms: false, useStemming: false })
 
-    //#then
+    // then
     expect(tokens.has("snake_case")).toBe(true)
     expect(tokens.has("snake")).toBe(true)
     expect(tokens.has("case")).toBe(true)
@@ -41,39 +41,39 @@ describe("text-processing", () => {
   })
 
   test("does not split technical tokens like 'c++' and 'c#'", () => {
-    //#given
+    // given
     const text = "C++ C#"
 
-    //#when
+    // when
     const tokens = preprocessText(text, { useSynonyms: false, useStemming: true })
 
-    //#then
+    // then
     expect(tokens.has("c++")).toBe(true)
     expect(tokens.has("c#")).toBe(true)
     expect(tokens.has("c")).toBe(false)
   })
 
   test("expandWithSynonyms normalizes underscore/hyphen variants", () => {
-    //#given
+    // given
     const tokens = new Set(["snake_case"])
 
-    //#when
+    // when
     const expanded = expandWithSynonyms(tokens)
 
-    //#then
+    // then
     expect(expanded.has("snake_case")).toBe(true)
     expect(expanded.has("snakecase")).toBe(true)
     expect(expanded.has("underscore")).toBe(true)
   })
 
   test("preprocessText canonicalizes synonyms when enabled", () => {
-    //#given
+    // given
     const text = "underscore"
 
-    //#when
+    // when
     const tokens = preprocessText(text, { useSynonyms: true, useStemming: false })
 
-    //#then
+    // then
     expect(tokens.has("snake_case")).toBe(true)
   })
 })

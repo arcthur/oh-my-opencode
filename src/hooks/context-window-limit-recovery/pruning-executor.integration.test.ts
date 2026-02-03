@@ -33,7 +33,7 @@ describe("executeDynamicContextPruning (storage integration)", () => {
   })
 
   test("prunes tool outputs and inputs against part storage (clear_results + supersede_writes)", async () => {
-    // #given: a session with message metas and part files
+    // given: a session with message metas and part files
     const sessionID = "ses_test"
     const sessionDir = join(MESSAGE_STORAGE, sessionID)
     mkdirSync(sessionDir, { recursive: true })
@@ -107,7 +107,7 @@ describe("executeDynamicContextPruning (storage integration)", () => {
       tui: { showToast: async () => {} },
     }
 
-    // #when: execute DCP
+    // when: execute DCP
     await executeDynamicContextPruning(
       sessionID,
       {
@@ -125,17 +125,17 @@ describe("executeDynamicContextPruning (storage integration)", () => {
       client
     )
 
-    // #then: old read output is pruned, input preserved
+    // then: old read output is pruned, input preserved
     const r1 = readJson(join(PART_STORAGE, "msg_001", "prt_002.json")) as any
     expect(r1.state.input).toEqual({ filePath: "a.txt" })
     expect(r1.state.output).toContain("Content pruned")
 
-    // #then: write input is pruned, output preserved
+    // then: write input is pruned, output preserved
     const w1 = readJson(join(PART_STORAGE, "msg_002", "prt_002.json")) as any
     expect(w1.state.input).toEqual(expect.objectContaining({ __pruned: true }))
     expect(w1.state.output).toBe("ok")
 
-    // #then: recent read is preserved
+    // then: recent read is preserved
     const r2 = readJson(join(PART_STORAGE, "msg_003", "prt_002.json")) as any
     expect(r2.state.output).toBe("contents")
   })

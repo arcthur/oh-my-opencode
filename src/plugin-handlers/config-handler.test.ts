@@ -4,32 +4,32 @@ import type { CategoryConfig } from "../config/schema"
 
 describe("Prometheus category config resolution", () => {
   test("resolves ultrabrain category config (no default model, only variant)", () => {
-    // #given
+    // given
     const categoryName = "ultrabrain"
 
-    // #when
+    // when
     const config = resolveCategoryConfig(categoryName)
 
-    // #then - DEFAULT_CATEGORIES no longer has hardcoded models
+    // then - DEFAULT_CATEGORIES no longer has hardcoded models
     expect(config).toBeDefined()
     expect(config?.model).toBeUndefined()
     expect(config?.variant).toBe("xhigh")
   })
 
   test("resolves visual-engineering category config (no default model)", () => {
-    // #given
+    // given
     const categoryName = "visual-engineering"
 
-    // #when
+    // when
     const config = resolveCategoryConfig(categoryName)
 
-    // #then - DEFAULT_CATEGORIES no longer has hardcoded models
+    // then - DEFAULT_CATEGORIES no longer has hardcoded models
     expect(config).toBeDefined()
     expect(config?.model).toBeUndefined()
   })
 
   test("user categories override default categories", () => {
-    // #given
+    // given
     const categoryName = "ultrabrain"
     const userCategories: Record<string, CategoryConfig> = {
       ultrabrain: {
@@ -38,28 +38,28 @@ describe("Prometheus category config resolution", () => {
       },
     }
 
-    // #when
+    // when
     const config = resolveCategoryConfig(categoryName, userCategories)
 
-    // #then
+    // then
     expect(config).toBeDefined()
     expect(config?.model).toBe("google/antigravity-claude-opus-4-5-thinking")
     expect(config?.temperature).toBe(0.1)
   })
 
   test("returns undefined for unknown category", () => {
-    // #given
+    // given
     const categoryName = "nonexistent-category"
 
-    // #when
+    // when
     const config = resolveCategoryConfig(categoryName)
 
-    // #then
+    // then
     expect(config).toBeUndefined()
   })
 
   test("falls back to default when user category has no entry", () => {
-    // #given
+    // given
     const categoryName = "ultrabrain"
     const userCategories: Record<string, CategoryConfig> = {
       "visual-engineering": {
@@ -67,17 +67,17 @@ describe("Prometheus category config resolution", () => {
       },
     }
 
-    // #when
+    // when
     const config = resolveCategoryConfig(categoryName, userCategories)
 
-    // #then - falls back to DEFAULT_CATEGORIES (no hardcoded model, only variant)
+    // then - falls back to DEFAULT_CATEGORIES (no hardcoded model, only variant)
     expect(config).toBeDefined()
     expect(config?.model).toBeUndefined()
     expect(config?.variant).toBe("xhigh")
   })
 
   test("preserves all category properties (temperature, top_p, tools, etc.)", () => {
-    // #given
+    // given
     const categoryName = "custom-category"
     const userCategories: Record<string, CategoryConfig> = {
       "custom-category": {
@@ -89,10 +89,10 @@ describe("Prometheus category config resolution", () => {
       },
     }
 
-    // #when
+    // when
     const config = resolveCategoryConfig(categoryName, userCategories)
 
-    // #then
+    // then
     expect(config).toBeDefined()
     expect(config?.model).toBe("test/model")
     expect(config?.temperature).toBe(0.5)

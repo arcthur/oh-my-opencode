@@ -44,7 +44,7 @@ describe("agent/worker plan approval + mode control", () => {
   }
 
   test("plan approval timeout resumes to WORKING (does not orphan task)", async () => {
-    // #given
+    // given
     const coordinator = createAgentIdentity({
       name: "coordinator",
       sessionId: "sess_coord",
@@ -85,17 +85,17 @@ describe("agent/worker plan approval + mode control", () => {
 
     await waitUntil(() => w.isWorking())
 
-    // #when
+    // when
     const result = await w.requestPlanApproval("# Plan", { timeoutMs: 150 })
 
-    // #then
+    // then
     expect(result.decision).toBe("rejected")
     expect(w.getState().status).toBe("working")
     expect(w.getCurrentTask()?.id).toBe("task_001")
   })
 
   test("mode acceptEdits causes requestPermission(Edit) to auto-approve without coordinator message", async () => {
-    // #given
+    // given
     const coordinator = createAgentIdentity({
       name: "coordinator",
       sessionId: "sess_coord",
@@ -145,10 +145,10 @@ describe("agent/worker plan approval + mode control", () => {
 
     await waitUntil(() => w.getCurrentMode() === "acceptEdits")
 
-    // #when
+    // when
     const result = await w.requestPermission("Edit", { filePath: "x" }, { timeoutMs: 200 })
 
-    // #then
+    // then
     expect(result.approved).toBe(true)
 
     // Coordinator should NOT receive a permission_request in this mode
@@ -157,7 +157,7 @@ describe("agent/worker plan approval + mode control", () => {
   })
 
   test("mode bypassPermissions causes requestPermission(Bash) to auto-approve without coordinator message", async () => {
-    // #given
+    // given
     const coordinator = createAgentIdentity({
       name: "coordinator",
       sessionId: "sess_coord",
@@ -205,17 +205,17 @@ describe("agent/worker plan approval + mode control", () => {
     )
     await waitUntil(() => w.getCurrentMode() === "bypassPermissions")
 
-    // #when
+    // when
     const result = await w.requestPermission("Bash", { command: "echo hi" }, { timeoutMs: 200 })
 
-    // #then
+    // then
     expect(result.approved).toBe(true)
     const permissionRequests = readByType(teamName, coordinator.id, "permission_request", config)
     expect(permissionRequests.length).toBe(0)
   })
 
   test("plan approval approval marks task as approved for plan-mode gate", async () => {
-    // #given
+    // given
     const coordinator = createAgentIdentity({
       name: "coordinator",
       sessionId: "sess_coord",
@@ -265,7 +265,7 @@ describe("agent/worker plan approval + mode control", () => {
     )
     await waitUntil(() => w.isWorking())
 
-    // #when: request approval and simulate coordinator response
+    // when: request approval and simulate coordinator response
     const p = w.requestPlanApproval("# Plan", { timeoutMs: 2000 })
 
     // Wait until worker actually sent the request so we can read requestId

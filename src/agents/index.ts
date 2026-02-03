@@ -10,3 +10,13 @@ export { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "
 export { createAtlasAgent, atlasPromptMetadata } from "./atlas"
 export { createPlanSynthesizerAgent } from "./plan-synthesizer"
 export { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
+export {
+  PROMETHEUS_SYSTEM_PROMPT,
+  PROMETHEUS_PERMISSION,
+  PROMETHEUS_IDENTITY_CONSTRAINTS,
+  PROMETHEUS_INTERVIEW_MODE,
+  PROMETHEUS_PLAN_GENERATION,
+  PROMETHEUS_HIGH_ACCURACY_MODE,
+  PROMETHEUS_PLAN_TEMPLATE,
+  PROMETHEUS_BEHAVIORAL_SUMMARY,
+} from "./prometheus"

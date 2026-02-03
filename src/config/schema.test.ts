@@ -9,15 +9,15 @@ import {
 
 describe("disabled_mcps schema", () => {
   test("should accept built-in MCP names", () => {
-    //#given
+    // given
     const config = {
       disabled_mcps: ["context7", "grep_app"],
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.disabled_mcps).toEqual(["context7", "grep_app"])
@@ -25,15 +25,15 @@ describe("disabled_mcps schema", () => {
   })
 
   test("should accept custom MCP names", () => {
-    //#given
+    // given
     const config = {
       disabled_mcps: ["playwright", "sqlite", "custom-mcp"],
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.disabled_mcps).toEqual(["playwright", "sqlite", "custom-mcp"])
@@ -41,15 +41,15 @@ describe("disabled_mcps schema", () => {
   })
 
   test("should accept mixed built-in and custom names", () => {
-    //#given
+    // given
     const config = {
       disabled_mcps: ["context7", "playwright", "custom-server"],
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.disabled_mcps).toEqual(["context7", "playwright", "custom-server"])
@@ -57,15 +57,15 @@ describe("disabled_mcps schema", () => {
   })
 
   test("should accept empty array", () => {
-    //#given
+    // given
     const config = {
       disabled_mcps: [],
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.disabled_mcps).toEqual([])
@@ -73,26 +73,26 @@ describe("disabled_mcps schema", () => {
   })
 
   test("should reject non-string values", () => {
-    //#given
+    // given
     const config = {
       disabled_mcps: [123, true, null],
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(false)
   })
 
   test("should accept undefined (optional field)", () => {
-    //#given
+    // given
     const config = {}
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.disabled_mcps).toBeUndefined()
@@ -100,20 +100,20 @@ describe("disabled_mcps schema", () => {
   })
 
   test("should reject empty strings", () => {
-    //#given
+    // given
     const config = {
       disabled_mcps: [""],
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(false)
   })
 
   test("should accept MCP names with various naming patterns", () => {
-    //#given
+    // given
     const config = {
       disabled_mcps: [
         "my-custom-mcp",
@@ -124,10 +124,10 @@ describe("disabled_mcps schema", () => {
       ],
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.disabled_mcps).toEqual([
@@ -143,7 +143,7 @@ describe("disabled_mcps schema", () => {
 
 describe("user_memory schema", () => {
   test("should accept hierarchical_memory/entity_memory overrides", () => {
-    //#given
+    // given
     const config = {
       user_memory: {
         enabled: true,
@@ -174,10 +174,10 @@ describe("user_memory schema", () => {
       },
     }
 
-    //#when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    //#then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.user_memory?.hierarchical_memory).toEqual({
@@ -211,26 +211,26 @@ describe("user_memory schema", () => {
 describe("AgentOverrideConfigSchema", () => {
   describe("model field", () => {
     test("rejects model as array (only Prometheus supports multi-model)", () => {
-      // #given
+      // given
       const config = { model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"] }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(false)
     })
   })
 
   describe("category field", () => {
     test("accepts category as optional string", () => {
-      // #given
+      // given
       const config = { category: "visual-engineering" }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.category).toBe("visual-engineering")
@@ -238,37 +238,37 @@ describe("AgentOverrideConfigSchema", () => {
     })
 
     test("accepts config without category", () => {
-      // #given
+      // given
       const config = { temperature: 0.5 }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
     })
 
     test("rejects non-string category", () => {
-      // #given
+      // given
       const config = { category: 123 }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(false)
     })
   })
 
   describe("variant field", () => {
     test("accepts variant as optional string", () => {
-      // #given
+      // given
       const config = { variant: "high" }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.variant).toBe("high")
@@ -276,26 +276,26 @@ describe("AgentOverrideConfigSchema", () => {
     })
 
     test("rejects non-string variant", () => {
-      // #given
+      // given
       const config = { variant: 123 }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(false)
     })
   })
 
   describe("skills field", () => {
     test("accepts skills as optional string array", () => {
-      // #given
+      // given
       const config = { skills: ["frontend-ui-ux", "code-reviewer"] }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.skills).toEqual(["frontend-ui-ux", "code-reviewer"])
@@ -303,13 +303,13 @@ describe("AgentOverrideConfigSchema", () => {
     })
 
     test("accepts empty skills array", () => {
-      // #given
+      // given
       const config = { skills: [] }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.skills).toEqual([])
@@ -317,37 +317,37 @@ describe("AgentOverrideConfigSchema", () => {
     })
 
     test("accepts config without skills", () => {
-      // #given
+      // given
       const config = { temperature: 0.5 }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
     })
 
     test("rejects non-array skills", () => {
-      // #given
+      // given
       const config = { skills: "frontend-ui-ux" }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(false)
     })
   })
 
   describe("backward compatibility", () => {
     test("still accepts model field (deprecated)", () => {
-      // #given
+      // given
       const config = { model: "openai/gpt-5.2" }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.model).toBe("openai/gpt-5.2")
@@ -355,16 +355,16 @@ describe("AgentOverrideConfigSchema", () => {
     })
 
     test("accepts both model and category (deprecated usage)", () => {
-      // #given - category should take precedence at runtime, but both should validate
+      // given - category should take precedence at runtime, but both should validate
       const config = { 
         model: "openai/gpt-5.2",
         category: "ultrabrain"
       }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.model).toBe("openai/gpt-5.2")
@@ -375,16 +375,16 @@ describe("AgentOverrideConfigSchema", () => {
 
   describe("combined fields", () => {
     test("accepts category with skills", () => {
-      // #given
+      // given
       const config = { 
         category: "visual-engineering",
         skills: ["frontend-ui-ux"]
       }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.category).toBe("visual-engineering")
@@ -393,7 +393,7 @@ describe("AgentOverrideConfigSchema", () => {
     })
 
     test("accepts category with skills and other fields", () => {
-      // #given
+      // given
       const config = { 
         category: "ultrabrain",
         skills: ["code-reviewer"],
@@ -401,10 +401,10 @@ describe("AgentOverrideConfigSchema", () => {
         prompt_append: "Extra instructions"
       }
 
-      // #when
+      // when
       const result = AgentOverrideConfigSchema.safeParse(config)
 
-      // #then
+      // then
       expect(result.success).toBe(true)
       if (result.success) {
         expect(result.data.category).toBe("ultrabrain")
@@ -418,7 +418,7 @@ describe("AgentOverrideConfigSchema", () => {
 
 describe("Prometheus multi-model planning config", () => {
   test("accepts agents.prometheus.model as string[] (2-5)", () => {
-    // #given
+    // given
     const config = {
       agents: {
         prometheus: {
@@ -427,10 +427,10 @@ describe("Prometheus multi-model planning config", () => {
       },
     }
 
-    // #when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.agents?.prometheus?.model).toEqual([
@@ -441,7 +441,7 @@ describe("Prometheus multi-model planning config", () => {
   })
 
   test("rejects model array for non-Prometheus agents", () => {
-    // #given
+    // given
     const config = {
       agents: {
         sisyphus: {
@@ -450,17 +450,17 @@ describe("Prometheus multi-model planning config", () => {
       },
     }
 
-    // #when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(false)
   })
 })
 
 describe("org_memory schema", () => {
   test("should accept org_memory config", () => {
-    // #given
+    // given
     const config = {
       org_memory: {
         enabled: true,
@@ -473,10 +473,10 @@ describe("org_memory schema", () => {
       },
     }
 
-    // #when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.org_memory?.enabled).toBe(true)
@@ -485,17 +485,17 @@ describe("org_memory schema", () => {
   })
 
   test("should allow disabling org_memory", () => {
-    // #given
+    // given
     const config = {
       org_memory: {
         enabled: false,
       },
     }
 
-    // #when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.org_memory?.enabled).toBe(false)
@@ -505,13 +505,13 @@ describe("org_memory schema", () => {
 
 describe("CategoryConfigSchema", () => {
   test("accepts variant as optional string", () => {
-    // #given
+    // given
     const config = { model: "openai/gpt-5.2", variant: "xhigh" }
 
-    // #when
+    // when
     const result = CategoryConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.variant).toBe("xhigh")
@@ -519,23 +519,23 @@ describe("CategoryConfigSchema", () => {
   })
 
   test("rejects non-string variant", () => {
-    // #given
+    // given
     const config = { model: "openai/gpt-5.2", variant: 123 }
 
-    // #when
+    // when
     const result = CategoryConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(false)
   })
 })
 
 describe("BuiltinCategoryNameSchema", () => {
   test("accepts all builtin category names", () => {
-    // #given
+    // given
     const categories = ["visual-engineering", "ultrabrain", "artistry", "quick", "unspecified-low", "unspecified-high", "writing"]
 
-    // #when / #then
+    // when / #then
     for (const cat of categories) {
       const result = BuiltinCategoryNameSchema.safeParse(cat)
       expect(result.success).toBe(true)
@@ -545,7 +545,7 @@ describe("BuiltinCategoryNameSchema", () => {
 
 describe("Sisyphus-Junior agent override", () => {
   test("schema accepts agents['Sisyphus-Junior'] and retains the key after parsing", () => {
-    // #given
+    // given
     const config = {
       agents: {
         "sisyphus-junior": {
@@ -555,10 +555,10 @@ describe("Sisyphus-Junior agent override", () => {
       },
     }
 
-    // #when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.agents?.["sisyphus-junior"]).toBeDefined()
@@ -568,7 +568,7 @@ describe("Sisyphus-Junior agent override", () => {
   })
 
   test("schema accepts Sisyphus-Junior with prompt_append", () => {
-    // #given
+    // given
     const config = {
       agents: {
         "sisyphus-junior": {
@@ -577,10 +577,10 @@ describe("Sisyphus-Junior agent override", () => {
       },
     }
 
-    // #when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.agents?.["sisyphus-junior"]?.prompt_append).toBe(
@@ -590,7 +590,7 @@ describe("Sisyphus-Junior agent override", () => {
   })
 
   test("schema accepts Sisyphus-Junior with tools override", () => {
-    // #given
+    // given
     const config = {
       agents: {
         "sisyphus-junior": {
@@ -602,10 +602,10 @@ describe("Sisyphus-Junior agent override", () => {
       },
     }
 
-    // #when
+    // when
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
-    // #then
+    // then
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.agents?.["sisyphus-junior"]?.tools).toEqual({
@@ -618,13 +618,13 @@ describe("Sisyphus-Junior agent override", () => {
 
 describe("SessionReferenceConfigSchema", () => {
   test("applies nested resolve_options defaults on parse({})", () => {
-    // #given
+    // given
     const input = {}
 
-    // #when
+    // when
     const parsed = SessionReferenceConfigSchema.parse(input)
 
-    // #then
+    // then
     expect(parsed).toEqual({
       enabled: true,
       strip_from_prompt: false,

@@ -63,14 +63,14 @@ describe("resolveSessionReference", () => {
 
     const { resolveSessionReference } = require("./injector")
 
-    // #given
+    // given
     const projectPath = "/test/project"
     const identifier = "handoff:ho_123_abc"
 
-    // #when
+    // when
     const resolved = await resolveSessionReference(projectPath, identifier)
 
-    // #then
+    // then
     expect(loadHandoff).toHaveBeenCalledWith("ho_123_abc")
     expect(resolved).toContain("ho_123_abc")
     expect(resolved).toContain("Test goal")
@@ -83,14 +83,14 @@ describe("resolveSessionReference", () => {
 
     const { resolveSessionReference } = require("./injector")
 
-    // #given
+    // given
     const projectPath = "/test/project"
     const identifier = "handoff:../ho_999_xyz"
 
-    // #when
+    // when
     const resolved = await resolveSessionReference(projectPath, identifier)
 
-    // #then
+    // then
     expect(loadHandoff).not.toHaveBeenCalled()
     expect(resolved).toBeNull()
   })
@@ -112,7 +112,7 @@ describe("resolveSessionReference", () => {
 
     const { resolveSessionReference } = require("./injector")
 
-    // #given
+    // given
     const projectPath = "/test/project"
     const identifier = `handoff:${pkg.id}`
     const query = { type: "semantic" as const, query: "alpha" }
@@ -121,12 +121,12 @@ describe("resolveSessionReference", () => {
       return texts.map(() => [1, 0])
     })
 
-    // #when
+    // when
     const resolved = await resolveSessionReference(projectPath, identifier, query, {
       embeddings: { embed, maxResults: 5, minRelevance: 0.3 },
     })
 
-    // #then
+    // then
     expect(loadEmbeddings).toHaveBeenCalledWith(pkg.id)
     expect(embed).toHaveBeenCalledWith(["alpha"])
     expect(resolved).toContain("## Semantic Matches")
@@ -149,7 +149,7 @@ describe("resolveSessionReference", () => {
 
     const { resolveSessionReference } = require("./injector")
 
-    // #given
+    // given
     const projectPath = "/test/project"
     const identifier = `handoff:${pkg.id}`
     const query = { type: "semantic" as const, query: "alpha" }
@@ -158,12 +158,12 @@ describe("resolveSessionReference", () => {
       return texts.map(() => [1, 0])
     })
 
-    // #when
+    // when
     const resolved = await resolveSessionReference(projectPath, identifier, query, {
       embeddings: { embed, maxResults: 5, minRelevance: 0.3, generateIfMissing: true },
     })
 
-    // #then
+    // then
     expect(saveEmbeddings).toHaveBeenCalled()
     expect(saveHandoff).toHaveBeenCalled()
     expect(embed).toHaveBeenCalledTimes(2)

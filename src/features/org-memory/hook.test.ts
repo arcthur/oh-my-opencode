@@ -20,7 +20,7 @@ describe("createOrgMemoryHook", () => {
   })
 
   test("registers org memory context with collector (once per session)", async () => {
-    // #given
+    // given
     const mockCollector = {
       register: mock(() => {}),
       resetOncePerSession: mock(() => {}),
@@ -30,11 +30,11 @@ describe("createOrgMemoryHook", () => {
     const input = { tool: "Read", sessionID: "s1", callID: "c1" }
     const output = {}
 
-    // #when
+    // when
     await hook["tool.execute.before"]?.(input as never, output as never)
     await hook["tool.execute.before"]?.(input as never, output as never)
 
-    // #then - collector handles once-per-session internally via oncePerSession flag
+    // then - collector handles once-per-session internally via oncePerSession flag
     expect(mockCollector.register).toHaveBeenCalledTimes(2)
     const calls = mockCollector.register.mock.calls as unknown as [string, { source: string; oncePerSession: boolean }][]
     expect(calls[0][1]).toMatchObject({
@@ -44,14 +44,14 @@ describe("createOrgMemoryHook", () => {
   })
 
   test("captures protected paths from 'never modify'", async () => {
-    // #given
+    // given
     const addProtectedPathSpy = spyOn(storage, "addProtectedPath").mockImplementation(() => {})
     const hook = createOrgMemoryHook(ctx)
 
-    // #when
+    // when
     await hook["user.prompt.submit"]({ message: { content: "Never modify config/secrets.json." } } as never)
 
-    // #then
+    // then
     expect(addProtectedPathSpy).toHaveBeenCalledWith(
       "/test/project",
       "config/secrets.json"
@@ -59,14 +59,14 @@ describe("createOrgMemoryHook", () => {
   })
 
   test("captures project rules", async () => {
-    // #given
+    // given
     const addCustomRuleSpy = spyOn(storage, "addCustomRule").mockImplementation(() => {})
     const hook = createOrgMemoryHook(ctx)
 
-    // #when
+    // when
     await hook["user.prompt.submit"]({ message: { content: "project rule: use snake_case for endpoints" } } as never)
 
-    // #then
+    // then
     expect(addCustomRuleSpy).toHaveBeenCalledWith(
       "/test/project",
       "use snake_case for endpoints"
@@ -74,14 +74,14 @@ describe("createOrgMemoryHook", () => {
   })
 
   test("captures ADRs from user messages", async () => {
-    // #given
+    // given
     const addAdrSpy = spyOn(storage, "addArchitecturalDecision").mockImplementation(() => true)
     const hook = createOrgMemoryHook(ctx)
 
-    // #when
+    // when
     await hook["user.prompt.submit"]({ message: { content: "We should use Zod schema because schema validation." } } as never)
 
-    // #then
+    // then
     expect(addAdrSpy).toHaveBeenCalledWith(
       "/test/project",
       expect.objectContaining({
@@ -92,7 +92,7 @@ describe("createOrgMemoryHook", () => {
   })
 
   test("extracts ADRs from compaction summary", async () => {
-    // #given
+    // given
     const addAdrSpy = spyOn(storage, "addArchitecturalDecision").mockImplementation(() => true)
     const hook = createOrgMemoryHook(ctx)
 
@@ -102,10 +102,10 @@ describe("createOrgMemoryHook", () => {
       "- Use Bun: Faster test runs",
     ].join("\n")
 
-    // #when
+    // when
     await hook.event({ event: { type: "session.summarized", properties: { summary } } } as never)
 
-    // #then
+    // then
     expect(addAdrSpy).toHaveBeenCalledTimes(2)
     expect(addAdrSpy).toHaveBeenCalledWith(
       "/test/project",

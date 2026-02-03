@@ -75,7 +75,7 @@ describe("createMultiPlanTool", () => {
   }
 
   test("returns an error when no config provided", async () => {
-    // #given
+    // given
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
@@ -83,13 +83,13 @@ describe("createMultiPlanTool", () => {
       createOrchestrator: () => createOrchestratorStub(),
     })
 
-    // #when
+    // when
     const result = await tool.execute(
       { planName: "../escape", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
-    // #then
+    // then
     expect(result).toContain("requires at least 2 models configured")
     expect(result).toContain("0 model(s)")
     expect(result).toContain("`.sisyphus/plans/work-plan.md`")
@@ -97,7 +97,7 @@ describe("createMultiPlanTool", () => {
   })
 
   test("returns an error when fewer than 2 models are configured", async () => {
-    // #given - single model string
+    // given - single model string
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
@@ -105,19 +105,19 @@ describe("createMultiPlanTool", () => {
       createOrchestrator: () => createOrchestratorStub(),
     })
 
-    // #when
+    // when
     const result = await tool.execute(
       { planName: "test-plan", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
-    // #then
+    // then
     expect(result).toContain("requires at least 2 models configured")
     expect(result).toContain("1 model(s)")
   })
 
   test("rejects unsafe plan names (path traversal)", async () => {
-    // #given
+    // given
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
@@ -125,18 +125,18 @@ describe("createMultiPlanTool", () => {
       createOrchestrator: () => createOrchestratorStub(),
     })
 
-    // #when
+    // when
     const result = await tool.execute(
       { planName: "../escape", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
-    // #then
+    // then
     expect(result).toContain('Invalid plan name: "../escape"')
   })
 
   test("rejects unsafe model names derived from config", async () => {
-    // #given - model ID "org/.." derives to ".." which is unsafe
+    // given - model ID "org/.." derives to ".." which is unsafe
     // The derived name ".." (parent directory) will be rejected
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
@@ -145,18 +145,18 @@ describe("createMultiPlanTool", () => {
       createOrchestrator: () => createOrchestratorStub(),
     })
 
-    // #when
+    // when
     const result = await tool.execute(
       { planName: "test-plan", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
-    // #then - name ".." is derived from model ID "org/.."
+    // then - name ".." is derived from model ID "org/.."
     expect(result).toContain('Invalid model name in config: ".."')
   })
 
   test("rejects duplicate model names after sanitization", async () => {
-    // #given - model IDs that derive to names that sanitize to the same value
+    // given - model IDs that derive to names that sanitize to the same value
     // "org/a..b" derives to "a..b", "org/a--b" derives to "a--b"
     // Both sanitize to "a-b"
     const tool = createMultiPlanTool({
@@ -166,19 +166,19 @@ describe("createMultiPlanTool", () => {
       createOrchestrator: () => createOrchestratorStub(),
     })
 
-    // #when
+    // when
     const result = await tool.execute(
       { planName: "test-plan", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
-    // #then
+    // then
     expect(result).toContain("Duplicate model name")
     expect(result).toContain('resolve to "a-b"')
   })
 
   test("renders intermediate files when MultiPlanError is thrown", async () => {
-    // #given
+    // given
     startBehavior = async () => {
       throw new MultiPlanError("Synthesis failed", [".sisyphus/plans/x-claude-opus-4-5.md"], {
         id: "mp_test",
@@ -198,13 +198,13 @@ describe("createMultiPlanTool", () => {
       createOrchestrator: () => createOrchestratorStub(),
     })
 
-    // #when
+    // when
     const result = await tool.execute(
       { planName: "x", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
-    // #then
+    // then
     expect(result).toContain("Multi-model planning failed")
     expect(result).toContain("some intermediate files were generated successfully")
     expect(result).toContain("`.sisyphus/plans/x-claude-opus-4-5.md`")
@@ -212,7 +212,7 @@ describe("createMultiPlanTool", () => {
   })
 
   test("passes sanitized planName to orchestrator", async () => {
-    // #given
+    // given
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
       backgroundManager: createMockBackgroundManager(),
@@ -220,13 +220,13 @@ describe("createMultiPlanTool", () => {
       createOrchestrator: () => createOrchestratorStub(),
     })
 
-    // #when
+    // when
     const result = await tool.execute(
       { planName: "  spaced-plan  ", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
-    // #then
+    // then
     expect(result).toContain("completed successfully")
     expect(lastStartInput?.planName).toBe("spaced-plan")
   })

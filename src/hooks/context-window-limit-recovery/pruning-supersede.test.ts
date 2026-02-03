@@ -24,7 +24,7 @@ describe("executeSupersedeWrites", () => {
   })
 
   test("conservative mode prunes write input when same file is read later (including last write)", () => {
-    // #given: write then read same file
+    // given: write then read same file
     spyOn(shared, "readMessages").mockReturnValue([
       {
         parts: [
@@ -50,7 +50,7 @@ describe("executeSupersedeWrites", () => {
       },
     ] as any)
 
-    // #when
+    // when
     const pruned = executeSupersedeWrites(
       sessionID,
       state,
@@ -59,14 +59,14 @@ describe("executeSupersedeWrites", () => {
       0
     )
 
-    // #then
+    // then
     expect(pruned).toBe(1)
     expect(state.toolPruneActions.get("w1")?.pruneInput).toBe(true)
     expect(state.toolPruneActions.get("w1")?.pruneOutput).toBe(false)
   })
 
   test("conservative mode does not prune when read happens before write", () => {
-    // #given: read then write (no subsequent read)
+    // given: read then write (no subsequent read)
     spyOn(shared, "readMessages").mockReturnValue([
       {
         parts: [
@@ -92,7 +92,7 @@ describe("executeSupersedeWrites", () => {
       },
     ] as any)
 
-    // #when
+    // when
     const pruned = executeSupersedeWrites(
       sessionID,
       state,
@@ -101,13 +101,13 @@ describe("executeSupersedeWrites", () => {
       0
     )
 
-    // #then
+    // then
     expect(pruned).toBe(0)
     expect(state.toolPruneActions.size).toBe(0)
   })
 
   test("aggressive mode prunes write input when ANY file is read later", () => {
-    // #given: write x.txt then read y.txt
+    // given: write x.txt then read y.txt
     spyOn(shared, "readMessages").mockReturnValue([
       {
         parts: [
@@ -133,7 +133,7 @@ describe("executeSupersedeWrites", () => {
       },
     ] as any)
 
-    // #when
+    // when
     const pruned = executeSupersedeWrites(
       sessionID,
       state,
@@ -142,7 +142,7 @@ describe("executeSupersedeWrites", () => {
       0
     )
 
-    // #then
+    // then
     expect(pruned).toBe(1)
     expect(state.toolPruneActions.get("w1")?.pruneInput).toBe(true)
     expect(state.toolPruneActions.get("w1")?.pruneOutput).toBe(false)

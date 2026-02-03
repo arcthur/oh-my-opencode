@@ -50,7 +50,7 @@ function createTask(overrides: Partial<BackgroundTask> = {}): BackgroundTask {
 
 describe("background_output full_session", () => {
   test("includes thinking and tool results when enabled", async () => {
-    // #given
+    // given
     const task = createTask()
     const manager = createMockManager(task)
     const client = createMockClient({
@@ -76,7 +76,7 @@ describe("background_output full_session", () => {
     })
     const tool = createBackgroundOutput(manager, client)
 
-    // #when
+    // when
     const output = await tool.execute({
       task_id: "task-1",
       full_session: true,
@@ -84,14 +84,14 @@ describe("background_output full_session", () => {
       include_tool_results: true,
     }, mockContext)
 
-    // #then
+    // then
     expect(output).toContain("thinking text")
     expect(output).toContain("reasoning text")
     expect(output).toContain("tool output")
   })
 
   test("respects since_message_id exclusive filtering", async () => {
-    // #given
+    // given
     const task = createTask()
     const manager = createMockManager(task)
     const client = createMockClient({
@@ -110,20 +110,20 @@ describe("background_output full_session", () => {
     })
     const tool = createBackgroundOutput(manager, client)
 
-    // #when
+    // when
     const output = await tool.execute({
       task_id: "task-1",
       full_session: true,
       since_message_id: "m1",
     }, mockContext)
 
-    // #then
+    // then
     expect(output.includes("hello")).toBe(false)
     expect(output).toContain("after")
   })
 
   test("returns error when since_message_id not found", async () => {
-    // #given
+    // given
     const task = createTask()
     const manager = createMockManager(task)
     const client = createMockClient({
@@ -137,19 +137,19 @@ describe("background_output full_session", () => {
     })
     const tool = createBackgroundOutput(manager, client)
 
-    // #when
+    // when
     const output = await tool.execute({
       task_id: "task-1",
       full_session: true,
       since_message_id: "missing",
     }, mockContext)
 
-    // #then
+    // then
     expect(output).toContain("since_message_id not found")
   })
 
   test("caps message_limit at 100", async () => {
-    // #given
+    // given
     const task = createTask()
     const manager = createMockManager(task)
     const messages = Array.from({ length: 120 }, (_, index) => ({
@@ -163,35 +163,35 @@ describe("background_output full_session", () => {
     const client = createMockClient({ "ses-1": messages })
     const tool = createBackgroundOutput(manager, client)
 
-    // #when
+    // when
     const output = await tool.execute({
       task_id: "task-1",
       full_session: true,
       message_limit: 200,
     }, mockContext)
 
-    // #then
+    // then
     expect(output).toContain("Returned: 100")
     expect(output).toContain("Has more: true")
   })
 
   test("keeps legacy status output when full_session is false", async () => {
-    // #given
+    // given
     const task = createTask({ status: "running" })
     const manager = createMockManager(task)
     const client = createMockClient({})
     const tool = createBackgroundOutput(manager, client)
 
-    // #when
+    // when
     const output = await tool.execute({ task_id: "task-1" }, mockContext)
 
-    // #then
+    // then
     expect(output).toContain("# Task Status")
     expect(output).toContain("Task ID")
   })
 
   test("truncates thinking content to thinking_max_chars", async () => {
-    // #given
+    // given
     const longThinking = "x".repeat(500)
     const task = createTask()
     const manager = createMockManager(task)
@@ -209,7 +209,7 @@ describe("background_output full_session", () => {
     })
     const tool = createBackgroundOutput(manager, client)
 
-    // #when
+    // when
     const output = await tool.execute({
       task_id: "task-1",
       full_session: true,
@@ -217,13 +217,13 @@ describe("background_output full_session", () => {
       thinking_max_chars: 100,
     }, mockContext)
 
-    // #then
+    // then
     expect(output).toContain("[thinking] " + "x".repeat(100) + "...")
     expect(output).not.toContain("x".repeat(200))
   })
 
   test("uses default 2000 chars when thinking_max_chars not provided", async () => {
-    // #given
+    // given
     const longThinking = "y".repeat(2500)
     const task = createTask()
     const manager = createMockManager(task)
@@ -241,14 +241,14 @@ describe("background_output full_session", () => {
     })
     const tool = createBackgroundOutput(manager, client)
 
-    // #when
+    // when
     const output = await tool.execute({
       task_id: "task-1",
       full_session: true,
       include_thinking: true,
     }, mockContext)
 
-    // #then
+    // then
     expect(output).toContain("[thinking] " + "y".repeat(2000) + "...")
     expect(output).not.toContain("y".repeat(2100))
   })

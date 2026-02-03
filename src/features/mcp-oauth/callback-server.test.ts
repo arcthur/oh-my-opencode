@@ -3,29 +3,29 @@ import { findAvailablePort, startCallbackServer, type CallbackServer } from "./c
 
 describe("findAvailablePort", () => {
   it("returns the start port when it is available", async () => {
-    //#given
+    // given
     const startPort = 19877
 
-    //#when
+    // when
     const port = await findAvailablePort(startPort)
 
-    //#then
+    // then
     expect(port).toBeGreaterThanOrEqual(startPort)
     expect(port).toBeLessThan(startPort + 20)
   })
 
   it("skips busy ports and returns next available", async () => {
-    //#given
+    // given
     const blocker = Bun.serve({
       port: 19877,
       hostname: "127.0.0.1",
       fetch: () => new Response(),
     })
 
-    //#when
+    // when
     const port = await findAvailablePort(19877)
 
-    //#then
+    // then
     expect(port).toBeGreaterThan(19877)
     blocker.stop(true)
   })
@@ -40,28 +40,28 @@ describe("startCallbackServer", () => {
   })
 
   it("starts server and returns port", async () => {
-    //#given - no preconditions
+    // given - no preconditions
 
-    //#when
+    // when
     server = await startCallbackServer()
 
-    //#then
+    // then
     expect(server.port).toBeGreaterThanOrEqual(19877)
     expect(typeof server.waitForCallback).toBe("function")
     expect(typeof server.close).toBe("function")
   })
 
   it("resolves callback with code and state from query params", async () => {
-    //#given
+    // given
     server = await startCallbackServer()
     const callbackUrl = `http://127.0.0.1:${server.port}/oauth/callback?code=test-code&state=test-state`
 
-    //#when
+    // when
     const fetchPromise = fetch(callbackUrl)
     const result = await server.waitForCallback()
     const response = await fetchPromise
 
-    //#then
+    // then
     expect(result).toEqual({ code: "test-code", state: "test-state" })
     expect(response.status).toBe(200)
     const html = await response.text()
@@ -69,25 +69,25 @@ describe("startCallbackServer", () => {
   })
 
   it("returns 404 for non-callback routes", async () => {
-    //#given
+    // given
     server = await startCallbackServer()
 
-    //#when
+    // when
     const response = await fetch(`http://127.0.0.1:${server.port}/other`)
 
-    //#then
+    // then
     expect(response.status).toBe(404)
   })
 
   it("returns 400 and rejects when code is missing", async () => {
-    //#given
+    // given
     server = await startCallbackServer()
     const callbackRejection = server.waitForCallback().catch((e: Error) => e)
 
-    //#when
+    // when
     const response = await fetch(`http://127.0.0.1:${server.port}/oauth/callback?state=s`)
 
-    //#then
+    // then
     expect(response.status).toBe(400)
     const error = await callbackRejection
     expect(error).toBeInstanceOf(Error)
@@ -95,14 +95,14 @@ describe("startCallbackServer", () => {
   })
 
   it("returns 400 and rejects when state is missing", async () => {
-    //#given
+    // given
     server = await startCallbackServer()
     const callbackRejection = server.waitForCallback().catch((e: Error) => e)
 
-    //#when
+    // when
     const response = await fetch(`http://127.0.0.1:${server.port}/oauth/callback?code=c`)
 
-    //#then
+    // then
     expect(response.status).toBe(400)
     const error = await callbackRejection
     expect(error).toBeInstanceOf(Error)
@@ -110,15 +110,15 @@ describe("startCallbackServer", () => {
   })
 
   it("close stops the server immediately", async () => {
-    //#given
+    // given
     server = await startCallbackServer()
     const port = server.port
 
-    //#when
+    // when
     server.close()
     server = null
 
-    //#then
+    // then
     try {
       await fetch(`http://127.0.0.1:${port}/oauth/callback?code=c&state=s`)
       expect(true).toBe(false)

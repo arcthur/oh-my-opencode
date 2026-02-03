@@ -27,7 +27,7 @@ describe("DCP turn protection", () => {
   })
 
   test("deduplication does not prune within last N turns", () => {
-    // #given: duplicates only in protected turns (3 and 4)
+    // given: duplicates only in protected turns (3 and 4)
     spyOn(shared, "readMessages").mockReturnValue([
       { parts: [{ type: "step-start" }, { type: "tool", callID: "c1", tool: "read", state: { input: { filePath: "a" }, output: "x" } }] },
       { parts: [{ type: "step-start" }, { type: "tool", callID: "c2", tool: "read", state: { input: { filePath: "b" }, output: "y" } }] },
@@ -35,16 +35,16 @@ describe("DCP turn protection", () => {
       { parts: [{ type: "step-start" }, { type: "tool", callID: "c4", tool: "read", state: { input: { filePath: "dup" }, output: "new" } }] },
     ] as any)
 
-    // #when
+    // when
     const pruned = executeDeduplication(sessionID, state, { enabled: true }, protectedTools, 2)
 
-    // #then
+    // then
     expect(pruned).toBe(0)
     expect(state.toolPruneActions.size).toBe(0)
   })
 
   test("clear-results keeps at least the protected turns", () => {
-    // #given: 4 turns, keep_recent_turns=1 but protect last 2 turns
+    // given: 4 turns, keep_recent_turns=1 but protect last 2 turns
     spyOn(shared, "readMessages").mockReturnValue([
       { parts: [{ type: "step-start" }, { type: "tool", callID: "c1", tool: "grep", state: { input: {}, output: "turn1" } }] },
       { parts: [{ type: "step-start" }, { type: "tool", callID: "c2", tool: "grep", state: { input: {}, output: "turn2" } }] },
@@ -52,10 +52,10 @@ describe("DCP turn protection", () => {
       { parts: [{ type: "step-start" }, { type: "tool", callID: "c4", tool: "grep", state: { input: {}, output: "turn4" } }] },
     ] as any)
 
-    // #when
+    // when
     const pruned = executeClearResults(sessionID, state, { enabled: true, keep_recent_turns: 1 }, protectedTools, 2)
 
-    // #then: only turn 1 is prunable (turns 3 and 4 protected; turn 2 kept via effective keep)
+    // then: only turn 1 is prunable (turns 3 and 4 protected; turn 2 kept via effective keep)
     expect(pruned).toBe(1)
     expect(state.toolPruneActions.get("c1")?.pruneOutput).toBe(true)
     expect(state.toolPruneActions.get("c1")?.pruneInput).toBe(false)
@@ -65,7 +65,7 @@ describe("DCP turn protection", () => {
   })
 
   test("supersede-writes does not prune within last N turns", () => {
-    // #given: write in turn 3 superseded by read in turn 4
+    // given: write in turn 3 superseded by read in turn 4
     spyOn(shared, "readMessages").mockReturnValue([
       { parts: [{ type: "step-start" }] },
       { parts: [{ type: "step-start" }] },
@@ -73,16 +73,16 @@ describe("DCP turn protection", () => {
       { parts: [{ type: "step-start" }, { type: "tool", callID: "r1", tool: "read", state: { input: { filePath: "x.txt" }, output: "contents" } }] },
     ] as any)
 
-    // #when
+    // when
     const pruned = executeSupersedeWrites(sessionID, state, { enabled: true, aggressive: true }, protectedTools, 2)
 
-    // #then
+    // then
     expect(pruned).toBe(0)
     expect(state.toolPruneActions.has("w1")).toBe(false)
   })
 
   test("purge-errors does not prune within last N turns", () => {
-    // #given: error in turn 3 would be eligible by age, but is protected
+    // given: error in turn 3 would be eligible by age, but is protected
     spyOn(shared, "readMessages").mockReturnValue([
       { parts: [{ type: "step-start" }] },
       { parts: [{ type: "step-start" }] },
@@ -90,10 +90,10 @@ describe("DCP turn protection", () => {
       { parts: [{ type: "step-start" }] },
     ] as any)
 
-    // #when
+    // when
     const pruned = executePurgeErrors(sessionID, state, { enabled: true, turns: 1 }, protectedTools, 2)
 
-    // #then
+    // then
     expect(pruned).toBe(0)
     expect(state.toolPruneActions.has("e1")).toBe(false)
   })

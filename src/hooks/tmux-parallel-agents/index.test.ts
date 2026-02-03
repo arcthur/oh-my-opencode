@@ -30,7 +30,7 @@ describe("tmux-parallel-agents hook", () => {
 
   describe("environment detection", () => {
     test("disables when not in tmux", async () => {
-      // #given
+      // given
       delete process.env.TMUX
       mockExecSync.mockImplementation(() => "/usr/bin/tmux")
 
@@ -38,13 +38,13 @@ describe("tmux-parallel-agents hook", () => {
       const { createTmuxParallelAgentsHook } = await import("./index")
       const hook = createTmuxParallelAgentsHook(createMockCtx())
 
-      // #then - should return no-op handlers
+      // then - should return no-op handlers
       expect(hook["tool.execute.before"]).toBeDefined()
       expect(hook.event).toBeDefined()
     })
 
     test("disables when tmux binary not found", async () => {
-      // #given
+      // given
       process.env.TMUX = "/some/path"
       mockExecSync.mockImplementation((cmd: string) => {
         if (cmd === "which tmux") throw new Error("not found")
@@ -55,7 +55,7 @@ describe("tmux-parallel-agents hook", () => {
       const { createTmuxParallelAgentsHook } = await import("./index")
       const hook = createTmuxParallelAgentsHook(createMockCtx())
 
-      // #then
+      // then
       expect(hook["tool.execute.before"]).toBeDefined()
     })
   })

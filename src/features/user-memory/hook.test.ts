@@ -30,7 +30,7 @@ describe("createUserMemoryHook", () => {
   })
 
   test("BM25 index uses most recent 20 work history entries (not oldest)", async () => {
-    // #given
+    // given
     const now = 1_700_000_000_000
     spyOn(Date, "now").mockReturnValue(now)
 
@@ -64,10 +64,10 @@ describe("createUserMemoryHook", () => {
       embeddings: { enabled: true, provider: "local", cache_enabled: false, batch_size: 20 },
     })
 
-    // #when
+    // when
     await hook.event({ event: { type: "session.deleted", properties: { info: { id: "s1" } } } } as never)
 
-    // #then
+    // then
     expect(buildBM25Spy).toHaveBeenCalled()
     const docs = buildBM25Spy.mock.calls[0]?.[0] as Array<{ id: string; text: string }>
     const historyDocs = docs.filter((d) => d.id.startsWith("history:"))
@@ -82,7 +82,7 @@ describe("createUserMemoryHook", () => {
   })
 
   test("when provider fallback is used, saved cache metadata matches actual provider", async () => {
-    // #given
+    // given
     const now = 1_700_000_000_000
     spyOn(Date, "now").mockReturnValue(now)
 
@@ -117,10 +117,10 @@ describe("createUserMemoryHook", () => {
       embeddings: { enabled: true, provider: "openai", cache_enabled: false, batch_size: 20, openai_model: "text-embedding-3-small" },
     })
 
-    // #when
+    // when
     await hook.event({ event: { type: "session.deleted", properties: { info: { id: "s1" } } } } as never)
 
-    // #then
+    // then
     expect(saveCacheSpy).toHaveBeenCalled()
     const savedEmbeddings = saveCacheSpy.mock.calls[0]?.[0] as { provider: string; model: string; dimension: number }
     expect(savedEmbeddings.provider).toBe("local")
@@ -128,7 +128,7 @@ describe("createUserMemoryHook", () => {
   })
 
   test("injects context-aware relevant memory on user prompt when embeddings enabled", async () => {
-    // #given
+    // given
     const mockCollector = {
       register: mock(() => {}),
       resetOncePerSession: mock(() => {}),
@@ -145,13 +145,13 @@ describe("createUserMemoryHook", () => {
       { collector: mockCollector as never }
     )
 
-    // #when
+    // when
     await hook["user.prompt.submit"]({
       sessionID: "s1",
       message: { role: "user", content: "We are working on user-memory embeddings scoring." },
     } as never)
 
-    // #then
+    // then
     const calls = mockCollector.register.mock.calls as unknown as Array<
       [string, { id: string; source: string; content: string; priority?: string; oncePerSession?: boolean }]
     >
@@ -167,7 +167,7 @@ describe("createUserMemoryHook", () => {
   })
 
   test("registers memory context with collector (once per session)", async () => {
-    // #given
+    // given
     const mockCollector = {
       register: mock(() => {}),
       resetOncePerSession: mock(() => {}),
@@ -177,11 +177,11 @@ describe("createUserMemoryHook", () => {
     const input = { tool: "Read", sessionID: "s1", callID: "c1" }
     const output = {}
 
-    // #when
+    // when
     await hook["tool.execute.before"]?.(input as never, output as never)
     await hook["tool.execute.before"]?.(input as never, output as never)
 
-    // #then - collector handles once-per-session internally via oncePerSession flag
+    // then - collector handles once-per-session internally via oncePerSession flag
     expect(mockCollector.register).toHaveBeenCalledTimes(2)
     const calls = mockCollector.register.mock.calls as unknown as [string, { source: string; oncePerSession: boolean }][]
     expect(calls[0][1]).toMatchObject({
@@ -191,34 +191,34 @@ describe("createUserMemoryHook", () => {
   })
 
   test("captures declarative remember statements, not imperative remember-to", async () => {
-    // #given
+    // given
     const addExplicitMemorySpy = spyOn(storage, "addExplicitMemory").mockImplementation(() => {})
     const hook = createUserMemoryHook(ctx)
 
-    // #when
+    // when
     await hook["user.prompt.submit"]({ message: { content: "Remember that we prefer bun." } } as never)
     await hook["user.prompt.submit"]({ message: { content: "remember to run tests" } } as never)
 
-    // #then
+    // then
     expect(addExplicitMemorySpy).toHaveBeenCalledTimes(1)
     expect(addExplicitMemorySpy).toHaveBeenCalledWith("we prefer bun.")
   })
 
   test("persists pattern stats on session.compacted and session.deleted", async () => {
-    // #given
+    // given
     const hook = createUserMemoryHook(ctx)
 
-    // #when
+    // when
     await hook.event({ event: { type: "session.compacted", properties: { sessionID: "s1" } } } as never)
     await hook.event({ event: { type: "session.deleted", properties: { info: { id: "s1" } } } } as never)
 
-    // #then
+    // then
     expect(savePatternStatsSpy).toHaveBeenCalledTimes(2)
     expect(aggregateFrequentPatternsSpy).toHaveBeenCalledTimes(2)
   })
 
   test("uses injected summarizer for aggregation prompts", async () => {
-    // #given
+    // given
     const now = 1_700_000_000_000
     spyOn(Date, "now").mockReturnValue(now)
     spyOn(storage, "loadUserMemory").mockReturnValue({
@@ -251,15 +251,15 @@ describe("createUserMemoryHook", () => {
 
     const hook = createUserMemoryHook(ctx, undefined, { summarizer })
 
-    // #when
+    // when
     await hook.event({ event: { type: "session.deleted", properties: { info: { id: "s1" } } } } as never)
 
-    // #then
+    // then
     expect(summarizeSpy).toHaveBeenCalled()
   })
 
   test("augments long-term knowledge with LLM extraction", async () => {
-    // #given
+    // given
     const now = 1_700_000_000_000
     spyOn(Date, "now").mockReturnValue(now)
     spyOn(storage, "loadUserMemory").mockReturnValue({
@@ -309,10 +309,10 @@ describe("createUserMemoryHook", () => {
 
     const hook = createUserMemoryHook(ctx, undefined, { summarizer })
 
-    // #when
+    // when
     await hook.event({ event: { type: "session.deleted", properties: { info: { id: "s1" } } } } as never)
 
-    // #then
+    // then
     const saved = saveSpy.mock.calls[0]?.[0]
     const knowledge = saved?.longTermKnowledge ?? []
     expect(knowledge.some((k: { content?: string }) => k.content === "Write tests early")).toBe(true)

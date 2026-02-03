@@ -4,33 +4,33 @@ import { applyAgentVariant, resolveAgentVariant, resolveVariantForModel } from "
 
 describe("resolveAgentVariant", () => {
   test("returns undefined when agent name missing", () => {
-    // #given
+    // given
     const config = {} as OhMyOpenCodeConfig
 
-    // #when
+    // when
     const variant = resolveAgentVariant(config)
 
-    // #then
+    // then
     expect(variant).toBeUndefined()
   })
 
   test("returns agent override variant", () => {
-    // #given
+    // given
     const config = {
       agents: {
         sisyphus: { variant: "low" },
       },
     } as OhMyOpenCodeConfig
 
-    // #when
+    // when
     const variant = resolveAgentVariant(config, "sisyphus")
 
-    // #then
+    // then
     expect(variant).toBe("low")
   })
 
   test("returns category variant when agent uses category", () => {
-    // #given
+    // given
     const config = {
       agents: {
         sisyphus: { category: "ultrabrain" },
@@ -40,41 +40,41 @@ describe("resolveAgentVariant", () => {
       },
     } as OhMyOpenCodeConfig
 
-    // #when
+    // when
     const variant = resolveAgentVariant(config, "sisyphus")
 
-    // #then
+    // then
     expect(variant).toBe("xhigh")
   })
 })
 
 describe("resolveVariantForModel", () => {
   test("returns undefined when no override and no fallback chain match", () => {
-    // #given
+    // given
     const config = {} as OhMyOpenCodeConfig
     const model = { providerID: "unknown", modelID: "unknown-model" }
 
-    // #when
+    // when
     const variant = resolveVariantForModel(config, "sisyphus", model)
 
-    // #then
+    // then
     expect(variant).toBeUndefined()
   })
 
   test("returns variant from fallback chain when model matches", () => {
-    // #given - sisyphus has claude-opus-4-5 with variant "max" in fallback chain
+    // given - sisyphus has claude-opus-4-5 with variant "max" in fallback chain
     const config = {} as OhMyOpenCodeConfig
     const model = { providerID: "anthropic", modelID: "claude-opus-4-5" }
 
-    // #when
+    // when
     const variant = resolveVariantForModel(config, "sisyphus", model)
 
-    // #then
+    // then
     expect(variant).toBe("max")
   })
 
   test("user override variant takes precedence over fallback chain default", () => {
-    // #given - sisyphus has claude-opus-4-5 with "max" variant by default
+    // given - sisyphus has claude-opus-4-5 with "max" variant by default
     // but user overrides with "high"
     const config = {
       agents: {
@@ -83,15 +83,15 @@ describe("resolveVariantForModel", () => {
     } as OhMyOpenCodeConfig
     const model = { providerID: "anthropic", modelID: "claude-opus-4-5" }
 
-    // #when
+    // when
     const variant = resolveVariantForModel(config, "sisyphus", model)
 
-    // #then - user's "high" override takes precedence over fallback chain's "max"
+    // then - user's "high" override takes precedence over fallback chain's "max"
     expect(variant).toBe("high")
   })
 
   test("case-insensitive agent name lookup", () => {
-    // #given
+    // given
     const config = {
       agents: {
         Sisyphus: { variant: "low" },
@@ -99,17 +99,17 @@ describe("resolveVariantForModel", () => {
     } as OhMyOpenCodeConfig
     const model = { providerID: "anthropic", modelID: "claude-opus-4-5" }
 
-    // #when - using lowercase agent name
+    // when - using lowercase agent name
     const variant = resolveVariantForModel(config, "sisyphus", model)
 
-    // #then
+    // then
     expect(variant).toBe("low")
   })
 })
 
 describe("applyAgentVariant", () => {
   test("sets variant when message is undefined", () => {
-    // #given
+    // given
     const config = {
       agents: {
         sisyphus: { variant: "low" },
@@ -117,15 +117,15 @@ describe("applyAgentVariant", () => {
     } as OhMyOpenCodeConfig
     const message: { variant?: string } = {}
 
-    // #when
+    // when
     applyAgentVariant(config, "sisyphus", message)
 
-    // #then
+    // then
     expect(message.variant).toBe("low")
   })
 
   test("does not override existing variant", () => {
-    // #given
+    // given
     const config = {
       agents: {
         sisyphus: { variant: "low" },
@@ -133,10 +133,10 @@ describe("applyAgentVariant", () => {
     } as OhMyOpenCodeConfig
     const message = { variant: "max" }
 
-    // #when
+    // when
     applyAgentVariant(config, "sisyphus", message)
 
-    // #then
+    // then
     expect(message.variant).toBe("max")
   })
 })

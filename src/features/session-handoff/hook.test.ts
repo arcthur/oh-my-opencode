@@ -56,7 +56,7 @@ describe("session-handoff hook", () => {
   })
 
   test("re-injects handoff context after session.compacted", async () => {
-    //#given
+    // given
     const register = mock(() => {})
     const hook = createSessionHandoffHook({
       config: { ...DEFAULT_HANDOFF_CONFIG, auto_extract: false },
@@ -67,32 +67,32 @@ describe("session-handoff hook", () => {
 
     const sessionID = "session-1"
 
-    //#when - first prompt triggers injection
+    // when - first prompt triggers injection
     await hook["user.prompt.submit"]?.({
       sessionID,
       parts: [{ type: "text", text: "hello" }],
     })
 
-    //#then
+    // then
     expect(register).toHaveBeenCalledTimes(1)
 
-    //#when - second prompt does not re-inject
+    // when - second prompt does not re-inject
     await hook["user.prompt.submit"]?.({
       sessionID,
       parts: [{ type: "text", text: "hello again" }],
     })
 
-    //#then
+    // then
     expect(register).toHaveBeenCalledTimes(1)
 
-    //#when - compaction resets injection tracking
+    // when - compaction resets injection tracking
     await hook.event?.({ event: { type: "session.compacted", properties: { sessionID } } })
     await hook["user.prompt.submit"]?.({
       sessionID,
       parts: [{ type: "text", text: "after compact" }],
     })
 
-    //#then - re-injected
+    // then - re-injected
     expect(register).toHaveBeenCalledTimes(2)
     const lastCall = register.mock.calls[1]
     expect(lastCall?.[0]).toBe(sessionID)
@@ -103,7 +103,7 @@ describe("session-handoff hook", () => {
     const storage = require("./storage")
     storage.findHandoffsForProject.mockReturnValueOnce([])
 
-    // #given
+    // given
     const hook = createSessionHandoffHook({
       config: { ...DEFAULT_HANDOFF_CONFIG, auto_extract: false },
       cwd: "/project",
@@ -112,10 +112,10 @@ describe("session-handoff hook", () => {
 
     const output = { parts: [{ type: "text", text: "/handoff" }] }
 
-    // #when
+    // when
     await hook["chat.message"]?.({ sessionID: "session-1" }, output)
 
-    // #then
+    // then
     expect(storage.findHandoffsForProject).toHaveBeenCalledWith("/project")
     expect(output.parts[0]?.text).toContain("No handoffs found")
     expect(output.parts[0]?.text).toContain("<session-handoff-result>")
@@ -137,7 +137,7 @@ describe("session-handoff hook", () => {
       },
     ])
 
-    // #given
+    // given
     const hook = createSessionHandoffHook({
       config: { ...DEFAULT_HANDOFF_CONFIG, auto_extract: false },
       cwd: "/project",
@@ -146,10 +146,10 @@ describe("session-handoff hook", () => {
 
     const output = { parts: [{ type: "text", text: "/handoff list" }] }
 
-    // #when
+    // when
     await hook["chat.message"]?.({ sessionID: "session-1" }, output)
 
-    // #then
+    // then
     expect(storage.findHandoffsForProject).toHaveBeenCalledWith("/project")
     expect(output.parts[0]?.text).toContain("## Session Handoffs")
     expect(output.parts[0]?.text).toContain("Test goal")
@@ -157,7 +157,7 @@ describe("session-handoff hook", () => {
   })
 
   test("retries extraction on session.deleted when async idle extraction fails", async () => {
-    // #given
+    // given
     const storage = require("./storage")
     let saved = false
     storage.findHandoffBySessionId.mockImplementation(() => (saved ? { id: "ho_test_0" } : null))
@@ -190,7 +190,7 @@ describe("session-handoff hook", () => {
 
     const sessionID = "session-async-extract"
 
-    // #when - capture enough state to trigger extraction
+    // when - capture enough state to trigger extraction
     await hook["user.prompt.submit"]?.({
       sessionID,
       parts: [{ type: "text", text: "hello" }],
@@ -201,13 +201,13 @@ describe("session-handoff hook", () => {
       { output: "ok", metadata: { success: true, args: { file_path: "src/foo.ts" } } }
     )
 
-    // #when - idle kicks off async extraction (first attempt fails)
+    // when - idle kicks off async extraction (first attempt fails)
     await hook.event?.({ event: { type: "session.idle", properties: { sessionID } } })
 
-    // #when - session.deleted awaits in-flight task and retries extraction
+    // when - session.deleted awaits in-flight task and retries extraction
     await hook.event?.({ event: { type: "session.deleted", properties: { info: { id: sessionID } } } })
 
-    // #then
+    // then
     expect(storage.saveHandoff).toHaveBeenCalledTimes(2)
   })
 })

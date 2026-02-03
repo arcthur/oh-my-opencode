@@ -4,19 +4,19 @@ import { extractEntitiesFromText, extractEntitiesFromWeeklySummary } from "./ent
 
 describe("entity-extraction", () => {
   test("extracts concept entities from explicit patterns", () => {
-    //#given
+    // given
     const text = "Pattern: Dependency Injection improves testability."
 
-    //#when
+    // when
     const entities = extractEntitiesFromText(text, 1_700_000_000_000)
 
-    //#then
+    // then
     const concept = entities.find((e) => e.type === "concept")
     expect(concept?.name.startsWith("Dependency Injection")).toBe(true)
   })
 
   test("marks weekly summary entities as L1 with sourceId", () => {
-    //#given
+    // given
     const weekly: WeeklySummary = {
       weekStart: 1_700_000_000_000,
       weekEnd: 1_700_000_000_000 + 6 * 24 * 60 * 60 * 1000,
@@ -28,10 +28,10 @@ describe("entity-extraction", () => {
       entryCount: 3,
     }
 
-    //#when
+    // when
     const entities = extractEntitiesFromWeeklySummary(weekly)
 
-    //#then
+    // then
     expect(entities.length).toBeGreaterThan(0)
     const l1Mentions = entities.filter((e) => e.mention.source === "L1")
     expect(l1Mentions.length).toBeGreaterThan(0)

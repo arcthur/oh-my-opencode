@@ -53,7 +53,7 @@ describe("createContextWindowMonitorHook", () => {
   // #region tool.execute.after
   describe("tool.execute.after", () => {
     test("does nothing for already reminded sessions", async () => {
-      // #given: Anthropic session at 80% usage
+      // given: Anthropic session at 80% usage
       const highUsageTokens: MockTokens = {
         input: 160000, // 80% of 200K
         output: 1000,
@@ -71,16 +71,16 @@ describe("createContextWindowMonitorHook", () => {
       await hook["tool.execute.after"](input, output1)
       expect(output1.output).toContain("SYSTEM REMINDER")
 
-      // #when: Second call to same session
+      // when: Second call to same session
       const output2 = createToolOutput()
       await hook["tool.execute.after"](input, output2)
 
-      // #then: Should not inject again
+      // then: Should not inject again
       expect(output2.output).toBe("test output")
     })
 
     test("does nothing when no assistant messages", async () => {
-      // #given: Session with no assistant messages
+      // given: Session with no assistant messages
       const mockCtx = createMockCtx({
         data: [createMockMessage("user")],
       })
@@ -88,15 +88,15 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after
+      // when: Call tool.execute.after
       await hook["tool.execute.after"](input, output)
 
-      // #then: Output unchanged
+      // then: Output unchanged
       expect(output.output).toBe("test output")
     })
 
     test("does nothing for non-anthropic providers", async () => {
-      // #given: Non-anthropic provider at high usage
+      // given: Non-anthropic provider at high usage
       const highUsageTokens: MockTokens = {
         input: 160000,
         output: 1000,
@@ -110,10 +110,10 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after
+      // when: Call tool.execute.after
       await hook["tool.execute.after"](input, output)
 
-      // #then: Output unchanged (non-anthropic provider)
+      // then: Output unchanged (non-anthropic provider)
       expect(output.output).toBe("test output")
     })
 
@@ -121,7 +121,7 @@ describe("createContextWindowMonitorHook", () => {
     // Note: session reminded state is covered by "complete flow" chain test
 
     test("calculates usage based on input + cache.read tokens", async () => {
-      // #given: Session with cache reads contributing to usage
+      // given: Session with cache reads contributing to usage
       // 100K input + 50K cache.read = 150K total (75% of 200K, above 70% threshold)
       const tokensWithCache: MockTokens = {
         input: 100000,
@@ -136,15 +136,15 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after
+      // when: Call tool.execute.after
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should inject reminder (100K + 50K = 150K, 75% usage)
+      // then: Should inject reminder (100K + 50K = 150K, 75% usage)
       expect(output.output).toContain("SYSTEM REMINDER")
     })
 
     test("handles API errors gracefully", async () => {
-      // #given: API that throws error
+      // given: API that throws error
       const mockCtx = {
         directory: "/test/project",
         client: {
@@ -160,15 +160,15 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after
+      // when: Call tool.execute.after
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not throw, output unchanged
+      // then: Should not throw, output unchanged
       expect(output.output).toBe("test output")
     })
 
     test("uses only the last assistant message tokens", async () => {
-      // #given: Multiple assistant messages with different token counts
+      // given: Multiple assistant messages with different token counts
       const lowUsageTokens: MockTokens = {
         input: 50000,
         output: 1000,
@@ -191,15 +191,15 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after
+      // when: Call tool.execute.after
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should use last message tokens (high usage), inject reminder
+      // then: Should use last message tokens (high usage), inject reminder
       expect(output.output).toContain("SYSTEM REMINDER")
     })
 
     test("handles messages without tokens gracefully", async () => {
-      // #given: Assistant message without tokens
+      // given: Assistant message without tokens
       const mockCtx = createMockCtx({
         data: [createMockMessage("assistant", "anthropic", undefined)],
       })
@@ -207,15 +207,15 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after
+      // when: Call tool.execute.after
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not throw, output unchanged (0 tokens = below threshold)
+      // then: Should not throw, output unchanged (0 tokens = below threshold)
       expect(output.output).toBe("test output")
     })
 
     test("handles response without data property", async () => {
-      // #given: API returns array directly (no data wrapper)
+      // given: API returns array directly (no data wrapper)
       const highUsageTokens: MockTokens = {
         input: 160000,
         output: 1000,
@@ -229,10 +229,10 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after
+      // when: Call tool.execute.after
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should still work and inject reminder
+      // then: Should still work and inject reminder
       expect(output.output).toContain("SYSTEM REMINDER")
     })
   })
@@ -243,7 +243,7 @@ describe("createContextWindowMonitorHook", () => {
   describe("event handling", () => {
     describe("session.deleted", () => {
       test("handles missing or undefined properties gracefully", async () => {
-        // #given: Hook with tracked session
+        // given: Hook with tracked session
         const highUsageTokens: MockTokens = {
           input: 160000,
           output: 1000,
@@ -262,7 +262,7 @@ describe("createContextWindowMonitorHook", () => {
         await hook["tool.execute.after"](input, output)
         expect(output.output).toContain("SYSTEM REMINDER")
 
-        // #when: Event with empty properties
+        // when: Event with empty properties
         await hook.event({
           event: {
             type: "session.deleted",
@@ -278,7 +278,7 @@ describe("createContextWindowMonitorHook", () => {
           },
         })
 
-        // #then: Session state should be unaffected (no valid sessionID to delete)
+        // then: Session state should be unaffected (no valid sessionID to delete)
         const output2 = createToolOutput()
         await hook["tool.execute.after"](input, output2)
         expect(output2.output).toBe("test output") // Still blocked
@@ -286,7 +286,7 @@ describe("createContextWindowMonitorHook", () => {
     })
 
     test("ignores unknown event types", async () => {
-      // #given: Hook with high usage session
+      // given: Hook with high usage session
       const highUsageTokens: MockTokens = {
         input: 160000,
         output: 1000,
@@ -305,7 +305,7 @@ describe("createContextWindowMonitorHook", () => {
       await hook["tool.execute.after"](input, output1)
       expect(output1.output).toContain("SYSTEM REMINDER")
 
-      // #when: Unknown event
+      // when: Unknown event
       await hook.event({
         event: {
           type: "session.unknown",
@@ -313,7 +313,7 @@ describe("createContextWindowMonitorHook", () => {
         },
       })
 
-      // #then: State should be preserved (unknown event ignored)
+      // then: State should be preserved (unknown event ignored)
       // Second call should still be blocked
       const output2 = createToolOutput()
       await hook["tool.execute.after"](input, output2)
@@ -325,7 +325,7 @@ describe("createContextWindowMonitorHook", () => {
   // #region complex state transitions
   describe("complex state transitions", () => {
     test("complete flow: remind → session.deleted → re-remind", async () => {
-      // #given: High usage session
+      // given: High usage session
       const highUsageTokens: MockTokens = {
         input: 160000,
         output: 1000,
@@ -361,7 +361,7 @@ describe("createContextWindowMonitorHook", () => {
     })
 
     test("multiple sessions independent lifecycle", async () => {
-      // #given: High usage
+      // given: High usage
       const highUsageTokens: MockTokens = {
         input: 160000,
         output: 1000,
@@ -373,7 +373,7 @@ describe("createContextWindowMonitorHook", () => {
       })
       const hook = createContextWindowMonitorHook(mockCtx)
 
-      // #when: Both sessions get reminded
+      // when: Both sessions get reminded
       const inputA = createToolInput("Read", "session-A")
       const outputA = createToolOutput()
       await hook["tool.execute.after"](inputA, outputA)
@@ -387,7 +387,7 @@ describe("createContextWindowMonitorHook", () => {
         event: { type: "session.deleted", properties: { info: { id: "session-A" } } },
       })
 
-      // #then: A can be reminded again, B still blocked
+      // then: A can be reminded again, B still blocked
       const outputA2 = createToolOutput()
       await hook["tool.execute.after"](inputA, outputA2)
       expect(outputA2.output).toContain("SYSTEM REMINDER")
@@ -402,7 +402,7 @@ describe("createContextWindowMonitorHook", () => {
   // #region boundary value tests
   describe("boundary value tests", () => {
     test("exactly at 70% threshold triggers reminder", async () => {
-      // #given: Exactly 70% of 200K = 140K tokens
+      // given: Exactly 70% of 200K = 140K tokens
       const tokens70Percent: MockTokens = {
         input: 140000,
         output: 0,
@@ -416,15 +416,15 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when
+      // when
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should trigger (at threshold)
+      // then: Should trigger (at threshold)
       expect(output.output).toContain("SYSTEM REMINDER")
     })
 
     test("just below 70% threshold does not trigger", async () => {
-      // #given: 139,999 tokens (just under 70%)
+      // given: 139,999 tokens (just under 70%)
       const tokensJustUnder: MockTokens = {
         input: 139999,
         output: 0,
@@ -438,15 +438,15 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when
+      // when
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not trigger
+      // then: Should not trigger
       expect(output.output).toBe("test output")
     })
 
     test("cache.read contributes to threshold calculation", async () => {
-      // #given: 100K input + 40K cache.read = 140K (exactly 70%)
+      // given: 100K input + 40K cache.read = 140K (exactly 70%)
       const tokensWithCache: MockTokens = {
         input: 100000,
         output: 0,
@@ -460,10 +460,10 @@ describe("createContextWindowMonitorHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when
+      // when
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should trigger (cache.read adds to total)
+      // then: Should trigger (cache.read adds to total)
       expect(output.output).toContain("SYSTEM REMINDER")
     })
   })
@@ -472,7 +472,7 @@ describe("createContextWindowMonitorHook", () => {
   // #region different sessions
   describe("different sessions", () => {
     test("tracks sessions independently", async () => {
-      // #given: High usage tokens
+      // given: High usage tokens
       const highUsageTokens: MockTokens = {
         input: 160000,
         output: 1000,
@@ -484,7 +484,7 @@ describe("createContextWindowMonitorHook", () => {
       })
       const hook = createContextWindowMonitorHook(mockCtx)
 
-      // #when: Call for different sessions
+      // when: Call for different sessions
       const inputA = createToolInput("Read", "session-A")
       const outputA = createToolOutput()
       await hook["tool.execute.after"](inputA, outputA)
@@ -493,7 +493,7 @@ describe("createContextWindowMonitorHook", () => {
       const outputB = createToolOutput()
       await hook["tool.execute.after"](inputB, outputB)
 
-      // #then: Both should get reminder (independent sessions)
+      // then: Both should get reminder (independent sessions)
       expect(outputA.output).toContain("SYSTEM REMINDER")
       expect(outputB.output).toContain("SYSTEM REMINDER")
     })

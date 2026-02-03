@@ -38,17 +38,17 @@ describe("createRuntimeTrackerHook", () => {
   // #region configuration
   describe("configuration", () => {
     test("disabled hook does not track anything", async () => {
-      // #given: Disabled config
+      // given: Disabled config
       const hook = createRuntimeTrackerHook(mockCtx, { enabled: false })
 
-      // #when: Execute tool
+      // when: Execute tool
       const input = createToolInput("Grep")
       const output = createToolOutput()
 
       await hook["tool.execute.before"](input, {})
       await hook["tool.execute.after"](input, output)
 
-      // #then: Output should not be modified (no tracking)
+      // then: Output should not be modified (no tracking)
       expect(output.output).toBe("test output")
     })
   })
@@ -57,7 +57,7 @@ describe("createRuntimeTrackerHook", () => {
   // #region tool.execute.after
   describe("tool.execute.after", () => {
     test("calculates duration and updates stats", async () => {
-      // #given: Hook with low threshold for testing
+      // given: Hook with low threshold for testing
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 1,
         inject_hints: false,
@@ -65,16 +65,16 @@ describe("createRuntimeTrackerHook", () => {
       const input = createToolInput("Grep")
       const output = createToolOutput()
 
-      // #when: Execute tool sequence
+      // when: Execute tool sequence
       await hook["tool.execute.before"](input, {})
       await hook["tool.execute.after"](input, output)
 
-      // #then: Stats should be tracked (we can't directly inspect, but no error)
+      // then: Stats should be tracked (we can't directly inspect, but no error)
       expect(output.output).toBe("test output")
     })
 
     test("does not inject hint for fast tools", async () => {
-      // #given: Hook with high threshold
+      // given: Hook with high threshold
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 10000,
         inject_hints: true,
@@ -82,17 +82,17 @@ describe("createRuntimeTrackerHook", () => {
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Execute fast tool
+      // when: Execute fast tool
       await hook["tool.execute.before"](input, {})
       await hook["tool.execute.after"](input, output)
 
-      // #then: Output should not contain runtime hint
+      // then: Output should not contain runtime hint
       expect(output.output).toBe("test output")
       expect(output.output).not.toContain("[Runtime:")
     })
 
     test("injects hint for slow tools exceeding threshold", async () => {
-      // #given: Hook with very low threshold (0ms = always slow)
+      // given: Hook with very low threshold (0ms = always slow)
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
@@ -101,25 +101,25 @@ describe("createRuntimeTrackerHook", () => {
       const input = createToolInput("Grep", "session-1", "call-1")
       const output = createToolOutput()
 
-      // #when: Execute first call
+      // when: Execute first call
       await hook["tool.execute.before"](input, {})
       await new Promise((r) => setTimeout(r, 5)) // Small delay
       await hook["tool.execute.after"](input, output)
 
-      // #then: First call should have basic hint (callCount=1, no avg yet)
+      // then: First call should have basic hint (callCount=1, no avg yet)
       expect(output.output).toContain("[Runtime:")
       expect(output.output).toContain("slow")
     })
 
     test("includes call count in hint message after multiple calls", async () => {
-      // #given: Hook with low threshold
+      // given: Hook with low threshold
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
         hint_cooldown_ms: 0,
       })
 
-      // #when: Execute same tool twice
+      // when: Execute same tool twice
       const input1 = createToolInput("Grep", "session-1", "call-1")
       const output1 = createToolOutput()
       await hook["tool.execute.before"](input1, {})
@@ -130,7 +130,7 @@ describe("createRuntimeTrackerHook", () => {
       await hook["tool.execute.before"](input2, {})
       await hook["tool.execute.after"](input2, output2)
 
-      // #then: Second call should include call count and average
+      // then: Second call should include call count and average
       expect(output2.output).toContain("2 calls")
       expect(output2.output).toContain("averaged")
     })
@@ -138,7 +138,7 @@ describe("createRuntimeTrackerHook", () => {
     // Note: hint_cooldown_ms behavior is covered by "complete flow" chain test
 
     test("does not inject hint when inject_hints is false", async () => {
-      // #given: Hook with hints disabled
+      // given: Hook with hints disabled
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: false,
@@ -146,24 +146,24 @@ describe("createRuntimeTrackerHook", () => {
       const input = createToolInput("Grep")
       const output = createToolOutput()
 
-      // #when: Execute tool
+      // when: Execute tool
       await hook["tool.execute.before"](input, {})
       await hook["tool.execute.after"](input, output)
 
-      // #then: No hint injected
+      // then: No hint injected
       expect(output.output).toBe("test output")
     })
 
     test("handles missing pending call gracefully", async () => {
-      // #given: Hook without prior tool.execute.before
+      // given: Hook without prior tool.execute.before
       const hook = createRuntimeTrackerHook(mockCtx)
       const input = createToolInput("Read")
       const output = createToolOutput()
 
-      // #when: Call tool.execute.after directly
+      // when: Call tool.execute.after directly
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not throw, output unchanged
+      // then: Should not throw, output unchanged
       expect(output.output).toBe("test output")
     })
   })
@@ -174,7 +174,7 @@ describe("createRuntimeTrackerHook", () => {
   describe("event handling", () => {
     describe("session.compacted", () => {
       test("handles sessionID from info property", async () => {
-        // #given: Hook with tracked session
+        // given: Hook with tracked session
         const hook = createRuntimeTrackerHook(mockCtx, {
           threshold_ms: 0,
           inject_hints: true,
@@ -188,7 +188,7 @@ describe("createRuntimeTrackerHook", () => {
         await hook["tool.execute.before"](input, {})
         await hook["tool.execute.after"](input, output)
 
-        // #when: Compact session with sessionID in info
+        // when: Compact session with sessionID in info
         await hook.event({
           event: {
             type: "session.compacted",
@@ -196,7 +196,7 @@ describe("createRuntimeTrackerHook", () => {
           },
         })
 
-        // #then: Stats should be cleared
+        // then: Stats should be cleared
         const input2 = createToolInput("Grep", sessionID, "call-2")
         const output2 = createToolOutput()
         await hook["tool.execute.before"](input2, {})
@@ -207,7 +207,7 @@ describe("createRuntimeTrackerHook", () => {
     })
 
     test("ignores unknown event types", async () => {
-      // #given: Hook with tracked stats
+      // given: Hook with tracked stats
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
@@ -221,7 +221,7 @@ describe("createRuntimeTrackerHook", () => {
       await hook["tool.execute.before"](input, {})
       await hook["tool.execute.after"](input, output)
 
-      // #when: Send unknown event
+      // when: Send unknown event
       await hook.event({
         event: {
           type: "session.unknown",
@@ -229,7 +229,7 @@ describe("createRuntimeTrackerHook", () => {
         },
       })
 
-      // #then: Stats should still be tracked (unknown event ignored)
+      // then: Stats should still be tracked (unknown event ignored)
       const input2 = createToolInput("Grep", sessionID, "call-2")
       const output2 = createToolOutput()
       await hook["tool.execute.before"](input2, {})
@@ -244,7 +244,7 @@ describe("createRuntimeTrackerHook", () => {
   // #region complex state transitions
   describe("complex state transitions", () => {
     test("complete flow: track → cooldown → session.deleted → re-track", async () => {
-      // #given: Hook with cooldown
+      // given: Hook with cooldown
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
@@ -281,14 +281,14 @@ describe("createRuntimeTrackerHook", () => {
     })
 
     test("interleaved sessions maintain separate state", async () => {
-      // #given: Hook
+      // given: Hook
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
         hint_cooldown_ms: 0,
       })
 
-      // #when: Interleave calls between sessions
+      // when: Interleave calls between sessions
       // A-1
       const inputA1 = createToolInput("Grep", "session-A", "a-1")
       await hook["tool.execute.before"](inputA1, {})
@@ -311,14 +311,14 @@ describe("createRuntimeTrackerHook", () => {
       await hook["tool.execute.before"](inputA2, {})
       await hook["tool.execute.after"](inputA2, outputA2)
 
-      // #then: A should show "2 calls", B stayed at 1
+      // then: A should show "2 calls", B stayed at 1
       expect(outputA2.output).toContain("2 calls")
       expect(outputB1.output).toContain("slow")
       expect(outputB1.output).not.toContain("2 calls")
     })
 
     test("session.compacted resets stats but allows immediate hint", async () => {
-      // #given: Hook with tracked session
+      // given: Hook with tracked session
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
@@ -334,12 +334,12 @@ describe("createRuntimeTrackerHook", () => {
         await hook["tool.execute.after"](input, output)
       }
 
-      // #when: Compact session
+      // when: Compact session
       await hook.event({
         event: { type: "session.compacted", properties: { sessionID } },
       })
 
-      // #then: Next call should start fresh
+      // then: Next call should start fresh
       const input = createToolInput("Grep", sessionID, "call-post-compact")
       const output = createToolOutput()
       await hook["tool.execute.before"](input, {})
@@ -354,44 +354,44 @@ describe("createRuntimeTrackerHook", () => {
   // #region boundary value tests
   describe("boundary value tests", () => {
     test("exactly at threshold_ms boundary", async () => {
-      // #given: Hook with specific threshold
+      // given: Hook with specific threshold
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 10, // 10ms threshold
         inject_hints: true,
         hint_cooldown_ms: 0,
       })
 
-      // #when: Call that's fast (under 10ms)
+      // when: Call that's fast (under 10ms)
       const input = createToolInput("Read")
       const output = createToolOutput()
       await hook["tool.execute.before"](input, {})
       // No artificial delay - should be under 10ms
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not inject hint (fast call)
+      // then: Should not inject hint (fast call)
       expect(output.output).toBe("test output")
     })
 
     test("zero threshold_ms means always inject", async () => {
-      // #given: Zero threshold
+      // given: Zero threshold
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
         hint_cooldown_ms: 0,
       })
 
-      // #when: Any call
+      // when: Any call
       const input = createToolInput("Read")
       const output = createToolOutput()
       await hook["tool.execute.before"](input, {})
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should always inject (0ms threshold = everything is slow)
+      // then: Should always inject (0ms threshold = everything is slow)
       expect(output.output).toContain("[Runtime:")
     })
 
     test("max_recent at boundary (exactly full)", async () => {
-      // #given: max_recent = 3
+      // given: max_recent = 3
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
@@ -400,7 +400,7 @@ describe("createRuntimeTrackerHook", () => {
       })
       const sessionID = "session-max-recent"
 
-      // #when: Make exactly 3 calls
+      // when: Make exactly 3 calls
       for (let i = 1; i <= 3; i++) {
         const input = createToolInput("Grep", sessionID, `call-${i}`)
         const output = createToolOutput()
@@ -408,7 +408,7 @@ describe("createRuntimeTrackerHook", () => {
         await hook["tool.execute.after"](input, output)
       }
 
-      // #then: Last output should show "3 calls"
+      // then: Last output should show "3 calls"
       const input = createToolInput("Grep", sessionID, "call-4")
       const output = createToolOutput()
       await hook["tool.execute.before"](input, {})
@@ -422,7 +422,7 @@ describe("createRuntimeTrackerHook", () => {
   // #region stats rolling average
   describe("stats management", () => {
     test("maintains rolling average within max_recent limit", async () => {
-      // #given: Hook with max_recent=3
+      // given: Hook with max_recent=3
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
@@ -431,7 +431,7 @@ describe("createRuntimeTrackerHook", () => {
       })
       const sessionID = "session-rolling"
 
-      // #when: Make 5 calls
+      // when: Make 5 calls
       for (let i = 0; i < 5; i++) {
         const input = createToolInput("Grep", sessionID, `call-${i}`)
         const output = createToolOutput()
@@ -439,7 +439,7 @@ describe("createRuntimeTrackerHook", () => {
         await hook["tool.execute.after"](input, output)
       }
 
-      // #then: Should show "5 calls" in output (all calls counted)
+      // then: Should show "5 calls" in output (all calls counted)
       const finalInput = createToolInput("Grep", sessionID, "call-final")
       const finalOutput = createToolOutput()
       await hook["tool.execute.before"](finalInput, {})
@@ -453,20 +453,20 @@ describe("createRuntimeTrackerHook", () => {
   // #region format duration
   describe("duration formatting", () => {
     test("formats milliseconds correctly in output", async () => {
-      // #given: Hook that will produce a hint
+      // given: Hook that will produce a hint
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
         hint_cooldown_ms: 0,
       })
 
-      // #when: Execute tool
+      // when: Execute tool
       const input = createToolInput("Read")
       const output = createToolOutput()
       await hook["tool.execute.before"](input, {})
       await hook["tool.execute.after"](input, output)
 
-      // #then: Output should contain formatted duration (ms or s)
+      // then: Output should contain formatted duration (ms or s)
       // The format is either "Xms" or "X.Xs"
       expect(output.output).toMatch(/\d+ms|\d+\.\d+s/)
     })
@@ -476,7 +476,7 @@ describe("createRuntimeTrackerHook", () => {
   // #region multiple tools
   describe("multiple tools tracking", () => {
     test("tracks different tools separately", async () => {
-      // #given: Hook
+      // given: Hook
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
@@ -484,7 +484,7 @@ describe("createRuntimeTrackerHook", () => {
       })
       const sessionID = "session-multi"
 
-      // #when: Execute different tools
+      // when: Execute different tools
       const input1 = createToolInput("Grep", sessionID, "call-1")
       const output1 = createToolOutput()
       await hook["tool.execute.before"](input1, {})
@@ -501,20 +501,20 @@ describe("createRuntimeTrackerHook", () => {
       await hook["tool.execute.before"](input3, {})
       await hook["tool.execute.after"](input3, output3)
 
-      // #then: Grep should show 2 calls, Read should have shown 1
+      // then: Grep should show 2 calls, Read should have shown 1
       expect(output3.output).toContain("Grep")
       expect(output3.output).toContain("2 calls")
     })
 
     test("tracks tools per session independently", async () => {
-      // #given: Hook
+      // given: Hook
       const hook = createRuntimeTrackerHook(mockCtx, {
         threshold_ms: 0,
         inject_hints: true,
         hint_cooldown_ms: 0,
       })
 
-      // #when: Execute same tool in different sessions
+      // when: Execute same tool in different sessions
       const inputA = createToolInput("Grep", "session-A", "call-1")
       const outputA = createToolOutput()
       await hook["tool.execute.before"](inputA, {})
@@ -525,7 +525,7 @@ describe("createRuntimeTrackerHook", () => {
       await hook["tool.execute.before"](inputB, {})
       await hook["tool.execute.after"](inputB, outputB)
 
-      // #then: Both should show "slow" (not "2 calls" since they're separate sessions)
+      // then: Both should show "slow" (not "2 calls" since they're separate sessions)
       expect(outputA.output).toContain("slow")
       expect(outputB.output).toContain("slow")
       expect(outputA.output).not.toContain("2 calls")

@@ -112,7 +112,7 @@ describe("atlas hook", () => {
 
   describe("tool.execute.after handler", () => {
     test("should ignore non-delegate_task tools", async () => {
-      // #given - hook and non-delegate_task tool
+      // given - hook and non-delegate_task tool
       const hook = createAtlasHook(createMockPluginInput())
       const output = {
         title: "Test Tool",
@@ -120,18 +120,18 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "other_tool", sessionID: "session-123" },
         output
       )
 
-      // #then - output unchanged
+      // then - output unchanged
       expect(output.output).toBe("Original output")
     })
 
      test("should not transform when caller is not Atlas", async () => {
-       // #given - work state exists but caller agent in message storage is not Atlas
+       // given - work state exists but caller agent in message storage is not Atlas
        const sessionID = "session-non-orchestrator-test"
        setupMessageStorage(sessionID, "other-agent")
       
@@ -153,20 +153,20 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - output unchanged because caller is not orchestrator
+      // then - output unchanged because caller is not orchestrator
       expect(output.output).toBe("Task completed successfully")
       
       cleanupMessageStorage(sessionID)
     })
 
      test("should append standalone verification when no work state but caller is Atlas", async () => {
-       // #given - no work state, but caller is Atlas
+       // given - no work state, but caller is Atlas
       const sessionID = "session-no-work-test"
        setupMessageStorage(sessionID, "atlas")
       
@@ -177,13 +177,13 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - standalone verification reminder appended
+      // then - standalone verification reminder appended
       expect(output.output).toContain("Task completed successfully")
       expect(output.output).toContain("MANDATORY:")
       expect(output.output).toContain("delegate_task(resume=")
@@ -192,7 +192,7 @@ describe("atlas hook", () => {
     })
 
      test("should transform output when caller is Atlas with work state", async () => {
-       // #given - Atlas caller with work state
+       // given - Atlas caller with work state
        const sessionID = "session-transform-test"
        setupMessageStorage(sessionID, "atlas")
       
@@ -214,13 +214,13 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - output should be transformed (original output preserved for debugging)
+      // then - output should be transformed (original output preserved for debugging)
       expect(output.output).toContain("Task completed successfully")
       expect(output.output).toContain("SUBAGENT WORK COMPLETED")
       expect(output.output).toContain("test-plan")
@@ -231,7 +231,7 @@ describe("atlas hook", () => {
     })
 
      test("should still transform when plan is complete (shows progress)", async () => {
-       // #given - work state with complete plan, Atlas caller
+       // given - work state with complete plan, Atlas caller
        const sessionID = "session-complete-plan-test"
        setupMessageStorage(sessionID, "atlas")
       
@@ -253,13 +253,13 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - output transformed even when complete (shows 2/2 done)
+      // then - output transformed even when complete (shows 2/2 done)
       expect(output.output).toContain("SUBAGENT WORK COMPLETED")
       expect(output.output).toContain("2/2 done")
       expect(output.output).toContain("0 remaining")
@@ -268,7 +268,7 @@ describe("atlas hook", () => {
     })
 
      test("should append session ID to work state if not present", async () => {
-       // #given - work state without session-append-test, Atlas caller
+       // given - work state without session-append-test, Atlas caller
        const sessionID = "session-append-test"
        setupMessageStorage(sessionID, "atlas")
       
@@ -290,13 +290,13 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - sessionID should be appended
+      // then - sessionID should be appended
       const updatedState = readWorkState(TEST_DIR)
       expect(updatedState?.session_ids).toContain(sessionID)
       
@@ -304,7 +304,7 @@ describe("atlas hook", () => {
     })
 
      test("should not duplicate existing session ID", async () => {
-       // #given - work state already has session-dup-test, Atlas caller
+       // given - work state already has session-dup-test, Atlas caller
        const sessionID = "session-dup-test"
        setupMessageStorage(sessionID, "atlas")
       
@@ -326,13 +326,13 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - should still have only one sessionID
+      // then - should still have only one sessionID
       const updatedState = readWorkState(TEST_DIR)
       const count = updatedState?.session_ids.filter((id) => id === sessionID).length
       expect(count).toBe(1)
@@ -341,7 +341,7 @@ describe("atlas hook", () => {
     })
 
      test("should include plan name and progress in transformed output", async () => {
-       // #given - work state, Atlas caller
+       // given - work state, Atlas caller
        const sessionID = "session-path-test"
        setupMessageStorage(sessionID, "atlas")
       
@@ -363,13 +363,13 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - output should contain plan name and progress
+      // then - output should contain plan name and progress
       expect(output.output).toContain("my-feature")
       expect(output.output).toContain("1/3 done")
       expect(output.output).toContain("2 remaining")
@@ -378,7 +378,7 @@ describe("atlas hook", () => {
     })
 
      test("should include resume and checkbox instructions in reminder", async () => {
-       // #given - work state, Atlas caller
+       // given - work state, Atlas caller
        const sessionID = "session-resume-test"
        setupMessageStorage(sessionID, "atlas")
       
@@ -400,13 +400,13 @@ describe("atlas hook", () => {
         metadata: {},
       }
 
-      // #when
+      // when
       await hook["tool.execute.after"](
         { tool: "delegate_task", sessionID },
         output
       )
 
-      // #then - should include resume instructions and verification
+      // then - should include resume instructions and verification
       expect(output.output).toContain("delegate_task(resume=")
       expect(output.output).toContain("[x]")
       expect(output.output).toContain("MANDATORY:")
@@ -426,7 +426,7 @@ describe("atlas hook", () => {
       })
 
       test("should append delegation reminder when orchestrator writes outside .sisyphus/", async () => {
-        // #given
+        // given
         const hook = createAtlasHook(createMockPluginInput())
         const output = {
           title: "Write",
@@ -434,20 +434,20 @@ describe("atlas hook", () => {
           metadata: { filePath: "/path/to/code.ts" },
         }
 
-        // #when
+        // when
         await hook["tool.execute.after"](
           { tool: "Write", sessionID: ORCHESTRATOR_SESSION },
           output
         )
 
-        // #then
+        // then
         expect(output.output).toContain("DELEGATION REQUIRED")
         expect(output.output).toContain("ORCHESTRATOR, not an IMPLEMENTER")
         expect(output.output).toContain("delegate_task")
       })
 
       test("should append delegation reminder when orchestrator edits outside .sisyphus/", async () => {
-        // #given
+        // given
         const hook = createAtlasHook(createMockPluginInput())
         const output = {
           title: "Edit",
@@ -455,18 +455,18 @@ describe("atlas hook", () => {
           metadata: { filePath: "/src/components/button.tsx" },
         }
 
-        // #when
+        // when
         await hook["tool.execute.after"](
           { tool: "Edit", sessionID: ORCHESTRATOR_SESSION },
           output
         )
 
-        // #then
+        // then
         expect(output.output).toContain("DELEGATION REQUIRED")
       })
 
       test("should NOT append reminder when orchestrator writes inside .sisyphus/", async () => {
-        // #given
+        // given
         const hook = createAtlasHook(createMockPluginInput())
         const originalOutput = "File written successfully"
         const output = {
@@ -475,19 +475,19 @@ describe("atlas hook", () => {
           metadata: { filePath: "/project/.sisyphus/plans/work-plan.md" },
         }
 
-        // #when
+        // when
         await hook["tool.execute.after"](
           { tool: "Write", sessionID: ORCHESTRATOR_SESSION },
           output
         )
 
-        // #then
+        // then
         expect(output.output).toBe(originalOutput)
         expect(output.output).not.toContain("DELEGATION REQUIRED")
       })
 
       test("should NOT append reminder when non-orchestrator writes outside .sisyphus/", async () => {
-        // #given
+        // given
         const nonOrchestratorSession = "non-orchestrator-session"
         setupMessageStorage(nonOrchestratorSession, "sisyphus-junior")
         
@@ -499,13 +499,13 @@ describe("atlas hook", () => {
           metadata: { filePath: "/path/to/code.ts" },
         }
 
-        // #when
+        // when
         await hook["tool.execute.after"](
           { tool: "Write", sessionID: nonOrchestratorSession },
           output
         )
 
-        // #then
+        // then
         expect(output.output).toBe(originalOutput)
         expect(output.output).not.toContain("DELEGATION REQUIRED")
         
@@ -513,7 +513,7 @@ describe("atlas hook", () => {
       })
 
       test("should NOT append reminder for read-only tools", async () => {
-        // #given
+        // given
         const hook = createAtlasHook(createMockPluginInput())
         const originalOutput = "File content"
         const output = {
@@ -522,18 +522,18 @@ describe("atlas hook", () => {
           metadata: { filePath: "/path/to/code.ts" },
         }
 
-        // #when
+        // when
         await hook["tool.execute.after"](
           { tool: "Read", sessionID: ORCHESTRATOR_SESSION },
           output
         )
 
-        // #then
+        // then
         expect(output.output).toBe(originalOutput)
       })
 
       test("should handle missing filePath gracefully", async () => {
-        // #given
+        // given
         const hook = createAtlasHook(createMockPluginInput())
         const originalOutput = "File written successfully"
         const output = {
@@ -542,19 +542,19 @@ describe("atlas hook", () => {
           metadata: {},
         }
 
-        // #when
+        // when
         await hook["tool.execute.after"](
           { tool: "Write", sessionID: ORCHESTRATOR_SESSION },
           output
         )
 
-        // #then
+        // then
         expect(output.output).toBe(originalOutput)
       })
 
       describe("cross-platform path validation (Windows support)", () => {
         test("should NOT append reminder when orchestrator writes inside .sisyphus\\ (Windows backslash)", async () => {
-          // #given
+          // given
           const hook = createAtlasHook(createMockPluginInput())
           const originalOutput = "File written successfully"
           const output = {
@@ -563,19 +563,19 @@ describe("atlas hook", () => {
             metadata: { filePath: ".sisyphus\\plans\\work-plan.md" },
           }
 
-          // #when
+          // when
           await hook["tool.execute.after"](
             { tool: "Write", sessionID: ORCHESTRATOR_SESSION },
             output
           )
 
-          // #then
+          // then
           expect(output.output).toBe(originalOutput)
           expect(output.output).not.toContain("DELEGATION REQUIRED")
         })
 
         test("should NOT append reminder when orchestrator writes inside .sisyphus with mixed separators", async () => {
-          // #given
+          // given
           const hook = createAtlasHook(createMockPluginInput())
           const originalOutput = "File written successfully"
           const output = {
@@ -584,19 +584,19 @@ describe("atlas hook", () => {
             metadata: { filePath: ".sisyphus\\plans/work-plan.md" },
           }
 
-          // #when
+          // when
           await hook["tool.execute.after"](
             { tool: "Write", sessionID: ORCHESTRATOR_SESSION },
             output
           )
 
-          // #then
+          // then
           expect(output.output).toBe(originalOutput)
           expect(output.output).not.toContain("DELEGATION REQUIRED")
         })
 
         test("should NOT append reminder for absolute Windows path inside .sisyphus\\", async () => {
-          // #given
+          // given
           const hook = createAtlasHook(createMockPluginInput())
           const originalOutput = "File written successfully"
           const output = {
@@ -605,19 +605,19 @@ describe("atlas hook", () => {
             metadata: { filePath: "C:\\Users\\test\\project\\.sisyphus\\plans\\x.md" },
           }
 
-          // #when
+          // when
           await hook["tool.execute.after"](
             { tool: "Write", sessionID: ORCHESTRATOR_SESSION },
             output
           )
 
-          // #then
+          // then
           expect(output.output).toBe(originalOutput)
           expect(output.output).not.toContain("DELEGATION REQUIRED")
         })
 
         test("should append reminder for Windows path outside .sisyphus\\", async () => {
-          // #given
+          // given
           const hook = createAtlasHook(createMockPluginInput())
           const output = {
             title: "Write",
@@ -625,13 +625,13 @@ describe("atlas hook", () => {
             metadata: { filePath: "C:\\Users\\test\\project\\src\\code.ts" },
           }
 
-          // #when
+          // when
           await hook["tool.execute.after"](
             { tool: "Write", sessionID: ORCHESTRATOR_SESSION },
             output
           )
 
-          // #then
+          // then
           expect(output.output).toContain("DELEGATION REQUIRED")
         })
       })
@@ -654,7 +654,7 @@ describe("atlas hook", () => {
     })
 
     test("should inject continuation when work has incomplete tasks", async () => {
-      // #given - work state with incomplete plan
+      // given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2\n- [ ] Task 3")
 
@@ -669,7 +669,7 @@ describe("atlas hook", () => {
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when
+      // when
       await hook.handler({
         event: {
           type: "session.idle",
@@ -677,7 +677,7 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should call prompt with continuation
+      // then - should call prompt with continuation
       expect(mockInput._promptMock).toHaveBeenCalled()
       const callArgs = mockInput._promptMock.mock.calls[0][0]
       expect(callArgs.path.id).toBe(MAIN_SESSION_ID)
@@ -686,11 +686,11 @@ describe("atlas hook", () => {
     })
 
     test("should not inject when no work state exists", async () => {
-      // #given - no work state
+      // given - no work state
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when
+      // when
       await hook.handler({
         event: {
           type: "session.idle",
@@ -698,12 +698,12 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should not call prompt
+      // then - should not call prompt
       expect(mockInput._promptMock).not.toHaveBeenCalled()
     })
 
     test("should not inject when work plan is complete", async () => {
-      // #given - work state with complete plan
+      // given - work state with complete plan
       const planPath = join(TEST_DIR, "complete-plan.md")
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2")
 
@@ -718,7 +718,7 @@ describe("atlas hook", () => {
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when
+      // when
       await hook.handler({
         event: {
           type: "session.idle",
@@ -726,12 +726,12 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should not call prompt
+      // then - should not call prompt
       expect(mockInput._promptMock).not.toHaveBeenCalled()
     })
 
     test("should skip when abort error occurred before idle", async () => {
-      // #given - work state with incomplete plan
+      // given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
@@ -746,7 +746,7 @@ describe("atlas hook", () => {
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when - send abort error then idle
+      // when - send abort error then idle
       await hook.handler({
         event: {
           type: "session.error",
@@ -763,12 +763,12 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should not call prompt
+      // then - should not call prompt
       expect(mockInput._promptMock).not.toHaveBeenCalled()
     })
 
     test("should skip when background tasks are running", async () => {
-      // #given - work state with incomplete plan
+      // given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
@@ -790,7 +790,7 @@ describe("atlas hook", () => {
         backgroundManager: mockBackgroundManager as any,
       })
 
-      // #when
+      // when
       await hook.handler({
         event: {
           type: "session.idle",
@@ -798,12 +798,12 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should not call prompt
+      // then - should not call prompt
       expect(mockInput._promptMock).not.toHaveBeenCalled()
     })
 
     test("should clear abort state on message.updated", async () => {
-      // #given - work with incomplete plan
+      // given - work with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
@@ -818,7 +818,7 @@ describe("atlas hook", () => {
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when - abort error, then message update, then idle
+      // when - abort error, then message update, then idle
       await hook.handler({
         event: {
           type: "session.error",
@@ -841,12 +841,12 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should call prompt because abort state was cleared
+      // then - should call prompt because abort state was cleared
       expect(mockInput._promptMock).toHaveBeenCalled()
     })
 
     test("should include plan progress in continuation prompt", async () => {
-      // #given - work state with specific progress
+      // given - work state with specific progress
       const planPath = join(TEST_DIR, "progress-plan.md")
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2\n- [ ] Task 3\n- [ ] Task 4")
 
@@ -861,7 +861,7 @@ describe("atlas hook", () => {
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when
+      // when
       await hook.handler({
         event: {
           type: "session.idle",
@@ -869,14 +869,14 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should include progress
+      // then - should include progress
       const callArgs = mockInput._promptMock.mock.calls[0][0]
       expect(callArgs.body.parts[0].text).toContain("2/4 completed")
       expect(callArgs.body.parts[0].text).toContain("2 remaining")
     })
 
      test("should not inject when last agent is not Atlas", async () => {
-       // #given - work state with incomplete plan, but last agent is NOT Atlas
+       // given - work state with incomplete plan, but last agent is NOT Atlas
        const planPath = join(TEST_DIR, "test-plan.md")
        writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
 
@@ -888,14 +888,14 @@ describe("atlas hook", () => {
        }
        writeWorkState(TEST_DIR, state)
 
-       // #given - last agent is NOT Atlas
+       // given - last agent is NOT Atlas
        cleanupMessageStorage(MAIN_SESSION_ID)
        setupMessageStorage(MAIN_SESSION_ID, "sisyphus")
 
        const mockInput = createMockPluginInput()
        const hook = createAtlasHook(mockInput)
 
-       // #when
+       // when
        await hook.handler({
          event: {
            type: "session.idle",
@@ -903,12 +903,12 @@ describe("atlas hook", () => {
          },
        })
 
-       // #then - should NOT call prompt because agent is not Atlas
+       // then - should NOT call prompt because agent is not Atlas
        expect(mockInput._promptMock).not.toHaveBeenCalled()
      })
 
     test("should debounce rapid continuation injections (prevent infinite loop)", async () => {
-      // #given - work state with incomplete plan
+      // given - work state with incomplete plan
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
 
@@ -923,7 +923,7 @@ describe("atlas hook", () => {
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when - fire multiple idle events in rapid succession (simulating infinite loop bug)
+      // when - fire multiple idle events in rapid succession (simulating infinite loop bug)
       await hook.handler({
         event: {
           type: "session.idle",
@@ -943,12 +943,12 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should only call prompt ONCE due to debouncing
+      // then - should only call prompt ONCE due to debouncing
       expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
     })
 
     test("should cleanup on session.deleted", async () => {
-      // #given - work state
+      // given - work state
       const planPath = join(TEST_DIR, "test-plan.md")
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
@@ -963,7 +963,7 @@ describe("atlas hook", () => {
       const mockInput = createMockPluginInput()
       const hook = createAtlasHook(mockInput)
 
-      // #when - create abort state then delete
+      // when - create abort state then delete
       await hook.handler({
         event: {
           type: "session.error",
@@ -991,7 +991,7 @@ describe("atlas hook", () => {
         },
       })
 
-      // #then - should call prompt because session state was cleaned
+      // then - should call prompt because session state was cleaned
       expect(mockInput._promptMock).toHaveBeenCalled()
     })
   })

@@ -36,7 +36,7 @@ function createRecoveryPattern(id: string) {
 
 describe("executeActiveHandoff", () => {
   test("merges recoveryPatterns from session state into prompt and stored package", async () => {
-    // #given
+    // given
     const request = {
       goal: "Fix bug",
       sourceSessionId: "session_1",
@@ -65,10 +65,10 @@ describe("executeActiveHandoff", () => {
       recoveryPatterns: [createRecoveryPattern("rp_1")],
     }
 
-    // #when
+    // when
     const result = await executeActiveHandoff(request, deps, sessionState, DEFAULT_HANDOFF_CONFIG)
 
-    // #then
+    // then
     expect(result.prompt).toContain("## Recovery Patterns")
     expect(result.handoffPackage.payload.recoveryPatterns?.[0]?.id).toBe("rp_1")
 

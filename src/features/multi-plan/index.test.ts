@@ -101,7 +101,7 @@ describe("MultiPlanOrchestrator", () => {
   // #region start() - success paths
   describe("start() - success paths", () => {
     test("sanitizes plan name for output paths", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
@@ -136,17 +136,17 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("plan:one", models)
 
-      // #when
+      // when
       const result = await orchestrator.start(input)
 
-      // #then
+      // then
       expect(result.session.planName).toBe(sanitizedPlanName)
       expect(result.finalPlanPath).toBe(".sisyphus/plans/plan-one.md")
       expect(result.comparisonReportPath).toBe(".sisyphus/plan-reviews/plan-one-comparison.md")
     })
 
     test("completes successfully with 2 models when all plans succeed", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
@@ -183,10 +183,10 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("test-plan", models)
 
-      // #when
+      // when
       const result = await orchestrator.start(input)
 
-      // #then
+      // then
       expect(result.session.status).toBe("complete")
       expect(result.finalPlanPath).toBe(".sisyphus/plans/test-plan.md")
       expect(result.comparisonReportPath).toBe(".sisyphus/plan-reviews/test-plan-comparison.md")
@@ -196,7 +196,7 @@ describe("MultiPlanOrchestrator", () => {
     })
 
     test("includes pipeline flags in Plan Synthesizer prompt (deep_verification / adhd_detection)", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         // Synthesis loop ends immediately when task is evicted/unknown.
         getTaskResults: [undefined],
@@ -237,10 +237,10 @@ describe("MultiPlanOrchestrator", () => {
         adhd_detection: false,
       } satisfies MultiPlanPipelineConfig
 
-      // #when
+      // when
       await orchestrator.start(input)
 
-      // #then
+      // then
       const launchMock = (mockManager as unknown as { launch: { mock: { calls: any[] } } }).launch
       expect(launchMock.mock.calls.length).toBeGreaterThan(0)
       const launchArgs = launchMock.mock.calls[0][0] as { agent?: string; prompt?: string }
@@ -251,7 +251,7 @@ describe("MultiPlanOrchestrator", () => {
     })
 
     test("continues with partial success when 2 of 3 plans succeed", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
@@ -289,17 +289,17 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("test-plan", models)
 
-      // #when
+      // when
       const result = await orchestrator.start(input)
 
-      // #then
+      // then
       expect(result.session.status).toBe("complete")
       expect(result.summary).toContain("**Successful Plans**: 2/3")
       expect(result.summary).toContain("**Failed Plans**: 1")
     })
 
     test("transitions through correct status states during execution", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
@@ -345,10 +345,10 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("test-plan", models)
 
-      // #when
+      // when
       const result = await orchestrator.start(input)
 
-      // #then
+      // then
       expect(statusTransitions).toContain("generating")
       expect(statusTransitions).toContain("reviewing")
       expect(result.session.status).toBe("complete")
@@ -359,7 +359,7 @@ describe("MultiPlanOrchestrator", () => {
   // #region start() - error paths
   describe("start() - error paths", () => {
     test("throws MultiPlanError when fewer than 2 plans succeed", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
       const modelArray = createModelArray([
@@ -391,7 +391,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("test-plan", models)
 
-      // #when / #then
+      // when / #then
       try {
         await orchestrator.start(input)
         expect.unreachable("Should have thrown MultiPlanError")
@@ -406,7 +406,7 @@ describe("MultiPlanOrchestrator", () => {
     })
 
     test("throws MultiPlanError when all plans fail", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
       const modelArray = createModelArray([
@@ -430,7 +430,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("test-plan", models)
 
-      // #when / #then
+      // when / #then
       try {
         await orchestrator.start(input)
         expect.unreachable("Should have thrown")
@@ -443,7 +443,7 @@ describe("MultiPlanOrchestrator", () => {
     })
 
     test("throws MultiPlanError when output files missing after synthesis", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
@@ -481,7 +481,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("test-plan", models)
 
-      // #when / #then
+      // when / #then
       try {
         await orchestrator.start(input)
         expect.unreachable("Should have thrown")
@@ -495,7 +495,7 @@ describe("MultiPlanOrchestrator", () => {
     })
 
     test("sets session status to error on failure", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
       const modelArray = createModelArray([
@@ -515,7 +515,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const input = createStartInput("test-plan", models)
 
-      // #when / #then
+      // when / #then
       try {
         await orchestrator.start(input)
       } catch (error) {
@@ -530,7 +530,7 @@ describe("MultiPlanOrchestrator", () => {
   // #region runDebateRound
   describe("runDebateRound", () => {
     test("skips rebuttals for PARALLEL_SPIKE verdicts (decision deferred to spike)", async () => {
-      // #given - PARALLEL_SPIKE means no model is rejected, decision deferred
+      // given - PARALLEL_SPIKE means no model is rejected, decision deferred
       const planName = "test-plan"
       const mockCtx = createMockCtx(tmpDir)
       const launchMock = mock(() => Promise.resolve({ id: "bg_123", sessionID: "sess_123" }))
@@ -594,20 +594,20 @@ describe("MultiPlanOrchestrator", () => {
         rebuttals: [],
       }
 
-      // #when
+      // when
       const rebuttals = await (orchestrator as any).runDebateRound(
         session,
         comparisonReportPath,
         "parent_123"
       )
 
-      // #then - no rebuttals should be generated since PARALLEL_SPIKE doesn't reject
+      // then - no rebuttals should be generated since PARALLEL_SPIKE doesn't reject
       expect(launchMock).not.toHaveBeenCalled()
       expect(rebuttals).toHaveLength(0)
     })
 
     test("generates at most one rebuttal per model (avoids file collisions across multiple conflicts)", async () => {
-      // #given
+      // given
       const planName = "test-plan"
       const mockCtx = createMockCtx(tmpDir)
 
@@ -684,14 +684,14 @@ describe("MultiPlanOrchestrator", () => {
         rebuttals: [],
       }
 
-      // #when
+      // when
       const rebuttals = await (orchestrator as any).runDebateRound(
         session,
         comparisonReportPath,
         "parent_123"
       )
 
-      // #then
+      // then
       expect(launchMock).toHaveBeenCalledTimes(1)
       expect(rebuttals).toHaveLength(1)
       expect(rebuttals[0].modelName).toBe("gpt-5.2")
@@ -702,7 +702,7 @@ describe("MultiPlanOrchestrator", () => {
   // #region start() - debate flow
   describe("start() - debate flow", () => {
     test("runs debate round when enabled and rejections exist", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
@@ -754,10 +754,10 @@ describe("MultiPlanOrchestrator", () => {
       const input = createStartInput("test-plan", models)
       input.debateEnabled = true
 
-      // #when
+      // when
       const result = await orchestrator.start(input)
 
-      // #then
+      // then
       expect(debateRoundCalled).toBe(true)
       expect(finalSynthesisCalled).toBe(true)
       expect(statusesObserved).toContain("debating")
@@ -766,7 +766,7 @@ describe("MultiPlanOrchestrator", () => {
     })
 
     test("skips final synthesis when no rebuttals returned", async () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager({
         getTaskResults: [{ status: "completed" } as BackgroundTask],
       })
@@ -807,10 +807,10 @@ describe("MultiPlanOrchestrator", () => {
       const input = createStartInput("test-plan", models)
       input.debateEnabled = true
 
-      // #when
+      // when
       await orchestrator.start(input)
 
-      // #then
+      // then
       expect(finalSynthesisCalled).toBe(false)
     })
   })
@@ -819,7 +819,7 @@ describe("MultiPlanOrchestrator", () => {
   // #region verifyOutputFiles - boundary conditions
   describe("verifyOutputFiles", () => {
     test("returns valid:true only when BOTH files exist", () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
       const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, undefined)
@@ -832,27 +832,27 @@ describe("MultiPlanOrchestrator", () => {
       fs.writeFileSync(path.join(tmpDir, finalPath), "# Plan")
       fs.writeFileSync(path.join(tmpDir, comparisonPath), "# Comparison")
 
-      // #when
+      // when
       const result = (orchestrator as any).verifyOutputFiles(finalPath, comparisonPath)
 
-      // #then
+      // then
       expect(result.valid).toBe(true)
       expect(result.missing).toHaveLength(0)
     })
 
     test("reports all missing files accurately", () => {
-      // #given
+      // given
       const mockManager = createMockBackgroundManager()
       const mockCtx = createMockCtx(tmpDir)
       const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, undefined)
 
-      // #when - neither file exists
+      // when - neither file exists
       const result = (orchestrator as any).verifyOutputFiles(
         ".sisyphus/plans/missing.md",
         ".sisyphus/plan-reviews/also-missing.md"
       )
 
-      // #then
+      // then
       expect(result.valid).toBe(false)
       expect(result.missing).toEqual([
         ".sisyphus/plans/missing.md",
@@ -865,7 +865,7 @@ describe("MultiPlanOrchestrator", () => {
   // #region MultiPlanError
   describe("MultiPlanError", () => {
     test("preserves all context for debugging", () => {
-      // #given
+      // given
       const session: MultiPlanSession = {
         id: "mp_test",
         planName: "debug-test",
@@ -878,10 +878,10 @@ describe("MultiPlanOrchestrator", () => {
       }
       const intermediateFiles = [".sisyphus/plans/partial-1.md", ".sisyphus/plans/partial-2.md"]
 
-      // #when
+      // when
       const error = new MultiPlanError("Synthesis failed", intermediateFiles, session)
 
-      // #then
+      // then
       expect(error.name).toBe("MultiPlanError")
       expect(error.message).toBe("Synthesis failed")
       expect(error.intermediateFiles).toEqual(intermediateFiles)

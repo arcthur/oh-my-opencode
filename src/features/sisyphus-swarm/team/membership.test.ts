@@ -34,7 +34,7 @@ describe("team/membership", () => {
   })
 
   test("requestJoin returns rejection reason when coordinator rejects", async () => {
-    // #given
+    // given
     const coordinator = createAgentIdentity({
       name: "coordinator",
       sessionId: "sess_coord",
@@ -56,10 +56,10 @@ describe("team/membership", () => {
       sendMessage(teamName, coordinator.id, worker.id, { type: "join_rejected", reason: "no capacity" }, config)
     }, 50)
 
-    // #when
+    // when
     const result = await requestJoin(teamName, worker, config, { timeoutMs: 2000 })
 
-    // #then
+    // then
     expect(result.approved).toBe(false)
     expect(result.reason).toBe("no capacity")
   })

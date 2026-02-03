@@ -5,7 +5,7 @@ import { STALENESS_HALF_LIFE_MS, type LongTermKnowledge, type WorkHistoryEntry }
 describe("temporal-validity", () => {
   describe("calculateStaleness", () => {
     test("returns ~0.5 at configured half-life", () => {
-      //#given
+      // given
       const halfLifeMs = STALENESS_HALF_LIFE_MS["short-term"]
       const fact = {
         valid_from: 0,
@@ -13,16 +13,16 @@ describe("temporal-validity", () => {
         staleness_category: "short-term" as const,
       }
 
-      //#when
+      // when
       const staleness = calculateStaleness(fact, halfLifeMs)
 
-      //#then
+      // then
       expect(staleness).toBeGreaterThan(0.49)
       expect(staleness).toBeLessThan(0.51)
     })
 
     test("returns ~0.75 at 2x half-life", () => {
-      //#given
+      // given
       const halfLifeMs = STALENESS_HALF_LIFE_MS["short-term"]
       const fact = {
         valid_from: 0,
@@ -30,16 +30,16 @@ describe("temporal-validity", () => {
         staleness_category: "short-term" as const,
       }
 
-      //#when
+      // when
       const staleness = calculateStaleness(fact, 2 * halfLifeMs)
 
-      //#then
+      // then
       expect(staleness).toBeGreaterThan(0.74)
       expect(staleness).toBeLessThan(0.76)
     })
 
     test("does not force staleness to 1.0 solely due to valid_until", () => {
-      //#given
+      // given
       const halfLifeMs = STALENESS_HALF_LIFE_MS["short-term"]
       const fact = {
         valid_from: 0,
@@ -48,10 +48,10 @@ describe("temporal-validity", () => {
         staleness_category: "short-term" as const,
       }
 
-      //#when
+      // when
       const staleness = calculateStaleness(fact, halfLifeMs)
 
-      //#then
+      // then
       expect(staleness).toBeGreaterThan(0.49)
       expect(staleness).toBeLessThan(0.51)
     })
@@ -59,7 +59,7 @@ describe("temporal-validity", () => {
 
   describe("queryKnowledgeAtTime", () => {
     test("can include expired knowledge when include_expired is true", () => {
-      //#given
+      // given
       const now = Date.now()
       const halfLifeMs = STALENESS_HALF_LIFE_MS["short-term"]
       const knowledge: LongTermKnowledge = {
@@ -74,7 +74,7 @@ describe("temporal-validity", () => {
         staleness_category: "short-term",
       }
 
-      //#when
+      // when
       const results = queryKnowledgeAtTime(
         [knowledge],
         {
@@ -86,7 +86,7 @@ describe("temporal-validity", () => {
         now
       )
 
-      //#then
+      // then
       expect(results).toHaveLength(1)
       expect(results[0]?.validityStatus).toBe("expired")
     })
@@ -94,7 +94,7 @@ describe("temporal-validity", () => {
 
   describe("getValidityStatus", () => {
     test("treats valid_until as exclusive (queryTime === valid_until => expired)", () => {
-      //#given
+      // given
       const now = Date.now()
       const fact = {
         valid_from: 0,
@@ -102,17 +102,17 @@ describe("temporal-validity", () => {
         staleness_category: "short-term" as const,
       }
 
-      //#when
+      // when
       const status = getValidityStatus(fact, now, 0.7)
 
-      //#then
+      // then
       expect(status).toBe("expired")
     })
   })
 
   describe("filterWorkHistoryForInjection", () => {
     test("excludes expired entries by default", () => {
-      //#given
+      // given
       const now = Date.now()
       const halfLifeMs = STALENESS_HALF_LIFE_MS["short-term"]
       const entries: WorkHistoryEntry[] = [
@@ -129,7 +129,7 @@ describe("temporal-validity", () => {
         },
       ]
 
-      //#when
+      // when
       const filtered = filterWorkHistoryForInjection(
         entries,
         {
@@ -142,7 +142,7 @@ describe("temporal-validity", () => {
         now
       )
 
-      //#then
+      // then
       expect(filtered.some((e) => e.summary === "Expired entry")).toBe(false)
       expect(filtered.some((e) => e.summary === "Active entry")).toBe(true)
     })
@@ -150,7 +150,7 @@ describe("temporal-validity", () => {
 
   describe("filterKnowledgeForInjection", () => {
     test("requires effective confidence >= 0.6", () => {
-      //#given
+      // given
       const now = Date.now()
       const knowledge: LongTermKnowledge[] = [
         {
@@ -173,7 +173,7 @@ describe("temporal-validity", () => {
         },
       ]
 
-      //#when
+      // when
       const filtered = filterKnowledgeForInjection(
         knowledge,
         {
@@ -186,7 +186,7 @@ describe("temporal-validity", () => {
         now
       )
 
-      //#then
+      // then
       expect(filtered.some((k) => k.content === "Meets threshold")).toBe(true)
       expect(filtered.some((k) => k.content === "Below threshold")).toBe(false)
     })

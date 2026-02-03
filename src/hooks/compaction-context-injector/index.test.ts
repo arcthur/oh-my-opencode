@@ -31,22 +31,22 @@ describe("createCompactionContextInjector", () => {
   }
 
   test("returns async function", () => {
-    // #given: Factory function called
+    // given: Factory function called
     const injector = createCompactionContextInjector()
 
-    // #then: Should return a function
+    // then: Should return a function
     expect(typeof injector).toBe("function")
   })
 
   test("calls injectHookMessage with correct params", async () => {
-    // #given: Injector and context
+    // given: Injector and context
     const injector = createCompactionContextInjector()
     const ctx = createSummarizeContext()
 
-    // #when: Call injector
+    // when: Call injector
     await injector(ctx)
 
-    // #then: injectHookMessage should be called with correct params
+    // then: injectHookMessage should be called with correct params
     expect(injectHookMessageSpy).toHaveBeenCalledTimes(1)
     const [sessionID, prompt, options] = injectHookMessageSpy.mock.calls[0] as [
       string,
@@ -70,15 +70,15 @@ describe("createCompactionContextInjector", () => {
   })
 
   test("logs success when injection succeeds", async () => {
-    // #given: injectHookMessage returns true
+    // given: injectHookMessage returns true
     injectHookMessageSpy.mockImplementation(() => true)
     const injector = createCompactionContextInjector()
     const ctx = createSummarizeContext()
 
-    // #when: Call injector
+    // when: Call injector
     await injector(ctx)
 
-    // #then: Should log success
+    // then: Should log success
     const successLogCall = (logSpy.mock.calls as Array<[string, ...unknown[]]>).find(
       (call) => call[0] === "[compaction-context-injector] context injected"
     )
@@ -86,15 +86,15 @@ describe("createCompactionContextInjector", () => {
   })
 
   test("logs failure when injection fails", async () => {
-    // #given: injectHookMessage returns false
+    // given: injectHookMessage returns false
     injectHookMessageSpy.mockImplementation(() => false)
     const injector = createCompactionContextInjector()
     const ctx = createSummarizeContext()
 
-    // #when: Call injector
+    // when: Call injector
     await injector(ctx)
 
-    // #then: Should log failure
+    // then: Should log failure
     const failureLogCall = (logSpy.mock.calls as Array<[string, ...unknown[]]>).find(
       (call) => call[0] === "[compaction-context-injector] injection failed"
     )
@@ -102,14 +102,14 @@ describe("createCompactionContextInjector", () => {
   })
 
   test("logs initial injection attempt", async () => {
-    // #given: Injector
+    // given: Injector
     const injector = createCompactionContextInjector()
     const ctx = createSummarizeContext()
 
-    // #when: Call injector
+    // when: Call injector
     await injector(ctx)
 
-    // #then: Should log injection attempt
+    // then: Should log injection attempt
     const attemptLogCall = (logSpy.mock.calls as Array<[string, ...unknown[]]>).find(
       (call) => call[0] === "[compaction-context-injector] injecting context"
     )
@@ -117,14 +117,14 @@ describe("createCompactionContextInjector", () => {
   })
 
   test("prompt includes all required sections", async () => {
-    // #given: Injector
+    // given: Injector
     const injector = createCompactionContextInjector()
     const ctx = createSummarizeContext()
 
-    // #when: Call injector
+    // when: Call injector
     await injector(ctx)
 
-    // #then: Prompt should include all required sections
+    // then: Prompt should include all required sections
     const prompt = injectHookMessageSpy.mock.calls[0][1] as string
 
     // All 9 sections from the template
@@ -140,14 +140,14 @@ describe("createCompactionContextInjector", () => {
   })
 
   test("prompt contains critical preservation message", async () => {
-    // #given: Injector
+    // given: Injector
     const injector = createCompactionContextInjector()
     const ctx = createSummarizeContext()
 
-    // #when: Call injector
+    // when: Call injector
     await injector(ctx)
 
-    // #then: Prompt should contain critical message about preservation
+    // then: Prompt should contain critical message about preservation
     const prompt = injectHookMessageSpy.mock.calls[0][1] as string
     expect(prompt).toContain("CRITICAL for maintaining continuity")
     expect(prompt).toContain("information loss")

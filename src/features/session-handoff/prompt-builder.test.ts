@@ -47,7 +47,7 @@ function createRecoveryPattern(id: string): RecoveryPattern {
 
 describe("buildHandoffPrompt", () => {
   it("includes recovery patterns when present", () => {
-    // #given
+    // given
     const payload: HandoffPayload = {
       decisions: [{ what: "Test framework", chosen: "bun:test", why: "Built-in" }],
       artifacts: [{ path: "src/foo.ts", changeType: "modified", summary: "Refactor" }],
@@ -72,17 +72,17 @@ describe("buildHandoffPrompt", () => {
       payload,
     }
 
-    // #when
+    // when
     const prompt = buildHandoffPrompt("Improve tests", payload, sourcePackage)
 
-    // #then
+    // then
     expect(prompt).toContain("## Recovery Patterns")
     expect(prompt).toContain("RP-1")
     expect(prompt).toContain("Fix types before running tests")
   })
 
   it("does not truncate anti-patterns or recovery patterns by default (up to extraction cap)", () => {
-    // #given
+    // given
     const antiPatterns = Array.from({ length: 10 }, (_, i) => ({
       approach: `Bad approach ${i + 1}`,
       reason: `Reason ${i + 1}`,
@@ -113,10 +113,10 @@ describe("buildHandoffPrompt", () => {
       payload,
     }
 
-    // #when
+    // when
     const prompt = buildHandoffPrompt("Test", payload, sourcePackage)
 
-    // #then
+    // then
     expect(prompt).toContain("10. **Bad approach 10**")
     expect(prompt).toContain("### RP-10")
   })

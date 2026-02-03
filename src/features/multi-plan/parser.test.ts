@@ -5,7 +5,7 @@ describe("parseRejectedModels", () => {
   // #region single conflict
   describe("single conflict section", () => {
     test("extracts only rejected model (winner excluded) from conflict", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Authentication approach
 
 **strategist says**: Use JWT tokens
@@ -21,10 +21,10 @@ describe("parseRejectedModels", () => {
 **VERDICT**: ACCEPT strategist
 **RECOMMENDATION**: Use JWT with refresh token rotation`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - only loser appears, winner (strategist) excluded
+      // then - only loser appears, winner (strategist) excluded
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("creative")
       expect(result[0].conflictId).toBe("Authentication approach")
@@ -37,7 +37,7 @@ describe("parseRejectedModels", () => {
   // #region multiple conflicts
   describe("multiple conflict sections", () => {
     test("extracts rejections from all conflicts", () => {
-      // #given
+      // given
       const report = `### CONFLICT: API design
 
 **strategist says**: REST
@@ -66,10 +66,10 @@ describe("parseRejectedModels", () => {
 
 **VERDICT**: ACCEPT creative`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then
+      // then
       expect(result).toHaveLength(2)
       expect(result[0]).toEqual({
         modelName: "creative",
@@ -84,7 +84,7 @@ describe("parseRejectedModels", () => {
     })
 
     test("same model can be rejected in multiple conflicts", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Auth
 **A says**: X
 **B says**: Y
@@ -103,10 +103,10 @@ describe("parseRejectedModels", () => {
 ---
 **VERDICT**: ACCEPT A`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["A", "B"])
 
-      // #then
+      // then
       expect(result).toHaveLength(2)
       expect(result.every((r) => r.modelName === "B")).toBe(true)
       expect(result.map((r) => r.conflictId)).toEqual(["Auth", "DB"])
@@ -117,7 +117,7 @@ describe("parseRejectedModels", () => {
   // #region verdict types
   describe("verdict types", () => {
     test("VERDICT: MERGE rejects all models with criticism", () => {
-      // #given - MERGE means no single winner
+      // given - MERGE means no single winner
       const report = `### CONFLICT: Caching strategy
 
 **strategist says**: Redis
@@ -133,16 +133,16 @@ describe("parseRejectedModels", () => {
 **VERDICT**: MERGE
 **RECOMMENDATION**: Use both - in-memory for hot data, Redis for persistence`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - both should be in rejections since MERGE has no single winner
+      // then - both should be in rejections since MERGE has no single winner
       expect(result).toHaveLength(2)
       expect(result.map((r) => r.modelName).sort()).toEqual(["creative", "strategist"])
     })
 
     test("VERDICT: MERGE with explicit winners only rejects excluded models", () => {
-      // #given - MERGE lists which models are included
+      // given - MERGE lists which models are included
       const report = `### CONFLICT: Authentication token storage
 
 **strategist says**: HttpOnly cookie
@@ -160,17 +160,17 @@ describe("parseRejectedModels", () => {
 **VERDICT**: MERGE strategist + pragmatist
 **RECOMMENDATION**: Use cookie for web + memory token for native app`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "pragmatist", "creative"])
 
-      // #then - only creative is excluded from merge
+      // then - only creative is excluded from merge
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("creative")
       expect(result[0].conflictId).toBe("Authentication token storage")
     })
 
     test("VERDICT: BOTH_VALID produces no rejections", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Optimization approach
 
 **strategist says**: Add caching
@@ -186,15 +186,15 @@ describe("parseRejectedModels", () => {
 **VERDICT**: BOTH_VALID
 **RECOMMENDATION**: Do both - they are complementary`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then
+      // then
       expect(result).toHaveLength(0)
     })
 
     test("VERDICT: PARALLEL_SPIKE produces no rejections", () => {
-      // #given - PARALLEL_SPIKE defers decision to validation experiment
+      // given - PARALLEL_SPIKE defers decision to validation experiment
       const report = `### CONFLICT: Data storage strategy
 
 **strategist says**: Use Redis for fast reads
@@ -217,15 +217,15 @@ describe("parseRejectedModels", () => {
 
 **TEMPORARY DECISION**: creative`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - no rejections since decision is deferred to spike
+      // then - no rejections since decision is deferred to spike
       expect(result).toHaveLength(0)
     })
 
     test("VERDICT: REJECT ALL marks all models as rejected", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Error handling
 
 **strategist says**: Use exceptions
@@ -241,15 +241,15 @@ describe("parseRejectedModels", () => {
 **VERDICT**: REJECT ALL
 **RECOMMENDATION**: Need to rethink the approach`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - "REJECT" matches first word, so all models should be rejected
+      // then - "REJECT" matches first word, so all models should be rejected
       expect(result).toHaveLength(2)
     })
 
     test("handles backtick-wrapped verdict", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Testing
 
 **strategist says**: Unit tests
@@ -264,16 +264,16 @@ describe("parseRejectedModels", () => {
 
 **VERDICT**: \`ACCEPT strategist\``
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then
+      // then
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("creative")
     })
 
     test("handles ACCEPT winner with braces and possessive suffix", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Cache invalidation
 
 **strategist says**: Write-through
@@ -288,16 +288,16 @@ describe("parseRejectedModels", () => {
 
 **VERDICT**: ACCEPT {strategist}'s approach`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - strategist is winner, so only creative rejected
+      // then - strategist is winner, so only creative rejected
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("creative")
     })
 
     test("handles ACCEPT winner with spaces in model name", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Deployment strategy
 
 **Strategy Expert says**: Blue/green deployment
@@ -312,10 +312,10 @@ describe("parseRejectedModels", () => {
 
 **VERDICT**: ACCEPT Strategy Expert`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["Strategy Expert", "Creative Thinker"])
 
-      // #then - only loser appears, winner excluded
+      // then - only loser appears, winner excluded
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("Creative Thinker")
       expect(result.find((r) => r.modelName === "Strategy Expert")).toBeUndefined()
@@ -326,32 +326,32 @@ describe("parseRejectedModels", () => {
   // #region edge cases
   describe("edge cases", () => {
     test("returns empty array for empty report", () => {
-      // #given
+      // given
       const report = ""
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then
+      // then
       expect(result).toHaveLength(0)
     })
 
     test("returns empty array for report with no CONFLICT sections", () => {
-      // #given
+      // given
       const report = `# Plan Comparison Report
 
 ## Summary
 All plans were in agreement. No conflicts detected.`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then
+      // then
       expect(result).toHaveLength(0)
     })
 
     test("handles malformed CONFLICT section gracefully", () => {
-      // #given - missing VERDICT
+      // given - missing VERDICT
       const report = `### CONFLICT: Incomplete section
 
 **strategist says**: Something
@@ -360,15 +360,15 @@ All plans were in agreement. No conflicts detected.`
 **Why strategist is WRONG**: Reason
 **Why creative is WRONG**: Another reason`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - both models should be rejected since no winner
+      // then - both models should be rejected since no winner
       expect(result).toHaveLength(2)
     })
 
     test("deduplicates same model-conflict pair", () => {
-      // #given - hypothetical case where same model mentioned twice
+      // given - hypothetical case where same model mentioned twice
       const report = `### CONFLICT: Duplicate test
 
 **strategist says**: X
@@ -382,16 +382,16 @@ All plans were in agreement. No conflicts detected.`
 
 **VERDICT**: ACCEPT creative`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - should only have one entry for strategist in this conflict
+      // then - should only have one entry for strategist in this conflict
       const strategistRejections = result.filter((r) => r.modelName === "strategist")
       expect(strategistRejections).toHaveLength(1)
     })
 
     test("uses 'general' as conflictId when header is missing", () => {
-      // #given - CONFLICT: followed immediately by newline
+      // given - CONFLICT: followed immediately by newline
       const report = `### CONFLICT:
 
 **strategist says**: X
@@ -406,10 +406,10 @@ All plans were in agreement. No conflicts detected.`
 
 **VERDICT**: ACCEPT strategist`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then
+      // then
       expect(result[0].conflictId).toBe("general")
     })
   })
@@ -418,7 +418,7 @@ All plans were in agreement. No conflicts detected.`
   // #region case sensitivity
   describe("case sensitivity", () => {
     test("model name matching is case insensitive for winner", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Test
 
 **Strategist says**: X
@@ -433,16 +433,16 @@ All plans were in agreement. No conflicts detected.`
 
 **VERDICT**: ACCEPT STRATEGIST`
 
-      // #when - model names passed with different case
+      // when - model names passed with different case
       const result = parseRejectedModels(report, ["strategist", "creative"])
 
-      // #then - strategist should not be rejected despite case difference
+      // then - strategist should not be rejected despite case difference
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("creative")
     })
 
     test("preserves original model name case in output", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Test
 
 **STRATEGIST says**: X
@@ -457,10 +457,10 @@ All plans were in agreement. No conflicts detected.`
 
 **VERDICT**: ACCEPT STRATEGIST`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["Strategist", "Creative"])
 
-      // #then - output should use the case from modelNames parameter
+      // then - output should use the case from modelNames parameter
       expect(result[0].modelName).toBe("Creative")
     })
   })
@@ -469,7 +469,7 @@ All plans were in agreement. No conflicts detected.`
   // #region three models
   describe("three or more models", () => {
     test("correctly identifies single winner among three models", () => {
-      // #given
+      // given
       const report = `### CONFLICT: Architecture
 
 **strategist says**: Microservices
@@ -486,10 +486,10 @@ All plans were in agreement. No conflicts detected.`
 
 **VERDICT**: ACCEPT practical`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["strategist", "creative", "practical"])
 
-      // #then - two models should be rejected
+      // then - two models should be rejected
       expect(result).toHaveLength(2)
       expect(result.map((r) => r.modelName).sort()).toEqual(["creative", "strategist"])
       expect(result.find((r) => r.modelName === "practical")).toBeUndefined()
@@ -500,7 +500,7 @@ All plans were in agreement. No conflicts detected.`
   // #region special characters
   describe("special characters in model names", () => {
     test("handles model names with special regex characters", () => {
-      // #given - model name with characters that need escaping
+      // given - model name with characters that need escaping
       const report = `### CONFLICT: Test
 
 **model.v1 says**: X
@@ -515,10 +515,10 @@ All plans were in agreement. No conflicts detected.`
 
 **VERDICT**: ACCEPT model.v1`
 
-      // #when
+      // when
       const result = parseRejectedModels(report, ["model.v1", "model.v2"])
 
-      // #then
+      // then
       expect(result).toHaveLength(1)
       expect(result[0].modelName).toBe("model.v2")
     })

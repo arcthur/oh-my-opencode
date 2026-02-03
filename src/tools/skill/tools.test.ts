@@ -55,7 +55,7 @@ describe("skill tool - MCP schema display", () => {
 
   describe("formatMcpCapabilities with inputSchema", () => {
     it("displays tool inputSchema when available", async () => {
-      // #given
+      // given
       const mockToolsWithSchema: McpTool[] = [
         {
           name: "browser_type",
@@ -90,10 +90,10 @@ describe("skill tool - MCP schema display", () => {
         getSessionID: () => sessionID,
       })
 
-      // #when
+      // when
       const result = await tool.execute({ name: "test-skill" }, mockContext)
 
-      // #then
+      // then
       // Should include inputSchema details
       expect(result).toContain("browser_type")
       expect(result).toContain("inputSchema")
@@ -105,7 +105,7 @@ describe("skill tool - MCP schema display", () => {
     })
 
     it("displays multiple tools with their schemas", async () => {
-      // #given
+      // given
       const mockToolsWithSchema: McpTool[] = [
         {
           name: "browser_navigate",
@@ -148,10 +148,10 @@ describe("skill tool - MCP schema display", () => {
         getSessionID: () => sessionID,
       })
 
-      // #when
+      // when
       const result = await tool.execute({ name: "playwright-skill" }, mockContext)
 
-      // #then
+      // then
       expect(result).toContain("browser_navigate")
       expect(result).toContain("browser_click")
       expect(result).toContain("url")
@@ -159,7 +159,7 @@ describe("skill tool - MCP schema display", () => {
     })
 
     it("handles tools without inputSchema gracefully", async () => {
-      // #given
+      // given
       const mockToolsMinimal: McpTool[] = [
         {
           name: "simple_tool",
@@ -183,16 +183,16 @@ describe("skill tool - MCP schema display", () => {
         getSessionID: () => sessionID,
       })
 
-      // #when
+      // when
       const result = await tool.execute({ name: "simple-skill" }, mockContext)
 
-      // #then
+      // then
       expect(result).toContain("simple_tool")
       // Should not throw, should handle gracefully
     })
 
     it("formats schema in a way LLM can understand for skill_mcp calls", async () => {
-      // #given
+      // given
       const mockTools: McpTool[] = [
         {
           name: "query",
@@ -224,10 +224,10 @@ describe("skill tool - MCP schema display", () => {
         getSessionID: () => sessionID,
       })
 
-      // #when
+      // when
       const result = await tool.execute({ name: "db-skill" }, mockContext)
 
-      // #then
+      // then
       // Should provide enough info for LLM to construct valid skill_mcp call
       expect(result).toContain("sqlite")
       expect(result).toContain("query")

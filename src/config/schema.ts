@@ -38,6 +38,8 @@ export const BuiltinSkillNameSchema = z.enum([
   "code-simplifier",
 ])
 
+export const BrowserAutomationProviderSchema = z.enum(["playwright", "agent-browser", "dev-browser"])
+
 export const OverridableAgentNameSchema = z.enum([
   "build",
   "plan",
@@ -1002,5 +1004,6 @@ export type SessionReferenceResolveOptions = z.infer<typeof SessionReferenceReso
 export type SisyphusTasksConfig = z.infer<typeof SisyphusTasksConfigSchema>
 export type SisyphusSwarmConfig = z.infer<typeof SisyphusSwarmConfigSchema>
 export type SisyphusConfig = z.infer<typeof SisyphusConfigSchema>
+export type BrowserAutomationProvider = z.infer<typeof BrowserAutomationProviderSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

@@ -382,7 +382,7 @@ describe("aggregation", () => {
     })
 
     test("respects caller-provided limit", () => {
-      //#given
+      // given
       const now = Date.now()
       const existing: LongTermKnowledge[] = []
       const newKnowledge: LongTermKnowledge[] = Array.from({ length: 60 }, (_, i) => ({
@@ -394,15 +394,15 @@ describe("aggregation", () => {
         sourceMonths: ["2025-01"],
       }))
 
-      //#when
+      // when
       const merged = mergeKnowledge(existing, newKnowledge, 100)
 
-      //#then
+      // then
       expect(merged).toHaveLength(60)
     })
 
     test("enforces limit to avoid unbounded growth", () => {
-      //#given
+      // given
       const now = Date.now()
       const existing: LongTermKnowledge[] = Array.from({ length: 45 }, (_, i) => ({
         category: "lesson",
@@ -421,15 +421,15 @@ describe("aggregation", () => {
         sourceMonths: ["2025-02"],
       }))
 
-      //#when
+      // when
       const merged = mergeKnowledge(existing, newKnowledge, 50)
 
-      //#then
+      // then
       expect(merged).toHaveLength(50)
     })
 
     test("retains expired knowledge items for history (not injected by default)", () => {
-      //#given
+      // given
       const now = Date.now()
       const existing: LongTermKnowledge[] = [
         {
@@ -453,10 +453,10 @@ describe("aggregation", () => {
 
       const newKnowledge: LongTermKnowledge[] = []
 
-      //#when
+      // when
       const merged = mergeKnowledge(existing, newKnowledge, 50)
 
-      //#then
+      // then
       expect(merged).toHaveLength(2)
       expect(merged[0]?.content).toBe("Active preference")
       expect(merged.some((k) => k.content === "Old preference that was superseded")).toBe(true)
@@ -680,7 +680,7 @@ describe("aggregation", () => {
     })
 
     test("trims long-term knowledge to long_term_knowledge_limit on extraction", async () => {
-      //#given
+      // given
       const day = 24 * 60 * 60 * 1000
       const now = new Date("2025-04-15T00:00:00Z").getTime()
       const memory: UserMemory = {
@@ -705,7 +705,7 @@ describe("aggregation", () => {
         lastKnowledgeExtraction: now - 100 * day, // force extraction boundary
       }
 
-      //#when
+      // when
       const result = await performAggregations(memory, now, mockSummarizer, {
         enabled: true,
         weekly_summaries_limit: 12,
@@ -715,7 +715,7 @@ describe("aggregation", () => {
         auto_aggregate: true,
       })
 
-      //#then
+      // then
       expect(result.longTermKnowledge).toHaveLength(50)
     })
   })

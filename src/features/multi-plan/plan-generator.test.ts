@@ -65,7 +65,7 @@ describe("PlanGenerator.generatePlans", () => {
   })
 
   test("launches background tasks for all models in parallel", async () => {
-    // #given
+    // given
     const launchMock = mock(() => Promise.resolve({ id: "bg_123", sessionID: "sess_123" }))
     const manager = {
       launch: launchMock,
@@ -79,17 +79,17 @@ describe("PlanGenerator.generatePlans", () => {
       { name: "practical", model: "google/gemini-pro" },
     ])
 
-    // #when
+    // when
     const tasks = await generator.generatePlans(session, "parent_123")
 
-    // #then
+    // then
     expect(launchMock).toHaveBeenCalledTimes(3)
     expect(tasks).toHaveLength(3)
     expect(tasks.every((t) => t.status === "running")).toBe(true)
   })
 
   test("sets correct output paths for each model", async () => {
-    // #given
+    // given
     const manager = createMockManager({ launchResult: { id: "bg_1", sessionID: "sess_1" } })
     const generator = createPlanGenerator(tmpDir, manager)
 
@@ -98,16 +98,16 @@ describe("PlanGenerator.generatePlans", () => {
       { name: "creative" },
     ])
 
-    // #when
+    // when
     const tasks = await generator.generatePlans(session, "parent_123")
 
-    // #then
+    // then
     expect(tasks[0].outputPath).toBe(".sisyphus/plans/auth-feature-strategist.md")
     expect(tasks[1].outputPath).toBe(".sisyphus/plans/auth-feature-creative.md")
   })
 
   test("handles launch failure gracefully for individual models", async () => {
-    // #given - first launch succeeds, second fails
+    // given - first launch succeeds, second fails
     let callCount = 0
     const manager = {
       launch: mock(() => {
@@ -126,10 +126,10 @@ describe("PlanGenerator.generatePlans", () => {
       { name: "creative" },
     ])
 
-    // #when
+    // when
     const tasks = await generator.generatePlans(session, "parent_123")
 
-    // #then
+    // then
     expect(tasks).toHaveLength(2)
     expect(tasks[0].status).toBe("running")
     expect(tasks[1].status).toBe("error")
@@ -137,7 +137,7 @@ describe("PlanGenerator.generatePlans", () => {
   })
 
   test("calls manager.launch with correct parameters", async () => {
-    // #given
+    // given
     const launchMock = mock(() => Promise.resolve({ id: "bg_1", sessionID: "sess_1" }))
     const manager = {
       launch: launchMock,
@@ -147,10 +147,10 @@ describe("PlanGenerator.generatePlans", () => {
 
     const session = createMockSession("test-plan", [{ name: "strategist", model: "anthropic/claude-opus-4-5" }])
 
-    // #when
+    // when
     await generator.generatePlans(session, "parent_session_id")
 
-    // #then
+    // then
     expect(launchMock).toHaveBeenCalledTimes(1)
     const launchCall = (launchMock.mock.calls as unknown as Array<[Record<string, unknown>]>)[0][0]
     expect(launchCall.description).toBe("Multi-Plan: strategist")
@@ -164,7 +164,7 @@ describe("PlanGenerator.generatePlans", () => {
   })
 
   test("assigns unique task IDs from launch results", async () => {
-    // #given
+    // given
     let callCount = 0
     const manager = {
       launch: mock(() => {
@@ -177,10 +177,10 @@ describe("PlanGenerator.generatePlans", () => {
 
     const session = createMockSession("test", [{ name: "a" }, { name: "b" }])
 
-    // #when
+    // when
     const tasks = await generator.generatePlans(session, "parent")
 
-    // #then
+    // then
     expect(tasks[0].taskId).toBe("bg_1")
     expect(tasks[0].sessionId).toBe("sess_1")
     expect(tasks[1].taskId).toBe("bg_2")
@@ -202,7 +202,7 @@ describe("PlanGenerator.waitForCompletion", () => {
   })
 
   test("marks task completed when BackgroundManager evicts but output file exists", async () => {
-    // #given
+    // given
     const outputPath = ".sisyphus/plans/test-claude.md"
     fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plans"), { recursive: true })
     fs.writeFileSync(path.join(tmpDir, outputPath), "# Plan\n", "utf-8")
@@ -221,16 +221,16 @@ describe("PlanGenerator.waitForCompletion", () => {
       },
     ]
 
-    // #when
+    // when
     await generator.waitForCompletion(tasks, 1000)
 
-    // #then
+    // then
     expect(tasks[0].status).toBe("completed")
     expect(tasks[0].completedAt).toBeDefined()
   })
 
   test("marks task error when BackgroundManager evicts and output file is missing", async () => {
-    // #given
+    // given
     const outputPath = ".sisyphus/plans/missing.md"
 
     const manager = createMockManager({ getTaskResult: undefined })
@@ -247,16 +247,16 @@ describe("PlanGenerator.waitForCompletion", () => {
       },
     ]
 
-    // #when
+    // when
     await generator.waitForCompletion(tasks, 1000)
 
-    // #then
+    // then
     expect(tasks[0].status).toBe("error")
     expect(tasks[0].error).toContain("output file missing")
   })
 
   test("completes when BackgroundManager reports task completed", async () => {
-    // #given
+    // given
     const manager = createMockManager({ getTaskResult: { status: "completed" } })
     const generator = createPlanGenerator(tmpDir, manager)
 
@@ -271,15 +271,15 @@ describe("PlanGenerator.waitForCompletion", () => {
       },
     ]
 
-    // #when
+    // when
     await generator.waitForCompletion(tasks, 5000)
 
-    // #then
+    // then
     expect(tasks[0].status).toBe("completed")
   })
 
   test("marks error when BackgroundManager reports task failed", async () => {
-    // #given
+    // given
     const manager = createMockManager({
       getTaskResult: { status: "error", error: "Model crashed" },
     })
@@ -296,16 +296,16 @@ describe("PlanGenerator.waitForCompletion", () => {
       },
     ]
 
-    // #when
+    // when
     await generator.waitForCompletion(tasks, 5000)
 
-    // #then
+    // then
     expect(tasks[0].status).toBe("error")
     expect(tasks[0].error).toBe("Model crashed")
   })
 
   test("marks timeout error when exceeding timeout", async () => {
-    // #given - getTask always returns running
+    // given - getTask always returns running
     const manager = createMockManager({ getTaskResult: { status: "running" } })
     const generator = createPlanGenerator(tmpDir, manager)
 
@@ -320,16 +320,16 @@ describe("PlanGenerator.waitForCompletion", () => {
       },
     ]
 
-    // #when - very short timeout
+    // when - very short timeout
     await generator.waitForCompletion(tasks, 100)
 
-    // #then
+    // then
     expect(tasks[0].status).toBe("error")
     expect(tasks[0].error).toContain("Timeout")
   })
 
   test("handles multiple tasks with mixed success and failure", async () => {
-    // #given
+    // given
     let getTaskCallCount = 0
     const manager = {
       launch: mock(() => Promise.resolve({ id: "bg", sessionID: "sess" })),
@@ -361,17 +361,17 @@ describe("PlanGenerator.waitForCompletion", () => {
       },
     ]
 
-    // #when
+    // when
     await generator.waitForCompletion(tasks, 5000)
 
-    // #then
+    // then
     expect(tasks[0].status).toBe("completed")
     expect(tasks[1].status).toBe("error")
     expect(tasks[1].error).toBe("Failed")
   })
 
   test("calls progress callbacks correctly", async () => {
-    // #given
+    // given
     const manager = createMockManager({ getTaskResult: { status: "completed" } })
     const generator = createPlanGenerator(tmpDir, manager)
 
@@ -393,16 +393,16 @@ describe("PlanGenerator.waitForCompletion", () => {
       onTaskCompleted: taskCompleted,
     }
 
-    // #when
+    // when
     await generator.waitForCompletion(tasks, 5000, progressCallback)
 
-    // #then
+    // then
     expect(allTasksStarted).toHaveBeenCalledTimes(1)
     expect(taskCompleted).toHaveBeenCalledTimes(1)
   })
 
   test("exits immediately when all tasks complete without waiting for poll interval", async () => {
-    // #given - tasks already completed
+    // given - tasks already completed
     const manager = createMockManager({ getTaskResult: { status: "completed" } })
     const generator = createPlanGenerator(tmpDir, manager)
 
@@ -419,10 +419,10 @@ describe("PlanGenerator.waitForCompletion", () => {
 
     const startTime = Date.now()
 
-    // #when
+    // when
     await generator.waitForCompletion(tasks, 60000) // Long timeout
 
-    // #then - should complete quickly, not wait for full timeout
+    // then - should complete quickly, not wait for full timeout
     const duration = Date.now() - startTime
     expect(duration).toBeLessThan(5000) // Should be much faster than timeout
     expect(tasks[0].status).toBe("completed")
@@ -443,17 +443,17 @@ describe("PlanGenerator.resolveModelConfig", () => {
   })
 
   test("parses model specification in provider/model format", () => {
-    // #given
+    // given
     const manager = createMockManager()
     const generator = createPlanGenerator(tmpDir, manager)
 
-    // #when
+    // when
     const result = (generator as any).resolveModelConfig({
       name: "claude-opus-4-5",
       model: "anthropic/claude-opus-4-5",
     })
 
-    // #then
+    // then
     expect(result.model).toEqual({
       providerID: "anthropic",
       modelID: "claude-opus-4-5",
@@ -461,17 +461,17 @@ describe("PlanGenerator.resolveModelConfig", () => {
   })
 
   test("handles model with multiple slashes (e.g., openrouter)", () => {
-    // #given
+    // given
     const manager = createMockManager()
     const generator = createPlanGenerator(tmpDir, manager)
 
-    // #when
+    // when
     const result = (generator as any).resolveModelConfig({
       name: "claude-3-opus",
       model: "openrouter/anthropic/claude-3-opus",
     })
 
-    // #then
+    // then
     expect(result.model).toEqual({
       providerID: "openrouter",
       modelID: "anthropic/claude-3-opus",
@@ -479,14 +479,14 @@ describe("PlanGenerator.resolveModelConfig", () => {
   })
 
   test("returns empty config when model not specified", () => {
-    // #given
+    // given
     const manager = createMockManager()
     const generator = createPlanGenerator(tmpDir, manager)
 
-    // #when
+    // when
     const result = (generator as any).resolveModelConfig({ name: "test" })
 
-    // #then
+    // then
     expect(result).toEqual({})
   })
 })
@@ -508,19 +508,19 @@ describe("PlanGenerator.getModelRoleGuidance", () => {
   })
 
   test("includes model name in guidance", () => {
-    // #when
+    // when
     const result = (generator as any).getModelRoleGuidance("claude-opus-4-5")
 
-    // #then
+    // then
     expect(result).toContain("claude-opus-4-5")
     expect(result).toContain("unique perspective")
   })
 
   test("guidance includes key prompts for diverse perspectives", () => {
-    // #when
+    // when
     const result = (generator as any).getModelRoleGuidance("gpt-5.2")
 
-    // #then
+    // then
     expect(result).toContain("prioritize")
     expect(result).toContain("edge cases")
     expect(result).toContain("actionable")

@@ -6,7 +6,7 @@ import { addEntitiesAndCooccurrenceRelationships, addEntityToGraph, pruneEntityG
 
 describe("entity-reconciliation", () => {
   test("creates works_on and uses relationships from one observation", () => {
-    //#given
+    // given
     const baseGraph: EntityGraph = structuredClone(DEFAULT_ENTITY_GRAPH)
     const timestamp = 1_700_000_000_000
     const extracted: ExtractedEntity[] = [
@@ -30,13 +30,13 @@ describe("entity-reconciliation", () => {
       },
     ]
 
-    //#when
+    // when
     const updated = addEntitiesAndCooccurrenceRelationships(baseGraph, extracted, {
       timestamp,
       context: "Project: oh-my-opencode - worked on build",
     })
 
-    //#then
+    // then
     expect(Object.keys(updated.nodes).length).toBe(3)
     expect(updated.relationships.length).toBe(2)
 
@@ -54,7 +54,7 @@ describe("entity-reconciliation", () => {
   })
 
   test("increments observationCount and confidence for repeated observations", () => {
-    //#given
+    // given
     const baseGraph: EntityGraph = structuredClone(DEFAULT_ENTITY_GRAPH)
     const firstTs = 1_700_000_000_000
     const secondTs = firstTs + 60_000
@@ -73,7 +73,7 @@ describe("entity-reconciliation", () => {
       },
     ]
 
-    //#when
+    // when
     const updated1 = addEntitiesAndCooccurrenceRelationships(baseGraph, extracted, {
       timestamp: firstTs,
       context: "Project: oh-my-opencode - first observation",
@@ -83,7 +83,7 @@ describe("entity-reconciliation", () => {
       context: "Project: oh-my-opencode - second observation",
     })
 
-    //#then
+    // then
     const rel = updated2.relationships.find((r) => r.predicate === "works_on")
     expect(rel?.observationCount).toBe(2)
     expect(rel?.confidence).toBe(0.4)
@@ -93,7 +93,7 @@ describe("entity-reconciliation", () => {
   })
 
   test("creates collaborates_with with canonical ordering", () => {
-    //#given
+    // given
     const baseGraph: EntityGraph = structuredClone(DEFAULT_ENTITY_GRAPH)
     const timestamp = 1_700_000_000_000
     const extracted: ExtractedEntity[] = [
@@ -111,20 +111,20 @@ describe("entity-reconciliation", () => {
       },
     ]
 
-    //#when
+    // when
     const updated = addEntitiesAndCooccurrenceRelationships(baseGraph, extracted, {
       timestamp,
       context: "pair programming",
     })
 
-    //#then
+    // then
     const rel = updated.relationships.find((r) => r.predicate === "collaborates_with")
     expect(rel?.subject).toBe("person:alice")
     expect(rel?.object).toBe("person:john_smith")
   })
 
   test("does not drop single-mention nodes when under capacity", () => {
-    //#given
+    // given
     const baseGraph: EntityGraph = structuredClone(DEFAULT_ENTITY_GRAPH)
     const timestamp = 1_700_000_000_000
     const extracted: ExtractedEntity = {
@@ -136,10 +136,10 @@ describe("entity-reconciliation", () => {
 
     const graphWithOne = addEntityToGraph(baseGraph, extracted)
 
-    //#when
+    // when
     const pruned = pruneEntityGraph(graphWithOne, 200, 500, 2)
 
-    //#then
+    // then
     expect(Object.keys(pruned.nodes).length).toBe(1)
   })
 })

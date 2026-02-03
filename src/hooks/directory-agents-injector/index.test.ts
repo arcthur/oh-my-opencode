@@ -77,7 +77,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
   // #region resolveFilePath (internal function tested via behavior)
   describe("file path resolution", () => {
     test("handles absolute paths unchanged", async () => {
-      // #given: Project with AGENTS.md
+      // given: Project with AGENTS.md
       const subDir = path.join(tmpDir, "src")
       fs.mkdirSync(subDir, { recursive: true })
       fs.writeFileSync(path.join(subDir, "AGENTS.md"), "# Agents")
@@ -85,19 +85,19 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Read tool with absolute path
+      // when: Read tool with absolute path
       const absPath = path.join(subDir, "index.ts")
       const input = createToolInput("Read")
       const output = createToolOutput(absPath)
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should process the absolute path
+      // then: Should process the absolute path
       expect(output.output).toContain("Directory Context")
     })
 
     test("resolves relative paths against ctx.directory", async () => {
-      // #given: Project with AGENTS.md
+      // given: Project with AGENTS.md
       const subDir = path.join(tmpDir, "src")
       fs.mkdirSync(subDir, { recursive: true })
       fs.writeFileSync(path.join(subDir, "AGENTS.md"), "# Agents")
@@ -105,14 +105,14 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Read tool with relative path (simulated via title)
+      // when: Read tool with relative path (simulated via title)
       const input = createToolInput("Read")
       // The title contains the resolved path after Read tool execution
       const output = createToolOutput(path.join(subDir, "index.ts"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should find AGENTS.md in the directory
+      // then: Should find AGENTS.md in the directory
       expect(output.output).toContain("Directory Context")
     })
   })
@@ -121,7 +121,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
   // #region findAgentsMdUp (internal function tested via behavior)
   describe("AGENTS.md discovery", () => {
     test("finds AGENTS.md in target directory", async () => {
-      // #given: AGENTS.md in src directory
+      // given: AGENTS.md in src directory
       const srcDir = path.join(tmpDir, "src")
       fs.mkdirSync(srcDir, { recursive: true })
       fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Source Agents")
@@ -129,18 +129,18 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Read file in src directory
+      // when: Read file in src directory
       const input = createToolInput("Read")
       const output = createToolOutput(path.join(srcDir, "index.ts"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should inject src/AGENTS.md content
+      // then: Should inject src/AGENTS.md content
       expect(output.output).toContain("Source Agents")
     })
 
     test("finds AGENTS.md in parent directories", async () => {
-      // #given: AGENTS.md in parent, file in nested directory
+      // given: AGENTS.md in parent, file in nested directory
       const srcDir = path.join(tmpDir, "src")
       const deepDir = path.join(srcDir, "utils", "helpers")
       fs.mkdirSync(deepDir, { recursive: true })
@@ -149,18 +149,18 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Read file in deep nested directory
+      // when: Read file in deep nested directory
       const input = createToolInput("Read")
       const output = createToolOutput(path.join(deepDir, "helper.ts"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should find AGENTS.md in parent
+      // then: Should find AGENTS.md in parent
       expect(output.output).toContain("Parent Agents")
     })
 
     test("skips root AGENTS.md", async () => {
-      // #given: AGENTS.md at project root only
+      // given: AGENTS.md at project root only
       fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), "# Root Agents")
       const srcDir = path.join(tmpDir, "src")
       fs.mkdirSync(srcDir, { recursive: true })
@@ -168,19 +168,19 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Read file in src
+      // when: Read file in src
       const input = createToolInput("Read")
       const output = createToolOutput(path.join(srcDir, "index.ts"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should NOT inject root AGENTS.md (already loaded by system)
+      // then: Should NOT inject root AGENTS.md (already loaded by system)
       expect(output.output).not.toContain("Root Agents")
       expect(output.output).toBe("test output")
     })
 
     test("stops at project root", async () => {
-      // #given: AGENTS.md outside project root
+      // given: AGENTS.md outside project root
       // Note: We can't safely write to parent, so we test the boundary behavior
 
       const srcDir = path.join(tmpDir, "src")
@@ -189,19 +189,19 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Read file in src
+      // when: Read file in src
       const input = createToolInput("Read")
       const output = createToolOutput(path.join(srcDir, "index.ts"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Output should remain unmodified (no AGENTS.md found within project)
+      // then: Output should remain unmodified (no AGENTS.md found within project)
       expect(output.output).toBe("test output")
       expect(output.output).not.toContain("Directory Context")
     })
 
     test("returns paths in hierarchical order", async () => {
-      // #given: Multiple AGENTS.md files at different levels
+      // given: Multiple AGENTS.md files at different levels
       const srcDir = path.join(tmpDir, "src")
       const componentsDir = path.join(srcDir, "components")
       fs.mkdirSync(componentsDir, { recursive: true })
@@ -215,13 +215,13 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Read file in components
+      // when: Read file in components
       const input = createToolInput("Read")
       const output = createToolOutput(path.join(componentsDir, "Button.tsx"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Both should be injected in order (parent first, then child)
+      // then: Both should be injected in order (parent first, then child)
       expect(output.output).toContain("Level 1 - src")
       expect(output.output).toContain("Level 2 - components")
 
@@ -236,7 +236,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
   // #region tool.execute.before (batch handling)
   describe("tool.execute.before (batch handling)", () => {
     test("extracts Read file paths from batch tool_calls", async () => {
-      // #given: Hook and batch input with Read calls
+      // given: Hook and batch input with Read calls
       const srcDir = path.join(tmpDir, "src")
       fs.mkdirSync(srcDir, { recursive: true })
       fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Batch Agents")
@@ -256,10 +256,10 @@ describe("createDirectoryAgentsInjectorHook", () => {
         },
       }
 
-      // #when: Call tool.execute.before
+      // when: Call tool.execute.before
       await hook["tool.execute.before"](input, beforeOutput)
 
-      // #then: Should store pending paths
+      // then: Should store pending paths
       // Verify by calling tool.execute.after for batch
       const afterOutput = createToolOutput("Batch result", "batch output")
       await hook["tool.execute.after"](input, afterOutput)
@@ -269,7 +269,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
     })
 
     test("stores pending paths for batch call ID", async () => {
-      // #given: Multiple batch calls
+      // given: Multiple batch calls
       const srcDir = path.join(tmpDir, "src")
       fs.mkdirSync(srcDir, { recursive: true })
       fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Agents")
@@ -297,11 +297,11 @@ describe("createDirectoryAgentsInjectorHook", () => {
         },
       })
 
-      // #when: Complete batch 2 first
+      // when: Complete batch 2 first
       const output2 = createToolOutput("Batch 2", "output 2")
       await hook["tool.execute.after"](input2, output2)
 
-      // #then: Should process batch 2's paths
+      // then: Should process batch 2's paths
       expect(output2.output).toContain("Directory Context")
     })
   })
@@ -311,7 +311,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
   describe("tool.execute.after", () => {
     describe("Read tool", () => {
       test("injects AGENTS.md content for accessed directory", async () => {
-        // #given: AGENTS.md in directory
+        // given: AGENTS.md in directory
         const srcDir = path.join(tmpDir, "src")
         fs.mkdirSync(srcDir, { recursive: true })
         fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Test Agents Content")
@@ -319,19 +319,19 @@ describe("createDirectoryAgentsInjectorHook", () => {
         const mockCtx = createMockCtx(tmpDir)
         const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-        // #when: Read tool call
+        // when: Read tool call
         const input = createToolInput("Read")
         const output = createToolOutput(path.join(srcDir, "index.ts"))
 
         await hook["tool.execute.after"](input, output)
 
-        // #then: Should inject content
+        // then: Should inject content
         expect(output.output).toContain("Test Agents Content")
         expect(output.output).toContain("Directory Context")
       })
 
       test("skips already injected directories", async () => {
-        // #given: Directory already in cache
+        // given: Directory already in cache
         const srcDir = path.join(tmpDir, "src")
         fs.mkdirSync(srcDir, { recursive: true })
         fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Agents")
@@ -341,18 +341,18 @@ describe("createDirectoryAgentsInjectorHook", () => {
         const mockCtx = createMockCtx(tmpDir)
         const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-        // #when: Read in already injected directory
+        // when: Read in already injected directory
         const input = createToolInput("Read")
         const output = createToolOutput(path.join(srcDir, "index.ts"))
 
         await hook["tool.execute.after"](input, output)
 
-        // #then: Should not inject again
+        // then: Should not inject again
         expect(output.output).toBe("test output")
       })
 
       test("saves injected paths to storage", async () => {
-        // #given: Hook
+        // given: Hook
         const srcDir = path.join(tmpDir, "src")
         fs.mkdirSync(srcDir, { recursive: true })
         fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Agents")
@@ -360,19 +360,19 @@ describe("createDirectoryAgentsInjectorHook", () => {
         const mockCtx = createMockCtx(tmpDir)
         const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-        // #when: Read tool call
+        // when: Read tool call
         const sessionID = "session-save"
         const input = createToolInput("Read", sessionID)
         const output = createToolOutput(path.join(srcDir, "index.ts"))
 
         await hook["tool.execute.after"](input, output)
 
-        // #then: Should save to storage
+        // then: Should save to storage
         expect(saveSpy).toHaveBeenCalledWith(sessionID, expect.any(Set))
       })
 
       test("includes truncation notice when content truncated", async () => {
-        // #given: Truncator that truncates
+        // given: Truncator that truncates
         truncatorSpy.mockReturnValue({
           truncate: mock(async (sessionID: string, content: string) => ({
             result: content.slice(0, 10) + "...",
@@ -389,13 +389,13 @@ describe("createDirectoryAgentsInjectorHook", () => {
         const mockCtx = createMockCtx(tmpDir)
         const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-        // #when: Read tool call
+        // when: Read tool call
         const input = createToolInput("Read")
         const output = createToolOutput(path.join(srcDir, "index.ts"))
 
         await hook["tool.execute.after"](input, output)
 
-        // #then: Should include truncation notice
+        // then: Should include truncation notice
         expect(output.output).toContain("truncated")
         expect(output.output).toContain("AGENTS.md")
       })
@@ -403,7 +403,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
 
     describe("Batch tool", () => {
       test("processes all pending Read paths", async () => {
-        // #given: Multiple Read paths in batch
+        // given: Multiple Read paths in batch
         const srcDir = path.join(tmpDir, "src")
         const libDir = path.join(tmpDir, "lib")
         fs.mkdirSync(srcDir, { recursive: true })
@@ -426,17 +426,17 @@ describe("createDirectoryAgentsInjectorHook", () => {
           },
         })
 
-        // #when: Complete batch
+        // when: Complete batch
         const output = createToolOutput("Batch", "batch output")
         await hook["tool.execute.after"](input, output)
 
-        // #then: Should process all paths
+        // then: Should process all paths
         expect(output.output).toContain("Src Agents")
         expect(output.output).toContain("Lib Agents")
       })
 
       test("clears pending paths after processing", async () => {
-        // #given: Batch call
+        // given: Batch call
         const srcDir = path.join(tmpDir, "src")
         fs.mkdirSync(srcDir, { recursive: true })
         fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Agents")
@@ -459,11 +459,11 @@ describe("createDirectoryAgentsInjectorHook", () => {
         const output1 = createToolOutput("Batch", "output 1")
         await hook["tool.execute.after"](input, output1)
 
-        // #when: Try to complete same batch again
+        // when: Try to complete same batch again
         const output2 = createToolOutput("Batch", "output 2")
         await hook["tool.execute.after"](input, output2)
 
-        // #then: Second call should not process (pending cleared)
+        // then: Second call should not process (pending cleared)
         // First output has injection, second should not
         expect(output1.output).toContain("Directory Context")
         // Note: output2 won't have new injections since dir already injected in session
@@ -476,12 +476,12 @@ describe("createDirectoryAgentsInjectorHook", () => {
   describe("event handling", () => {
     describe("session.deleted", () => {
       test("clears session cache", async () => {
-        // #given: Hook with session
+        // given: Hook with session
         const mockCtx = createMockCtx(tmpDir)
         const hook = createDirectoryAgentsInjectorHook(mockCtx)
         const sessionID = "session-delete"
 
-        // #when: Delete session
+        // when: Delete session
         await hook.event({
           event: {
             type: "session.deleted",
@@ -489,7 +489,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
           },
         })
 
-        // #then: Should clear storage
+        // then: Should clear storage
         expect(clearSpy).toHaveBeenCalledWith(sessionID)
       })
 
@@ -497,7 +497,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
 
     describe("session.compacted", () => {
       test("clears session cache", async () => {
-        // #given: Hook with session
+        // given: Hook with session
         const srcDir = path.join(tmpDir, "src")
         fs.mkdirSync(srcDir, { recursive: true })
         fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Agents")
@@ -515,7 +515,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
         // Reset loadSpy to return empty (simulating cleared cache)
         loadSpy.mockReturnValue(new Set())
 
-        // #when: Compact session
+        // when: Compact session
         await hook.event({
           event: {
             type: "session.compacted",
@@ -523,17 +523,17 @@ describe("createDirectoryAgentsInjectorHook", () => {
           },
         })
 
-        // #then: Should clear storage
+        // then: Should clear storage
         expect(clearSpy).toHaveBeenCalledWith(sessionID)
       })
 
       test("handles sessionID from info property", async () => {
-        // #given: Hook
+        // given: Hook
         const mockCtx = createMockCtx(tmpDir)
         const hook = createDirectoryAgentsInjectorHook(mockCtx)
         const sessionID = "session-info-compact"
 
-        // #when: Compact with sessionID in info
+        // when: Compact with sessionID in info
         await hook.event({
           event: {
             type: "session.compacted",
@@ -541,13 +541,13 @@ describe("createDirectoryAgentsInjectorHook", () => {
           },
         })
 
-        // #then: Should clear storage
+        // then: Should clear storage
         expect(clearSpy).toHaveBeenCalledWith(sessionID)
       })
     })
 
     test("ignores unknown event types", async () => {
-      // #given: Hook with tracked session
+      // given: Hook with tracked session
       const srcDir = path.join(tmpDir, "src-unknown")
       fs.mkdirSync(srcDir, { recursive: true })
       fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Agents")
@@ -562,7 +562,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
       await hook["tool.execute.after"](input, output1)
       expect(output1.output).toContain("Directory Context")
 
-      // #when: Unknown event
+      // when: Unknown event
       await hook.event({
         event: {
           type: "session.unknown",
@@ -570,7 +570,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
         },
       })
 
-      // #then: State should be preserved (not cleared by unknown event)
+      // then: State should be preserved (not cleared by unknown event)
       // Re-reading same dir should NOT re-inject (still cached)
       loadSpy.mockReturnValue(new Set([srcDir]))
       const output2 = createToolOutput(path.join(srcDir, "file2.ts"))
@@ -579,11 +579,11 @@ describe("createDirectoryAgentsInjectorHook", () => {
     })
 
     test("handles missing properties gracefully", async () => {
-      // #given: Hook
+      // given: Hook
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Events with missing properties
+      // when: Events with missing properties
       await hook.event({
         event: {
           type: "session.deleted",
@@ -598,7 +598,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
         },
       })
 
-      // #then: clearInjectedPaths should NOT be called with undefined
+      // then: clearInjectedPaths should NOT be called with undefined
       // The implementation should guard against undefined sessionID
       const clearCalls = clearSpy.mock.calls
       for (const call of clearCalls) {
@@ -611,22 +611,22 @@ describe("createDirectoryAgentsInjectorHook", () => {
   // #region edge cases
   describe("edge cases", () => {
     test("handles non-Read/Batch tools", async () => {
-      // #given: Hook
+      // given: Hook
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Grep tool (not Read or Batch)
+      // when: Grep tool (not Read or Batch)
       const input = createToolInput("Grep")
       const output = createToolOutput("Grep", "grep results")
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not modify output
+      // then: Should not modify output
       expect(output.output).toBe("grep results")
     })
 
     test("handles file read errors gracefully", async () => {
-      // #given: AGENTS.md that cannot be read (we'll remove read permission)
+      // given: AGENTS.md that cannot be read (we'll remove read permission)
       const srcDir = path.join(tmpDir, "src-error")
       fs.mkdirSync(srcDir, { recursive: true })
       const agentsPath = path.join(srcDir, "AGENTS.md")
@@ -640,13 +640,13 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Try to read
+      // when: Try to read
       const input = createToolInput("Read")
       const output = createToolOutput(path.join(srcDir, "index.ts"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Original output should be preserved (error handled gracefully)
+      // then: Original output should be preserved (error handled gracefully)
       // Restore permissions for cleanup
       if (process.platform !== "win32") {
         fs.chmodSync(agentsPath, 0o644)
@@ -658,7 +658,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
     })
 
     test("handles empty tool_calls in batch", async () => {
-      // #given: Batch with no Read calls
+      // given: Batch with no Read calls
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
@@ -672,16 +672,16 @@ describe("createDirectoryAgentsInjectorHook", () => {
         },
       })
 
-      // #when: Complete batch
+      // when: Complete batch
       const output = createToolOutput("Batch", "output")
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not modify output (no Read calls)
+      // then: Should not modify output (no Read calls)
       expect(output.output).toBe("output")
     })
 
     test("handles batch without tool_calls", async () => {
-      // #given: Batch with undefined tool_calls
+      // given: Batch with undefined tool_calls
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
@@ -691,11 +691,11 @@ describe("createDirectoryAgentsInjectorHook", () => {
         args: {},
       })
 
-      // #when: Complete batch
+      // when: Complete batch
       const output = createToolOutput("Batch", "output")
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should not throw
+      // then: Should not throw
       expect(output.output).toBe("output")
     })
   })
@@ -704,7 +704,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
   // #region complex state transitions
   describe("complex state transitions", () => {
     test("complete flow: inject → session.compacted → re-inject", async () => {
-      // #given: Directory with AGENTS.md
+      // given: Directory with AGENTS.md
       const srcDir = path.join(tmpDir, "src-flow")
       fs.mkdirSync(srcDir, { recursive: true })
       fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Flow Agents")
@@ -738,7 +738,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
     })
 
     test("multiple directories in same session tracked independently", async () => {
-      // #given: Two directories with AGENTS.md
+      // given: Two directories with AGENTS.md
       const srcDir = path.join(tmpDir, "src-multi")
       const libDir = path.join(tmpDir, "lib-multi")
       fs.mkdirSync(srcDir, { recursive: true })
@@ -750,7 +750,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
       const sessionID = "session-multi"
 
-      // #when: Read from src
+      // when: Read from src
       const input = createToolInput("Read", sessionID)
       const output1 = createToolOutput(path.join(srcDir, "file.ts"))
       await hook["tool.execute.after"](input, output1)
@@ -762,12 +762,12 @@ describe("createDirectoryAgentsInjectorHook", () => {
       await hook["tool.execute.after"](input, output2)
       expect(output2.output).toContain("Lib Agents")
 
-      // #then: Both directories were injected
+      // then: Both directories were injected
       expect(saveSpy).toHaveBeenCalledTimes(2)
     })
 
     test("batch processes multiple directories atomically", async () => {
-      // #given: Two directories in one batch
+      // given: Two directories in one batch
       const srcDir = path.join(tmpDir, "src-batch")
       const libDir = path.join(tmpDir, "lib-batch")
       fs.mkdirSync(srcDir, { recursive: true })
@@ -782,7 +782,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
 
       const input = createToolInput("Batch", sessionID, callID)
 
-      // #when: Process batch with both directories
+      // when: Process batch with both directories
       await hook["tool.execute.before"](input, {
         args: {
           tool_calls: [
@@ -795,13 +795,13 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const output = createToolOutput("Batch", "batch result")
       await hook["tool.execute.after"](input, output)
 
-      // #then: Both agents should be in output
+      // then: Both agents should be in output
       expect(output.output).toContain("Src Batch")
       expect(output.output).toContain("Lib Batch")
     })
 
     test("truncator exception does not break injection chain", async () => {
-      // #given: Truncator that throws
+      // given: Truncator that throws
       truncatorSpy.mockReturnValue({
         truncate: mock(async () => {
           throw new Error("Truncator error")
@@ -815,19 +815,19 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const mockCtx = createMockCtx(tmpDir)
       const hook = createDirectoryAgentsInjectorHook(mockCtx)
 
-      // #when: Try to inject (truncator throws)
+      // when: Try to inject (truncator throws)
       const input = createToolInput("Read")
       const output = createToolOutput(path.join(srcDir, "file.ts"))
 
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should handle error gracefully
+      // then: Should handle error gracefully
       // Output should at least be defined (may or may not have content depending on impl)
       expect(output.output).toBeDefined()
     })
 
     test("session.deleted during batch processing", async () => {
-      // #given: Batch started
+      // given: Batch started
       const srcDir = path.join(tmpDir, "src-delete-batch")
       fs.mkdirSync(srcDir, { recursive: true })
       fs.writeFileSync(path.join(srcDir, "AGENTS.md"), "# Agents")
@@ -847,7 +847,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
         },
       })
 
-      // #when: Delete session before batch completes
+      // when: Delete session before batch completes
       await hook.event({
         event: { type: "session.deleted", properties: { info: { id: sessionID } } },
       })
@@ -856,7 +856,7 @@ describe("createDirectoryAgentsInjectorHook", () => {
       const output = createToolOutput("Batch", "result")
       await hook["tool.execute.after"](input, output)
 
-      // #then: Should complete without error
+      // then: Should complete without error
       expect(output.output).toBeDefined()
     })
   })

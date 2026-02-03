@@ -25,7 +25,7 @@ describe("sisyphus-junior-notepad hook", () => {
 
   describe("tool.execute.before", () => {
     test("injects notepad directive when sisyphus delegates to sisyphus-junior", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-1", "sisyphus")
       const hook = createHook(createMockCtx())
       const output = {
@@ -35,20 +35,20 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-1" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toContain("<Work_Context>")
       expect(output.args.prompt).toContain("NOTEPAD PATH")
       expect(output.args.prompt).toContain("Implement the feature")
     })
 
     test("injects notepad directive when atlas delegates to sisyphus-junior", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-2", "atlas")
       const hook = createHook(createMockCtx())
       const output = {
@@ -58,18 +58,18 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-2" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toContain("<Work_Context>")
     })
 
     test("injects notepad directive for category-based delegation (spawns sisyphus-junior)", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-3", "sisyphus")
       const hook = createHook(createMockCtx())
       const output = {
@@ -79,19 +79,19 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-3" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toContain("<Work_Context>")
       expect(output.args.prompt).toContain("Build the component")
     })
 
     test("does NOT inject when target is not sisyphus-junior", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-4", "sisyphus")
       const hook = createHook(createMockCtx())
       const output = {
@@ -101,19 +101,19 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-4" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toBe("Analyze the architecture")
       expect(output.args.prompt).not.toContain("<Work_Context>")
     })
 
     test("does NOT inject when caller is not an orchestrator", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-5", "sisyphus-junior")
       const hook = createHook(createMockCtx())
       const output = {
@@ -123,18 +123,18 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-5" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toBe("Some task")
     })
 
     test("does NOT inject for non-delegate_task tools", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-6", "sisyphus")
       const hook = createHook(createMockCtx())
       const output = {
@@ -143,18 +143,18 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "edit", sessionID: "session-6" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toBe("Some prompt")
     })
 
     test("avoids double-injection if prompt already has Work_Context", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-7", "sisyphus")
       const hook = createHook(createMockCtx())
       const existingPrompt = "<Work_Context>Already has context</Work_Context>\nDo the work"
@@ -165,18 +165,18 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-7" },
         output
       )
 
-      // #then - should not double-inject
+      // then - should not double-inject
       expect(output.args.prompt).toBe(existingPrompt)
     })
 
     test("handles missing sessionID gracefully", async () => {
-      // #given
+      // given
       const hook = createHook(createMockCtx())
       const output = {
         args: {
@@ -185,18 +185,18 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toBe("Task")
     })
 
     test("handles empty prompt", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-8", "atlas")
       const hook = createHook(createMockCtx())
       const output = {
@@ -206,18 +206,18 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-8" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toContain("<Work_Context>")
     })
 
     test("handles undefined prompt", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-9", "sisyphus")
       const hook = createHook(createMockCtx())
       const output = {
@@ -226,18 +226,18 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-9" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toContain("<Work_Context>")
     })
 
     test("notepad directive contains required elements", () => {
-      // #then - verify directive structure
+      // then - verify directive structure
       expect(NOTEPAD_DIRECTIVE).toContain("NOTEPAD PATH")
       expect(NOTEPAD_DIRECTIVE).toContain("learnings.md")
       expect(NOTEPAD_DIRECTIVE).toContain("issues.md")
@@ -249,7 +249,7 @@ describe("sisyphus-junior-notepad hook", () => {
     })
 
     test("preserves other args when injecting", async () => {
-      // #given
+      // given
       mockSessionAgents.set("session-10", "sisyphus")
       const hook = createHook(createMockCtx())
       const output = {
@@ -261,13 +261,13 @@ describe("sisyphus-junior-notepad hook", () => {
         },
       }
 
-      // #when
+      // when
       await hook["tool.execute.before"](
         { tool: "delegate_task", sessionID: "session-10" },
         output
       )
 
-      // #then
+      // then
       expect(output.args.prompt).toContain("<Work_Context>")
       expect(output.args.category).toBe("visual-engineering")
       expect(output.args.load_skills).toEqual(["frontend-ui-ux"])

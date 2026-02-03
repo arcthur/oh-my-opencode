@@ -20,7 +20,7 @@ describe("user-memory storage", () => {
 
   describe("searchMemory", () => {
     test("uses most recent 20 work history entries (not oldest) when building candidates", async () => {
-      //#given
+      // given
       const now = 1_700_000_000_000
       spyOn(Date, "now").mockReturnValue(now)
 
@@ -72,10 +72,10 @@ describe("user-memory storage", () => {
 
       const searchHybridSpy = spyOn(hybrid, "searchHybrid").mockResolvedValue([])
 
-      //#when
+      // when
       await storage.searchMemory("query", { enabled: true, provider: "local", cache_enabled: true, batch_size: 20 }, 5)
 
-      //#then
+      // then
       expect(searchHybridSpy).toHaveBeenCalled()
       const candidatesArg = searchHybridSpy.mock.calls[0]?.[1] as Array<{ id: string; text: string }>
       const historyCandidates = candidatesArg.filter((c) => c.id.startsWith("history:"))
@@ -91,7 +91,7 @@ describe("user-memory storage", () => {
 
   describe("buildMemorySummary", () => {
     test("filters entity injection using injection_confidence_threshold and min_mentions", () => {
-      //#given
+      // given
       const now = 1_700_000_000_000
       const memory: UserMemory = {
         preferences: {},
@@ -193,14 +193,14 @@ describe("user-memory storage", () => {
         injection_confidence_threshold: 0.4,
       }
 
-      //#when
+      // when
       const summary = buildMemorySummary(memory, {
         temporalConfig: { ...DEFAULT_TEMPORAL_VALIDITY_CONFIG, enabled: false },
         disclosureLevel: "full",
         entityConfig,
       })
 
-      //#then
+      // then
       expect(summary).not.toBeNull()
       expect(summary).toContain("Bob")
       expect(summary).not.toContain("Alice")
@@ -326,7 +326,7 @@ describe("user-memory storage", () => {
 
   describe("addWorkHistoryEntry", () => {
     test("sets temporal validity defaults for new entries", () => {
-      //#given
+      // given
       const now = 1_700_000_123_000
       spyOn(Date, "now").mockReturnValue(now)
       const loadSpy = spyOn(storage, "loadUserMemory").mockReturnValue({
@@ -334,10 +334,10 @@ describe("user-memory storage", () => {
       })
       const saveSpy = spyOn(storage, "saveUserMemory").mockImplementation(() => {})
 
-      //#when
+      // when
       addWorkHistoryEntry({ summary: "Test entry", project: "proj-x" }, DEFAULT_CONFIG)
 
-      //#then
+      // then
       expect(loadSpy).toHaveBeenCalled()
       expect(saveSpy).toHaveBeenCalled()
       const saved = saveSpy.mock.calls[0]?.[0] as UserMemory
@@ -349,7 +349,7 @@ describe("user-memory storage", () => {
 
   describe("migrateUserMemory", () => {
     test("fills missing temporal fields and preserves unknown fields", () => {
-      //#given
+      // given
       const now = 1_700_000_500_000
       spyOn(Date, "now").mockReturnValue(now)
       const legacy = {
@@ -366,10 +366,10 @@ describe("user-memory storage", () => {
         customField: "keep-me",
       } as Partial<UserMemory> & { customField: string }
 
-      //#when
+      // when
       const migrated = migrateUserMemory(legacy)
 
-      //#then
+      // then
       expect(migrated.schemaVersion).toBe(3)
       expect(migrated.workHistory[0]?.valid_from).toBe(legacy.workHistory?.[0]?.timestamp)
       expect(migrated.workHistory[0]?.staleness_category).toBe("short-term")
