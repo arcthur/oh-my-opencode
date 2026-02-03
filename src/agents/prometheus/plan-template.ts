@@ -24,6 +24,11 @@ Generate plan to: \`.sisyphus/plans/{name}.md\`
 > **Parallel Execution**: [YES - N waves | NO - sequential]
 > **Critical Path**: [Task X → Task Y → Task Z]
 
+## Design Doc
+
+- Path: \`.sisyphus/designs/{topic-slug}.md\` (if brainstorming was used; omit for trivial/simple)
+- Design = "why/how". Work plan = "what/steps".
+
 ---
 
 ## Context

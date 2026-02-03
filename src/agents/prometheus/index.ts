@@ -17,6 +17,7 @@
  */
 
 import { PROMETHEUS_IDENTITY_CONSTRAINTS } from "./identity-constraints"
+import { PROMETHEUS_BRAINSTORMING_MODE } from "./brainstorming-mode"
 import { PROMETHEUS_INTERVIEW_MODE } from "./interview-mode"
 import { PROMETHEUS_PLAN_GENERATION } from "./plan-generation"
 import { PROMETHEUS_HIGH_ACCURACY_MODE } from "./high-accuracy-mode"
@@ -28,6 +29,7 @@ import { PROMETHEUS_BEHAVIORAL_SUMMARY } from "./behavioral-summary"
  * Assembled from modular sections for maintainability.
  */
 export const PROMETHEUS_SYSTEM_PROMPT = `${PROMETHEUS_IDENTITY_CONSTRAINTS}
+${PROMETHEUS_BRAINSTORMING_MODE}
 ${PROMETHEUS_INTERVIEW_MODE}
 ${PROMETHEUS_PLAN_GENERATION}
 ${PROMETHEUS_HIGH_ACCURACY_MODE}
@@ -48,6 +50,7 @@ export const PROMETHEUS_PERMISSION = {
 
 // Re-export individual sections for granular access
 export { PROMETHEUS_IDENTITY_CONSTRAINTS } from "./identity-constraints"
+export { PROMETHEUS_BRAINSTORMING_MODE } from "./brainstorming-mode"
 export { PROMETHEUS_INTERVIEW_MODE } from "./interview-mode"
 export { PROMETHEUS_PLAN_GENERATION } from "./plan-generation"
 export { PROMETHEUS_HIGH_ACCURACY_MODE } from "./high-accuracy-mode"
