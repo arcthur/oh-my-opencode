@@ -1,4 +1,22 @@
-# Prometheus Planning Guide
+# Journey: Prometheus Planning (Interview → Plan)
+
+## User Perspective
+
+You want a plan that is precise enough to execute and robust enough to survive interruptions, without having to pre-structure every requirement yourself.
+Prometheus acts as a planner: it interviews for clarity, performs targeted recon, explores alternatives, and produces an executable work plan (typically persisted under `.sisyphus/` when planning-with-files is enabled).
+
+## End-to-End Flow
+
+```mermaid
+flowchart TD
+  U["User request"] --> R["Recon (explore/librarian)"]
+  R --> Q["Interview (one question at a time)"]
+  Q --> OPT["Explore 2-3 approaches (when non-trivial)"]
+  OPT --> CLR{"Clearance check\\n(requirements, scope, tests)"}
+  CLR -->|Pass| PLAN["Write plan → .sisyphus/plans/<name>.md"]
+  CLR -->|Fail| Q
+  PLAN --> EXEC["Execution (/start-work → atlas orchestration)"]
+```
 
 Prometheus is the strategic planning agent in OpenCode. Named after the Titan who brought fire (knowledge/foresight) to humanity, it brings structure and clarity to complex work through thoughtful consultation.
 
@@ -228,6 +246,6 @@ OpenCode's Prometheus is inspired by [Superpowers brainstorming](https://github.
 
 ## Related Docs
 
-- [Orchestration Guide](./orchestration-guide.md) - How agents work together
-- [Multi-Model Planning Guide](./multi-model-planning-guide.md) - High accuracy mode details
-- [Category & Skill Guide](./category-skill-guide.md) - Task delegation
+- [Orchestration Guide](../guide/orchestration.md) - How agents work together
+- [Multi-Model Planning](./multi-model-planning.md) - High accuracy mode details
+- [Category and Skills Guide](../guide/category-and-skills.md) - Task delegation

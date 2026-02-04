@@ -1,4 +1,4 @@
-# Category & Skill System Guide
+# Category and Skill System
 
 This document provides a comprehensive guide to the **Category** and **Skill** systems, which form the extensibility core of Oh-My-OpenCode.
 
@@ -37,7 +37,10 @@ Specify the `category` parameter when invoking the `delegate_task` tool.
 ```typescript
 delegate_task(
   category="visual-engineering",
-  prompt="Add a responsive chart component to the dashboard page"
+  load_skills=["frontend-ui-ux"],
+  description="dashboard chart",
+  prompt="Add a responsive chart component to the dashboard page",
+  run_in_background=false
 )
 ```
 
@@ -77,7 +80,9 @@ Add desired skill names to the `load_skills` array.
 delegate_task(
   category="quick",
   load_skills=["git-master"],
-  prompt="Commit current changes. Follow commit message style."
+  description="commit changes",
+  prompt="Commit current changes. Follow the repository's commit message style.",
+  run_in_background=false
 )
 ```
 
@@ -109,17 +114,17 @@ This content will be injected into the agent's system prompt.
 
 You can create powerful specialized agents by combining Categories and Skills.
 
-### 🎨 The Designer (UI Implementation)
+### The Designer (UI Implementation)
 - **Category**: `visual-engineering`
 - **load_skills**: `["frontend-ui-ux", "playwright"]`
 - **Effect**: Implements aesthetic UI and verifies rendering results directly in browser.
 
-### 🏗️ The Architect (Design Review)
+### The Architect (Design Review)
 - **Category**: `ultrabrain`
 - **load_skills**: `[]` (pure reasoning)
 - **Effect**: Leverages GPT-5.2's logical reasoning for in-depth system architecture analysis.
 
-### ⚡ The Maintainer (Quick Fixes)
+### The Maintainer (Quick Fixes)
 - **Category**: `quick`
 - **load_skills**: `["git-master"]`
 - **Effect**: Uses cost-effective models to quickly fix code and generate clean commits.

@@ -155,14 +155,14 @@ Run `opencode models` to see all available models in your environment. Model nam
 
 ### Learn More
 
-For detailed configuration options including per-agent settings, category customization, and more, see the [Configuration Guide](../configurations.md).
+For detailed configuration options including per-agent settings, category customization, and more, see the [Configuration Contract](../reference/configuration.md).
 
 ---
 
 ## Next Steps
 
 - [Understanding the Orchestration System](./understanding-orchestration-system.md) - Deep dive into Prometheus → Orchestrator → Junior workflow
-- [Ultrawork Manifesto](../ultrawork-manifesto.md) - Philosophy and principles behind Oh My OpenCode
+- [Ultrawork Journey](../journeys/ultrawork.md) - Philosophy and principles behind Oh My OpenCode
 - [Installation Guide](./installation.md) - Detailed installation instructions
-- [Configuration Guide](../configurations.md) - Customize agents, models, and behaviors
-- [Features Reference](../features.md) - Complete feature documentation
+- [Configuration Contract](../reference/configuration.md) - Customize agents, models, and behaviors
+- [Feature Catalog](./features.md) - Complete feature documentation

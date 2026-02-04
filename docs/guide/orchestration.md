@@ -1,4 +1,4 @@
-# Oh-My-OpenCode Orchestration Guide
+# Orchestration Guide
 
 ## TL;DR - When to Use What
 
@@ -9,14 +9,15 @@
 | **Complex + Precise** | `@plan` → `/start-work` | Precise, multi-step work requiring true orchestration. Prometheus plans, Sisyphus executes. |
 
 **Decision Flow:**
-```
-Is it a quick fix or simple task?
-  └─ YES → Just prompt normally
-  └─ NO  → Is explaining the full context tedious?
-             └─ YES → Type "ulw" and let the agent figure it out
-             └─ NO  → Do you need precise, verifiable execution?
-                        └─ YES → Use @plan for Prometheus planning, then /start-work
-                        └─ NO  → Just use "ulw"
+
+```mermaid
+flowchart TD
+    A{"Is this a quick fix\\nor a simple task?"} -->|Yes| B["Prompt normally"]
+    A -->|No| C{"Is it tedious to provide\\nfull context up front?"}
+    C -->|Yes| D["Use ultrawork (ulw)"]
+    C -->|No| E{"Do you need precise,\\nverifiable execution?"}
+    E -->|Yes| F["@plan → /start-work"]
+    E -->|No| D
 ```
 
 ---
@@ -25,7 +26,7 @@ This document provides a comprehensive guide to the orchestration system that im
 
 ## 1. Overview
 
-Traditional AI agents often mix planning and execution, leading to context pollution, goal drift, and AI slop (low-quality code).
+Traditional AI agents often mix planning and execution, leading to context pollution, goal drift, and low-quality output.
 
 Oh-My-OpenCode solves this by clearly separating two roles:
 
@@ -47,7 +48,7 @@ flowchart TD
         Prometheus --> PlanFile["/.sisyphus/plans/{name}.md"]
     end
 
-    PlanFile --> StartWork[//start-work/]
+    PlanFile --> StartWork["/start-work"]
     StartWork --> WorkState[work.yaml]
 
     subgraph Execution Phase
@@ -91,18 +92,18 @@ task_snapshot:
 
 ## 3. Key Components
 
-### 🔮 Prometheus (The Planner)
+### Prometheus (Planner)
 - **Model**: `anthropic/claude-opus-4-5`
 - **Role**: Strategic planning, requirements interviews, work plan creation
 - **Constraint**: **READ-ONLY**. Can only create/modify markdown files within `.sisyphus/` directory.
 - **Characteristic**: Never writes code directly, focuses solely on "how to do it".
 
-### 🔀 Multi-Model Planning (Optional)
+### Multi-Model Planning (Optional)
 - **Tool**: `multi_plan`
 - **Role**: Parallel plan generation + synthesis for complex/high-stakes planning
 - **Mechanism**: Multiple models generate plans → Plan Synthesizer compares/conflict-resolves → unified final plan
 
-### 🪨 Sisyphus (The Orchestrator)
+### Sisyphus (Orchestrator)
 - **Model**: `anthropic/claude-opus-4-5` (Extended Thinking 32k)
 - **Role**: Execution and delegation
 - **Characteristic**: Doesn't do everything directly, actively delegates to specialized agents (Frontend, Librarian, etc.).

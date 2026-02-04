@@ -1,4 +1,9 @@
-# Multi-Model Planning Guide
+# Journey: Multi-Model Planning
+
+## User Perspective
+
+You want higher-confidence plans for complex or high-stakes work without relying on a single model’s blind spots.
+Multi-model planning generates multiple independent plans in parallel and synthesizes them into one actionable plan with explicit conflict resolution and verification focus.
 
 This document describes the **Multi-Model Planning** feature, which enables parallel plan generation using multiple AI models followed by intelligent synthesis and conflict resolution.
 
@@ -459,13 +464,13 @@ For each rebuttal, Synthesizer decides:
 
 ### 6.5 When to Use Debate
 
-✅ **Good use cases**:
+**Recommended use cases**:
 - High-stakes architectural decisions
 - When conflicts are close calls
 - Complex trade-offs with no clear winner
 - Maximum scrutiny needed
 
-❌ **Skip debate for**:
+**Skip debate for**:
 - Clear-cut conflicts
 - Time-sensitive planning
 - Simple tasks with obvious approaches
@@ -539,7 +544,7 @@ If Plan Synthesizer completes but doesn't generate expected files, the system:
 
 Example error output:
 ```
-❌ Multi-model planning failed: Plan Synthesizer completed but output files missing
+Multi-model planning failed: Plan Synthesizer completed but output files missing
 
 **However, some intermediate files were generated successfully:**
 - `.sisyphus/plans/feature-claude.md`
@@ -568,13 +573,13 @@ You can:
 
 ### When to Use
 
-✅ **Good use cases**:
+**Recommended use cases**:
 - Complex architectural decisions
 - Features with multiple valid approaches
 - High-stakes implementations needing validation
 - When you want to catch blind spots
 
-❌ **Avoid for**:
+**Avoid for**:
 - Simple, straightforward tasks
 - Time-sensitive quick fixes
 - Tasks with only one obvious approach
@@ -685,6 +690,6 @@ EOF
 
 ## 12. Related Documentation
 
-- [Orchestration Guide](./orchestration-guide.md) - Overall planning/execution architecture
-- [Category & Skill Guide](./category-skill-guide.md) - Model categories and skills
-- [CLI Guide](./cli-guide.md) - Command-line interface usage
+- [Orchestration Guide](../guide/orchestration.md) - Overall planning/execution architecture
+- [Category and Skills Guide](../guide/category-and-skills.md) - Model categories and skills
+- [CLI Guide](../guide/cli.md) - Command-line interface usage

@@ -1,4 +1,4 @@
-# Oh-My-OpenCode Features
+# Feature Catalog
 
 ---
 
@@ -52,7 +52,13 @@ Run agents in the background and continue working:
 
 ```
 # Launch in background
-delegate_task(agent="explore", background=true, prompt="Find auth implementations")
+delegate_task(
+  subagent_type="explore",
+  load_skills=[],
+  description="auth inventory",
+  prompt="Find auth implementations in this repo. Return file paths + key patterns.",
+  run_in_background=true
+)
 
 # Continue working...
 # System notifies on completion
@@ -61,7 +67,7 @@ delegate_task(agent="explore", background=true, prompt="Find auth implementation
 background_output(task_id="bg_abc123")
 ```
 
-Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](configurations.md#agents).
+Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](../reference/configuration.md#agents).
 
 ---
 
@@ -76,6 +82,13 @@ Skills provide specialized workflows with embedded MCP servers and detailed inst
 | **playwright** | Browser tasks, testing, screenshots | Browser automation via Playwright MCP. MUST USE for any browser-related tasks - verification, browsing, web scraping, testing, screenshots. |
 | **frontend-ui-ux** | UI/UX tasks, styling | Designer-turned-developer persona. Crafts stunning UI/UX even without design mockups. Emphasizes bold aesthetic direction, distinctive typography, cohesive color palettes. |
 | **git-master** | commit, rebase, squash, blame | MUST USE for ANY git operations. Atomic commits with automatic splitting, rebase/squash workflows, history search (blame, bisect, log -S). |
+| **parallel-agents** | worktree, tmux, spawn, swarm, isolate | Git worktree + tmux orchestration for parallel agent workflows: spawn, monitor, rescue, merge, cleanup. |
+| **dev-browser** | Navigate sites, fill forms, screenshots | Stateful browser automation with persistent page state across scripts (requires separate local server setup). |
+| **spec-compliance-review** | verify, acceptance criteria, compliance | Strict PASS/FAIL verification against acceptance criteria, with file:line evidence and scope-creep detection. |
+| **code-quality-review** | code review, quality gate, harden | Post-spec-compliance quality review: type safety, error handling, tests, maintainability, and safety risks. |
+| **writing-plans** | plan, approach, roadmap | Structured planning with dependencies, risks, and verification steps. |
+| **systematic-debugging** | failing test, bug, regression | Hypothesis-driven debugging workflow with experiments and verification. |
+| **code-simplifier** | simplify, refactor lightly | Behavior-preserving simplification pass to reduce complexity and improve readability. |
 
 ### Skill: playwright
 
@@ -143,6 +156,46 @@ Three specializations in one:
 /git-master who wrote this authentication code?
 ```
 
+### Skill: parallel-agents
+
+**Trigger**: worktree, tmux, "spawn agents", parallelization, "agent status", rescue, merge
+
+Use this when you want **true filesystem isolation** for multiple agents working concurrently:
+
+- One git worktree per task/agent
+- One tmux window per worktree
+- Deterministic status inspection and safe rescue for approval prompts
+
+**Usage**:
+```
+/parallel-agents Spawn 3 agents in parallel for auth/payments/notifications
+/parallel-agents Inspect status of all wm-* windows and rescue any waiting agents
+```
+
+### Skill: dev-browser
+
+**Trigger**: browser automation with persistent state (login flows, multi-step UI work)
+
+`dev-browser` is a stateful automation workflow. It is most useful when you want to:
+- Keep a page/session alive across multiple scripts
+- Incrementally build automation (script → run → inspect → refine)
+
+See also: `docs/journeys/browser-automation.md`.
+
+### Engineering Discipline Skills
+
+These skills encode repeatable, high-quality engineering workflows (planning, verification, debugging, and simplification).
+See: `docs/journeys/engineering-discipline.md`.
+
+**Quick usage**:
+```
+/writing-plans Plan the implementation of X with risks and verification steps
+/spec-compliance-review Verify this change against the acceptance criteria
+/code-quality-review Review for type safety, error handling, and tests
+/systematic-debugging Debug the failing test and propose a minimal fix
+/code-simplifier Simplify the implementation without changing behavior
+```
+
 ### Custom Skills
 
 Load custom skills from:
@@ -151,7 +204,7 @@ Load custom skills from:
 - `.claude/skills/*/SKILL.md` (Claude Code compat)
 - `~/.claude/skills/*/SKILL.md` (Claude Code user)
 
-Disable built-in skills via `disabled_skills: ["playwright"]` in config.
+Disable skills via `disabled_skills` (schema-recognized built-ins) or `skills: { "<name>": false }` in config.
 
 ---
 
@@ -258,11 +311,16 @@ Hooks intercept and modify behavior at key points in the agent lifecycle.
 
 ### Hook Events
 
+Note: This section uses **Claude Code-style hook names** (e.g., `PreToolUse`, `PostToolUse`, `Stop`, `PreCompact`) as a stable conceptual vocabulary.
+OpenCode runtime wiring uses OpenCode lifecycle events; for the source of truth see `src/index.ts` and `docs/reference/hooks.md`.
+As of the current wiring, compaction-time injection (`PreCompact`) is implemented in the repo but **not registered** in `src/index.ts` (no `experimental.session.compacting` handler).
+
 | Event | When | Can |
 |-------|------|-----|
 | **PreToolUse** | Before tool execution | Block, modify input, inject context |
 | **PostToolUse** | After tool execution | Add warnings, modify output, inject messages |
 | **UserPromptSubmit** | When user submits prompt | Block, inject messages, transform prompt |
+| **PreCompact** | Before session compaction (if supported) | Inject compaction-time context |
 | **Stop** | When session goes idle | Inject follow-up prompts |
 
 ### Built-in Hooks
@@ -274,7 +332,7 @@ Hooks intercept and modify behavior at key points in the agent lifecycle.
 | **directory-agents-injector** | PostToolUse | Auto-injects AGENTS.md when reading files. Walks from file to project root, collecting all AGENTS.md files. **Deprecated for OpenCode 1.1.37+** - Auto-disabled when native AGENTS.md injection is available. |
 | **directory-readme-injector** | PostToolUse | Auto-injects README.md for directory context. |
 | **rules-injector** | PostToolUse | Injects rules from `.claude/rules/` when conditions match. Supports globs and alwaysApply. |
-| **compaction-context-injector** | Stop | Preserves critical context during session compaction. |
+| **compaction-context-injector** | PreCompact | Compaction-time context injection helper. Present in the repo but not currently invoked by OpenCode (pending `experimental.session.compacting` support). |
 
 #### Productivity & Control
 

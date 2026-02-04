@@ -1,4 +1,7 @@
-# User Memory: RAPTOR-style Hierarchical Memory
+# Research: User Memory Deep Dive
+
+This document is **non-normative**. It captures implementation details and design rationale for the user-memory subsystem.
+For the stable surface contract, see `docs/reference/user-memory.md`.
 
 ## Overview
 
@@ -14,43 +17,39 @@ User Memory implements a **RAPTOR-inspired** (Recursive Abstractive Processing f
 - Sessions are **reused per (kind, model)** with an in-memory LRU cap of **6** to avoid session explosion.
 - Model selection is driven by `aggregation_model` and category config overrides (see Model Selection).
 
-```
-┌───────────────────────────────────────────────────────────────────────────┐
-│                      Enhanced Memory Architecture                         │
-├───────────────────────────────────────────────────────────────────────────┤
-│                                                                           │
-│  RAPTOR Axis (Time)              Entity Axis (Relationships)              │
-│  ─────────────────               ───────────────────────────              │
-│                                                                           │
-│  L3: LongTermKnowledge[]  ◄────► EntityGraph                              │
-│      + valid_from/until          ├─ EntityNode[] (person/project)         │
-│      + staleness_category        └─ EntityRelationship[]                  │
-│      + effective_confidence                                               │
-│                                                                           │
-│  L2: MonthlySummary[]                                                     │
-│      + facts_valid_range                                                  │
-│                                                                           │
-│  L1: WeeklySummary[]      ◄────── Entity extraction source                │
-│      + facts_valid_range                                                  │
-│                                                                           │
-│  L0: WorkHistoryEntry[]   ◄────── Entity extraction source                │
-│      + valid_from/until                                                   │
-│      + staleness_category                                                 │
-│                                                                           │
-│  ──────────────────────────────────────────────────────────────────────   │
-│  Semantic Clustering Layer                                                │
-│  ─────────────────────────                                                │
-│  Enhanced word overlap + LLM-assisted borderline decisions                │
-│  (Stemming, synonyms, 0.6 high / 0.25 candidate thresholds)               │
-│                                                                           │
-│  ──────────────────────────────────────────────────────────────────────   │
-│  Embedding Layer (opt-in)                                                 │
-│  ────────────────────────                                                 │
-│  Three-way hybrid search: Vector (50%) + BM25 (30%) + Jaccard (20%)       │
-│  Providers: local (transformers.js) / openai                              │
-│  Cache: ~/.opencode/memory/embeddings.json                                │
-│                                                                           │
-└───────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph Time["RAPTOR Axis (Time)"]
+    L0["L0 WorkHistoryEntry[]\n(valid_from/valid_until, staleness_category)"]
+    L1["L1 WeeklySummary[]\n(facts_valid_range)"]
+    L2["L2 MonthlySummary[]\n(facts_valid_range)"]
+    L3["L3 LongTermKnowledge[]\n(effective_confidence)"]
+    L0 --> L1 --> L2 --> L3
+  end
+
+  subgraph Entity["Entity Axis (optional)"]
+    EG["EntityGraph\n(nodes + relationships)"]
+  end
+
+  subgraph Cluster["Semantic Clustering (optional)"]
+    SC["Text overlap + synonyms/stemming\n+ optional LLM adjudication"]
+  end
+
+  subgraph Emb["Embeddings (optional)"]
+    HS["Hybrid retrieval\nVector + BM25 + Jaccard"]
+    CACHE["Cache: ~/.opencode/memory/embeddings.json"]
+    HS --> CACHE
+  end
+
+  L0 -. "entity extraction" .-> EG
+  L1 -. "entity extraction" .-> EG
+  L3 <--> EG
+
+  L0 --> SC
+  L1 --> SC
+  L2 --> SC
+  L3 --> SC
+  SC --> HS
 ```
 
 ### Memory Hierarchy Limits
@@ -329,30 +328,15 @@ When enabled, embeddings provide **semantic vector search** for memory retrieval
 
 ### Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Three-Way Hybrid Search                               │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│   Query: "How do I configure TypeScript paths?"                          │
-│           │                                                              │
-│           ▼                                                              │
-│   ┌───────────────────────────────────────────────────────────────┐     │
-│   │                    Search Signals                              │     │
-│   ├───────────────────┬───────────────────┬───────────────────────┤     │
-│   │  Vector (50%)     │  BM25 (30%)       │  Jaccard (20%)        │     │
-│   │  ─────────────    │  ─────────────    │  ─────────────────    │     │
-│   │  Semantic meaning │  Keyword precision│  N-gram/synonyms      │     │
-│   │  "paths" ≈        │  Exact "TypeScript"│  "TS" → "TypeScript" │     │
-│   │  "aliases"        │  match scores high│  stemmed overlap      │     │
-│   └───────────────────┴───────────────────┴───────────────────────┘     │
-│                               │                                          │
-│                               ▼                                          │
-│                     Weighted Score Fusion                                │
-│                     ───────────────────────                              │
-│                     final = 0.5*vec + 0.3*bm25 + 0.2*jaccard            │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  Q["Query: \"How do I configure TypeScript paths?\""] --> S["Compute search signals"]
+  S --> V["Vector similarity (0.5)\nSemantic meaning\n\"paths\" ≈ \"aliases\""]
+  S --> B["BM25 (0.3)\nKeyword precision\nExact \"TypeScript\" matches"]
+  S --> J["Jaccard (0.2)\nN-gram + synonyms/stemming\n\"TS\" → \"TypeScript\""]
+  V --> F["Weighted fusion\nfinal = 0.5*vec + 0.3*bm25 + 0.2*jaccard"]
+  B --> F
+  J --> F
 ```
 
 ### Embedding Providers
@@ -513,29 +497,10 @@ This enhances:
 
 When embeddings are enabled, memory injection becomes **context-aware**:
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Memory Injection Flow                                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│   User Prompt                                                            │
-│       │                                                                  │
-│       ▼                                                                  │
-│   ┌───────────────────────────────────────────────────────────────┐     │
-│   │  Baseline Injection (once per session)                         │     │
-│   │  ──────────────────────────────────────                        │     │
-│   │  Hierarchical summary: rules, knowledge, weekly, preferences   │     │
-│   └───────────────────────────────────────────────────────────────┘     │
-│       │                                                                  │
-│       ▼                                                                  │
-│   ┌───────────────────────────────────────────────────────────────┐     │
-│   │  Relevant Memory (per prompt, embeddings enabled)              │     │
-│   │  ─────────────────────────────────────────────────             │     │
-│   │  Hybrid search against prompt content → top 5 relevant items   │     │
-│   │  Includes: knowledge, weekly, monthly, work history            │     │
-│   └───────────────────────────────────────────────────────────────┘     │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  P["User prompt"] --> B["Baseline injection\n(once per session)\nHierarchical summary"]
+  B --> R["Relevant memory injection\n(per prompt, embeddings enabled)\nHybrid search → top 5 items"]
 ```
 
 **Injection priority**:
@@ -832,11 +797,11 @@ confidence = Math.min(sourceMonths.length / 5, 1.0)
 
 | Unique Months | Confidence | Extracted? (≥2 months) | Injected? (≥0.6 confidence) |
 |---------------|------------|------------------------|----------------------------|
-| 1 | 0.2 | ❌ No | ❌ No |
-| 2 | 0.4 | ✅ Yes | ❌ No |
-| 3 | 0.6 | ✅ Yes | ✅ Yes |
-| 4 | 0.8 | ✅ Yes | ✅ Yes |
-| 5+ | 1.0 | ✅ Yes | ✅ Yes |
+| 1 | 0.2 | No | No |
+| 2 | 0.4 | Yes | No |
+| 3 | 0.6 | Yes | Yes |
+| 4 | 0.8 | Yes | Yes |
+| 5+ | 1.0 | Yes | Yes |
 
 **Key insight**: Same-month repetitions do NOT increase confidence. A lesson appearing 10 times in January still has confidence 0.2.
 
@@ -1239,10 +1204,10 @@ bun test src/features/user-memory/
 | `hook.test.ts` | 5+ | Event handling |
 | `embeddings/hybrid.test.ts` | 2+ | Score normalization |
 | `embeddings/search.test.ts` | 2+ | Vector search |
-| `entity-extraction.ts` | ❌ | No dedicated tests |
-| `entity-reconciliation.ts` | ❌ | No dedicated tests |
-| `similarity.ts` | ❌ | No dedicated tests |
-| `temporal-validity.ts` | ❌ | No dedicated tests |
+| `entity-extraction.ts` | 0 | No dedicated tests |
+| `entity-reconciliation.ts` | 0 | No dedicated tests |
+| `similarity.ts` | 0 | No dedicated tests |
+| `temporal-validity.ts` | 0 | No dedicated tests |
 
 ### Key Test Scenarios
 

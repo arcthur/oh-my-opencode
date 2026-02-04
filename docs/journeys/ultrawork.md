@@ -1,4 +1,20 @@
-# Manifesto
+# Journey: Ultrawork Mode (ulw)
+
+## User Perspective
+
+You want to offload execution management to the agent: you state intent once, and the system handles research, implementation, verification, and follow-up without constant prompting.
+Ultrawork mode is a “just do it” workflow that emphasizes completeness, verification, and low human cognitive load.
+
+## End-to-End Flow
+
+```mermaid
+flowchart TD
+  U["User prompt includes ulw / ultrawork"] --> KD["keyword-detector triggers ultrawork routing"]
+  KD --> ORCH["Orchestrator chooses execution strategy"]
+  ORCH --> DEL["delegate_task (parallel where safe)"]
+  DEL --> VERIFY["Verification hooks + discipline loops"]
+  VERIFY --> DONE["Deliverables + next actions"]
+```
 
 The principles and philosophy behind Oh My OpenCode.
 

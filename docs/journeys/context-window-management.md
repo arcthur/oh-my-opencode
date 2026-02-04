@@ -1,6 +1,33 @@
-# Context Management Strategy
+# Journey: Context Window Management
 
-A comprehensive guide to context window management in oh-my-opencode. This document details how the system efficiently manages LLM context windows to maintain information integrity and system stability during extended sessions.
+## User Perspective
+
+You want long-running sessions to remain stable and coherent: large tool outputs should not blow up the context, token-limit errors should recover automatically, and compaction should preserve the information that matters (goals, decisions, current state, and “do not repeat” failures).
+This journey explains the end-to-end chain: monitoring → proactive compaction → reactive recovery → output shaping → memory injection boundaries.
+
+## End-to-End Flow
+
+```mermaid
+flowchart TD
+  U["User messages + tool calls accumulate context"] --> M["context-window-monitor (warn)"]
+  M --> P{"Near threshold?"}
+  P -->|Yes| PC["preemptive-compaction hook"]
+  PC --> SUM["session.summarize(auto=true)"]
+  SUM --> SC["session.compacted event (reset once-per-session injections)"]
+  P -->|No| TOOL["Continue normal execution"]
+
+  ERR["Token-limit error"] --> REC["context-window-limit-recovery hook"]
+  REC --> DCP["Dynamic Context Pruning (optional)"]
+  DCP --> TRUNC["Aggressive truncation (fallback)"]
+  TRUNC --> SUM
+
+  TOOL --> OUT["tool-output-truncator / silent-tool-output reduce bloat"]
+  OUT --> TOOL
+```
+
+A comprehensive guide to context window management in oh-my-opencode. This document details how the system manages LLM context windows to maintain information integrity and system stability during extended sessions.
+
+**Status note (wiring matters)**: This document describes both (a) components that are wired in `src/index.ts` and (b) modules that exist in the repo but are **not currently wired** (e.g., `repo-overview-injector`, `runtime-tracker`, compaction-time injection helpers). For authoritative wiring and ordering, treat `docs/reference/hooks.md` and `src/index.ts` as the source of truth.
 
 ## Table of Contents
 
@@ -35,14 +62,9 @@ oh-my-opencode employs a **multi-layered context distillation** strategy, guided
 
 The system implements a hierarchical approach to context management:
 
-```
-┌─────────────────────────────────────────────────┐
-│           Raw Context (Original)                │  ← Highest Priority
-├─────────────────────────────────────────────────┤
-│      Compaction (Reversible Pruning)            │  ← Preferred Method
-├─────────────────────────────────────────────────┤
-│      Summarization (Lossy Compression)          │  ← Last Resort
-└─────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  RAW["Raw Context (original)\nHighest priority"] --> COMP["Compaction\nReversible pruning (preferred)"] --> SUM["Summarization\nLossy compression (last resort)"]
 ```
 
 **The Golden Rule**: `Raw > Compaction > Summarization`
@@ -94,12 +116,10 @@ This structured approach ensures that critical information categories cannot be 
 
 The system implements a three-phase progressive recovery strategy, escalating from lightweight to heavyweight interventions:
 
-```
-PHASE 1: Dynamic Context Pruning (DCP)
-    ↓ If still over limit
-PHASE 2: Aggressive Truncation
-    ↓ If still over limit
-PHASE 3: Session Summarization
+```mermaid
+flowchart TD
+  DCP["Phase 1: Dynamic Context Pruning (DCP)"] -->|"if still over limit"| TRUNC["Phase 2: Aggressive truncation"]
+  TRUNC -->|"if still over limit"| SUM["Phase 3: Session summarization"]
 ```
 
 This approach minimizes information loss by applying the least destructive method first.
@@ -138,8 +158,8 @@ oh-my-opencode Context Management
 │       ├── pruning-clear-results.ts   # Clear old tool results
 │       └── storage.ts                 # Tool output management
 ├── Context Injection                  # Context bootstrapping
-│   ├── compaction-context-injector/   # Preserve context during compaction
-│   ├── repo-overview-injector/        # Project context injection
+│   ├── compaction-context-injector/   # Compaction-time injection helper (not currently wired)
+│   ├── repo-overview-injector/        # Project context injection (present, not wired)
 │   └── directory-agents-injector/     # Directory-level context
 ├── Memory Systems                     # Persistent memory
 │   ├── user-memory/                   # Cross-session user memory
@@ -152,7 +172,7 @@ oh-my-opencode Context Management
 │       └── hook.ts                    # Injection hook
 ├── Monitoring                         # Runtime monitoring
 │   ├── context-window-monitor.ts      # Usage tracking (70% warning)
-│   └── runtime-tracker/               # Tool performance tracking
+│   └── runtime-tracker/               # Tool performance tracking (present, not wired)
 └── Output Optimization                # Output size management
     ├── tool-output-truncator.ts       # Tool output truncation
     └── dynamic-truncator.ts           # Dynamic size adjustment
@@ -160,53 +180,19 @@ oh-my-opencode Context Management
 
 ### Data Flow
 
-```
-                    ┌──────────────┐
-                    │   Session    │
-                    │    Start     │
-                    └──────┬───────┘
-                           │
-              ┌────────────▼────────────┐
-              │   Bootstrap Injection   │
-              │  • Repository Overview  │
-              │  • User Memory          │
-              │  • Org Memory           │
-              │  • AGENTS.md Context    │
-              └────────────┬────────────┘
-                           │
-              ┌────────────▼────────────┐
-              │    Normal Operation     │◄────────────┐
-              │  • Tool Invocations     │             │
-              │  • Runtime Tracking     │             │
-              │  • Output Optimization  │             │
-              └────────────┬────────────┘             │
-                           │                          │
-              ┌────────────▼────────────┐             │
-              │   Context Monitoring    │             │
-              │  • 70% → Warning        │             │
-              │  • 85% → Compaction     │             │
-              └────────────┬────────────┘             │
-                           │                          │
-            ┌──────────────┴──────────────┐           │
-            │                             │           │
-   ┌────────▼────────┐         ┌──────────▼─────────┐ │
-   │  Below Threshold │         │  Above Threshold   │ │
-   │  Continue Normal │         │  or Token Error    │ │
-   └────────┬────────┘         └──────────┬─────────┘ │
-            │                             │           │
-            │              ┌──────────────▼──────────┐│
-            │              │   Compaction Pipeline   ││
-            │              │  (if cooldown passed)   ││
-            │              │  1. DCP Pruning         ││
-            │              │  2. Truncation          ││
-            │              │  3. Summarization       ││
-            │              └──────────────┬──────────┘│
-            │                             │           │
-            │              ┌──────────────▼──────────┐│
-            │              │   60s Cooldown Reset    ││
-            │              └──────────────┬──────────┘│
-            │                             │           │
-            └─────────────────────────────┴───────────┘
+```mermaid
+flowchart TD
+  START["Session start"] --> BOOT["Bootstrap injection\n- User memory\n- Org memory\n- AGENTS.md context\n- Repository overview (present, not wired)"]
+  BOOT --> NORMAL["Normal operation\n- Tool invocations\n- Output optimization\n- Runtime tracking (present, not wired)"]
+  NORMAL --> MON["Context monitoring\n70% → warning\n85% → compaction"]
+
+  MON --> OK{"Below thresholds?"}
+  OK -->|Yes| NORMAL
+  OK -->|No| PIPE["Compaction pipeline (if cooldown passed)\n1) DCP pruning\n2) Truncation\n3) Summarization"]
+
+  ERR["Token limit error"] --> PIPE
+  PIPE --> COOLDOWN["60s cooldown reset"]
+  COOLDOWN --> NORMAL
 ```
 
 ### Event Flow
@@ -459,11 +445,13 @@ This structured approach ensures comprehensive information preservation during l
 
 ## Memory Systems
 
-### 1. Repository Overview
+### 1. Repository Overview (present, not wired)
 
-Automatically injects project context at session start, reducing redundant exploration.
+Provides an optional hook that can inject project context early in a session, reducing redundant exploration.
 
-**Injected Content**:
+**Status**: The `repo-overview-injector` module exists in this repo, but it is **not currently wired** in `src/index.ts`. The `repo_overview` config block is schema-recognized, but it has **no effect** unless you integrate the hook into the runtime wiring.
+
+When wired and enabled, injected content typically includes:
 - Project name and description (from package.json)
 - Technology stack (TypeScript, React, Python, etc.)
 - Frameworks (Next.js, Express, Django, etc.)
@@ -472,9 +460,9 @@ Automatically injects project context at session start, reducing redundant explo
 - Core file listing (package.json, tsconfig.json, etc.)
 - Directory structure tree (max depth configurable)
 
-**Caching**: Stored at `~/.opencode/cache/repo-overview/` with configurable TTL (default: 1 hour)
+**Caching (when wired)**: Stored at `~/.opencode/cache/repo-overview/` with configurable TTL (default: 1 hour)
 
-**Injection Timing**: Configurable via `min_tool_calls` (default: 1 = first tool use). Set to 2+ to skip injection for trivial one-shot interactions.
+**Injection Timing (when wired)**: Configurable via `min_tool_calls` (default: 1 = first tool use). Set to 2+ to skip injection for trivial one-shot interactions.
 
 **Configuration** (top-level):
 ```json
@@ -595,9 +583,11 @@ Automatically injects directory-level AGENTS.md files to provide localized conte
 
 This enables project-specific and directory-specific context to be automatically provided without explicit configuration.
 
-### 5. Runtime Tracker
+### 5. Runtime Tracker (present, not wired)
 
 Monitors tool execution times to help the agent avoid repeating slow operations.
+
+**Status**: The `runtime-tracker` module exists in this repo, but it is **not currently wired** in `src/index.ts`. The `runtime_tracker` config block is schema-recognized, but it has **no effect** unless you integrate the hook into the runtime wiring.
 
 **Tracked Metrics** (per session):
 - Average duration (rolling window of last N calls)
@@ -614,7 +604,7 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
 
 **Throttling**: Hints are throttled via `hint_cooldown_ms` (default: 60 seconds per tool) to prevent spam when a tool is repeatedly slow.
 
-**Configuration** (top-level):
+**Configuration** (top-level; effective only when wired):
 ```json
 {
   "runtime_tracker": {
@@ -638,7 +628,6 @@ oh-my-opencode config
 ├── experimental                    # Experimental features
 │   ├── preemptive_compaction      # Enable proactive compaction
 │   ├── preemptive_compaction_threshold  # Trigger threshold (default: 0.85)
-│   ├── dcp_for_compaction         # Use DCP in recovery (requires dynamic_context_pruning.enabled=true)
 │   └── dynamic_context_pruning    # DCP configuration
 │       ├── enabled
 │       ├── notification
@@ -655,7 +644,7 @@ oh-my-opencode config
 └── runtime_tracker                 # Runtime Tracker (top-level)
 ```
 
-**Note**: DCP configuration is under `experimental.dynamic_context_pruning`, while memory systems are top-level configurations.
+**Note**: DCP configuration is under `experimental.dynamic_context_pruning`, while memory systems are top-level configurations. `repo_overview` and `runtime_tracker` are schema-recognized, but the corresponding hooks are **not wired** in `src/index.ts` by default.
 
 ### Complete Configuration Example
 
@@ -664,7 +653,6 @@ oh-my-opencode config
   "experimental": {
     "preemptive_compaction": true,
     "preemptive_compaction_threshold": 0.80,
-    "dcp_for_compaction": true,
     "dynamic_context_pruning": {
       "enabled": true,
       "notification": "detailed",
@@ -689,8 +677,7 @@ oh-my-opencode config
     "enabled": true,
     "auto_generate": true,
     "max_tree_depth": 50,
-    "cache_duration_ms": 3600000,
-    "min_tool_calls": 1
+    "cache_duration_ms": 3600000
   },
   "user_memory": {
     "enabled": true,
@@ -805,7 +792,7 @@ Certain tools should never be pruned as they maintain critical state:
 | DCP Pruning | <100ms | None |
 | Aggressive Truncation | <100ms per iteration | None |
 | Summarization | 2-10s | ~1000-3000 tokens |
-| Repo Overview Generation | 100-500ms | ~500-2000 tokens |
+| Repo Overview Generation (when wired) | 100-500ms | ~500-2000 tokens |
 | User Memory Injection | <50ms | ~200-1000 tokens |
 
 ### Security Considerations
@@ -814,7 +801,7 @@ Certain tools should never be pruned as they maintain critical state:
 
 2. **Org Memory**: Stored at `.opencode/memory/org.json` in project root. May be committed to version control—do not store secrets or sensitive credentials.
 
-3. **Repo Overview Cache**: Stored at `~/.opencode/cache/repo-overview/`. May expose project structure. Clear cache if switching between sensitive projects.
+3. **Repo Overview Cache (when wired)**: Stored at `~/.opencode/cache/repo-overview/`. May expose project structure. Clear cache if switching between sensitive projects.
 
 4. **Tool Output Pruning**: Pruned content is replaced with placeholder text, not deleted from disk immediately. Sensitive output in tool results is retained until session termination or explicit cleanup.
 
@@ -825,9 +812,9 @@ Certain tools should never be pruned as they maintain critical state:
 ### 1. Threshold Configuration
 
 ```
-✅ Recommended: 0.75 - 0.85
-❌ Avoid: > 0.90 (too late, risk errors)
-❌ Avoid: < 0.60 (too aggressive, waste context)
+Recommended: 0.75 - 0.85
+Avoid: > 0.90 (too late, risk errors)
+Avoid: < 0.60 (too aggressive, waste context)
 ```
 
 Setting the threshold too high risks API errors; setting it too low wastes available context.
@@ -842,12 +829,14 @@ Always protect tools that maintain important state:
 
 ### 3. Enable Structured Summarization
 
-Always use the compaction context injector to ensure critical information preservation:
+Always ensure summarization uses a structured template to preserve critical information:
 - Original user requests (exact wording)
 - File modification records (with line numbers)
 - Decision rationale (prevents re-exploration)
 - Remaining tasks (maintains continuity)
 - Failure constraints (prevents retry of failed approaches)
+
+Implementation note: this repo contains compaction-time injection helpers (`compaction-context-injector`, Claude Code `PreCompact`), but they are **not wired** in `src/index.ts` by default. In current wiring, structured templates are enforced primarily by the summarization prompts in `preemptive-compaction` and `context-window-limit-recovery`.
 
 ### 4. Monitor Context Usage
 
@@ -860,7 +849,7 @@ Enable context-window-monitor for early warnings at 70%:
 
 ### 5. Leverage Runtime Tracking
 
-Enable runtime tracking to identify and optimize slow operations:
+If you wire the `runtime-tracker` hook, enable runtime tracking to identify and optimize slow operations:
 
 ```
 [Runtime: 5.2s - Tool "grep" averaged 4.8s over 3 calls]
@@ -869,7 +858,7 @@ Enable runtime tracking to identify and optimize slow operations:
 
 ### 6. Use Repository Overview
 
-Enable repository overview injection to eliminate redundant project exploration at session start. The cached overview provides immediate context about:
+If you wire the `repo-overview-injector` hook, enable repository overview injection to eliminate redundant project exploration at session start. The cached overview provides immediate context about:
 - Project structure
 - Technology stack
 - Build commands
@@ -905,7 +894,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 - Critical tools not protected
 
 **Solutions**:
-1. Verify `compaction-context-injector` hook is enabled
+1. Verify whether any compaction-time injection is wired in your build. The repo contains compaction injection helpers (`compaction-context-injector` and Claude Code `PreCompact`), but they are not wired in `src/index.ts` by default.
 2. Increase `turn_protection.turns` value (try 5)
 3. Add critical tools to `protected_tools`
 4. Review if `aggressive: true` for supersede_writes is appropriate
@@ -937,7 +926,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 
 **Solutions**:
 1. Verify `context-window-limit-recovery` hook is enabled
-2. Enable `dcp_for_compaction: true` and `dynamic_context_pruning.enabled: true`
+2. Enable `experimental.dynamic_context_pruning.enabled: true` to allow DCP to run before truncation/summarization
 3. Lower `preemptive_compaction_threshold`
 4. Check for unusually large tool outputs
 5. Review if all DCP strategies are enabled
@@ -955,7 +944,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 1. Enable `tool-output-truncator` hook
 2. Configure `experimental.truncate_all_tool_outputs: true`
 3. Use more precise queries (narrower grep patterns, specific file paths)
-4. Enable runtime tracking to identify problematic tools
+4. If you wire the `runtime-tracker` hook, enable runtime tracking to identify problematic tools
 5. Use line limits when reading large files
 
 ### Issue: Slow Tool Operations
@@ -968,7 +957,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 - Network-dependent operations
 
 **Solutions**:
-1. Enable `runtime_tracker` to identify slow tools
+1. If you wire the `runtime-tracker` hook, enable `runtime_tracker` to identify slow tools
 2. Use more targeted queries
 3. Consider caching frequently accessed information
 4. Break large operations into smaller, focused invocations
@@ -1006,7 +995,8 @@ Set `turn_protection.turns` based on your typical task complexity:
 - [oh-my-opencode Configuration Schema](../src/config/schema.ts)
 - [DCP Implementation](../src/hooks/context-window-limit-recovery/)
 - [Preemptive Compaction](../src/hooks/preemptive-compaction/)
-- [Compaction Context Injector](../src/hooks/compaction-context-injector/)
+- [Compaction-Time Injection (Claude Code compat PreCompact; not wired)](../src/hooks/claude-code-hooks/pre-compact.ts)
+- [Compaction Context Injector (present, not wired)](../src/hooks/compaction-context-injector/)
 
 ---
 
@@ -1048,8 +1038,8 @@ Set `turn_protection.turns` based on your typical task complexity:
 | Version | Date | Changes |
 |---------|------|---------|
 | 3.1.1 | 2026-01 | Added bidirectional compatibility between DCP and upstream `SessionCompaction.prune()` to prevent conflicts |
-| 3.1.0 | 2026-01 | Added Org Memory (project/team-level memory), optimized DCP strategy execution order, added hint throttling to Runtime Tracker |
-| 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, Repository Overview, User Memory, Runtime Tracker |
+| 3.1.0 | 2026-01 | Added Org Memory (project/team-level memory), optimized DCP strategy execution order, added hint throttling to the Runtime Tracker module (present, not wired) |
+| 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, added User Memory, added Repository Overview injector (present, not wired), added Runtime Tracker module (present, not wired) |
 | 2.9.0 | TBD | Initial DCP implementation with deduplication, supersede_writes, purge_errors |
 | 2.8.0 | TBD | Preemptive compaction hook |
 | 2.7.0 | TBD | Context window monitoring |

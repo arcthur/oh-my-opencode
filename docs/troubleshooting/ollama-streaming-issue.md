@@ -54,8 +54,8 @@ Configure your Ollama provider to use `stream: false`:
 
 If you need streaming, avoid agents that use tools:
 
-- ✅ **Safe**: Simple text generation, non-tool tasks
-- ❌ **Problematic**: Any agent with tool calls (explore, librarian, etc.)
+- **Safe**: simple text generation, non-tool tasks
+- **Problematic**: any agent with tool calls (explore, librarian, etc.)
 
 ### Option 3: Wait for SDK Fix (Long-term)
 

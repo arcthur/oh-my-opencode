@@ -1,6 +1,41 @@
-# Planning with Files Guide
+# Journey: Planning with Files (Persistent Plans in `.sisyphus/`)
 
-> Manus-style persistent planning: "Context Window = RAM (volatile); Filesystem = Disk (persistent)"
+## User Perspective
+
+You want complex work to remain coherent across long sessions and interruptions without relying on a volatile chat context.
+Planning with Files persists the plan, findings, and progress under `.sisyphus/` and uses hooks to re-inject the active plan context at tool boundaries, enforce disciplined research logging, and prevent premature “stop” when phases remain incomplete.
+
+## End-to-End Flow
+
+```mermaid
+flowchart TD
+  U["User request"] --> CM["chat.message hook detects/initializes active plan"]
+  CM --> FS["Persist plan artifacts under .sisyphus/<directory>/<plan>/"]
+
+  subgraph ToolBoundary["Tool boundaries (auto_reread)"]
+    TB["tool.execute.before for write/edit/bash/…"] --> INJ["Inject <task-plan-context> (critical priority)"]
+    INJ --> TOOL["Tool runs (Write/Edit/Bash/…)"]
+  end
+
+  subgraph Discipline["Discipline enforcement"]
+    TA["tool.execute.after increments research ops"] --> R2["two-action rule reminder → update findings.md"]
+    ERR["tool.execute.after detects tool errors"] --> S3["three-strike protocol prompts + error recording"]
+  end
+
+  subgraph StopGuard["Stop verification"]
+    IDLE["session.idle event"] --> CHECK["Detect incomplete phases in task_plan.md"]
+    CHECK -->|Incomplete| PROMPT["session.prompt: ask to complete or mark blocked\n(or /stop --force)"]
+  end
+
+  FS --> TB
+  TOOL --> TA
+  TOOL --> ERR
+  FS --> IDLE
+```
+
+## Overview
+
+Planning with Files implements a persistent markdown-based planning system inspired by Manus-style “working memory on disk”.
 
 ## Overview
 
@@ -18,15 +53,9 @@ AI agents suffer from:
 
 Treat the filesystem as persistent storage and context windows as temporary RAM:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Context Window (RAM)          Filesystem (Disk)        │
-│  ──────────────────           ─────────────────         │
-│  • Volatile                   • Persistent              │
-│  • Limited (~200K tokens)     • Unlimited               │
-│  • Expensive                  • Free                    │
-│  • Lost on reset              • Survives restarts       │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  RAM["Context window (RAM)\\n- Volatile\\n- Limited\\n- Expensive\\n- Lost on reset"] --- DISK["Filesystem (disk)\\n- Persistent\\n- Effectively unbounded\\n- Cheap\\n- Survives restarts"]
 ```
 
 ## The 3-File Pattern

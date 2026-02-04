@@ -1,4 +1,4 @@
-# Oh-My-OpenCode CLI Guide
+# CLI Guide
 
 This document provides a comprehensive guide to using the Oh-My-OpenCode CLI tools.
 
@@ -88,9 +88,9 @@ bunx oh-my-opencode doctor
 ```
 oh-my-opencode doctor
 
-┌──────────────────────────────────────────────────┐
-│  Oh-My-OpenCode Doctor                           │
-└──────────────────────────────────────────────────┘
+===========================
+ Oh-My-OpenCode Doctor
+===========================
 
 Installation
   ✓ OpenCode version: 1.0.155 (>= 1.0.150)

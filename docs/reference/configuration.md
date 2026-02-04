@@ -1,6 +1,26 @@
-# Oh-My-OpenCode Configuration
+# Contract: Configuration
 
-Highly opinionated, but adjustable to taste.
+This document is a **normative contract** for configuration surfaces in this repo.
+
+## Normative Language
+
+The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as described in RFC 2119.
+
+## Scope
+
+This document defines:
+
+- Supported configuration file locations and precedence.
+- JSON vs JSONC behavior.
+- High-signal configuration keys that affect wiring and behavior.
+
+This document does **not** restate every Zod schema field. The schema is authoritative.
+
+## Source of Truth
+
+- Schema: `src/config/schema.ts`
+- Merge semantics: `src/plugin-config.ts`
+- Generated JSON schema: `assets/oh-my-opencode.schema.json`
 
 ## Config File Locations
 
@@ -50,7 +70,7 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
 
 ## Google Auth
 
-**Recommended**: For Google Gemini authentication, install the [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin. It provides multi-account load balancing, more models (including Claude via Antigravity), and active maintenance. See [Installation > Google Gemini](../README.md#google-gemini-antigravity-oauth).
+**Recommended**: For Google Gemini authentication, install the [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin. It provides multi-account load balancing, more models (including Claude via Antigravity), and active maintenance. See [Installation > Google Gemini](../../README.md#google-gemini-antigravity-oauth).
 
 ## Agents
 
@@ -148,10 +168,19 @@ Unified configuration for multi-model planning routing and synthesizer verificat
 
 Oh My OpenCode includes built-in skills that provide additional capabilities:
 
-- **playwright**: Browser automation with Playwright MCP. Use for web scraping, testing, screenshots, and browser interactions.
-- **git-master**: Git expert for atomic commits, rebase/squash, and history search (blame, bisect, log -S). STRONGLY RECOMMENDED: Use with `delegate_task(category='quick', skills=['git-master'], ...)` to save context.
+- **playwright**: Browser automation via Playwright MCP. Default browser provider.
+- **agent-browser**: Browser automation via agent-browser CLI. Alternate provider (selected only when explicitly configured by an integration point).
+- **frontend-ui-ux**: UI/UX execution guidance (designer-turned-developer persona).
+- **git-master**: Git expert for atomic commits, rebase/squash, and history search (blame, bisect, log -S).
+- **parallel-agents**: Worktree + tmux orchestration for parallel agent workflows (spawn/monitor/rescue/merge/cleanup).
+- **dev-browser**: Stateful browser automation (requires separate local server setup).
+- **spec-compliance-review**: Strict acceptance-criteria verification with PASS/FAIL verdict and file:line evidence.
+- **code-quality-review**: Post-spec code quality review (type safety, error handling, tests, maintainability, safety risks).
+- **writing-plans**: Structured implementation planning with dependencies, risks, and verification steps.
+- **systematic-debugging**: Hypothesis-driven debugging workflow (experiments, minimal fixes, verification).
+- **code-simplifier**: Behavior-preserving simplification pass to reduce complexity and improve readability.
 
-Disable built-in skills via `disabled_skills` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
+Disable schema-recognized built-in skills via `disabled_skills` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
 
 ```json
 {
@@ -159,7 +188,18 @@ Disable built-in skills via `disabled_skills` in `~/.config/opencode/oh-my-openc
 }
 ```
 
-Available built-in skills: `playwright`, `git-master`
+You can also disable any skill (including built-ins) via the `skills` map:
+
+```jsonc
+{
+  "skills": {
+    "parallel-agents": false,
+    "dev-browser": false
+  }
+}
+```
+
+Available built-in skills include: `playwright` (or `agent-browser` when explicitly selected), `frontend-ui-ux`, `git-master`, `parallel-agents`, `dev-browser`, `spec-compliance-review`, `code-quality-review`, `writing-plans`, `systematic-debugging`, `code-simplifier`.
 
 ## Git Master
 
@@ -311,22 +351,39 @@ Configure concurrency limits for background agent tasks. This controls how many 
 
 Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `Sisyphus-Junior` agent.
 
-**Default Categories:**
+**Built-in Categories (defaults):**
 
-| Category         | Model                         | Description                                                                  |
-| ---------------- | ----------------------------- | ---------------------------------------------------------------------------- |
-| `visual`         | `google/gemini-3-pro-preview` | Frontend, UI/UX, design-focused tasks. High creativity (temp 0.7).           |
-| `business-logic` | `openai/gpt-5.2`              | Backend logic, architecture, strategic reasoning. Low creativity (temp 0.1). |
+| Category | Model | Description |
+|---|---|---|
+| `visual-engineering` | `google/gemini-3-pro` | Frontend, UI/UX, design, styling, animation |
+| `ultrabrain` | `openai/gpt-5.2-codex` (xhigh) | Deep logical reasoning and complex architecture |
+| `deep` | `openai/gpt-5.2-codex` (medium) | Goal-oriented autonomous problem-solving |
+| `artistry` | `google/gemini-3-pro` (max) | Highly creative/artistic tasks |
+| `quick` | `anthropic/claude-haiku-4-5` | Trivial tasks (small changes) |
+| `unspecified-low` | `anthropic/claude-sonnet-4-5` | Moderate-effort tasks that don't fit other categories |
+| `unspecified-high` | `anthropic/claude-opus-4-5` (max) | High-effort tasks that don't fit other categories |
+| `writing` | `google/gemini-3-flash` | Documentation, prose, technical writing |
 
 **Usage:**
 
 ```
 // Via delegate_task tool
-delegate_task(category="visual", prompt="Create a responsive dashboard component")
-delegate_task(category="business-logic", prompt="Design the payment processing flow")
+delegate_task(
+  category="visual-engineering",
+  load_skills=["frontend-ui-ux"],
+  description="dashboard UI",
+  prompt="Create a responsive dashboard component",
+  run_in_background=false
+)
 
 // Or target a specific agent directly
-delegate_task(agent="oracle", prompt="Review this architecture")
+delegate_task(
+  subagent_type="oracle",
+  load_skills=[],
+  description="architecture review",
+  prompt="Review this architecture",
+  run_in_background=false
+)
 ```
 
 **Custom Categories:**
@@ -366,53 +423,17 @@ The installer automatically configures optimal models based on your subscription
 
 ### Provider Priority
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     MODEL SELECTION FLOW                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │              TIER 1: NATIVE PROVIDERS                   │   │
-│   │         (Your direct subscriptions)                     │   │
-│   │                                                         │   │
-│   │   Claude (anthropic/) ──► OpenAI (openai/) ──► Gemini   │   │
-│   │         │                      │              (google/) │   │
-│   │         ▼                      ▼                   │    │   │
-│   │   Opus/Sonnet/Haiku    GPT-5.2/Codex      Gemini 3 Pro  │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                              │                                  │
-│                              ▼ (if no native available)         │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │              TIER 2: OPENCODE ZEN                       │   │
-│   │         (opencode/ prefix models)                       │   │
-│   │                                                         │   │
-│   │   opencode/claude-opus-4-5, opencode/gpt-5.2, etc.      │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                              │                                  │
-│                              ▼ (if no OpenCode Zen)             │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │              TIER 3: GITHUB COPILOT                     │   │
-│   │         (github-copilot/ prefix models)                 │   │
-│   │                                                         │   │
-│   │   github-copilot/claude-opus-4.5, etc.                  │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                              │                                  │
-│                              ▼ (if no Copilot)                  │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │              TIER 4: Z.AI CODING PLAN                   │   │
-│   │         (zai-coding-plan/ prefix models)                │   │
-│   │                                                         │   │
-│   │   zai-coding-plan/glm-4.7 (GLM models only)             │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                              │                                  │
-│                              ▼ (ultimate fallback)              │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │              FALLBACK: FREE TIER                        │   │
-│   │                                                         │   │
-│   │   opencode/glm-4.7-free                                 │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph T1["Tier 1: Native providers (direct subscriptions)"]
+    C["Claude (anthropic/)\nOpus / Sonnet / Haiku"] --> O["OpenAI (openai/)\nGPT-5.2 / Codex"] --> G["Gemini (google/)\nGemini 3 Pro / Flash"]
+  end
+
+  T2["Tier 2: OpenCode Zen\n(opencode/...)"] --> T3["Tier 3: GitHub Copilot\n(github-copilot/...)"]
+  T3 --> T4["Tier 4: Z.ai Coding Plan\n(zai-coding-plan/...)"]
+  T4 --> F["Fallback: Free tier\n(opencode/glm-4.7-free)"]
+
+  T1 -->|"if no native available"| T2
 ```
 
 ### Native Tier Cross-Fallback
@@ -445,48 +466,22 @@ Within the Native tier, models fall back based on capability requirements:
 
 The `explore` agent has unique logic for cost optimization:
 
-```
-┌────────────────────────────────────────┐
-│           EXPLORE AGENT LOGIC          │
-├────────────────────────────────────────┤
-│                                        │
-│   Has Claude + isMax20?                │
-│         │                              │
-│    YES  │  NO                          │
-│    ▼    │  ▼                           │
-│ ┌──────┐│┌────────────────────┐        │
-│ │Haiku ││ │ opencode/grok-code │        │
-│ │4.5   │││ (free & fast)       │        │
-│ └──────┘│└────────────────────┘        │
-│                                        │
-│ Rationale:                             │
-│ • max20 users want to use Claude quota │
-│ • Others save quota with free grok     │
-└────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  Q{"Has Claude + isMax20?"}
+  Q -->|Yes| H["anthropic/claude-haiku-4-5\n(use Claude quota)"]
+  Q -->|No| GK["opencode/grok-code\n(free & fast)"]
 ```
 
 #### Special Case: librarian Agent
 
 The `librarian` agent prioritizes Z.ai when available:
 
-```
-┌────────────────────────────────────────┐
-│          LIBRARIAN AGENT LOGIC         │
-├────────────────────────────────────────┤
-│                                        │
-│   Has Z.ai Coding Plan?                │
-│         │                              │
-│    YES  │  NO                          │
-│    ▼    │  ▼                           │
-│ ┌──────────────┐ ┌──────────────────┐  │
-│ │zai-coding-   │ │ Normal fallback  │  │
-│ │plan/glm-4.7  │ │ chain applies    │  │
-│ └──────────────┘ └──────────────────┘  │
-│                                        │
-│ Rationale:                             │
-│ • GLM excels at documentation tasks    │
-│ • Z.ai provides dedicated GLM access   │
-└────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  Q{"Has Z.ai Coding Plan?"}
+  Q -->|Yes| Z["zai-coding-plan/glm-4.7\n(prefer GLM for docs/research)"]
+  Q -->|No| N["Normal fallback chain applies"]
 ```
 
 ### Category-Specific Rules
@@ -622,9 +617,11 @@ Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-m
 }
 ```
 
-Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`
+Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For wiring status (including reserved-but-not-wired names) and ordering, see `docs/reference/hooks.md`.
 
 **Note on `directory-agents-injector`**: This hook is **automatically disabled** when running on OpenCode 1.1.37+ because OpenCode now has native support for dynamically resolving AGENTS.md files from subdirectories (PR #10678). This prevents duplicate AGENTS.md injection. For older OpenCode versions, the hook remains active to provide the same functionality.
+
+**Note on `compaction-context-injector`**: The hook exists in the repo, but it is not currently wired in `src/index.ts` (pending a stable compaction lifecycle surface in OpenCode). The repo also contains a Claude Code `PreCompact` implementation (`src/hooks/claude-code-hooks/pre-compact.ts`), but `experimental.session.compacting` is not currently registered in `src/index.ts`, so compaction-time injection is effectively **disabled** in the current wiring.
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
 
@@ -806,12 +803,12 @@ Goal-oriented handoff filters the extracted context based on the specified goal,
 The top-level `session_reference` config is deprecated. Use `session_handoff.reference` instead:
 
 ```jsonc
-// ❌ Deprecated
+// Deprecated
 {
   "session_reference": { "enabled": true }
 }
 
-// ✅ Preferred
+// Preferred
 {
   "session_handoff": {
     "reference": { "enabled": true }

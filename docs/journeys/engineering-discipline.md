@@ -1,4 +1,24 @@
-# Engineering Discipline as Prompts
+# Journey: Engineering Discipline (Skills, Hooks, and Prompts)
+
+## User Perspective
+
+You want agent output to look like senior-engineer work: complete, verifiable, consistent with repo conventions, and resilient against drift and “premature done”.
+This journey explains how Oh-My-OpenCode encodes engineering discipline as enforceable behaviors using three levers: skills (user-triggered workflows), hooks (runtime interception), and agent prompt constraints (default heuristics).
+
+## End-to-End Flow
+
+```mermaid
+flowchart TD
+  U["User intent"] --> S["Skill (user-triggered state machine)"]
+  U --> P["Agent prompt constraints (default heuristics)"]
+
+  S --> TOOL["Tool calls (Read/Edit/Write/Bash/...)"]
+  P --> TOOL
+
+  TOOL --> H["Hooks intercept (pre/post tool)"]
+  H --> V["Verification + guardrails (anti-slop, pre-completion checks, reminders)"]
+  V --> OUT["Higher-quality outputs + fewer regressions"]
+```
 
 > Embedding engineering best practices into AI Agent workflows through Skills, Hooks, and Agent Prompt enhancements for automated discipline enforcement.
 
@@ -39,28 +59,21 @@ Encoding engineering discipline as executable workflows rather than mere "sugges
 
 ### Architecture Decision Matrix
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                 When to Use Which Mechanism?                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  User-triggered complex workflow?                           │
-│     ├─ YES → Skill (e.g., /spec-compliance-review)          │
-│     └─ NO ↓                                                 │
-│                                                             │
-│  Need real-time tool output interception/enhancement?       │
-│     ├─ YES → Hook (e.g., anti-slop-enforcer)                │
-│     └─ NO ↓                                                 │
-│                                                             │
-│  Agent's default behavior/decision heuristics?              │
-│     └─ YES → Agent Prompt Enhancement                       │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  Q1{"User-triggered complex workflow?"}
+  Q1 -->|Yes| SK["Skill\n(user-triggered state machine)\nExample: /spec-compliance-review"]
+  Q1 -->|No| Q2{"Need real-time tool interception?"}
+  Q2 -->|Yes| HK["Hook\n(pre/post-tool interception)\nExample: anti-slop-enforcer"]
+  Q2 -->|No| PR["Agent prompt constraints\n(default heuristics)"]
 ```
 
 ## Implementation Components
 
-### 1. Builtin Skills (5 skills)
+### 1. Built-in Engineering Discipline Skills (5 skills)
+
+These five skills are shipped as built-ins (unless disabled) and provide standardized workflows for planning, verification, debugging, and simplification.
+Implementation: `src/features/builtin-skills/skills/`.
 
 #### 1.1 `spec-compliance-review`
 
@@ -155,40 +168,34 @@ Each task must satisfy:
 
 **Phase 0: STOP (BLOCKING)**
 
-```
-┌────────────────────────────────────────┐
-│  DO NOT propose a fix yet.             │
-│  DO NOT make "quick changes".          │
-│  DO NOT say "let me try this".         │
-└────────────────────────────────────────┘
-```
+> **Hard stop**:
+> - Do not propose a fix yet.
+> - Do not make “quick changes”.
+> - Do not say “let me try this”.
 
 **Workflow**:
 
-```
-Phase 1: Observe
-  ├── What is the exact error message/behavior?
-  ├── What is the expected behavior?
-  └── When did it last work?
+**Phase 1: Observe**
+- What is the exact error message/behavior?
+- What is the expected behavior?
+- When did it last work?
 
-Phase 2: Hypothesize
-  ┌───┬─────────────┬────────────┬──────────────────────┐
-  │ # │ Hypothesis  │ Likelihood │ Test to Disprove     │
-  ├───┼─────────────┼────────────┼──────────────────────┤
-  │ 1 │ ...         │ HIGH       │ ...                  │
-  │ 2 │ ...         │ MEDIUM     │ ...                  │
-  └───┴─────────────┴────────────┴──────────────────────┘
+**Phase 2: Hypothesize**
 
-Phase 3: Test (ONE AT A TIME)
-  ├── Design test to disprove hypothesis
-  ├── Execute test, record result
-  └── If disproved, move to next hypothesis
+| # | Hypothesis | Likelihood | Test to Disprove |
+|---:|---|---|---|
+| 1 | ... | High | ... |
+| 2 | ... | Medium | ... |
 
-Phase 4: Fix (Only after hypothesis confirmed)
-  ├── Minimal change
-  ├── Run original failing test
-  └── Run full test suite
-```
+**Phase 3: Test (one at a time)**
+- Design a test to disprove the current hypothesis.
+- Execute the test and record the result.
+- If disproved, move to the next hypothesis.
+
+**Phase 4: Fix (only after hypothesis confirmed)**
+- Make the minimal change.
+- Re-run the original failing test.
+- Run the broader test suite (as appropriate for the repo).
 
 **Forbidden Behaviors**:
 - Making changes "to see what happens"
@@ -256,12 +263,12 @@ Step 5: Document significant changes
 
 **Configuration**:
 
-```yaml
-# oh-my-opencode.yaml
-hooks:
-  anti-slop-enforcer:
-    enabled: true
-    # patterns: [...]  # Extensible
+Hooks are enabled by default and can be disabled via `disabled_hooks`:
+
+```jsonc
+{
+  "disabled_hooks": ["anti-slop-enforcer"]
+}
 ```
 
 #### 2.2 `pre-completion-verification`
@@ -357,78 +364,29 @@ After ANY implementation task:
 
 ## Data Flow
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Engineering Discipline Flow                   │
-└─────────────────────────────────────────────────────────────────────┘
-
-User Request
-    │
-    ▼
-┌─────────────────┐
-│ Sisyphus Agent  │◄─── Parallel Dispatch Matrix (decisions)
-└────────┬────────┘     Three-Stage Review Protocol (workflow)
-         │
-         ▼
-┌─────────────────┐
-│ /writing-plans  │──► Create bite-sized task plan
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Implement     │
-│     Code        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────────────────┐
-│ anti-slop-enforcer Hook                 │
-│ ├─ Detect code quality violations       │
-│ │   after Write/Edit                    │
-│ └─ Append warnings to output            │
-└────────┬────────────────────────────────┘
-         │
-         ▼
-┌─────────────────┐
-│ /spec-compliance│──► Stage 1: Verify spec compliance (REQUIRED)
-│    -review      │
-└────────┬────────┘
-         │ PASS
-         ▼
-┌─────────────────┐
-│ /code-quality   │──► Stage 2: Code quality review (REQUIRED)
-│    -review      │
-└────────┬────────┘
-         │ MERGE READY
-         ▼
-┌─────────────────┐
-│ /code-simplifier│──► Stage 3: Code simplification (OPTIONAL)
-│                 │    Use when code is complex or user requests
-└────────┬────────┘
-         │ SIMPLIFIED (or SKIPPED)
-         ▼
-┌─────────────────────────────────────────┐
-│ pre-completion-verification Hook        │
-│ ├─ Detect completion claims             │
-│ ├─ Check for incomplete TODOs           │
-│ └─ Inject verification reminder if any  │
-└────────┬────────────────────────────────┘
-         │
-         ▼
-    Task Complete
+```mermaid
+flowchart TD
+  U["User request"] --> S["Sisyphus agent\n(prompt heuristics)"]
+  S --> WP["/writing-plans\n(bite-sized task plan)"]
+  WP --> IMP["Implement code"]
+  IMP --> AS["Hook: anti-slop-enforcer\n(tool.execute.after)\nappend warnings"]
+  AS --> SCR["/spec-compliance-review\n(Stage 1, required)"]
+  SCR --> CQR["/code-quality-review\n(Stage 2, required if Stage 1 passed)"]
+  CQR --> CS["/code-simplifier\n(Stage 3, optional)"]
+  CS --> PCV["Hook: pre-completion-verification\n(chat.message)\ncompletion claim reminder"]
+  PCV --> DONE["Task complete (with evidence)"]
 ```
 
 ## Configuration
 
 ### Enable/Disable Hooks
 
-```yaml
-# oh-my-opencode.yaml
-hooks:
-  anti-slop-enforcer:
-    enabled: true
-  pre-completion-verification:
-    enabled: true
+Disable hooks via `disabled_hooks`:
+
+```jsonc
+{
+  "disabled_hooks": ["anti-slop-enforcer", "pre-completion-verification"]
+}
 ```
 
 ### Default State

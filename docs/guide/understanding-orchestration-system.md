@@ -22,22 +22,22 @@ The orchestration system solves these problems through **specialization and dele
 ```mermaid
 flowchart TB
     subgraph Planning["Planning Layer (Human + Prometheus)"]
-        User[("👤 User")]
-        Prometheus["🔥 Prometheus<br/>(Planner)<br/>Claude Opus 4.5"]
-        MultiPlan["🔀 multi_plan<br/>(Multi-Model Planning)<br/>Tool"]
-        Synth["⚖️ Plan Synthesizer<br/>(plan-synthesizer)<br/>Opus-class"]
+        User[("User")]
+        Prometheus["Prometheus<br/>(Planner)<br/>Claude Opus 4.5"]
+        MultiPlan["multi_plan<br/>(Multi-Model Planning)<br/>Tool"]
+        Synth["Plan Synthesizer<br/>(plan-synthesizer)<br/>Opus-class"]
     end
     
     subgraph Execution["Execution Layer (Orchestrator)"]
-        Orchestrator["⚡ Atlas<br/>(Conductor)<br/>Claude Opus 4.5"]
+        Orchestrator["Atlas<br/>(Conductor)<br/>Claude Opus 4.5"]
     end
     
     subgraph Workers["Worker Layer (Specialized Agents)"]
-        Junior["🪨 Sisyphus-Junior<br/>(Task Executor)<br/>Claude Sonnet 4.5"]
-        Oracle["🧠 Oracle<br/>(Architecture)<br/>GPT-5.2"]
-        Explore["🔍 Explore<br/>(Codebase Grep)<br/>Grok Code"]
-        Librarian["📚 Librarian<br/>(Docs/OSS)<br/>GLM-4.7"]
-        Frontend["🎨 Frontend<br/>(UI/UX)<br/>Gemini 3 Pro"]
+        Junior["Sisyphus-Junior<br/>(Task Executor)<br/>Claude Sonnet 4.5"]
+        Oracle["Oracle<br/>(Architecture)<br/>GPT-5.2"]
+        Explore["Explore<br/>(Codebase Grep)<br/>Grok Code"]
+        Librarian["Librarian<br/>(Docs/OSS)<br/>GLM-4.7"]
+        Frontend["Frontend<br/>(UI/UX)<br/>Gemini 3 Pro"]
     end
     
     User -->|"Describe work"| Prometheus
@@ -53,10 +53,10 @@ flowchart TB
     WorkState -->|"Resume state"| Orchestrator
     
     Orchestrator -->|"delegate_task(category)"| Junior
-    Orchestrator -->|"delegate_task(agent)"| Oracle
-    Orchestrator -->|"delegate_task(agent)"| Explore
-    Orchestrator -->|"delegate_task(agent)"| Librarian
-    Orchestrator -->|"delegate_task(agent)"| Frontend
+    Orchestrator -->|"delegate_task(subagent_type)"| Oracle
+    Orchestrator -->|"delegate_task(subagent_type)"| Explore
+    Orchestrator -->|"delegate_task(subagent_type)"| Librarian
+    Orchestrator -->|"delegate_task(subagent_type)"| Frontend
     
     Junior -->|"Results + Learnings"| Orchestrator
     Oracle -->|"Advice"| Orchestrator
@@ -152,22 +152,22 @@ flowchart LR
     Verify -->|"More tasks"| Delegate
     Verify -->|"All done"| Report
     
-    Delegate -->|"background=false"| Workers["Workers"]
+    Delegate -->|"run_in_background=false"| Workers["Workers"]
     Workers -->|"Results + Learnings"| Verify
 ```
 
 **What Orchestrator CAN do:**
-- ✅ Read files to understand context
-- ✅ Run commands to verify results
-- ✅ Use lsp_diagnostics to check for errors
-- ✅ Search patterns with grep/glob/ast-grep
-- ✅ Create git commits **after verification** (atomic, scoped)
+- Read files to understand context
+- Run commands to verify results
+- Use `lsp_diagnostics` to check for errors
+- Search patterns with `grep` / `glob` / `ast_grep_*`
+- Create git commits **after verification** (atomic, scoped)
 
 **What Orchestrator MUST delegate:**
-- ❌ Writing/editing code files
-- ❌ Fixing bugs
-- ❌ Creating tests
- - ❌ Large implementation changes (delegate; only do small verification fixes if needed)
+- Writing/editing code files
+- Fixing bugs
+- Creating tests
+- Large implementation changes (delegate; only do small verification fixes if needed)
 
 ### Wisdom Accumulation
 
@@ -197,9 +197,27 @@ Independent tasks run in parallel:
 ```typescript
 // Orchestrator identifies parallelizable groups from plan
 // Group A: Tasks 2, 3, 4 (no file conflicts)
-delegate_task(category="ultrabrain", prompt="Task 2...")
-delegate_task(category="visual-engineering", prompt="Task 3...")
-delegate_task(category="general", prompt="Task 4...")
+delegate_task(
+  category="ultrabrain",
+  load_skills=[],
+  description="task 2",
+  prompt="Task 2...",
+  run_in_background=true
+)
+delegate_task(
+  category="visual-engineering",
+  load_skills=["frontend-ui-ux"],
+  description="task 3",
+  prompt="Task 3...",
+  run_in_background=true
+)
+delegate_task(
+  category="unspecified-low",
+  load_skills=[],
+  description="task 4",
+  prompt="Task 4...",
+  run_in_background=true
+)
 // All run simultaneously
 ```
 
@@ -252,18 +270,45 @@ This "work continuation" mechanism (the Sisyphus “boulder pushing” metaphor)
 **The Problem with Model Names:**
 
 ```typescript
-// OLD: Model name creates distributional bias
-delegate_task(agent="gpt-5.2", prompt="...")  // Model knows its limitations
-delegate_task(agent="claude-opus-4.5", prompt="...")  // Different self-perception
+// Avoid routing by raw model strings ("use gpt-5.2", "use opus") as the *contract*.
+// Prefer either:
+// - semantic categories (intent presets), or
+// - explicit specialists via subagent_type.
+
+delegate_task(
+  subagent_type="oracle",
+  load_skills=[],
+  description="architecture review",
+  prompt="...",
+  run_in_background=false
+)
 ```
 
 **The Solution: Semantic Categories:**
 
 ```typescript
 // NEW: Category describes INTENT, not implementation
-delegate_task(category="ultrabrain", prompt="...")     // "Think strategically"
-delegate_task(category="visual-engineering", prompt="...")  // "Design beautifully"
-delegate_task(category="quick", prompt="...")          // "Just get it done fast"
+delegate_task(
+  category="ultrabrain",
+  load_skills=[],
+  description="deep reasoning task",
+  prompt="...",
+  run_in_background=false
+)
+delegate_task(
+  category="visual-engineering",
+  load_skills=["frontend-ui-ux"],
+  description="visual task",
+  prompt="...",
+  run_in_background=false
+)
+delegate_task(
+  category="quick",
+  load_skills=[],
+  description="quick fix",
+  prompt="...",
+  run_in_background=false
+)
 ```
 
 ### Built-in Categories
@@ -304,13 +349,17 @@ Skills prepend specialized instructions to subagent prompts:
 delegate_task(
   category="visual-engineering", 
   load_skills=["frontend-ui-ux"],  // Adds UI/UX expertise
-  prompt="..."
+  description="UI implementation",
+  prompt="...",
+  run_in_background=false
 )
 
 delegate_task(
-  category="general",
+  category="deep",
   load_skills=["playwright"],  // Adds browser automation expertise
-  prompt="..."
+  description="browser verification",
+  prompt="...",
+  run_in_background=false
 )
 ```
 
@@ -342,7 +391,7 @@ sequenceDiagram
         
         Note over Orchestrator: Prompt Structure:<br/>1. TASK (exact checkbox)<br/>2. EXPECTED OUTCOME<br/>3. REQUIRED SKILLS<br/>4. REQUIRED TOOLS<br/>5. MUST DO<br/>6. MUST NOT DO<br/>7. CONTEXT + Wisdom
         
-        Orchestrator->>Junior: delegate_task(category, load_skills, prompt)
+        Orchestrator->>Junior: delegate_task(category, load_skills, description, prompt, run_in_background)
         
         Junior->>Junior: Create todos, execute
         Junior->>Junior: Verify (lsp_diagnostics, tests)
@@ -417,6 +466,6 @@ Bulk work goes to cost-effective models (Sonnet, Haiku, Flash).
 ## Further Reading
 
 - [Overview](./overview.md) - Quick start guide
-- [Ultrawork Manifesto](../ultrawork-manifesto.md) - Philosophy behind the system
+- [Ultrawork Journey](../journeys/ultrawork.md) - Philosophy behind the system
 - [Installation Guide](./installation.md) - Detailed installation instructions
-- [Configuration](../configurations.md) - Customize the orchestration
+- [Configuration](../reference/configuration.md) - Customize the orchestration

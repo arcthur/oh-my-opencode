@@ -1,130 +1,145 @@
-# Context Distillation Research: Droid CLI vs oh-my-opencode
+# Context Distillation Research: Factory.ai Droid CLI vs Oh-My-OpenCode
 
 ## Executive Summary
 
-本文档对比分析了 Factory.ai Droid CLI 的上下文管理策略与当前 oh-my-opencode 项目的实现，并提出具体优化建议。
+This document compares Factory.ai Droid CLI’s progressive context distillation strategy with Oh-My-OpenCode’s current context-management implementation, then proposes repo-aligned improvements.
+
+Key observations:
+
+- Oh-My-OpenCode already implements a three-phase token-limit recovery pipeline: **Dynamic Context Pruning (DCP) → aggressive truncation → session summarization**.
+- Persistent memories exist (**User Memory** and **Org Memory**) and can inject context via the context collector.
+- **Repository overview injection** and **runtime tracking** have schemas and code modules, but are **not currently wired** in `src/index.ts`.
+- Compaction-time injection helpers exist (`compaction-context-injector`, Claude Code `PreCompact`) but are **not currently wired** due to missing/unstable OpenCode lifecycle surfaces in this plugin.
 
 ---
 
-## 1. Droid CLI 上下文管理策略
+## 1. Droid CLI Context Strategy
 
-### 1.1 Context Stack (上下文堆栈)
+### 1.1 Progressive Context Stack
 
-Droid 采用**渐进式蒸馏**架构，将"公司所有知识"逐层过滤为"当前 Droid 所需内容"。
+Droid applies progressive distillation: it starts from broad enterprise knowledge and filters down to the minimal task-relevant context.
 
-```
-┌─────────────────────────────────────┐
-│     Enterprise Context Layer        │  ← Sentry, Notion, Google Docs
-├─────────────────────────────────────┤
-│     Org Memory Layer                │  ← 团队规范、风格指南
-├─────────────────────────────────────┤
-│     User Memory Layer               │  ← 个人偏好、环境配置
-├─────────────────────────────────────┤
-│     Repository Overview Layer       │  ← 项目结构、依赖、构建命令
-├─────────────────────────────────────┤
-│     Session Context Layer           │  ← 当前任务、工具调用
-└─────────────────────────────────────┘
+```mermaid
+flowchart TB
+  E["Enterprise Context<br/>(Sentry, Notion, Google Docs, …)"]
+  O["Org Memory<br/>(team conventions, style guides)"]
+  U["User Memory<br/>(preferences, environment)"]
+  R["Repository Overview<br/>(structure, dependencies, build commands)"]
+  S["Session Context<br/>(current task, tool calls)"]
+  E --> O --> U --> R --> S
 ```
 
-### 1.2 核心特性
+### 1.2 Core Capabilities
 
-| 特性 | 描述 |
-|------|------|
-| **Repository Overview** | 为每个仓库生成结构摘要（项目结构、包、构建命令、核心文件） |
-| **Lazy Loading** | 仅在需要时拉取上下文，避免重复 |
-| **Runtime Tracking** | 追踪工具执行时间，避免重复慢操作 |
-| **Hierarchical Memory** | 分层持久化记忆（User Memory + Org Memory） |
-| **Plan-based Coherence** | 使用计划工具保持任务组织性 |
+| Capability | Description |
+|---|---|
+| Repository Overview | Generates a per-repo structural summary (tree, packages, build commands, key files) |
+| Lazy Loading | Fetches context only when needed and avoids repeated dumps |
+| Runtime Tracking | Tracks tool runtimes and avoids repeating expensive operations |
+| Hierarchical Memory | Persists user and org memory in separate layers |
+| Plan-based Coherence | Uses a plan artifact to preserve task structure across long sessions |
 
-### 1.3 Hierarchical Memory (分层记忆)
+### 1.3 Hierarchical Memory
 
-**User Memory (用户记忆)**:
-- 开发环境配置 (OS, containers)
-- 历史工作记录
-- 工作风格偏好
+User Memory:
 
-**Org Memory (组织记忆)**:
-- 公司风格指南
-- 代码规范 (如 snake_case for API)
-- 架构决策
+- Development environment configuration (OS, containers, tooling)
+- Work history / past decisions
+- Personal style and workflow preferences
+
+Org Memory:
+
+- Team style guide and conventions
+- Coding standards and patterns
+- Architecture decisions
 
 ---
 
-## 2. 当前项目实现分析
+## 2. Oh-My-OpenCode: Current Implementation
 
-### 2.1 现有上下文管理组件
+### 2.1 Context-management components
 
-| 组件 | 路径 | 功能 |
-|------|------|------|
-| Preemptive Compaction | `src/hooks/preemptive-compaction/` | 85%阈值触发压缩 |
-| Context Window Recovery | `src/hooks/context-window-limit-recovery/` | 三层恢复策略 (DCP → Truncate → Summarize) |
-| Compaction Context Injector | `src/hooks/compaction-context-injector/` | 压缩时保留关键上下文 |
-| Directory Agents Injector | `src/hooks/directory-agents-injector/` | 自动注入目录 AGENTS.md |
-| Dynamic Truncator | `src/shared/dynamic-truncator.ts` | 动态截断工具输出 |
-| Context Window Monitor | `src/hooks/context-window-monitor.ts` | 70%使用率提醒 |
+| Component | Code | Role | Status |
+|---|---|---|---|
+| Context collector / injector | `src/features/context-injector/` | Central registry for injectable context | Wired |
+| Preemptive compaction | `src/hooks/preemptive-compaction/` | Proactively triggers session summarize at a threshold | Wired |
+| Token-limit recovery | `src/hooks/context-window-limit-recovery/` | Automatic recovery when a hard token limit is hit | Wired |
+| Dynamic Context Pruning (DCP) | `src/hooks/context-window-limit-recovery/` | Low-risk pruning of redundant tool history | Wired (optional via `experimental.dynamic_context_pruning`) |
+| Tool output shaping | `src/hooks/tool-output-truncator.ts`, `src/hooks/silent-tool-output/` | Reduce context bloat from tool output | Wired |
+| Directory context injection | `src/hooks/directory-agents-injector/`, `src/hooks/directory-readme-injector/` | Inject AGENTS.md/README.md where relevant | Wired (AGENTS injector may auto-disable on new OpenCode versions) |
+| Rules injection | `src/hooks/rules-injector/` + `src/features/conditional-rules/` | Inject path-sensitive rules into tools/delegation | Wired |
+| User memory | `src/features/user-memory/` | Persistent user-layer memory with retrieval and injection | Wired |
+| Org memory | `src/features/org-memory/` | Persistent org-layer memory with injection | Wired |
+| Session handoff | `src/features/session-handoff/` | Cross-session summaries and references | Wired |
+| Repo overview injector | `src/hooks/repo-overview-injector/` | Generate and inject a per-repo overview | Present, not wired in `src/index.ts` |
+| Runtime tracker | `src/hooks/runtime-tracker/` | Track tool runtimes and inject hints | Present, not wired in `src/index.ts` |
+| Compaction-time injection helper | `src/hooks/compaction-context-injector/` | Add structured context at compaction time | Present, not wired in `src/index.ts` |
+| Claude Code `PreCompact` | `src/hooks/claude-code-hooks/pre-compact.ts` | Compatibility layer for compaction injection | Implemented, not wired (no `experimental.session.compacting` handler) |
 
-### 2.2 现有压缩策略流程
+### 2.2 Token-limit recovery pipeline
 
+Oh-My-OpenCode’s hard-limit recovery follows a three-phase escalation:
+
+```mermaid
+flowchart TD
+  P1["Phase 1: Dynamic Context Pruning (DCP)<br/>- Deduplicate tool calls<br/>- Supersede writes<br/>- Purge old errors<br/>- Clear old tool results"]
+  P2["Phase 2: Aggressive Truncation<br/>- Truncate large tool outputs<br/>- Target token ratio: 0.5"]
+  P3["Phase 3: Summarize<br/>- session.summarize(auto=true)"]
+  P1 --> P2 --> P3
 ```
-PHASE 1: Dynamic Context Pruning (DCP)
-├─ Deduplication: 删除重复工具调用
-├─ Supersede Writes: 删除被后续读取覆盖的写入
-└─ Purge Errors: 清除旧错误调用
 
-PHASE 2: Aggressive Truncation
-└─ 截断最大工具输出至 50%
+Notes:
 
-PHASE 3: Session Summarize
-└─ 调用 LLM 生成会话摘要
-```
+- Phase 1 is gated by `experimental.dynamic_context_pruning.enabled=true`.
+- Phase 2 and 3 run only when the session is over the provider token limit.
 
-### 2.3 当前项目优势
+### 2.3 Strengths
 
-1. **三层恢复策略**: 从轻量到重量级，最小化信息损失
-2. **DCP 细粒度控制**: 可配置的修剪策略
-3. **AGENTS.md 层级注入**: 支持目录级别上下文
-4. **冷却机制**: 防止频繁压缩
+1. **Three-phase recovery**: progressively escalates from reversible pruning to lossy summarization.
+2. **Configurable DCP strategies**: fine-grained pruning controls with safety defaults.
+3. **Hierarchical file injection** (AGENTS/README): retrieves project constraints without manual prompting.
+4. **Multiple memory layers**: user/org memory and session handoff are separate mechanisms.
 
-### 2.4 当前项目不足
+### 2.4 Gaps and limitations (as of current wiring)
 
-1. **缺乏持久化记忆**: 会话间信息丢失
-2. **无 Repository Overview**: 每次需要重新探索项目
-3. **无 Runtime Tracking**: 可能重复执行慢操作
-4. **无 Org/User Memory 分层**: 团队规范需要每次手动指定
-5. **压缩时信息保留有限**: 仅保留基本结构化信息
+1. **Repo overview**: the schema and hook exist, but the injector is not wired, so onboarding still relies on ad-hoc exploration.
+2. **Runtime tracking**: the schema and hook exist, but the tracker is not wired, so there is no systematic “avoid repeating expensive tools” feedback.
+3. **Compaction-time injection**: utilities exist but are not wired because OpenCode does not currently expose a stable compaction lifecycle surface in this plugin.
+4. **Observation masking**: not implemented (tool outputs are truncated/pruned, not masked with reversible handles).
 
 ---
 
-## 3. 行业最佳实践
+## 3. Industry Best Practices (Context Engineering)
 
-### 3.1 Compaction vs Summarization
+### 3.1 Raw vs compaction vs summarization
 
-| 方法 | 特点 | 优先级 |
-|------|------|--------|
-| **Raw** | 原始数据 | 最高 |
-| **Compaction (可逆)** | 删除环境中可重新获取的冗余信息 | 中 |
-| **Summarization (有损)** | LLM 压缩历史 | 最低 |
+| Method | Property | Priority |
+|---|---|---|
+| Raw | Original, fully detailed data | Highest |
+| Compaction (reversible) | Remove redundant environment observations that can be re-derived | Medium |
+| Summarization (lossy) | LLM compresses history into a summary | Lowest |
 
-**最佳实践**: `Raw > Compaction > Summarization`
+Guideline: prefer `Raw > Compaction > Summarization`.
 
-### 3.2 阈值管理
+### 3.2 Threshold management
 
-- 不要等 API 报错再处理
-- Claude 3.5 Sonnet (~200K): 建议在 150K-180K 触发
-- 1M context: 建议在 256K 前触发（避免 "context rot"）
+- Do not wait for provider errors; trigger preemptive actions earlier.
+- For large context models, trigger before “context rot” (quality degradation) becomes visible.
 
-### 3.3 保留动量 (Preserving Momentum)
+### 3.3 Preserving momentum
 
-压缩时保留最近 3-5 轮原始对话，保持模型的"节奏"和格式风格。
+Keep the most recent 3–5 turns uncompressed to preserve “rhythm” and formatting.
 
-### 3.4 结构化摘要
+### 3.4 Structured summaries
+
+Use a stable, parseable summary skeleton, for example:
 
 ```markdown
 ## Files Modified
 - path/to/file.ts: Added function X
 
 ## Decisions Made
-- Chose approach A over B because...
+- Chose approach A over B because ...
 
 ## Current State
 - Working on feature Y
@@ -135,190 +150,91 @@ PHASE 3: Session Summarize
 2. Test feature B
 ```
 
-### 3.5 工具结果清理
+### 3.5 Clearing old tool results
 
-深层历史中的工具调用结果可安全删除，agent 不需要再次看到原始结果。
+Old tool outputs deep in history can often be removed safely; the agent generally needs:
 
----
-
-## 4. 优化建议
-
-### 4.1 高优先级 (Quick Wins)
-
-#### 4.1.1 Repository Overview 生成
-
-**建议**: 新增 `repo-overview-injector` 钩子
-
-```typescript
-// src/hooks/repo-overview-injector/index.ts
-interface RepoOverview {
-  structure: string;        // 目录树
-  techStack: string[];      // 技术栈
-  buildCommands: string[];  // 构建命令
-  coreFiles: string[];      // 核心文件
-  conventions: string[];    // 代码规范
-}
-
-// 在会话开始时注入，类似 Droid 的 bootstrap
-```
-
-**预期收益**: 减少初始探索时间，降低 token 消耗
-
-#### 4.1.2 Tool Result Clearing (工具结果清理)
-
-**建议**: 在 DCP 中增加 `clear_old_tool_results` 策略
-
-```typescript
-// pruning-tool-results.ts
-export function clearOldToolResults(
-  messages: Message[],
-  options: { keepRecentTurns: number }
-): PruningResult {
-  // 保留最近 N 轮的工具结果
-  // 清除更早的工具输出（仅保留工具名和简要状态）
-}
-```
-
-**预期收益**: 显著减少 token 消耗，比截断更精准
-
-#### 4.1.3 增强压缩上下文模板
-
-**建议**: 扩展 `compaction-context-injector` 模板
-
-```markdown
-## Files Modified (with line ranges)
-## Key Decisions & Rationale
-## Current Working State
-## Environment/Tool Outputs Still Needed
-## Blocked Items
-```
-
-### 4.2 中优先级 (Significant Improvements)
-
-#### 4.2.1 持久化 User Memory
-
-**建议**: 新增 `user-memory` 模块
-
-```typescript
-// src/features/user-memory/
-interface UserMemory {
-  preferences: Record<string, string>;  // 用户偏好
-  environment: EnvironmentInfo;          // 开发环境
-  workHistory: WorkHistoryEntry[];       // 历史工作
-  customRules: string[];                 // 自定义规则
-}
-
-// 存储: ~/.opencode/memory/user.json
-// 跨会话持久化
-```
-
-#### 4.2.2 Runtime Tracking
-
-**建议**: 追踪工具执行时间并注入上下文
-
-```typescript
-// src/hooks/runtime-tracker/
-interface ToolRuntime {
-  tool: string;
-  avgDuration: number;
-  lastDuration: number;
-  callCount: number;
-}
-
-// 当工具耗时超过阈值时注入提示:
-// "[Tool runtime: grep averaged 5.2s last 3 calls - consider narrower search]"
-```
-
-#### 4.2.3 Observation Masking
-
-**建议**: 实现观察掩码策略（参考 OpenHands/Cursor）
-
-```typescript
-// 仅掩码环境观察（工具输出）
-// 保留完整的动作和推理历史
-// 比 LLM 摘要更轻量，保留更多信息
-```
-
-### 4.3 低优先级 (Future Enhancements)
-
-#### 4.3.1 Org Memory (团队记忆)
-
-```typescript
-// src/features/org-memory/
-// 存储: .opencode/memory/org.json (项目级)
-// 内容: 团队规范、架构决策、命名约定
-```
-
-#### 4.3.2 Multi-Agent Context Isolation
-
-```typescript
-// 子 agent 返回精简摘要（1-2k tokens）
-// 主 agent 仅看到结果摘要，不看过程
-// "Share memory by communicating" 原则
-```
-
-#### 4.3.3 智能预压缩触发
-
-```typescript
-// 根据任务复杂度动态调整阈值
-// 简单任务: 90% 阈值
-// 复杂任务: 75% 阈值
-// 基于历史 token 消耗模式预测
-```
+- The tool name
+- The high-level outcome
+- A minimal pointer for re-running if needed
 
 ---
 
-## 5. 实现路线图
+## 4. Repo-aligned recommendations
 
-### Phase 1: Quick Wins (1-2 weeks)
+### 4.1 Quick wins (wiring and defaults)
 
-1. [ ] 实现 `clear_old_tool_results` DCP 策略
-2. [ ] 增强 `compaction-context-injector` 模板
-3. [ ] 添加 "preserve recent turns" 选项到 summarization
+1. Wire `repo-overview-injector` into `src/index.ts` (respect `repo_overview` config).
+2. Wire `runtime-tracker` into `src/index.ts` (respect `runtime_tracker` config).
+3. Validate `experimental.dynamic_context_pruning` defaults and document safe tuning for `strategies.clear_tool_results.keep_recent_turns`.
 
-### Phase 2: Core Features (2-4 weeks)
+### 4.2 Medium-term improvements
 
-4. [ ] 实现 `repo-overview-injector`
-5. [ ] 实现 `user-memory` 持久化
-6. [ ] 实现 `runtime-tracker`
+1. Improve session summarization templates to preserve:
+   - active TODOs / next steps
+   - “do not do” constraints
+   - critical environment state and tool prerequisites
+2. Add “preserve recent turns” behavior as an explicit knob to reduce momentum loss.
 
-### Phase 3: Advanced Features (4-8 weeks)
+### 4.3 Future enhancements
 
-7. [ ] 实现 Observation Masking
-8. [ ] 实现 Org Memory
-9. [ ] 优化 Multi-Agent Context Isolation
+1. Observation masking: replace large tool outputs with stable handles while retaining the ability to re-fetch.
+2. Multi-agent context isolation: enforce that subagents return condensed results and do not leak full transcripts upstream.
 
 ---
 
-## 6. 配置建议
+## 5. Suggested roadmap (implementation order)
 
-```json
+Phase 1 (1–2 weeks):
+
+- Wire repo overview
+- Wire runtime tracker
+- Harden and document DCP tuning
+
+Phase 2 (2–4 weeks):
+
+- Improve summarization templates + preserve-recent-turns
+- Add compaction-time injection when OpenCode exposes a stable lifecycle surface
+
+Phase 3 (4–8 weeks):
+
+- Observation masking
+- Isolation improvements
+
+---
+
+## 6. Configuration sketch (current schema)
+
+The following example uses the current `OhMyOpenCodeConfigSchema` keys.
+Note: features that are “present but not wired” will not take effect until integrated in `src/index.ts`.
+
+```jsonc
 {
   "experimental": {
     "preemptive_compaction": true,
-    "preemptive_compaction_threshold": 0.80,
-    "dcp_for_compaction": true,
+    "preemptive_compaction_threshold": 0.85,
     "dynamic_context_pruning": {
       "enabled": true,
       "strategies": {
         "deduplication": { "enabled": true },
-        "supersede_writes": { "enabled": true, "aggressive": true },
-        "purge_errors": { "enabled": true, "turns": 3 },
+        "supersede_writes": { "enabled": true, "aggressive": false },
+        "purge_errors": { "enabled": true, "turns": 5 },
         "clear_tool_results": { "enabled": true, "keep_recent_turns": 5 }
       }
-    },
-    "repo_overview": {
-      "enabled": true,
-      "auto_generate": true
-    },
-    "user_memory": {
-      "enabled": true,
-      "persist_preferences": true
-    },
-    "runtime_tracking": {
-      "enabled": true,
-      "threshold_ms": 3000
     }
+  },
+  "repo_overview": {
+    "enabled": true,
+    "auto_generate": true,
+    "max_tree_depth": 50,
+    "cache_duration_ms": 3600000
+  },
+  "runtime_tracker": {
+    "enabled": true,
+    "threshold_ms": 3000,
+    "max_recent": 10,
+    "inject_hints": true,
+    "hint_cooldown_ms": 60000
   }
 }
 ```
@@ -339,11 +255,5 @@ interface ToolRuntime {
 
 ## 8. Conclusion
 
-当前 oh-my-opencode 的上下文管理实现已经相当完善，特别是三层恢复策略和 DCP 机制。主要改进方向应集中在：
-
-1. **持久化记忆**: 跨会话保留用户/项目知识
-2. **Repository Overview**: 减少重复探索
-3. **工具结果清理**: 更精准的 token 节省
-4. **Runtime Tracking**: 避免重复慢操作
-
-通过这些优化，可以显著提升上下文利用效率，减少不必要的压缩，提供更流畅的用户体验。
+Oh-My-OpenCode already has a robust recovery pipeline and memory primitives.
+The highest-leverage improvements are wiring repo overview and runtime tracking, and enabling compaction-time injection once the runtime surface is available.
