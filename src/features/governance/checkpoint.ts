@@ -5,7 +5,7 @@
  * Uses layered state model to track environment changes and
  * determine appropriate recovery strategies.
  *
- * @see docs/governance-orchestration-design.md Section 2.1
+ * @see docs/research/governance-orchestration-design.md Section 2.1
  */
 
 import { EventEmitter } from "node:events"

@@ -4,7 +4,7 @@
  * Type definitions for token budget monitoring and circuit breaker.
  * Implements the "hidden budget" strategy from design doc.
  *
- * @see docs/governance-orchestration-design.md Section 2.6
+ * @see docs/research/governance-orchestration-design.md Section 2.6
  */
 
 // ============================================================================

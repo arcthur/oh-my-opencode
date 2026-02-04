@@ -6,7 +6,13 @@ import {
   agentBrowserSkill,
   frontendUiUxSkill,
   gitMasterSkill,
+  parallelAgentsSkill,
   devBrowserSkill,
+  specComplianceReviewSkill,
+  codeQualityReviewSkill,
+  writingPlansSkill,
+  systematicDebuggingSkill,
+  codeSimplifierSkill,
 } from "./skills/index"
 
 export interface CreateBuiltinSkillsOptions {
@@ -18,5 +24,16 @@ export function createBuiltinSkills(options: CreateBuiltinSkillsOptions = {}): B
 
   const browserSkill = browserProvider === "agent-browser" ? agentBrowserSkill : playwrightSkill
 
-  return [browserSkill, frontendUiUxSkill, gitMasterSkill, devBrowserSkill]
+  return [
+    browserSkill,
+    frontendUiUxSkill,
+    gitMasterSkill,
+    parallelAgentsSkill,
+    devBrowserSkill,
+    specComplianceReviewSkill,
+    codeQualityReviewSkill,
+    writingPlansSkill,
+    systematicDebuggingSkill,
+    codeSimplifierSkill,
+  ]
 }

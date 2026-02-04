@@ -9,7 +9,7 @@
  * - Use "estimated steps" and qualitative phases instead
  * - Prevents "terminal hallucination" anxiety behavior
  *
- * @see docs/governance-orchestration-design.md Section 2.6
+ * @see docs/research/governance-orchestration-design.md Section 2.6
  */
 
 import { EventEmitter } from "node:events"

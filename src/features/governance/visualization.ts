@@ -6,7 +6,7 @@
  * - D3.js compatible data (force, tree, timeline)
  * - HTML reports with statistics
  *
- * @see docs/governance-orchestration-design.md Section 2.3
+ * @see docs/research/governance-orchestration-design.md Section 2.3
  */
 
 import type {

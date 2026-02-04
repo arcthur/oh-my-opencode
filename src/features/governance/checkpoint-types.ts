@@ -9,7 +9,7 @@
  * Layer 2: Dependencies - Environment dependencies
  * Layer 3: System State - Git status, branch information
  *
- * @see docs/governance-orchestration-design.md Section 2.1
+ * @see docs/research/governance-orchestration-design.md Section 2.1
  */
 
 // ============================================================================

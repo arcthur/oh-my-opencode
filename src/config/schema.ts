@@ -29,8 +29,11 @@ export const BuiltinAgentNameSchema = z.enum([
 
 export const BuiltinSkillNameSchema = z.enum([
   "playwright",
+  "agent-browser",
   "frontend-ui-ux",
   "git-master",
+  "parallel-agents",
+  "dev-browser",
   "spec-compliance-review",
   "code-quality-review",
   "writing-plans",
@@ -466,6 +469,11 @@ export const RepoOverviewConfigSchema = z.object({
   max_tree_depth: z.number().min(10).max(200).default(50),
   /** Cache duration in ms (default: 1 hour = 3600000) */
   cache_duration_ms: z.number().default(3600000),
+  /**
+   * Minimum tool calls before injecting overview (default: 1 = first tool use)
+   * Set to 2+ to skip injection for trivial one-shot interactions.
+   */
+  min_tool_calls: z.number().min(1).max(100).default(1),
 })
 
 /** Runtime Tracker Configuration - tracks tool execution times */

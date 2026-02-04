@@ -1,5 +1,25 @@
 import { afterEach, describe, expect, it } from "bun:test"
+import { request } from "node:http"
 import { findAvailablePort, startCallbackServer, type CallbackServer } from "./callback-server"
+
+type HttpResponse = { status: number; body: string }
+
+function httpGet(url: string): Promise<HttpResponse> {
+  return new Promise((resolve, reject) => {
+    const req = request(url, { method: "GET" }, (res) => {
+      res.setEncoding("utf8")
+      let body = ""
+      res.on("data", (chunk) => {
+        body += String(chunk)
+      })
+      res.on("end", () => {
+        resolve({ status: res.statusCode ?? 0, body })
+      })
+    })
+    req.on("error", reject)
+    req.end()
+  })
+}
 
 function canListenOnLocalhost(): boolean {
   for (let port = 30_000; port < 30_050; port++) {
@@ -77,15 +97,14 @@ describeIfCanListen("startCallbackServer", () => {
     const callbackUrl = `http://127.0.0.1:${server.port}/oauth/callback?code=test-code&state=test-state`
 
     // when
-    const fetchPromise = fetch(callbackUrl)
+    const requestPromise = httpGet(callbackUrl)
     const result = await server.waitForCallback()
-    const response = await fetchPromise
+    const response = await requestPromise
 
     // then
     expect(result).toEqual({ code: "test-code", state: "test-state" })
     expect(response.status).toBe(200)
-    const html = await response.text()
-    expect(html).toContain("Authorization successful")
+    expect(response.body).toContain("Authorization successful")
   })
 
   it("returns 404 for non-callback routes", async () => {
@@ -93,7 +112,7 @@ describeIfCanListen("startCallbackServer", () => {
     server = await startCallbackServer()
 
     // when
-    const response = await fetch(`http://127.0.0.1:${server.port}/other`)
+    const response = await httpGet(`http://127.0.0.1:${server.port}/other`)
 
     // then
     expect(response.status).toBe(404)
@@ -105,7 +124,7 @@ describeIfCanListen("startCallbackServer", () => {
     const callbackRejection = server.waitForCallback().catch((e: Error) => e)
 
     // when
-    const response = await fetch(`http://127.0.0.1:${server.port}/oauth/callback?state=s`)
+    const response = await httpGet(`http://127.0.0.1:${server.port}/oauth/callback?state=s`)
 
     // then
     expect(response.status).toBe(400)
@@ -120,7 +139,7 @@ describeIfCanListen("startCallbackServer", () => {
     const callbackRejection = server.waitForCallback().catch((e: Error) => e)
 
     // when
-    const response = await fetch(`http://127.0.0.1:${server.port}/oauth/callback?code=c`)
+    const response = await httpGet(`http://127.0.0.1:${server.port}/oauth/callback?code=c`)
 
     // then
     expect(response.status).toBe(400)
@@ -140,7 +159,7 @@ describeIfCanListen("startCallbackServer", () => {
 
     // then
     try {
-      await fetch(`http://127.0.0.1:${port}/oauth/callback?code=c&state=s`)
+      await httpGet(`http://127.0.0.1:${port}/oauth/callback?code=c&state=s`)
       expect(true).toBe(false)
     } catch (error) {
       expect(error).toBeDefined()

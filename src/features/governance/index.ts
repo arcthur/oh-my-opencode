@@ -19,7 +19,7 @@
  * - SemanticCheckpointManager for recovery (Phase 4)
  * - GovernanceLedger for audit (Phase 1)
  *
- * @see docs/governance-orchestration-design.md
+ * @see docs/research/governance-orchestration-design.md
  */
 
 // =============================================================================

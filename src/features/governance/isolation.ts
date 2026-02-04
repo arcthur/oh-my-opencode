@@ -6,7 +6,7 @@
  * - Permission enforcement
  * - StateProposal pattern for auditable mutations
  *
- * @see docs/governance-orchestration-design.md Section 2.2
+ * @see docs/research/governance-orchestration-design.md Section 2.2
  */
 
 import { EventEmitter } from "node:events"

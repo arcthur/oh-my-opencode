@@ -38,7 +38,7 @@
  * - Development tools where convenience matters
  * - Audit trails where "who changed what" is the main concern
  *
- * @see docs/governance-orchestration-design.md Section 2.2
+ * @see docs/research/governance-orchestration-design.md Section 2.2
  */
 
 // ============================================================================

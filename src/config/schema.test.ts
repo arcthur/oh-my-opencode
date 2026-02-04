@@ -208,6 +208,71 @@ describe("user_memory schema", () => {
   })
 })
 
+describe("disabled_skills schema", () => {
+  test("should accept built-in skill names", () => {
+    // given
+    const config = {
+      disabled_skills: [
+        "playwright",
+        "frontend-ui-ux",
+        "git-master",
+        "parallel-agents",
+        "dev-browser",
+        "agent-browser",
+      ],
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.disabled_skills).toEqual([
+        "playwright",
+        "frontend-ui-ux",
+        "git-master",
+        "parallel-agents",
+        "dev-browser",
+        "agent-browser",
+      ])
+    }
+  })
+
+  test("should reject unknown skill names", () => {
+    // given
+    const config = {
+      disabled_skills: ["not-a-skill"],
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("repo_overview schema", () => {
+  test("should accept min_tool_calls", () => {
+    // given
+    const config = {
+      repo_overview: {
+        min_tool_calls: 2,
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.repo_overview?.min_tool_calls).toBe(2)
+    }
+  })
+})
+
 describe("AgentOverrideConfigSchema", () => {
   describe("model field", () => {
     test("rejects model as array (only Prometheus supports multi-model)", () => {

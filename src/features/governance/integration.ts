@@ -6,7 +6,7 @@
  * - GovernanceLedger, ExecutionTracer, BudgetMonitor, ApprovalGate, Checkpoint
  * - PreToolUse, PostToolUse, UserPromptSubmit hooks
  *
- * @see docs/governance-orchestration-design.md Section 3
+ * @see docs/research/governance-orchestration-design.md Section 3
  */
 
 import { log } from "../../shared/logger"

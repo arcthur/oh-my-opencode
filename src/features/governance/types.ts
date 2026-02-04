@@ -2,7 +2,7 @@
  * Governance Orchestration Types
  *
  * Core type definitions for governance-oriented orchestration.
- * Implements the design from docs/governance-orchestration-design.md
+ * Implements the design from docs/research/governance-orchestration-design.md
  */
 
 // ============================================================================

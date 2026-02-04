@@ -4,7 +4,7 @@
  * Type definitions for trace visualization and reporting.
  * Supports multiple output formats: Mermaid, D3.js, Gantt, HTML.
  *
- * @see docs/governance-orchestration-design.md Section 2.3
+ * @see docs/research/governance-orchestration-design.md Section 2.3
  */
 
 import type { TraceNode, TraceEdge, ExecutionTrace, CompressedTrace } from "./tracer-types"

@@ -4,7 +4,7 @@
  * Structured envelope protocol for agent/tool communication.
  * Provides integrity verification, permission tracking, and traceability.
  *
- * @see docs/governance-orchestration-design.md Section 2.4
+ * @see docs/research/governance-orchestration-design.md Section 2.4
  */
 
 import { createHash, randomUUID } from "node:crypto"

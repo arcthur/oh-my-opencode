@@ -75,7 +75,7 @@ describe("createBuiltinSkills", () => {
 		}
 	})
 
-	test("returns exactly 4 skills regardless of provider", () => {
+	test("always includes parallel-agents skill", () => {
 		// given
 
 		// when
@@ -83,7 +83,37 @@ describe("createBuiltinSkills", () => {
 		const agentBrowserSkills = createBuiltinSkills({ browserProvider: "agent-browser" })
 
 		// then
-		expect(defaultSkills).toHaveLength(4)
-		expect(agentBrowserSkills).toHaveLength(4)
+		for (const skills of [defaultSkills, agentBrowserSkills]) {
+			expect(skills.find((s) => s.name === "parallel-agents")).toBeDefined()
+		}
+	})
+
+	test("always includes engineering discipline review skills", () => {
+		// given
+
+		// when
+		const defaultSkills = createBuiltinSkills()
+		const agentBrowserSkills = createBuiltinSkills({ browserProvider: "agent-browser" })
+
+		// then
+		for (const skills of [defaultSkills, agentBrowserSkills]) {
+			expect(skills.find((s) => s.name === "spec-compliance-review")).toBeDefined()
+			expect(skills.find((s) => s.name === "code-quality-review")).toBeDefined()
+			expect(skills.find((s) => s.name === "writing-plans")).toBeDefined()
+			expect(skills.find((s) => s.name === "systematic-debugging")).toBeDefined()
+			expect(skills.find((s) => s.name === "code-simplifier")).toBeDefined()
+		}
+	})
+
+	test("returns exactly 10 skills regardless of provider", () => {
+		// given
+
+		// when
+		const defaultSkills = createBuiltinSkills()
+		const agentBrowserSkills = createBuiltinSkills({ browserProvider: "agent-browser" })
+
+		// then
+		expect(defaultSkills).toHaveLength(10)
+		expect(agentBrowserSkills).toHaveLength(10)
 	})
 })

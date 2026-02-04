@@ -15,7 +15,8 @@
  *         .sisyphus/teams/{team}/inboxes/
  * ```
  *
- * @see docs/sisyphus-swarm-design.md for full design documentation
+ * @see docs/journeys/swarm-coordination.md for end-to-end usage
+ * @see src/features/sisyphus-swarm/ARCHITECTURE.md for implementation-level architecture notes
  *
  * @example
  * ```typescript
