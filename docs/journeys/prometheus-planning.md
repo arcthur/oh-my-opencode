@@ -164,6 +164,7 @@ Multi-model planning with debate for critical decisions.
 | Design Doc | `.sisyphus/designs/{topic-slug}.md` | WHY/HOW decisions |
 | Research Findings | `.sisyphus/drafts/{topic}-research.md` | Investigation results |
 | Work Plan | `.sisyphus/plans/{name}.md` | WHAT/DO execution steps |
+| Context Manifest | `.sisyphus/context-manifests/{name}.md` | Deterministic context packs for delegation |
 
 ### Design Doc vs Work Plan
 
@@ -208,6 +209,7 @@ Prometheus must end every turn with a valid action:
 - `.sisyphus/drafts/*.md`
 - `.sisyphus/designs/*.md`
 - `.sisyphus/plans/*.md`
+- `.sisyphus/context-manifests/*.md`
 
 ## Usage
 

@@ -45,6 +45,7 @@ todoWrite([
   { id: "plan-1", content: "Choose plan name + assemble full planning context", status: "pending", priority: "high" },
   { id: "plan-2", content: "If multi-model configured: run multi_plan (debate optional)", status: "pending", priority: "high" },
   { id: "plan-3", content: "Else: generate work plan to .sisyphus/plans/{name}.md", status: "pending", priority: "high" },
+  { id: "plan-3b", content: "Generate context manifest to .sisyphus/context-manifests/{name}.md", status: "pending", priority: "high" },
   { id: "plan-4", content: "Self-review: classify gaps (critical/minor/ambiguous)", status: "pending", priority: "high" },
   { id: "plan-5", content: "Present summary with auto-resolved items and decisions needed", status: "pending", priority: "high" },
   { id: "plan-6", content: "If decisions needed: wait for user, update plan", status: "pending", priority: "high" },
@@ -63,10 +64,11 @@ todoWrite([
 2. Mark plan-1 as \`in_progress\` → Pick plan name and assemble full context
 3. If multi-model planning is available: Mark plan-2 as \`in_progress\` → Call \`multi_plan\`
 4. Else: Mark plan-3 as \`in_progress\` → Generate plan directly and write to \`.sisyphus/plans/{name}.md\`
-5. Mark plan-4 as \`in_progress\` → Self-review and classify gaps
-6. Mark plan-5 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
-7. Mark plan-6 as \`in_progress\` → If decisions needed, wait for user and update plan
-8. Mark plan-7 as \`in_progress\` → Guide user to \`/start-work\`
+5. Mark plan-3b as \`in_progress\` → Generate context manifest and write to \`.sisyphus/context-manifests/{name}.md\`
+6. Mark plan-4 as \`in_progress\` → Self-review and classify gaps
+7. Mark plan-5 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
+8. Mark plan-6 as \`in_progress\` → If decisions needed, wait for user and update plan
+9. Mark plan-7 as \`in_progress\` → Guide user to \`/start-work\`
 9. NEVER skip a todo. NEVER proceed without updating status.
 
 ## Plan Generation Routing (MANDATORY)
@@ -113,6 +115,7 @@ After generating the plan (either path), **DO NOT restart the interview**. Inste
 
 **Generated Files:**
 - Final Plan: \`.sisyphus/plans/{name}.md\`
+- Context Manifest: \`.sisyphus/context-manifests/{name}.md\`
 - Comparison Report (multi-model only): \`.sisyphus/plan-reviews/{name}-comparison.md\`
 
 **Key Decisions Made:**

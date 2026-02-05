@@ -8,6 +8,7 @@
 export const PROMETHEUS_PLAN_TEMPLATE = `## Plan Structure
 
 Generate plan to: \`.sisyphus/plans/{name}.md\`
+Generate context manifest to: \`.sisyphus/context-manifests/{name}.md\`
 
 \`\`\`markdown
 # {Plan Title}
@@ -28,6 +29,50 @@ Generate plan to: \`.sisyphus/plans/{name}.md\`
 
 - Path: \`.sisyphus/designs/{topic-slug}.md\` (if brainstorming was used; omit for trivial/simple)
 - Design = "why/how". Work plan = "what/steps".
+
+---
+
+## Context Manifests (REQUIRED)
+
+- Plan: \`.sisyphus/plans/{name}.md\`
+- Context Manifest: \`.sisyphus/context-manifests/{name}.md\`
+
+### Context Manifest File Format (MANDATORY)
+
+The context manifest MUST be **machine-parseable**. Write it as Markdown, but include a valid JSON payload between markers:
+
+\`\`\`text
+[CONTEXT_MANIFEST]
+{
+  "schemaVersion": 1,
+  "planName": "{name}",
+  "generatedAt": "{ISO-8601 timestamp}",
+  "packs": [
+    {
+      "id": "global",
+      "title": "Global guardrails",
+      "items": [
+        { "kind": "doc", "ref": "docs/...", "why": "..." }
+      ]
+    }
+  ]
+}
+[/CONTEXT_MANIFEST]
+\`\`\`
+
+Pack ID rules:
+- Pack IDs MUST match: \`/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/\`
+- Every TODO’s \`Context Packs:\` selector must reference these IDs exactly.
+
+### Context Packs
+
+> Define 3–8 stable pack IDs (e.g., \`global\`, \`governance\`, \`work-state\`).
+> Each TODO MUST include a \`Context Packs:\` line so the executor can auto-inject the right context into \`delegate_task\` prompts.
+
+| Pack ID | Purpose | Audience (agents/categories) |
+|--------:|---------|-----------------------------|
+| global | ... | ... |
+| ... | ... | ... |
 
 ---
 
@@ -241,6 +286,9 @@ Parallel Speedup: ~40% faster than sequential
 
   **Must NOT do**:
   - [Specific exclusions from guardrails]
+
+  **Context Packs (REQUIRED)**:
+  - Context Packs: global, ...
 
   **Recommended Agent Profile**:
   > Select category + skills based on task domain. Justify each choice.

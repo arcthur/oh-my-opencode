@@ -37,6 +37,7 @@ import {
   createMultiPlanTriggerHook,
   createPlanningWithFilesHook,
   createSilentToolOutputHook,
+  createContextManifestInjectorHook,
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
   createDelegationValidatorHook,
@@ -347,6 +348,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         collector: contextCollector,
         todoContinuationEnabled,
       })
+    : null;
+
+  const contextManifestInjector = isHookEnabled("context-manifest-injector")
+    ? createContextManifestInjectorHook(ctx)
     : null;
 
   const todoContinuationEnforcer = todoContinuationEnabled
@@ -915,6 +920,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           }
         }
       }
+
+      await contextManifestInjector?.["tool.execute.before"]?.(input, output);
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;

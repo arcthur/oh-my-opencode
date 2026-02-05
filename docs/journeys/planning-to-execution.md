@@ -32,7 +32,8 @@ This journey explains how a plan is produced, validated, and executed through or
 2. Multi-model planning: `docs/journeys/multi-model-planning.md`
 3. Planning with files: `docs/journeys/planning-with-files.md`
 4. Orchestration: `docs/guide/orchestration.md`
-5. Feature catalog: `docs/guide/features.md`
+5. Deterministic delegation context: `docs/journeys/context-packs-and-manifests.md`
+6. Feature catalog: `docs/guide/features.md`
 
 ## Where to Look in Code
 

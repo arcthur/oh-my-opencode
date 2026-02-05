@@ -171,15 +171,30 @@ The `MultiPlanOrchestrator` launches N background tasks, one per configured mode
 **Required plan sections** (all models must include):
 1. Context
 2. Work Objectives
-3. **Assumptions** (with confidence levels)
-4. **Risks** (with probability/impact/mitigation)
-5. Verification Strategy
-6. TODOs
-7. Success Criteria
+3. Context Manifests (packs + per-task selectors)
+4. **Assumptions** (with confidence levels)
+5. **Risks** (with probability/impact/mitigation)
+6. Verification Strategy
+7. TODOs
+8. Success Criteria
+
+For the exact manifest format contract (marker-delimited JSON), see: `docs/journeys/context-packs-and-manifests.md`.
+
+Additionally, each TODO should include a deterministic selector line:
+
+```text
+Context Packs: global, tooling
+```
 
 Each model writes its plan to:
 ```
 .sisyphus/plans/{name}-{model}.md
+```
+
+After synthesis completes, Prometheus should also produce a per-plan context manifest:
+
+```
+.sisyphus/context-manifests/{name}.md
 ```
 
 ### Step 3: Plan Synthesis (Phases 1-6)

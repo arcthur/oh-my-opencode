@@ -46,6 +46,7 @@ flowchart TD
         MultiPlan --> Synth["Plan Synthesizer<br>(plan-synthesizer)"]
         Synth --> Prometheus
         Prometheus --> PlanFile["/.sisyphus/plans/{name}.md"]
+        Prometheus --> ManifestFile["/.sisyphus/context-manifests/{name}.md"]
     end
 
     PlanFile --> StartWork["/start-work"]
@@ -54,6 +55,7 @@ flowchart TD
     subgraph Execution Phase
         WorkState --> Sisyphus[Sisyphus<br>Orchestrator]
         PlanFile -.-> |"TASK SSOT"| Sisyphus
+        ManifestFile -.-> |"CONTEXT PACKS"| Sisyphus
         Sisyphus --> Oracle[Oracle]
         Sisyphus --> Frontend[Frontend<br>Engineer]
         Sisyphus --> Explore[Explore]
@@ -166,6 +168,7 @@ You can control related features in `oh-my-opencode.json`.
   "disabled_hooks": [
     // "start-work",             // Disable execution trigger
     // "prometheus-md-only"      // Remove Prometheus write restrictions (not recommended)
+    // "context-manifest-injector" // Disable Context Packs auto-injection
   ]
 }
 ```
@@ -175,3 +178,70 @@ You can control related features in `oh-my-opencode.json`.
 1. **Don't Rush**: Invest sufficient time in the interview with Prometheus. The more perfect the plan, the faster the execution.
 2. **Single Plan Principle**: No matter how large the task, contain all TODOs in one plan file (`.md`). This prevents context fragmentation.
 3. **Active Delegation**: During execution, delegate to specialized agents via `delegate_task` rather than modifying code directly.
+
+---
+
+## 8. Context Manifests / Context Packs
+
+Goal: turn “what context should be loaded” from ad-hoc runtime guesswork into a **versioned, auditable, reusable** artifact.
+
+Deep dive (recommended): `docs/journeys/context-packs-and-manifests.md`
+
+### 8.1 Artifacts and Responsibilities
+
+- **Plan (Task SSOT)**: `.sisyphus/plans/{name}.md`
+- **Context Manifest (Delegation Context)**: `.sisyphus/context-manifests/{name}.md`
+  - Organized as *Context Packs* (3–8 stable pack IDs)
+  - Each pack lists the relevant specs / key files / index entrypoints, plus **why** (what the executor should extract)
+
+### 8.2 Deterministic Injection (v2)
+
+When Atlas calls `delegate_task(...)`, if the prompt contains:
+
+```text
+Context Packs: global, tooling
+```
+
+or the bullet-list form:
+
+```text
+Context Packs:
+- global
+- tooling
+```
+
+the system injects the selected packs at the tool boundary by appending a stable markdown snippet to the prompt (via the `context-manifest-injector` hook).
+
+### 8.2.1 Manifest File Format (Required)
+
+The context manifest file must be machine-parseable. It is Markdown with an embedded JSON payload between markers:
+
+```text
+[CONTEXT_MANIFEST]
+{ ...json... }
+[/CONTEXT_MANIFEST]
+```
+
+If the marker block is missing or invalid JSON, injection will **fail-open** (no injection).
+
+Benefits:
+- **Deterministic**: the same task consistently gets the same context, without relying on “remember to read X”
+- **Low-noise**: only inject explicitly requested packs; avoid full dumps that pollute the context window
+- **Extensible**: packs can later incorporate repo overview / cartography / org memory references as first-class items
+
+### 8.3 Recommended Conventions
+
+- When Prometheus generates the plan:
+  - Also generate `.sisyphus/context-manifests/{name}.md`
+  - Every TODO block must include a `Context Packs:` selector line (used by the injector)
+- When Atlas delegates:
+  - Copy the TODO’s `Context Packs:` line verbatim into the `delegate_task` prompt (keep it a single line)
+
+### 8.4 Troubleshooting (Quick)
+
+If “it didn’t inject anything”, check:
+- You ran `/start-work` (so `.sisyphus/work.yaml` exists and `plan_name` is set)
+- `.sisyphus/context-manifests/{plan_name}.md` exists
+- The manifest contains a valid `[CONTEXT_MANIFEST]...[/CONTEXT_MANIFEST]` JSON block
+- Your `delegate_task` prompt includes `Context Packs: ...`
+- The hook is enabled (not listed in `disabled_hooks`)

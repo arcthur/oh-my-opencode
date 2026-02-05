@@ -190,7 +190,7 @@ export function createTmuxParallelAgentsHook(
   const worktreeEnabled = config?.worktree?.enabled ?? false
   const worktreeDirPattern = config?.worktree?.dir_pattern ?? "../{project}__worktrees"
   const copyFiles = config?.worktree?.copy_files ?? [".env", ".env.local"]
-  const symlinkPaths = config?.worktree?.symlink ?? ["node_modules"]
+  const symlinkPaths = config?.worktree?.symlink ?? ["node_modules", ".sisyphus"]
   const autoCleanup = config?.worktree?.auto_cleanup ?? false
 
   // Track active windows
@@ -232,6 +232,11 @@ export function createTmuxParallelAgentsHook(
       if (!existsSync(baseDir)) {
         mkdirSync(baseDir, { recursive: true })
       }
+      // Ensure intermediate directories exist when branchName contains slashes
+      const worktreeParent = dirname(worktreePath)
+      if (!existsSync(worktreeParent)) {
+        mkdirSync(worktreeParent, { recursive: true })
+      }
 
       // Create worktree with new branch
       execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
@@ -260,8 +265,13 @@ export function createTmuxParallelAgentsHook(
       for (const path of symlinkPaths) {
         const src = join(projectDir, path)
         const dest = join(worktreePath, path)
-        if (existsSync(src) && !existsSync(dest)) {
+        const shouldLinkEvenIfMissing = path === ".sisyphus"
+        if (!existsSync(dest) && (shouldLinkEvenIfMissing || existsSync(src))) {
           try {
+            const destParent = dirname(dest)
+            if (!existsSync(destParent)) {
+              mkdirSync(destParent, { recursive: true })
+            }
             symlinkSync(src, dest)
             log(`[${HOOK_NAME}] Created symlink`, { path })
           } catch (err) {

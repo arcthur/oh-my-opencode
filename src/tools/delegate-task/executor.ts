@@ -453,6 +453,12 @@ export async function executeBackgroundTask(
   const { manager } = executorCtx
 
   try {
+    const worktreeDirectory =
+      typeof (args as unknown as { __worktree_path?: unknown }).__worktree_path === "string" &&
+      (args as unknown as { __worktree_path?: string }).__worktree_path.trim().length > 0
+        ? (args as unknown as { __worktree_path?: string }).__worktree_path
+        : undefined
+
     const task = await manager.launch({
       description: args.description,
       prompt: args.prompt,
@@ -465,6 +471,7 @@ export async function executeBackgroundTask(
       skills: args.load_skills.length > 0 ? args.load_skills : undefined,
       skillContent: systemContent,
       category: args.category,
+      directory: worktreeDirectory,
     })
 
     ctx.metadata?.({
@@ -523,6 +530,11 @@ export async function executeSyncTask(
       ? await client.session.get({ path: { id: parentContext.sessionID } }).catch(() => null)
       : null
     const parentDirectory = parentSession?.data?.directory ?? directory
+    const worktreeDirectory =
+      typeof (args as unknown as { __worktree_path?: unknown }).__worktree_path === "string" &&
+      (args as unknown as { __worktree_path?: string }).__worktree_path.trim().length > 0
+        ? (args as unknown as { __worktree_path?: string }).__worktree_path
+        : undefined
 
     const createResult = await client.session.create({
       body: {
@@ -533,7 +545,7 @@ export async function executeSyncTask(
         ],
       } as any,
       query: {
-        directory: parentDirectory,
+        directory: worktreeDirectory ?? parentDirectory,
       },
     })
 

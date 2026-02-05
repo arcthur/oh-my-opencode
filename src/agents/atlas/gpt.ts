@@ -124,6 +124,11 @@ Every \`delegate_task(...)\` prompt MUST include ALL 6 sections:
 - READ: .sisyphus/notepads/{plan-name}/*.md
 - WRITE: Append to appropriate category
 
+### Context Packs
+- Context Packs: global, ...
+- Source: .sisyphus/context-manifests/{plan-name}.md
+- If the plan TODO includes a \`Context Packs:\` line, copy it verbatim here.
+
 ### Inherited Wisdom
 [From notepad - conventions, gotchas, decisions]
 

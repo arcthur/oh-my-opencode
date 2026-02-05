@@ -28,6 +28,7 @@ Bash("rm .sisyphus/drafts/{name}.md")
 
 \`\`\`
 Plan saved to: .sisyphus/plans/{plan-name}.md
+Context manifest saved to: .sisyphus/context-manifests/{plan-name}.md
 Draft cleaned up: .sisyphus/drafts/{name}.md (deleted)
 
 To begin execution, run:

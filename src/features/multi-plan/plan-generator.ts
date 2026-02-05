@@ -319,31 +319,46 @@ Generate a comprehensive work plan following the standard .sisyphus/plans/*.md f
    - Definition of Done (checkboxes)
    - Must Have / Must NOT Have
 
-4. **Assumptions (REQUIRED)**
+4. **Context Manifests (REQUIRED)**
+   - Context Manifest path: \`.sisyphus/context-manifests/${planName}.md\`
+   - Define 3–8 stable pack IDs (e.g., \`global\`, \`tooling\`, \`work-state\`)
+   - Each pack should list items (docs/code/index) and why they matter
+  - The context manifest file MUST include a valid JSON payload between markers:
+
+    \`\`\`text
+    [CONTEXT_MANIFEST]
+    { ...json... }
+    [/CONTEXT_MANIFEST]
+    \`\`\`
+
+  - Pack IDs MUST match: \`/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/\`
+
+5. **Assumptions (REQUIRED)**
    List ALL assumptions with confidence levels:
    | # | Assumption | Confidence (High/Med/Low) | If Wrong, Impact |
    - High = verified via code/user confirmation
    - Medium = reasonable inference
    - Low = educated guess, needs validation
 
-5. **Risks (REQUIRED)**
+6. **Risks (REQUIRED)**
    Identify what could go wrong:
    | # | Risk | Probability | Impact | Mitigation |
    Categories: Technical, Integration, Scope, Testing
 
-6. **Verification Strategy**
+7. **Verification Strategy**
    - Test infrastructure decision
    - Framework choice
 
-7. **TODOs** (numbered, with checkboxes)
+8. **TODOs** (numbered, with checkboxes)
    Each TODO must have:
    - What to do (clear steps)
    - Must NOT do (guardrails specific to this TODO)
    - Parallelizable: YES/NO
+   - Context Packs: \`pack-a, pack-b\` (comma-separated; must match your Context Manifests section)
    - References (CRITICAL - specific file paths and line numbers)
    - Acceptance Criteria (checkboxes)
 
-8. **Success Criteria**
+9. **Success Criteria**
    - Verification commands with expected output
 
 **Quality Requirements**:

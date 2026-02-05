@@ -37,6 +37,7 @@ export { createStopContinuationGuardHook, type StopContinuationGuard } from "./s
 export { createMultiPlanTriggerHook, type MultiPlanTriggerHookOptions } from "./multi-plan-trigger";
 export { createPlanningWithFilesHook, type PlanningWithFilesHookOptions } from "./planning-with-files";
 export { createSilentToolOutputHook } from "./silent-tool-output";
+export { createContextManifestInjectorHook } from "./context-manifest-injector";
 export { createRepoOverviewInjectorHook } from "./repo-overview-injector";
 export { createRuntimeTrackerHook, type RuntimeTrackerConfig } from "./runtime-tracker";
 export { createAntiSlopEnforcerHook, type AntiSlopEnforcerOptions } from "./anti-slop-enforcer";

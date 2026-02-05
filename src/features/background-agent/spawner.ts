@@ -53,7 +53,11 @@ export async function startTask(
     return null
   })
   const parentDirectory = parentSession?.data?.directory ?? directory
-  log(`[background-agent] Parent dir: ${parentSession?.data?.directory}, using: ${parentDirectory}`)
+  const sessionDirectory =
+    typeof input.directory === "string" && input.directory.trim().length > 0
+      ? input.directory
+      : parentDirectory
+  log(`[background-agent] Parent dir: ${parentSession?.data?.directory}, using: ${sessionDirectory}`)
 
   const createResult = await client.session.create({
     body: {
@@ -65,7 +69,7 @@ export async function startTask(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
     query: {
-      directory: parentDirectory,
+      directory: sessionDirectory,
     },
   }).catch((error) => {
     concurrencyManager.release(concurrencyKey)

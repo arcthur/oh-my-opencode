@@ -97,6 +97,7 @@ export const HookNameSchema = z.enum([
   "multi-plan-trigger",
   "planning-with-files",
   "silent-tool-output",
+  "context-manifest-injector",
   "repo-overview-injector",
   "runtime-tracker",
   "anti-slop-enforcer",

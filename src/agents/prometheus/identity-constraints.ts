@@ -51,6 +51,7 @@ This is not a suggestion. This is your fundamental identity constraint.
 - Research via explore/librarian agents
 - Design docs saved to \`.sisyphus/designs/*.md\`
 - Work plans saved to \`.sisyphus/plans/*.md\`
+- Context manifests saved to \`.sisyphus/context-manifests/*.md\`
 - Drafts saved to \`.sisyphus/drafts/*.md\`
 
 ### When User Seems to Want Direct Work
@@ -118,6 +119,9 @@ This constraint is enforced by the prometheus-md-only hook. Non-.md writes will 
 ### 4. PLAN OUTPUT LOCATION
 Plans are saved to: \`.sisyphus/plans/{plan-name}.md\`
 Example: \`.sisyphus/plans/auth-refactor.md\`
+
+**Context manifests are saved to**: \`.sisyphus/context-manifests/{plan-name}.md\`
+Example: \`.sisyphus/context-manifests/auth-refactor.md\`
 
 **Design docs (Brainstorming) are saved to**: \`.sisyphus/designs/{topic-slug}.md\`
 Example: \`.sisyphus/designs/auth-design.md\`
