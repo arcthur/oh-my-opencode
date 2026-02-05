@@ -28,6 +28,7 @@ import {
   createDelegateTaskRetryHook,
   createQuestionLabelTruncatorHook,
   createSubagentQuestionBlockerHook,
+  createWriteExistingFileGuardHook,
   createStopContinuationGuardHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
@@ -324,6 +325,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const questionLabelTruncator = createQuestionLabelTruncatorHook();
   const subagentQuestionBlocker = createSubagentQuestionBlockerHook();
+  const writeExistingFileGuard = isHookEnabled("write-existing-file-guard")
+    ? createWriteExistingFileGuardHook(ctx)
+    : null;
 
   // Get Prometheus model config (string or array for multi-plan)
   const prometheusModel = pluginConfig.agents?.prometheus?.model as string | string[] | undefined;
@@ -495,12 +499,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const callOmoAgent = createCallOmoAgent(ctx, backgroundManager);
   const lookAt = createLookAt(ctx);
+  const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const delegateTask = createDelegateTask({
     manager: backgroundManager,
     client: ctx.client,
     directory: ctx.directory,
     userCategories: pluginConfig.categories,
     gitMasterConfig: pluginConfig.git_master,
+    disabledSkills,
   });
   const multiPlanTool = createMultiPlanTool({
     ctx,
@@ -513,7 +519,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     config: pluginConfig,
     sessionId: getMainSessionID(),
   });
-  const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();
   const builtinSkills = createBuiltinSkills().filter((skill) => {
     if (disabledSkills.has(skill.name as never)) return false;
@@ -867,6 +872,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await questionLabelTruncator?.["tool.execute.before"]?.(input, output);
       // Block question tool calls from subagent sessions
       await subagentQuestionBlocker?.["tool.execute.before"]?.(input, output);
+      // Guard against accidental overwrites: force edit tool for existing files
+      await writeExistingFileGuard?.["tool.execute.before"]?.(input, output);
 
       // Memory context registration (uses contextCollector with oncePerSession)
       await userMemory?.["tool.execute.before"]?.(input, output);

@@ -32,6 +32,7 @@ export { createAtlasHook } from "./atlas";
 export { createDelegateTaskRetryHook } from "./delegate-task-retry";
 export { createQuestionLabelTruncatorHook } from "./question-label-truncator";
 export { createSubagentQuestionBlockerHook } from "./subagent-question-blocker";
+export { createWriteExistingFileGuardHook } from "./write-existing-file-guard";
 export { createStopContinuationGuardHook, type StopContinuationGuard } from "./stop-continuation-guard";
 export { createMultiPlanTriggerHook, type MultiPlanTriggerHookOptions } from "./multi-plan-trigger";
 export { createPlanningWithFilesHook, type PlanningWithFilesHookOptions } from "./planning-with-files";

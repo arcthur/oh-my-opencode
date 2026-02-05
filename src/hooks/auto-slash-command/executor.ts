@@ -6,9 +6,10 @@ import {
 import { discoverCommandsFromDir, skillToCommandInfo, type DiscoveredCommandWithLoader } from "../../shared/command-discovery"
 import { getCommandDirectories } from "../../shared/paths"
 import { discoverAllSkills, type LoadedSkill } from "../../features/opencode-skill-loader"
+import { loadBuiltinCommands } from "../../features/builtin-commands"
 import type { ParsedSlashCommand } from "./types"
 
-type CommandScope = "user" | "project" | "opencode" | "opencode-project" | "skill"
+type CommandScope = "user" | "project" | "opencode" | "opencode-project" | "skill" | "builtin"
 type CommandInfo = DiscoveredCommandWithLoader<CommandScope>
 
 export interface ExecutorOptions {
@@ -17,6 +18,19 @@ export interface ExecutorOptions {
 
 async function discoverAllCommands(options?: ExecutorOptions): Promise<CommandInfo[]> {
   const dirs = getCommandDirectories()
+
+  const builtinCommands = Object.values(loadBuiltinCommands()).map((cmd) => ({
+    name: cmd.name,
+    metadata: {
+      name: cmd.name,
+      description: cmd.description ?? "",
+      model: cmd.model,
+      agent: cmd.agent,
+      subtask: Boolean(cmd.subtask),
+    },
+    content: cmd.template,
+    scope: "builtin" as const,
+  }))
 
   const userCommands = discoverCommandsFromDir(dirs.user, "user")
   const opencodeGlobalCommands = discoverCommandsFromDir(dirs.opencodeGlobal, "opencode")
@@ -27,6 +41,7 @@ async function discoverAllCommands(options?: ExecutorOptions): Promise<CommandIn
   const skillCommands = skills.map(s => skillToCommandInfo(s, "skill" as const))
 
   return [
+    ...builtinCommands,
     ...opencodeProjectCommands,
     ...projectCommands,
     ...opencodeGlobalCommands,

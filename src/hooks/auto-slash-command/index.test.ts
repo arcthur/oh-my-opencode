@@ -3,6 +3,7 @@ import type {
   AutoSlashCommandHookInput,
   AutoSlashCommandHookOutput,
 } from "./types"
+import { AUTO_SLASH_COMMAND_TAG_OPEN } from "./constants"
 
 // Import real shared module to avoid mock leaking to other test files
 import * as shared from "../../shared"
@@ -41,6 +42,21 @@ describe("createAutoSlashCommandHook", () => {
   })
 
   describe("slash command replacement", () => {
+    it("should replace builtin command template", async () => {
+      // given a builtin slash command
+      const hook = createAutoSlashCommandHook()
+      const sessionID = `test-session-builtin-${Date.now()}`
+      const input = createMockInput(sessionID)
+      const output = createMockOutput("/stop-continuation")
+
+      // when hook is called
+      await hook["chat.message"](input, output)
+
+      // then should inject tagged template
+      expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
+      expect(output.parts[0].text).toContain("# /stop-continuation Command")
+    })
+
     it("should not modify message when command not found", async () => {
       // given a slash command that doesn't exist
       const hook = createAutoSlashCommandHook()
@@ -249,6 +265,23 @@ describe("createAutoSlashCommandHook", () => {
 
       // then should not modify (command not found = feature inactive)
       expect(output.parts[0].text).toBe(originalText)
+    })
+  })
+
+  describe("command.execute.before hook", () => {
+    it("should inject tagged content for builtin command", async () => {
+      // given
+      const hook = createAutoSlashCommandHook()
+      const sessionID = `test-session-command-before-${Date.now()}`
+      const input = { command: "stop-continuation", sessionID, arguments: "" }
+      const output = { parts: [{ type: "text", text: "/stop-continuation" }] }
+
+      // when
+      await hook["command.execute.before"]?.(input, output)
+
+      // then
+      expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
+      expect(output.parts[0].text).toContain("# /stop-continuation Command")
     })
   })
 })

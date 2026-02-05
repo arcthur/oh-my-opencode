@@ -13,6 +13,7 @@ export interface BuildSkillParams {
   resolvedPath: string
   defaultName: string
   scope: SkillScope
+  namePrefix?: string
   /** If true, returns null when frontmatter parsing fails. Default: false */
   strictParsing?: boolean
 }
@@ -29,7 +30,7 @@ export interface BuildSkillResult {
 export async function buildSkillFromContent(
   params: BuildSkillParams
 ): Promise<BuildSkillResult | null> {
-  const { content, skillPath, resolvedPath, defaultName, scope, strictParsing = false } = params
+  const { content, skillPath, resolvedPath, defaultName, scope, namePrefix = "", strictParsing = false } = params
 
   const { data, body, parseError } = parseFrontmatter<SkillMetadata>(content)
   if (strictParsing && parseError) return null
@@ -38,7 +39,8 @@ export async function buildSkillFromContent(
   const mcpJsonMcp = await loadMcpJsonFromDir(resolvedPath)
   const mcpConfig = mcpJsonMcp || frontmatterMcp
 
-  const skillName = data.name || defaultName
+  const baseName = data.name || defaultName
+  const skillName = namePrefix ? `${namePrefix}/${baseName}` : baseName
   const formattedDescription = formatScopedDescription(`${scope} - Skill`, data.description)
   const templateContent = wrapSkillTemplate(body, resolvedPath)
 

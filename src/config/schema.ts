@@ -106,6 +106,7 @@ export const HookNameSchema = z.enum([
   "session-handoff",
   "question-label-truncator",
   "subagent-question-blocker",
+  "write-existing-file-guard",
   "stop-continuation-guard",
   "category-skill-reminder",
   "sisyphus-junior-notepad",

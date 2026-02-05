@@ -17,14 +17,15 @@ import {
 
 export interface CreateBuiltinSkillsOptions {
   browserProvider?: BrowserAutomationProvider
+  disabledSkills?: Set<string>
 }
 
 export function createBuiltinSkills(options: CreateBuiltinSkillsOptions = {}): BuiltinSkill[] {
-  const { browserProvider = "playwright" } = options
+  const { browserProvider = "playwright", disabledSkills } = options
 
   const browserSkill = browserProvider === "agent-browser" ? agentBrowserSkill : playwrightSkill
 
-  return [
+  const skills: BuiltinSkill[] = [
     browserSkill,
     frontendUiUxSkill,
     gitMasterSkill,
@@ -36,4 +37,10 @@ export function createBuiltinSkills(options: CreateBuiltinSkillsOptions = {}): B
     systematicDebuggingSkill,
     codeSimplifierSkill,
   ]
+
+  if (!disabledSkills || disabledSkills.size === 0) {
+    return skills
+  }
+
+  return skills.filter((skill) => !disabledSkills.has(skill.name))
 }

@@ -1,8 +1,8 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { detectKeywordsWithType, extractPromptText, removeCodeBlocks } from "./detector"
+import { detectKeywordsWithType, extractPromptText } from "./detector"
 import { isPlannerAgent } from "./constants"
 import { log } from "../../shared"
-import { hasSystemReminder, isSystemDirective, removeSystemReminders } from "../../shared/system-directive"
+import { isSystemDirective, removeSystemReminders } from "../../shared/system-directive"
 import { getMainSessionID, getSessionAgent, subagentSessions } from "../../features/claude-code-session-state"
 import type { ContextCollector } from "../../features/context-injector"
 
@@ -36,7 +36,7 @@ export function createKeywordDetectorHook(ctx: PluginInput, collector?: ContextC
       // Remove system-reminder content to prevent automated system messages from triggering mode keywords
       const cleanText = removeSystemReminders(promptText)
       const modelID = input.model?.modelID
-      let detectedKeywords = detectKeywordsWithType(removeCodeBlocks(cleanText), currentAgent, modelID)
+      let detectedKeywords = detectKeywordsWithType(cleanText, currentAgent, modelID)
 
       if (isPlannerAgent(currentAgent)) {
         detectedKeywords = detectedKeywords.filter((k) => k.type !== "ultrawork")

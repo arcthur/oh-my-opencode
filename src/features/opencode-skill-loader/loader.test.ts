@@ -387,4 +387,128 @@ Skill body.
       }
     })
   })
+
+  describe("deduplication", () => {
+    it("deduplicates skills by name across scopes, keeping higher priority (opencode-project > opencode > project > user)", async () => {
+      // given: same skill name in multiple scopes
+      const originalCwd = process.cwd()
+      const originalOpenCodeConfigDir = process.env.OPENCODE_CONFIG_DIR
+      const originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR
+
+      const opencodeProjectSkillsDir = join(TEST_DIR, ".opencode", "skills")
+      const opencodeConfigDir = join(TEST_DIR, "opencode-global")
+      const opencodeGlobalSkillsDir = join(opencodeConfigDir, "skills")
+      const projectClaudeSkillsDir = join(TEST_DIR, ".claude", "skills")
+      const userClaudeSkillsDir = join(TEST_DIR, "claude-user", "skills")
+
+      process.env.OPENCODE_CONFIG_DIR = opencodeConfigDir
+      process.env.CLAUDE_CONFIG_DIR = join(TEST_DIR, "claude-user")
+
+      mkdirSync(join(opencodeProjectSkillsDir, "duplicate-skill"), { recursive: true })
+      mkdirSync(join(opencodeGlobalSkillsDir, "duplicate-skill"), { recursive: true })
+      mkdirSync(join(projectClaudeSkillsDir, "duplicate-skill"), { recursive: true })
+      mkdirSync(join(userClaudeSkillsDir, "duplicate-skill"), { recursive: true })
+
+      writeFileSync(
+        join(opencodeProjectSkillsDir, "duplicate-skill", "SKILL.md"),
+        `---
+name: duplicate-skill
+description: From opencode-project (highest priority)
+---
+opencode-project body.
+`
+      )
+
+      writeFileSync(
+        join(opencodeGlobalSkillsDir, "duplicate-skill", "SKILL.md"),
+        `---
+name: duplicate-skill
+description: From opencode-global (middle priority)
+---
+opencode-global body.
+`
+      )
+
+      writeFileSync(
+        join(projectClaudeSkillsDir, "duplicate-skill", "SKILL.md"),
+        `---
+name: duplicate-skill
+description: From claude project (lower priority)
+---
+claude project body.
+`
+      )
+
+      writeFileSync(
+        join(userClaudeSkillsDir, "duplicate-skill", "SKILL.md"),
+        `---
+name: duplicate-skill
+description: From claude user (lowest priority)
+---
+claude user body.
+`
+      )
+
+      // when
+      const { discoverSkills } = await import("./loader")
+      process.chdir(TEST_DIR)
+
+      try {
+        const skills = await discoverSkills()
+        const duplicates = skills.filter((s) => s.name === "duplicate-skill")
+
+        // then
+        expect(duplicates).toHaveLength(1)
+        expect(duplicates[0]?.scope).toBe("opencode-project")
+        expect(duplicates[0]?.definition.description).toContain("opencode-project")
+      } finally {
+        process.chdir(originalCwd)
+        if (originalOpenCodeConfigDir === undefined) {
+          delete process.env.OPENCODE_CONFIG_DIR
+        } else {
+          process.env.OPENCODE_CONFIG_DIR = originalOpenCodeConfigDir
+        }
+        if (originalClaudeConfigDir === undefined) {
+          delete process.env.CLAUDE_CONFIG_DIR
+        } else {
+          process.env.CLAUDE_CONFIG_DIR = originalClaudeConfigDir
+        }
+      }
+    })
+  })
+
+  describe("nested skills", () => {
+    it("loads nested skills with prefixed names", async () => {
+      // given
+      const originalCwd = process.cwd()
+      process.chdir(TEST_DIR)
+
+      const nestedSkillDir = join(TEST_DIR, ".opencode", "skills", "superpowers", "brainstorming")
+      mkdirSync(nestedSkillDir, { recursive: true })
+      writeFileSync(
+        join(nestedSkillDir, "SKILL.md"),
+        `---
+name: brainstorming
+description: Nested brainstorming skill
+---
+Nested skill body.
+`
+      )
+
+      // when
+      const { discoverSkills } = await import("./loader")
+
+      try {
+        const skills = await discoverSkills({ includeClaudeCodePaths: false })
+        const nested = skills.find((s) => s.name === "superpowers/brainstorming")
+
+        // then
+        expect(nested).toBeDefined()
+        expect(nested?.scope).toBe("opencode-project")
+        expect(nested?.definition.description).toContain("Nested brainstorming skill")
+      } finally {
+        process.chdir(originalCwd)
+      }
+    })
+  })
 })

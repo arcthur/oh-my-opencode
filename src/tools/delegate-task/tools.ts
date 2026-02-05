@@ -105,6 +105,7 @@ Prompts MUST be in English.`
         await resolveSkillContent(args.load_skills, {
           gitMasterConfig: options.gitMasterConfig,
           browserProvider: options.browserProvider,
+          disabledSkills: options.disabledSkills,
         })
       if (skillError) {
         return skillError

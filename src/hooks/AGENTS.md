@@ -33,6 +33,7 @@ hooks/
 ├── keyword-detector/           # ultrawork/search/analyze modes
 ├── question-label-truncator/   # Truncates question option labels
 ├── subagent-question-blocker/  # Blocks question tool for subagent sessions
+├── write-existing-file-guard/  # Blocks write tool for existing files
 ├── prometheus-md-only/         # Planner read-only mode
 ├── sisyphus-junior-notepad/    # Injects notepad context for Junior tasks
 ├── agent-usage-reminder/       # Nudges to use specialized agents/tools
@@ -59,7 +60,7 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 
 **chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → multiPlanTrigger → planningWithFiles → preCompletionVerification → stopContinuationGuard → (ralphLoop start/cancel)
 
-**tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → atlasHook → tmuxParallelAgents → swarmAgent → silentToolOutput
+**tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → atlasHook → tmuxParallelAgents → swarmAgent → silentToolOutput
 
 **tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → preemptiveCompaction → contextWindowMonitor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → agentUsageReminder → categorySkillReminder → interactiveBashSession → editErrorRecovery → delegateTaskRetry → atlasHook → taskResumeInfo → sessionHandoffHook → swarmAgent
 
