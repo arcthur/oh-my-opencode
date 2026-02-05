@@ -40,9 +40,9 @@ This journey focuses on diagnosing misbehavior in production-like usage: orderin
   - `src/hooks/tool-output-truncator.ts`
   - `src/index.ts` (`tool.execute.after` ordering)
 - **Unexpected compaction / lost constraints**:
-  - `src/hooks/preemptive-compaction/`
+  - `src/hooks/preemptive-compaction.ts`
   - `src/hooks/context-window-limit-recovery/`
-  - Compaction-time injection helpers (present, not wired): `src/hooks/compaction-context-injector/`, `src/hooks/claude-code-hooks/pre-compact.ts`
+  - Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/compaction-context-injector/`, `src/hooks/claude-code-hooks/pre-compact.ts`
 - **Delegation feels “wrong”**:
   - `src/tools/delegate-task/`
   - `docs/guide/orchestration.md`

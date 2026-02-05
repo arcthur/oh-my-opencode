@@ -39,8 +39,8 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 
 - Context collection/injection: `src/features/context-injector/`
 - Tool output truncation: `src/hooks/tool-output-truncator.ts`
-- Preemptive compaction: `src/hooks/preemptive-compaction/`
-- Compaction-time injection helpers (present, not wired): `src/hooks/compaction-context-injector/` and `src/hooks/claude-code-hooks/pre-compact.ts`
+- Preemptive compaction: `src/hooks/preemptive-compaction.ts`
+- Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/compaction-context-injector/` and Claude Code compat `src/hooks/claude-code-hooks/pre-compact.ts`
 - Session recovery on token-limit errors: `src/hooks/context-window-limit-recovery/`
 - User memory: `src/features/user-memory/`
 - Org memory: `src/features/org-memory/`

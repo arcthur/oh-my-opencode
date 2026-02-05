@@ -209,5 +209,5 @@ That's the goal.
 
 ## Further Reading
 
-- [Overview](./guide/overview.md) - Getting started with Oh My OpenCode
-- [Understanding the Orchestration System](./guide/understanding-orchestration-system.md) - How the agent coordination works
+- [Overview](../guide/overview.md) - Getting started with Oh My OpenCode
+- [Understanding the Orchestration System](../guide/understanding-orchestration-system.md) - How the agent coordination works

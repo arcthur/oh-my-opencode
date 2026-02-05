@@ -35,10 +35,6 @@ flowchart TD
 
 ## Overview
 
-Planning with Files implements a persistent markdown-based planning system inspired by Manus-style “working memory on disk”.
-
-## Overview
-
 Planning with Files implements a persistent markdown-based planning system inspired by [Manus](https://github.com/OthmanAdi/planning-with-files). It uses three files as "working memory on disk" to overcome AI context window limitations.
 
 ### The Core Problem

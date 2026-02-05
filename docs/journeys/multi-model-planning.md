@@ -65,12 +65,12 @@ graph TD
 
 ## 3. Configuration
 
-Configure multi-model planning in your `oh-my-opencode.json` under `agents.Prometheus.model`:
+Configure multi-model planning in your `oh-my-opencode.json` under `agents.prometheus.model`:
 
 ```jsonc
 {
   "agents": {
-    "Prometheus": {
+    "prometheus": {
       "model": [
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2"
@@ -82,12 +82,12 @@ Configure multi-model planning in your `oh-my-opencode.json` under `agents.Prome
 
 Multi-model planning **automatically activates** when 2 or more models are configured. For single-model planning (Prometheus generates directly), use a string:
 
-**Note**: If `agents.Prometheus.model` is an array, Prometheus itself uses the **first** model as its own runtime model; the full array is used for parallel plan generation.
+**Note**: If `agents.prometheus.model` is an array, Prometheus itself uses the **first** model as its own runtime model; the full array is used for parallel plan generation.
 
 ```jsonc
 {
   "agents": {
-    "Prometheus": {
+    "prometheus": {
       "model": "anthropic/claude-opus-4-5"
     }
   }
@@ -98,8 +98,8 @@ Multi-model planning **automatically activates** when 2 or more models are confi
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agents.Prometheus.model` | `string` | Single model - Prometheus generates plan directly |
-| `agents.Prometheus.model` | `string[]` | Multiple models (2-5) - parallel generation + synthesis |
+| `agents.prometheus.model` | `string` | Single model - Prometheus generates plan directly |
+| `agents.prometheus.model` | `string[]` | Multiple models (2-5) - parallel generation + synthesis |
 
 ### 3.1 Pipeline Configuration (Unified)
 
@@ -141,7 +141,7 @@ The derivation extracts the portion after the last `/` and removes common prefix
 
 ### Step 1: Trigger
 
-When multi-model planning is enabled (2+ models in `agents.Prometheus.model`), Prometheus sees a capability context informing it about the `multi_plan` tool.
+When multi-model planning is enabled (2+ models in `agents.prometheus.model`), Prometheus sees a capability context informing it about the `multi_plan` tool.
 
 In addition, if `multi_plan_pipeline.auto_complexity_detection` and/or `multi_plan_pipeline.smart_skip_interview` are enabled, the hook injects a lightweight **routing hint** per message:
 
@@ -640,7 +640,7 @@ You can:
 cat > .opencode/oh-my-opencode.json << 'EOF'
 {
   "agents": {
-    "planning": {
+    "prometheus": {
       "model": [
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2",

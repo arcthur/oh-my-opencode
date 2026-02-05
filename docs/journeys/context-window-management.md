@@ -27,7 +27,7 @@ flowchart TD
 
 A comprehensive guide to context window management in oh-my-opencode. This document details how the system manages LLM context windows to maintain information integrity and system stability during extended sessions.
 
-**Status note (wiring matters)**: This document describes both (a) components that are wired in `src/index.ts` and (b) modules that exist in the repo but are **not currently wired** (e.g., `repo-overview-injector`, `runtime-tracker`, compaction-time injection helpers). For authoritative wiring and ordering, treat `docs/reference/hooks.md` and `src/index.ts` as the source of truth.
+**Status note (wiring matters)**: This document describes both (a) components that are wired in `src/index.ts` and (b) modules that exist in the repo but are **not currently wired** (e.g., `repo-overview-injector`, `runtime-tracker`). Compaction-time injection is wired via `experimental.session.compacting`, but it depends on the OpenCode runtime emitting that experimental surface. For authoritative wiring and ordering, treat `docs/reference/hooks.md` and `src/index.ts` as the source of truth.
 
 ## Table of Contents
 
@@ -124,15 +124,14 @@ flowchart TD
 
 This approach minimizes information loss by applying the least destructive method first.
 
-### 5. Cooldown Mechanism
+### 5. Re-trigger Guardrails
 
-To prevent excessive compaction cycles, the system enforces a **60-second cooldown** between compaction operations. This prevents:
+To avoid repeated or noisy compaction behavior, current wiring relies on per-session state:
 
-- Rapid successive compactions that could lose context
-- Performance degradation from frequent summarization calls
-- User experience disruption from constant notifications
+- `preemptive-compaction` compacts at most once per session (best-effort guard).
+- `context-window-limit-recovery` tracks retry/truncation state and applies backoff (`RETRY_CONFIG`) to avoid tight recovery loops.
 
-**Constant**: `COMPACTION_COOLDOWN_MS = 60000` (60 seconds)
+Note: there is no global time-based "compaction cooldown" constant in the current code; behavior is controlled via per-session guards and retry backoff.
 
 ---
 
@@ -142,13 +141,10 @@ To prevent excessive compaction cycles, the system enforces a **60-second cooldo
 
 ```
 oh-my-opencode Context Management
-├── Preemptive Compaction              # Proactive compression
-│   └── preemptive-compaction/
-│       ├── index.ts                   # Main logic
-│       ├── constants.ts               # Thresholds, cooldown
-│       └── types.ts                   # TokenInfo, State
-├── Error Recovery                     # Reactive recovery
-│   └── context-window-limit-recovery/
+├── Preemptive Compaction              # Proactive summarization (best-effort; once per session)
+│   └── src/hooks/preemptive-compaction.ts
+├── Error Recovery                     # Reactive recovery on token limit errors
+│   └── src/hooks/context-window-limit-recovery/
 │       ├── index.ts                   # Hook entry point
 │       ├── executor.ts                # Three-phase orchestration
 │       ├── parser.ts                  # Token error parsing
@@ -158,24 +154,24 @@ oh-my-opencode Context Management
 │       ├── pruning-clear-results.ts   # Clear old tool results
 │       └── storage.ts                 # Tool output management
 ├── Context Injection                  # Context bootstrapping
-│   ├── compaction-context-injector/   # Compaction-time injection helper (not currently wired)
-│   ├── repo-overview-injector/        # Project context injection (present, not wired)
-│   └── directory-agents-injector/     # Directory-level context
+│   ├── src/hooks/compaction-context-injector/   # Compaction-time injection helper (wired via experimental.session.compacting)
+│   ├── src/hooks/repo-overview-injector/        # Project context injection (present, not wired)
+│   └── src/hooks/directory-agents-injector/     # Directory-level context
 ├── Memory Systems                     # Persistent memory
-│   ├── user-memory/                   # Cross-session user memory
+│   ├── src/features/user-memory/      # Cross-session user memory
 │   │   ├── types.ts                   # Memory schema
 │   │   ├── storage.ts                 # Persistence layer
 │   │   └── hook.ts                    # Injection hook
-│   └── org-memory/                    # Project/team memory
+│   └── src/features/org-memory/       # Project/team memory
 │       ├── types.ts                   # Memory schema
 │       ├── storage.ts                 # Persistence layer
 │       └── hook.ts                    # Injection hook
 ├── Monitoring                         # Runtime monitoring
-│   ├── context-window-monitor.ts      # Usage tracking (70% warning)
-│   └── runtime-tracker/               # Tool performance tracking (present, not wired)
+│   ├── src/hooks/context-window-monitor.ts      # Usage tracking (70% warning)
+│   └── src/hooks/runtime-tracker/               # Tool performance tracking (present, not wired)
 └── Output Optimization                # Output size management
-    ├── tool-output-truncator.ts       # Tool output truncation
-    └── dynamic-truncator.ts           # Dynamic size adjustment
+    ├── src/hooks/tool-output-truncator.ts       # Tool output truncation
+    └── src/shared/dynamic-truncator.ts          # Dynamic size adjustment
 ```
 
 ### Data Flow
@@ -183,25 +179,30 @@ oh-my-opencode Context Management
 ```mermaid
 flowchart TD
   START["Session start"] --> BOOT["Bootstrap injection\n- User memory\n- Org memory\n- AGENTS.md context\n- Repository overview (present, not wired)"]
-  BOOT --> NORMAL["Normal operation\n- Tool invocations\n- Output optimization\n- Runtime tracking (present, not wired)"]
-  NORMAL --> MON["Context monitoring\n70% → warning\n85% → compaction"]
+  BOOT --> NORMAL["Normal operation\n- Tool invocations\n- Output shaping\n- Runtime tracking (present, not wired)"]
 
-  MON --> OK{"Below thresholds?"}
-  OK -->|Yes| NORMAL
-  OK -->|No| PIPE["Compaction pipeline (if cooldown passed)\n1) DCP pruning\n2) Truncation\n3) Summarization"]
+  NORMAL --> WARN["Context warnings\ncontext-window-monitor (70% default)"]
+  WARN --> NORMAL
 
-  ERR["Token limit error"] --> PIPE
-  PIPE --> COOLDOWN["60s cooldown reset"]
-  COOLDOWN --> NORMAL
+  NORMAL --> PRE{"Usage ratio >= threshold?\n(preemptive-compaction; Anthropic only)\n(default threshold: 0.78)"}
+  PRE -->|No| NORMAL
+  PRE -->|Yes (once/session)| SUM["session.summarize(auto=true)"]
+  SUM --> NORMAL
+
+  ERR["Token limit error"] --> REC["Recovery pipeline\ncontext-window-limit-recovery\n1) DCP pruning\n2) Truncation\n3) Summarization (if needed)"]
+  REC --> NORMAL
 ```
 
 ### Event Flow
 
 | Event | Handler | Action |
 |-------|---------|--------|
-| `message.updated` | preemptive-compaction | Check usage after assistant response |
-| `session.idle` | preemptive-compaction | Check usage when session becomes idle |
-| `session.error` | context-window-limit-recovery | Trigger recovery on token limit error |
+| `tool.execute.after` | preemptive-compaction | Check usage and maybe auto-summarize (Anthropic only; once per session) |
+| `tool.execute.after` | context-window-monitor | Emit 70% usage warnings |
+| `session.error` | context-window-limit-recovery | Parse token-limit errors and schedule recovery |
+| `message.updated` | context-window-limit-recovery | Capture assistant errors (token-limit cases) |
+| `session.idle` | context-window-limit-recovery | Execute recovery if `pendingCompact` is set |
+| `experimental.session.compacting` | compaction-context-injector / Claude Code PreCompact | Inject extra compaction-time context (best-effort) |
 | `session.compacted` | Various | Clear session-specific caches |
 | `session.deleted` | Various | Clean up session state |
 
@@ -627,7 +628,7 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
 oh-my-opencode config
 ├── experimental                    # Experimental features
 │   ├── preemptive_compaction      # Enable proactive compaction
-│   ├── preemptive_compaction_threshold  # Trigger threshold (default: 0.85)
+│   ├── preemptive_compaction_threshold  # Trigger threshold (default: 0.78)
 │   └── dynamic_context_pruning    # DCP configuration
 │       ├── enabled
 │       ├── notification
@@ -781,7 +782,7 @@ Certain tools should never be pruned as they maintain critical state:
 
 5. **Cross-Session State**: While user memory persists, session-specific context (runtime stats, injection caches) is lost on session end.
 
-6. **Cooldown Rigidity**: The 60-second cooldown is fixed. In rapidly filling contexts, this may delay necessary compaction.
+6. **Preemptive Compaction Guard**: `preemptive-compaction` compacts at most once per session. In long sessions, recovery may fall back to `context-window-limit-recovery` (or manual compaction) after the first summarize.
 
 7. **Protected Tool Scope**: Protected tools are identified by name only. Custom tools with similar functions need manual protection.
 
@@ -836,7 +837,7 @@ Always ensure summarization uses a structured template to preserve critical info
 - Remaining tasks (maintains continuity)
 - Failure constraints (prevents retry of failed approaches)
 
-Implementation note: this repo contains compaction-time injection helpers (`compaction-context-injector`, Claude Code `PreCompact`), but they are **not wired** in `src/index.ts` by default. In current wiring, structured templates are enforced primarily by the summarization prompts in `preemptive-compaction` and `context-window-limit-recovery`.
+Implementation note: compaction-time injection is wired via `experimental.session.compacting` when `compaction-context-injector` (and Claude Code `PreCompact` compatibility) are enabled. Structured templates are still primarily enforced by the summarization prompts in `preemptive-compaction` and `context-window-limit-recovery`.
 
 ### 4. Monitor Context Usage
 
@@ -894,7 +895,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 - Critical tools not protected
 
 **Solutions**:
-1. Verify whether any compaction-time injection is wired in your build. The repo contains compaction injection helpers (`compaction-context-injector` and Claude Code `PreCompact`), but they are not wired in `src/index.ts` by default.
+1. Verify compaction-time injection is enabled in your build (hooks: `compaction-context-injector` and/or Claude Code `PreCompact`). These run on `experimental.session.compacting` events.
 2. Increase `turn_protection.turns` value (try 5)
 3. Add critical tools to `protected_tools`
 4. Review if `aggressive: true` for supersede_writes is appropriate
@@ -910,7 +911,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 - Verbose tool usage patterns
 
 **Solutions**:
-1. Increase `preemptive_compaction_threshold` (try 0.85)
+1. Increase `preemptive_compaction_threshold` (default: 0.78; try 0.85)
 2. Enable `clear_tool_results` strategy to reduce tool output accumulation
 3. Enable `tool-output-truncator` hook for proactive output management
 4. Use more concise tool invocations (narrower searches, specific files)
@@ -992,11 +993,11 @@ Set `turn_protection.turns` based on your typical task complexity:
 
 ### Related Documentation
 
-- [oh-my-opencode Configuration Schema](../src/config/schema.ts)
-- [DCP Implementation](../src/hooks/context-window-limit-recovery/)
-- [Preemptive Compaction](../src/hooks/preemptive-compaction/)
-- [Compaction-Time Injection (Claude Code compat PreCompact; not wired)](../src/hooks/claude-code-hooks/pre-compact.ts)
-- [Compaction Context Injector (present, not wired)](../src/hooks/compaction-context-injector/)
+- [oh-my-opencode Configuration Schema](../../src/config/schema.ts)
+- [DCP Implementation](../../src/hooks/context-window-limit-recovery/)
+- [Preemptive Compaction](../../src/hooks/preemptive-compaction.ts)
+- [Compaction-Time Injection (Claude Code compat PreCompact)](../../src/hooks/claude-code-hooks/pre-compact.ts)
+- [Compaction Context Injector (wired via experimental.session.compacting)](../../src/hooks/compaction-context-injector/)
 
 ---
 
@@ -1013,7 +1014,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 | **Protected Tools** | Tools exempt from pruning due to critical state maintenance |
 | **Bootstrap Injection** | Initial context provided at session start |
 | **Turn Protection** | Mechanism to prevent pruning of recent tool calls |
-| **Cooldown** | Minimum time interval between compaction operations |
+| **Cooldown** | Minimum time interval between repeated operations (e.g., runtime hints); not currently used as a global compaction gate in this repo |
 
 ---
 
@@ -1021,15 +1022,13 @@ Set `turn_protection.turns` based on your typical task complexity:
 
 | Constant | Value | Location |
 |----------|-------|----------|
-| `DEFAULT_THRESHOLD` | 0.85 | preemptive-compaction/constants.ts |
-| `MIN_TOKENS_FOR_COMPACTION` | 50,000 | preemptive-compaction/constants.ts |
-| `COMPACTION_COOLDOWN_MS` | 60,000 (60s) | preemptive-compaction/constants.ts |
-| `CONTEXT_WARNING_THRESHOLD` | 0.70 | context-window-monitor.ts |
-| `CHARS_PER_TOKEN` | 4 | pruning-types.ts |
-| `TRUNCATE_MAX_ATTEMPTS` | 20 | executor.ts |
-| `TRUNCATE_TARGET_RATIO` | 0.5 | executor.ts |
-| `RETRY_MAX_ATTEMPTS` | 2 | executor.ts |
-| `RETRY_INITIAL_DELAY_MS` | 2,000 | executor.ts |
+| `DEFAULT_THRESHOLD` | 0.78 | src/hooks/preemptive-compaction.ts |
+| `CONTEXT_WARNING_THRESHOLD` | 0.70 | src/hooks/context-window-monitor.ts |
+| `CHARS_PER_TOKEN` | 4 | src/hooks/context-window-limit-recovery/pruning-types.ts |
+| `RETRY_CONFIG.maxAttempts` | 2 | src/hooks/context-window-limit-recovery/types.ts |
+| `RETRY_CONFIG.initialDelayMs` | 2,000 | src/hooks/context-window-limit-recovery/types.ts |
+| `TRUNCATE_CONFIG.maxTruncateAttempts` | 20 | src/hooks/context-window-limit-recovery/types.ts |
+| `TRUNCATE_CONFIG.targetTokenRatio` | 0.5 | src/hooks/context-window-limit-recovery/types.ts |
 
 ---
 
