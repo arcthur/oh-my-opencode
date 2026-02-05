@@ -51,7 +51,6 @@ export interface MessageUpdatedProps {
     providerID?: string
     agent?: string
   }
-  content?: string
 }
 
 export interface MessagePartUpdatedProps {

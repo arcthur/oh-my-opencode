@@ -72,7 +72,8 @@ $ARGUMENTS
     argumentHint: "[plan-name]",
   },
   "stop-continuation": {
-    description: "(builtin) Stop all continuation mechanisms (ralph loop, todo continuation, boulder) for this session",
+    description:
+      "(builtin) Stop all continuation mechanisms (ralph loop, todo continuation, work-state) for this session",
     template: `<command-instruction>
 ${STOP_CONTINUATION_TEMPLATE}
 </command-instruction>`,

@@ -50,27 +50,32 @@ describe("think-mode switcher", () => {
     describe("Gemini models via github-copilot", () => {
       it("should resolve github-copilot Gemini Pro to google config", () => {
         // given a github-copilot provider with Gemini Pro model
-        const config = getThinkingConfig("github-copilot", "gemini-3-pro-preview")
+        const modelIDs = ["gemini-3-pro", "gemini-3-pro-preview"]
 
-        // then should return google thinking config
-        expect(config).not.toBeNull()
-        expect(config?.providerOptions).toBeDefined()
-        const googleOptions = (
-          config?.providerOptions as Record<string, unknown>
-        )?.google as Record<string, unknown>
-        expect(googleOptions?.thinkingConfig).toBeDefined()
+        for (const modelID of modelIDs) {
+          const config = getThinkingConfig("github-copilot", modelID)
+
+          // then should return google thinking config
+          expect(config).not.toBeNull()
+          expect(config?.providerOptions).toBeDefined()
+          const googleOptions = (
+            config?.providerOptions as Record<string, unknown>
+          )?.google as Record<string, unknown>
+          expect(googleOptions?.thinkingConfig).toBeDefined()
+        }
       })
 
       it("should resolve github-copilot Gemini Flash to google config", () => {
         // given a github-copilot provider with Gemini Flash model
-        const config = getThinkingConfig(
-          "github-copilot",
-          "gemini-3-flash-preview"
-        )
+        const modelIDs = ["gemini-3-flash", "gemini-3-flash-preview"]
 
-        // then should return google thinking config
-        expect(config).not.toBeNull()
-        expect(config?.providerOptions).toBeDefined()
+        for (const modelID of modelIDs) {
+          const config = getThinkingConfig("github-copilot", modelID)
+
+          // then should return google thinking config
+          expect(config).not.toBeNull()
+          expect(config?.providerOptions).toBeDefined()
+        }
       })
     })
 
@@ -149,26 +154,24 @@ describe("think-mode switcher", () => {
         expect(variant).toBe("gpt-5-2-high")
       })
 
-      it("should handle dots in GPT-5.1 codex variants", () => {
-        // given a GPT-5.1-codex model ID
-        const variant = getHighVariant("gpt-5.1-codex")
+	      it("should handle dots in GPT-5.1 codex variants", () => {
+	        // given a GPT-5.1-codex model ID
+	        const variant = getHighVariant("gpt-5.1-codex")
 
         // then should return high variant
-        expect(variant).toBe("gpt-5-1-codex-high")
-      })
+	        expect(variant).toBe("gpt-5-1-codex-high")
+	      })
 
-      it("should handle Gemini preview variants", () => {
-        // given Gemini preview model IDs
-        expect(getHighVariant("gemini-3-pro-preview")).toBe(
-          "gemini-3-pro-preview-high"
-        )
-        expect(getHighVariant("gemini-3-flash-preview")).toBe(
-          "gemini-3-flash-preview-high"
-        )
-      })
+	      it("should handle Gemini high-variant mappings", () => {
+	        // given Gemini model IDs (stable + preview)
+	        expect(getHighVariant("gemini-3-pro")).toBe("gemini-3-pro-high")
+	        expect(getHighVariant("gemini-3-flash")).toBe("gemini-3-flash-high")
+	        expect(getHighVariant("gemini-3-pro-preview")).toBe("gemini-3-pro-preview-high")
+	        expect(getHighVariant("gemini-3-flash-preview")).toBe("gemini-3-flash-preview-high")
+	      })
 
-      it("should return null for already-high variants", () => {
-        // given model IDs that are already high variants
+	      it("should return null for already-high variants", () => {
+	        // given model IDs that are already high variants
         expect(getHighVariant("claude-opus-4-5-high")).toBeNull()
         expect(getHighVariant("gpt-5-2-high")).toBeNull()
         expect(getHighVariant("gemini-3-pro-high")).toBeNull()
@@ -456,6 +459,73 @@ describe("think-mode switcher", () => {
         // #and switching again should return null (already high)
         expect(getHighVariant(high!)).toBeNull()
       })
+    })
+  })
+
+  describe("Z.AI GLM-4.7 provider support", () => {
+    describe("getThinkingConfig for zai-coding-plan", () => {
+      it("should return thinking config for glm-4.7", () => {
+        // given zai-coding-plan provider with glm-4.7 model
+        const config = getThinkingConfig("zai-coding-plan", "glm-4.7")
+
+        // then should return zai-coding-plan thinking config
+        expect(config).not.toBeNull()
+        expect(config?.providerOptions).toBeDefined()
+        const zaiOptions = (config?.providerOptions as Record<string, unknown>)?.[
+          "zai-coding-plan"
+        ] as Record<string, unknown>
+        expect(zaiOptions?.extra_body).toBeDefined()
+        const extraBody = zaiOptions?.extra_body as Record<string, unknown>
+        expect(extraBody?.thinking).toBeDefined()
+        expect((extraBody?.thinking as Record<string, unknown>)?.type).toBe("enabled")
+        expect((extraBody?.thinking as Record<string, unknown>)?.clear_thinking).toBe(false)
+      })
+
+      it("should return thinking config for glm-4.6v (multimodal)", () => {
+        // given zai-coding-plan provider with glm-4.6v model
+        const config = getThinkingConfig("zai-coding-plan", "glm-4.6v")
+
+        // then should return zai-coding-plan thinking config
+        expect(config).not.toBeNull()
+        expect(config?.providerOptions).toBeDefined()
+      })
+
+      it("should return null for non-GLM models on zai-coding-plan", () => {
+        // given zai-coding-plan provider with unknown model
+        const config = getThinkingConfig("zai-coding-plan", "some-other-model")
+
+        // then should return null
+        expect(config).toBeNull()
+      })
+    })
+
+    describe("HIGH_VARIANT_MAP for GLM", () => {
+      it("should NOT have high variant for glm-4.7 (thinking enabled by default)", () => {
+        // given glm-4.7 model
+        const variant = getHighVariant("glm-4.7")
+
+        // then should return null (no high variant needed)
+        expect(variant).toBeNull()
+      })
+
+      it("should NOT have high variant for glm-4.6v", () => {
+        // given glm-4.6v model
+        const variant = getHighVariant("glm-4.6v")
+
+        // then should return null
+        expect(variant).toBeNull()
+      })
+    })
+  })
+
+  describe("THINKING_CONFIGS structure for zai-coding-plan", () => {
+    it("should have correct structure for zai-coding-plan", () => {
+      const config = THINKING_CONFIGS["zai-coding-plan"]
+      expect(config.providerOptions).toBeDefined()
+      const zaiOptions = (config.providerOptions as Record<string, unknown>)?.[
+        "zai-coding-plan"
+      ] as Record<string, unknown>
+      expect(zaiOptions?.extra_body).toBeDefined()
     })
   })
 })

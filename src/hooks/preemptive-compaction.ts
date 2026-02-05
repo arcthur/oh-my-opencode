@@ -8,15 +8,15 @@
  *
  * Configuration via experimental settings:
  * - experimental.preemptive_compaction: boolean (default: true since v2.9.0)
- * - experimental.preemptive_compaction_threshold: number (default: 0.85)
+ * - experimental.preemptive_compaction_threshold: number (default: 0.78)
  */
 
 import { getDefaultAnthropicContextLimit } from "../shared/context-limits"
 
-const DEFAULT_THRESHOLD = 0.85
+const DEFAULT_THRESHOLD = 0.78
 
 export interface PreemptiveCompactionOptions {
-  /** Threshold percentage to trigger compaction (default: 0.85) */
+  /** Threshold percentage to trigger compaction (default: 0.78) */
   threshold?: number
 }
 

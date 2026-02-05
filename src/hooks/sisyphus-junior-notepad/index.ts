@@ -5,16 +5,18 @@ import { HOOK_NAME, NOTEPAD_DIRECTIVE } from "./constants"
 
 export * from "./constants"
 
-export function createSisyphusJuniorNotepadHook(ctx: PluginInput) {
+export function createSisyphusJuniorNotepadHook(_ctx: PluginInput) {
   return {
     "tool.execute.before": async (
-      input: { tool: string; sessionID: string; callID: string },
+      input: { tool: string; sessionID?: string; callID?: string },
       output: { args: Record<string, unknown>; message?: string }
     ): Promise<void> => {
-      void ctx
-
       // 1. Check if tool is delegate_task
       if (input.tool !== "delegate_task") {
+        return
+      }
+
+      if (!input.sessionID) {
         return
       }
 
@@ -36,7 +38,10 @@ export function createSisyphusJuniorNotepadHook(ctx: PluginInput) {
       }
 
       // 4. Get prompt from output.args
-      const prompt = typeof output.args.prompt === "string" ? output.args.prompt : ""
+      const prompt = output.args.prompt
+      if (typeof prompt !== "string" || prompt.length === 0) {
+        return
+      }
 
       // 5. Check for double injection
       if (prompt.includes("<Work_Context>")) {

@@ -73,6 +73,7 @@ export const HookNameSchema = z.enum([
   "empty-task-response-detector",
   "think-mode",
   "context-window-limit-recovery",
+  "preemptive-compaction",
   "rules-injector",
   "background-notification",
   "auto-update-checker",
@@ -205,7 +206,7 @@ export const CategoryConfigSchema = z.object({
     type: z.enum(["enabled", "disabled"]),
     budgetTokens: z.number().optional(),
   }).optional(),
-  reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
+  reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
   textVerbosity: z.enum(["low", "medium", "high"]).optional(),
   tools: z.record(z.string(), z.boolean()).optional(),
   prompt_append: z.string().optional(),
@@ -280,7 +281,7 @@ export const ExperimentalConfigSchema = z.object({
   auto_resume: z.boolean().optional(),
   /** Enable preemptive compaction at threshold (default: true since v2.9.0) */
   preemptive_compaction: z.boolean().optional(),
-  /** Threshold percentage to trigger preemptive compaction (default: 0.85) */
+  /** Threshold percentage to trigger preemptive compaction (default: 0.78) */
   preemptive_compaction_threshold: z.number().min(0.5).max(0.95).optional(),
   /** Truncate all tool outputs, not just whitelisted tools (default: false). Tool output truncator is enabled by default - disable via disabled_hooks. */
   truncate_all_tool_outputs: z.boolean().optional(),
@@ -337,8 +338,8 @@ export const RalphLoopConfigSchema = z.object({
 
 export const BackgroundTaskConfigSchema = z.object({
   defaultConcurrency: z.number().min(1).optional(),
-  providerConcurrency: z.record(z.string(), z.number().min(1)).optional(),
-  modelConcurrency: z.record(z.string(), z.number().min(1)).optional(),
+  providerConcurrency: z.record(z.string(), z.number().min(0)).optional(),
+  modelConcurrency: z.record(z.string(), z.number().min(0)).optional(),
   /** Stale timeout in milliseconds - interrupt tasks with no activity for this duration (default: 180000 = 3 minutes, minimum: 60000 = 1 minute) */
   staleTimeoutMs: z.number().min(60000).optional(),
 })

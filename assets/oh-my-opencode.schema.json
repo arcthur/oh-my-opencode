@@ -43,8 +43,11 @@
         "type": "string",
         "enum": [
           "playwright",
+          "agent-browser",
           "frontend-ui-ux",
           "git-master",
+          "parallel-agents",
+          "dev-browser",
           "spec-compliance-review",
           "code-quality-review",
           "writing-plans",
@@ -69,6 +72,7 @@
           "empty-task-response-detector",
           "think-mode",
           "context-window-limit-recovery",
+          "preemptive-compaction",
           "rules-injector",
           "background-notification",
           "auto-update-checker",
@@ -1695,7 +1699,8 @@
             "enum": [
               "low",
               "medium",
-              "high"
+              "high",
+              "xhigh"
             ]
           },
           "textVerbosity": {
@@ -2065,7 +2070,7 @@
           },
           "additionalProperties": {
             "type": "number",
-            "minimum": 1
+            "minimum": 0
           }
         },
         "modelConcurrency": {
@@ -2075,7 +2080,7 @@
           },
           "additionalProperties": {
             "type": "number",
-            "minimum": 1
+            "minimum": 0
           }
         },
         "staleTimeoutMs": {
@@ -2195,6 +2200,12 @@
         "cache_duration_ms": {
           "default": 3600000,
           "type": "number"
+        },
+        "min_tool_calls": {
+          "default": 1,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100
         }
       }
     },

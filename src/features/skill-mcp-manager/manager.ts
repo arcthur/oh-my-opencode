@@ -402,12 +402,23 @@ export class SkillMcpManager {
         }
       }
     }
+
+    for (const key of keysToRemove) {
+      this.pendingConnections.delete(key)
+    }
+
+    if (this.clients.size === 0) {
+      this.stopCleanupTimer()
+    }
   }
 
   async disconnectAll(): Promise<void> {
     this.stopCleanupTimer()
+    this.unregisterProcessCleanup()
     const clients = Array.from(this.clients.values())
     this.clients.clear()
+    this.pendingConnections.clear()
+    this.authProviders.clear()
     for (const managed of clients) {
       try {
         await managed.client.close()
@@ -416,7 +427,6 @@ export class SkillMcpManager {
         await managed.transport.close()
       } catch { /* transport may already be terminated */ }
     }
-    this.unregisterProcessCleanup()
   }
 
   private startCleanupTimer(): void {
@@ -446,6 +456,10 @@ export class SkillMcpManager {
           await managed.transport.close()
         } catch { /* transport may already be terminated */ }
       }
+    }
+
+    if (this.clients.size === 0) {
+      this.stopCleanupTimer()
     }
   }
 

@@ -79,7 +79,8 @@ export function createDelegationValidatorHook(ctx: PluginInput) {
         ),
       ])
 
-      const messages = (response as { data?: unknown[] }).data ?? []
+      const payload = response as { data?: unknown[] } | unknown[]
+      const messages = Array.isArray(payload) ? payload : (payload.data ?? [])
       if (!Array.isArray(messages)) return null
 
       const assistantMessages = (messages as OpenCodeSessionMessage[]).filter(

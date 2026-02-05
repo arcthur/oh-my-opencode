@@ -126,6 +126,21 @@ describe("migrateHookNames", () => {
     expect(removed).toEqual([])
   })
 
+  test("migrates anthropic-context-window-limit-recovery to context-window-limit-recovery", () => {
+    // given: Config with upstream hook name
+    const hooks = ["anthropic-context-window-limit-recovery", "comment-checker"]
+
+    // when: Migrate hook names
+    const { migrated, changed, removed } = migrateHookNames(hooks)
+
+    // then: Upstream hook name should be migrated
+    expect(changed).toBe(true)
+    expect(migrated).toContain("context-window-limit-recovery")
+    expect(migrated).toContain("comment-checker")
+    expect(migrated).not.toContain("anthropic-context-window-limit-recovery")
+    expect(removed).toEqual([])
+  })
+
   test("preserves current hook names unchanged", () => {
     // given: Config with current hook names
     const hooks = [
@@ -198,12 +213,11 @@ describe("migrateHookNames", () => {
 
     // then: Removed hooks should be filtered out
     expect(changed).toBe(true)
-    expect(migrated).toEqual(["comment-checker"])
-    expect(removed).toContain("preemptive-compaction")
+    expect(migrated).toEqual(["preemptive-compaction", "comment-checker"])
     expect(removed).toContain("empty-message-sanitizer")
     expect(removed).toContain("grep-output-truncator")
     expect(removed).toContain("tasks-todowrite-disabler")
-    expect(removed).toHaveLength(4)
+    expect(removed).toHaveLength(3)
   })
 
   test("handles mixed migration and removal", () => {
@@ -215,10 +229,8 @@ describe("migrateHookNames", () => {
 
     // then: Legacy should be renamed, removed should be filtered
     expect(changed).toBe(true)
-    expect(migrated).toContain("context-window-limit-recovery")
-    expect(migrated).toContain("atlas")
-    expect(migrated).not.toContain("preemptive-compaction")
-    expect(removed).toEqual(["preemptive-compaction"])
+    expect(migrated).toEqual(["context-window-limit-recovery", "preemptive-compaction", "atlas"])
+    expect(removed).toEqual([])
   })
 })
 
@@ -271,6 +283,26 @@ describe("migrateConfigFile", () => {
     expect(needsWrite).toBe(true)
     expect(rawConfig.disabled_hooks).toContain("context-window-limit-recovery")
     expect(rawConfig.disabled_hooks).not.toContain("anthropic-auto-compact")
+  })
+
+  test("migrates upstream hook names in disabled_hooks", () => {
+    // given: Config with upstream hook names
+    const rawConfig: Record<string, unknown> = {
+      disabled_hooks: [
+        "anthropic-context-window-limit-recovery",
+        "comment-checker",
+      ],
+    }
+
+    // when: Migrate config file
+    const needsWrite = migrateConfigFile(testConfigPath, rawConfig)
+
+    // then: Hook names should be migrated
+    expect(needsWrite).toBe(true)
+    expect(rawConfig.disabled_hooks).toContain("context-window-limit-recovery")
+    expect(rawConfig.disabled_hooks).not.toContain(
+      "anthropic-context-window-limit-recovery",
+    )
   })
 
   test("does not write if no migration needed", () => {
@@ -330,6 +362,14 @@ describe("migration maps", () => {
     // given/#when: Check HOOK_NAME_MAP
     // then: Should contain be legacy hook name mapping
     expect(HOOK_NAME_MAP["anthropic-auto-compact"]).toBe("context-window-limit-recovery")
+  })
+
+  test("HOOK_NAME_MAP contains anthropic-context-window-limit-recovery migration", () => {
+    // given/#when: Check HOOK_NAME_MAP
+    // then: Should contain upstream hook name mapping
+    expect(HOOK_NAME_MAP["anthropic-context-window-limit-recovery"]).toBe(
+      "context-window-limit-recovery",
+    )
   })
 })
 

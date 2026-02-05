@@ -1,10 +1,10 @@
 # Upstream Sync Notes (Fork Policy + Sync Anchors)
 
-> Last updated: 2026-02-03  
-> Fork branch: `dev` @ `e4b0759e` *(worktree contains uncommitted sync work)*  
+> Last updated: 2026-02-05  
+> Fork branch: `dev` @ `a0957cbf` *(worktree contains uncommitted sync work)*  
 > Upstream baseline: `dev` @ `1e587c55` *(local clone: `../oh-my-opencode-upstream`)*  
 > merge-base: `66fd761a`  
-> Divergence (`upstream/dev...dev`): behind **416** / ahead **117** commits
+> Divergence (`upstream/dev...dev`): behind **411** / ahead **124** commits
 
 This document is the **authoritative policy record** for syncing this fork with `upstream/dev`.
 
@@ -117,6 +117,8 @@ bun run build:schema
 | Date | Upstream baseline | merge-base | Summary |
 |------|-------------------|------------|---------|
 | 2026-02-03 | `1e587c55` | `66fd761a` | Drop upstream `tmux-subagent`/`claude-tasks`/`unstable-agent-babysitter`; remove upstream schema/docs no-op hook names; keep fork-owned replacements (`work-state`, `sisyphus-tasks`, `sisyphus-swarm`, governance/memory/multi-plan). |
+| 2026-02-04 | `1e587c55` | `66fd761a` | Wire compaction context injection (`experimental.session.compacting` + `compaction-context-injector`) and Claude Code PreCompact; align context-window compaction hooks; add hook-name migration for renamed upstream recovery hook; complete Atlas `tool.execute.before` enforcement wiring and harden `tool.execute.after`. |
+| 2026-02-05 | `1e587c55` | `66fd761a` | Align tool-layer robustness: restore builtin slashcommand discovery (respecting `disabled_commands`), re-add look-at model-suggestion retry path with fork-compatible agent matching, and restore LSP binary lookup via OpenCode data-dir `bin/` path. |
 
 ### 2026-02-03 Addendum (File-by-File Review + Link Validation)
 
@@ -153,3 +155,169 @@ bun run build:schema
   - Derive `plan_name` from the plan directory when `active_plan` is `*/task_plan.md` (fixes Atlas plan naming).
   - Parse Manus `## Phases` table rows for progress + phase utilities.
   - Treat Manus `blocked` phases as non-actionable completion for `getPlanProgress()` (prevents Atlas auto-continuation loops when all remaining work is blocked).
+
+### 2026-02-04 Addendum (Compaction Pipeline + Hook Chain Completion)
+
+- `src/index.ts`: Completed `experimental.session.compacting` wiring:
+  - Runs Claude Code `PreCompact` hooks (if `output.context` is available) to inject extra compaction context.
+  - Runs fork `compaction-context-injector` to enforce structured compaction summaries as a continuity checklist.
+  - Uses best-effort provider/model inference from recent assistant messages (fallback to Anthropic defaults) for accurate injection metadata.
+- `src/index.ts`: Hardened `tool.execute.after` against undefined output (parity with upstream issue #1035 guard) and aligned ordering: `preemptiveCompaction` runs before `contextWindowMonitor`.
+- `src/hooks/compaction-context-injector/*`: Enabled as the single source of truth for compaction guidance (structured summary sections), invoked from `experimental.session.compacting`.
+- `src/hooks/context-window-limit-recovery/*`: Confirmed equivalent role to upstream `anthropic-context-window-limit-recovery` with fork naming (`context-window-limit-recovery`), while retaining fork-specific phases (Dynamic Context Pruning + handoff suggestion). Stabilized executor tests via fake timers.
+- `src/shared/migration.ts`: Added hook-name migration for upstream configs: `anthropic-context-window-limit-recovery` → `context-window-limit-recovery` (for `disabled_hooks` backward compatibility).
+- `src/hooks/context-window-monitor.ts`: Kept fork-accurate context-limit labeling (`200K` vs `1M`) and added OH-MY-OPENCODE system directive prefix (`CONTEXT_WINDOW_MONITOR`) to prevent keyword-detector triggers.
+- `src/hooks/preemptive-compaction.ts`: Aligned default compaction threshold with upstream (`0.78`), while preserving fork override via `experimental.preemptive_compaction_threshold`.
+- `src/shared/session-utils.ts`: Implemented best-effort agent/orchestrator detection via in-memory session-agent map OR message-storage fallback; added `isCallerAtlas()` helper for durable Atlas detection.
+- `src/hooks/atlas/index.ts` + `src/index.ts`: Switched Atlas detection to shared `isCallerAtlas()` (de-duplicated message-dir logic) and wired `atlasHook["tool.execute.before"]` so orchestrator protocol (Write/Edit warnings + single-task directive injection) is enforced preflight.
+- `src/hooks/prometheus-md-only/*`: FORK_OVERRIDE. Keep fork checklist/reminder text (no Metis/Momus references) while preserving upstream path-allowlist validation and read-only constraints.
+- `src/hooks/delegation-validator/index.ts`: Fork-only (no upstream equivalent). Validates presence of `<delegation-decision>` JSON block before `delegate_task`, injecting warnings for missing/suboptimal decisions.
+- `src/hooks/sisyphus-junior-notepad/*`: FORK_OVERRIDE. Only inject notepad context when delegation will spawn Sisyphus-Junior (category-based or explicit `subagent_type="sisyphus-junior"`), reducing noise and token overhead.
+- `src/hooks/agent-usage-reminder/constants.ts`: FORK_OVERRIDE. Keep fork-specific `delegate_task(...)` arg examples (required args) to avoid invalid tool calls, otherwise upstream-identical behavior.
+- `src/hooks/task-resume-info/index.ts`: FORK_OVERRIDE. Keep fork-specific `delegate_task(...)` continuation example including required args for this fork’s tool schema.
+- `src/hooks/think-mode/*`: Synced upstream test coverage for GLM (`zai-coding-plan`) provider support; kept fork compatibility aliases for Gemini `*-preview` model IDs; wired think-mode into `chat.message` (pre keyword-detector) to make the feature effective at runtime.
+- `src/hooks/todo-continuation-enforcer.ts` (+ tests): Ported upstream continuation-stop integration (`isContinuationStopped`, `cancelAllCountdowns`, compaction-aware agent resolution). Wired `/stop-continuation` to stop the guard, cancel countdowns, cancel Ralph Loop, and clear `work-state`.
+- `src/hooks/auto-update-checker/constants.ts`: Kept fork divergence (drops upstream unused `node:fs` import).
+- `src/features/builtin-commands/templates/stop-continuation.ts`: Updated copy to reference `work-state` (not `boulder-state`) to match runtime behavior.
+
+### 2026-02-05 Addendum (Hook Wiring Fixes)
+
+- `src/index.ts`: Preemptive compaction now respects `disabled_hooks` (`preemptive-compaction`) in addition to `experimental.preemptive_compaction`, and `BackgroundManager` now receives `background_task` config at construction time. `createAtlasHook()` now receives the `backgroundManager` instance so Atlas continuation injection correctly suppresses itself while background tasks are running.
+- `src/shared/migration.ts` + `src/shared/migration.test.ts`: Stop filtering `preemptive-compaction` from `disabled_hooks` during migration (it is a supported hook in this fork); keep filtering truly removed/no-op hook names; add regression coverage for the upstream hook rename (`anthropic-context-window-limit-recovery` → `context-window-limit-recovery`).
+
+### 2026-02-05 Addendum (Prometheus Prompt Alignment)
+
+- `src/agents/prometheus/behavioral-summary.ts` + `src/agents/prometheus-prompt.test.ts`: Removed stale `boulder-state` wording and now explicitly references fork `work-state` (`.sisyphus/work.yaml`). Added a regression assertion to prevent future reintroduction.
+- `src/agents/prometheus/interview-mode.ts`: Ported upstream prompt improvements (TRIVIAL example, richer research prompts, expanded Agent-Executed QA guidance, simplified “Test Strategy Decision” wording) while keeping fork invariants (Phase 0 Brainstorming routing + ONE QUESTION AT A TIME discipline + schema-correct `delegate_task(...)` examples).
+
+### 2026-02-05 Addendum (delegate_task + call_omo_agent Review)
+
+- `src/tools/delegate-task/categories.ts`: Minor upstream parity refactor: always uses `resolveModel(...)` for model resolution (no local normalization helper), preserving the priority chain (user override → category default → system default).
+- `src/tools/delegate-task/constants.ts`: Reviewed upstream’s expanded “plan agent prepend” (dependency graph + parallel execution waves + full skills evaluation) and intentionally kept the fork’s lighter protocol (explicit assumptions + minimal back-and-forth + schema-correct tool examples) to match fork multi-plan philosophy and avoid forced interview loops.
+- `src/tools/call-omo-agent/constants.ts` + `src/tools/call-omo-agent/tools.ts`: Reviewed upstream’s simplifications and intentionally kept fork behavior:
+  - `session_id` is sync-only (background mode rejects it).
+  - Background output includes `<task_metadata> session_id: ... </task_metadata>` for `task-resume-info` continuation support.
+  - Case-insensitive agent validation remains centralized via shared helpers.
+
+### 2026-02-05 Addendum (Tools + Discovery Robustness)
+
+- `src/tools/slashcommand/tools.ts` + `src/index.ts`: Restored builtin command discovery via `loadBuiltinCommands` (previously missing from `discoverCommandsSync`) and wired config `disabled_commands` into discovery so fork honors command-level disables.
+- `src/tools/look-at/tools.ts` + `src/tools/look-at/tools.test.ts`: Ported upstream `promptWithModelSuggestionRetry` for resilient “model suggestion” prompting while keeping fork’s case-insensitive agent matching; rewrote tests to be English-only and expanded coverage for parse/prompt failure paths and model+variant passthrough.
+- `src/tools/lsp/config.ts`: Restored upstream LSP binary lookup path that checks OpenCode data-dir `bin/` (e.g. `~/.local/share/opencode/bin`) to reduce “LSP not found” false negatives.
+- `src/features/skill-mcp-manager/manager.ts`: Restored upstream cleanup semantics (`pendingConnections`/`authProviders` clearing, stop cleanup timer when idle) while keeping the fork’s explicit SIGINT/SIGTERM/SIGBREAK handler bookkeeping.
+- `src/features/background-agent/*`: Kept fork refactor split (`manager`/`spawner`/`result-handler`/`state`) while preserving upstream semantics (non-blocking queue, idle completion, stale interruption, parent notifications). Restored upstream-equivalent ConcurrencyManager assertions and aligned background polling + cleanup retention defaults (3s poll, 10min retention). De-duplicated message-dir resolution via shared `src/shared/session-utils.ts`.
+- `src/features/context-injector/*`: Fork-only extensions (context budget + per-source limits + once-per-session injection) validated via tests; upstream base behavior preserved (priority ordering + deterministic merge).
+- `src/features/hook-message-injector/*`: Runtime aligned; fork keeps test-only path override helpers (`setOpenCodeStorageDirForTesting`) to prevent writing to real user data during tests.
+- `src/features/claude-code-*-loader/*`: Runtime aligned; fork keeps shared utilities (`wrap*Template`, `formatScopedDescription`, `get*Directories`, `to*Record`) for maintainability without changing behavior.
+- `src/features/opencode-skill-loader/*`: Fork refactor centralizes parsing (`skill-builder` + `mcp-parser`) while preserving upstream conventions (SKILL.md + `{dir}.md`, frontmatter + `mcp.json` MCP config, allowed-tools parsing, model-source sanitization).
+- `src/config/schema.ts`: Re-added `preemptive-compaction` to `HookNameSchema`, restored background concurrency `0 => Infinity` compatibility, aligned compaction-threshold documentation to `0.78`, and kept upstream reasoning-effort compatibility (`xhigh`).
+
+### 2026-02-05 Addendum (Config + Model/Agent Resolution)
+
+- `src/plugin-handlers/config-handler.ts` + `src/plugin-handlers/config-handler.test.ts`: Synced upstream config assembly and hardened edge-cases (core-agent ordering, plan-agent demotion fix, builtin-agent overwrite prevention, MCP merge order). Preserved fork semantics: Prometheus multi-model arrays for multi-plan (first model used for the Prometheus agent), Prometheus model priority `agents.prometheus.model` → category model → fallbackChain → `config.model` (system default, not UI override), and Sisyphus-Junior delegation remains denied (defense-in-depth).
+- `src/shared/model-resolver.ts` + `src/shared/model-resolver.test.ts`: Ported upstream wrapper around `resolveModelPipeline` (UI selection + config override + category-default + fallbackChain + optional system default), including the full upstream test suite (availability-based + connected-provider-cache paths).
+- `src/shared/agent-tool-restrictions.ts`: Inlined case-insensitive restrictions lookup (drop `findCaseInsensitive` import) to match upstream semantics and reduce dependency surface.
+- `src/shared/model-resolution-pipeline.ts`: Kept fork-only result type name (`ModelResolutionPipelineResult`) to avoid barrel export conflicts with `src/shared/model-resolver.ts` (`ModelResolutionResult`).
+
+### 2026-02-05 Addendum (CLI Run Event Stream)
+
+- `src/cli/run/events.ts` + `src/cli/run/types.ts` + `src/cli/run/events.test.ts`: Synced upstream run-event streaming + verbose logging (sessionTag system fallback, tool markers, message.part text preview). Dropped `message.updated` content streaming fallback to avoid duplicate/buggy output; it now only marks `hasReceivedMeaningfulWork` for assistant messages. Ported upstream coverage for `hasReceivedMeaningfulWork` semantics (kept fork BDD `#given/#when/#then` comment style).
+
+### 2026-02-05 Addendum (CLI Install Model Fallback)
+
+- `src/cli/model-fallback.ts` + `src/cli/model-fallback.test.ts` + `src/cli/__snapshots__/model-fallback.test.ts.snap`: Synced upstream model fallback generator to use `src/shared/model-requirements.ts` as the single source of truth (provider availability mapping incl. Kimi; `requiresAnyModel`/`requiresModel` gating; category downgrade `unspecified-high` → `unspecified-low` when not Max plan; explore/sisyphus/hephaestus special cases). Snapshots updated to reflect the fork’s agent set (no Metis/Momus; includes `plan-synthesizer`).
+
+### 2026-02-05 Addendum (CLI Config Manager)
+
+- `src/cli/config-manager.ts` + `src/cli/config-manager.test.ts`: Synced upstream Antigravity provider catalog by removing legacy tier-suffixed Gemini Pro entries (`antigravity-gemini-3-pro-{low,high}`) in favor of variants, and aligned tests to validate variant definitions across Gemini (Pro/Flash) and Claude thinking models.
+
+### 2026-02-05 Addendum (CLI Doctor Parity)
+
+- `src/cli/doctor/checks/dependencies.ts` + `src/cli/doctor/checks/dependencies.test.ts`: Synced upstream AST-Grep NAPI detection to use dynamic import first (bunx temp env compatibility), with fallback checks for common `node_modules/@ast-grep/napi` install paths. Updated `checkDependencyAstGrepNapi()` to await the async check.
+- `src/cli/doctor/checks/opencode.ts`: Aligned with upstream (comment-only divergence removed).
+
+### 2026-02-05 Addendum (Builtin Catalog Review)
+
+- `src/features/builtin-skills/skills.ts` + `src/features/builtin-skills/skills/*`: Verified upstream baseline skills are in sync (playwright/agent-browser, frontend-ui-ux, git-master, dev-browser). Fork intentionally adds extra builtin skills (parallel-agents, spec/code review helpers, writing-plans, systematic-debugging, code-simplifier, cartography) and keeps them included in `createBuiltinSkills()`.
+- `src/features/builtin-commands/templates/*`: Reviewed upstream parity; fork keeps deliberate overrides:
+  - `start-work.ts` / `stop-continuation.ts`: reference fork `work-state` (`.sisyphus/work.yaml`) instead of upstream `boulder-state` (`.sisyphus/boulder.json`).
+  - `init-deep.ts`: `delegate_task(...)` examples follow this fork’s required tool args (not upstream shorthand) to prevent invalid calls.
+  - `cartography.ts`: fork-only command retained.
+
+---
+
+## 4. Review Coverage Checklist (WIP, Chain-Oriented)
+
+This file used to live at `docs/upstream-sync-notes.md` and was moved to the repo root (commit `8d0cf505`) to avoid duplication and “missing notes” confusion.
+
+Audit metrics (fork vs local upstream clone, excluding `docs/`, `dist/`, `node_modules/`):
+- Upstream-only files: **56** (all under `src/`; all in explicitly excluded subsystems per policy)
+- Common-but-different files: **136** (breakdown: `src/features` 33, `src/hooks` 28, `src/shared` 22, `src/agents` 21, `src/tools` 14; remainder is config/CLI/root files)
+- Fork-only files: **1034** (expected given fork-only subsystems + refactors)
+
+### Hooks — `chat.message` chain (implemented in `src/index.ts`)
+
+- ✅ `src/hooks/think-mode/*`: Aligned; wired into `chat.message` pre keyword-detector injection (fork keeps Gemini `*-preview` aliases for backward compatibility).
+- ✅ `src/hooks/keyword-detector/*`: Core detection logic aligned; `ultrawork/*` keeps fork tool-schema-correct `delegate_task(...)` examples.
+- ✅ `src/hooks/claude-code-hooks/*`: Aligned.
+- ✅ `src/features/session-handoff/*`: Fork-only (kept).
+- ✅ `src/hooks/auto-slash-command/*`: Behavior aligned; fork uses `src/shared/command-discovery.ts` abstraction (upstream inlines equivalent logic).
+- ✅ `src/hooks/start-work/*`: Fork-owned due to `work-state` (do not merge upstream `boulder-state`).
+- ✅ `src/hooks/stop-continuation-guard/*`: Aligned.
+- ✅ `src/hooks/ralph-loop/*`: Aligned (note: start/cancel wiring is handled inline inside `src/index.ts`).
+
+### Hooks — `tool.execute.before` chain (implemented in `src/index.ts`)
+
+- ✅ `src/hooks/question-label-truncator/*`: Runtime aligned; fork keeps stricter tests (no `as any` casts).
+- ✅ `src/hooks/subagent-question-blocker/*`: Runtime aligned; fork keeps stricter tests (no `as any` casts).
+- ✅ `src/hooks/non-interactive-env/*`: Aligned.
+- ✅ `src/hooks/comment-checker/*`: Aligned.
+- ✅ `src/hooks/directory-agents-injector/*`: Aligned.
+- ✅ `src/hooks/directory-readme-injector/*`: Aligned.
+- ✅ `src/hooks/rules-injector/*`: Aligned.
+- ⚠️ `src/hooks/prometheus-md-only/*`: FORK_OVERRIDE (prompt/checklist text), preserve upstream constraints/validation behavior.
+- ⚠️ `src/hooks/sisyphus-junior-notepad/*`: FORK_OVERRIDE (only inject for Sisyphus-Junior executions to reduce noise).
+- ⚠️ `src/hooks/atlas/*`: Fork-owned (work-state).
+
+### Hooks — `tool.execute.after` chain (implemented in `src/index.ts`)
+
+- ✅ `src/hooks/tool-output-truncator.ts`: Aligned.
+- ⚠️ `src/hooks/preemptive-compaction.ts`: FORK_OVERRIDE (keeps config override + shared context-limit helpers).
+- ⚠️ `src/hooks/context-window-monitor.ts`: FORK_OVERRIDE (keeps fork-accurate limit labeling and directive prefix).
+- ✅ `src/hooks/empty-task-response-detector.ts`: Aligned.
+- ⚠️ `src/hooks/agent-usage-reminder/*`: FORK_OVERRIDE (keep fork-accurate `delegate_task(...)` examples).
+- ✅ `src/hooks/category-skill-reminder/*`: Runtime aligned; tests now cover session-agent state (no dependency on `input.agent`).
+- ✅ `src/hooks/interactive-bash-session/*`: Aligned.
+- ✅ `src/hooks/edit-error-recovery/*`: Aligned.
+- ✅ `src/hooks/delegate-task-retry/*`: Aligned.
+- ⚠️ `src/hooks/task-resume-info/*`: FORK_OVERRIDE (keep fork-accurate `delegate_task(...)` continuation example).
+- ⚠️ `src/hooks/atlas/*`: Fork-owned (work-state).
+
+### Hooks — lifecycle/event chain (implemented in `src/index.ts`)
+
+- ✅ `src/hooks/auto-update-checker/*`: Aligned (fork keeps `constants.ts` clean by dropping upstream unused `node:fs` import).
+- ⚠️ `src/hooks/context-window-limit-recovery/*`: FORK_OVERRIDE (renamed from upstream `anthropic-context-window-limit-recovery`). Runtime role is equivalent (auto-recover on token limit), with fork-only extensions (Dynamic Context Pruning + handoff suggestion). `src/shared/migration.ts` provides backward-compatible hook-name migration.
+- ✅ `src/hooks/todo-continuation-enforcer.ts` (+ tests): Aligned; supports stop-continuation integration (`isContinuationStopped`, `cancelAllCountdowns`, compaction-aware agent resolution).
+- ⛔ Upstream-only hooks intentionally excluded: `src/hooks/task-reminder/`, `src/hooks/unstable-agent-babysitter/` (DROP per fork policy).
+
+### Next diffs to review (not yet fully documented in this file)
+
+- ✅ Prometheus Phase 2/3 plan prompts reviewed: `src/agents/prometheus/plan-generation.ts`, `src/agents/prometheus/high-accuracy-mode.ts`, `src/agents/prometheus/plan-template.ts`, `src/agents/prometheus/identity-constraints.ts`
+  - No Metis/Momus reintroduced; multi-plan routing (`multi_plan`) + debate semantics preserved; examples remain schema-correct for this fork.
+- ✅ Orchestrator prompts reviewed: `src/agents/atlas/*`
+  - All `delegate_task(...)` examples updated to this fork’s required args; no boulder-state language reintroduced.
+- ✅ Primary agent prompt reviewed: `src/agents/sisyphus.ts`
+  - Delegation decision protocol matches `src/hooks/delegation-validator/`; examples remain schema-correct.
+- ✅ Agent registry + prompt builder reviewed: `src/agents/utils.ts`, `src/agents/types.ts`, `src/agents/index.ts`, `src/agents/dynamic-agent-prompt-builder.ts`
+  - Fork agent set is consistent (no Metis/Momus; includes `plan-synthesizer`); override schema supports multi-model Prometheus + category/skills/mode.
+
+### 2026-02-05 Addendum (Final Low-Blast Review)
+
+- ✅ `src/agents/sisyphus-junior.test.ts`: Fork-expanded coverage retained (system default model + disable semantics); confirms `call_omo_agent` remains allowed while `task`/`delegate_task` are blocked.
+- ✅ `src/agents/utils.test.ts`: Rewrote to be deterministic (spy-based stubbing for model availability + connected provider cache), porting upstream coverage (gating, category expansion, deadlock prevention) while keeping fork-specific assertions (`uiSelectedModel` priority, skill injection, agent-browser gating).
+- ✅ `src/agents/AGENTS.md`: Updated to reflect the fork’s agent set and layout (no Metis/Momus; Prometheus is `src/agents/prometheus/*`; includes Sisyphus-Junior + Plan-Synthesizer) and to document model resolution + tool restrictions accurately.
+- ✅ `src/hooks/delegation-validator/index.ts`: Hardened `session.messages()` payload handling (`{ data }` vs array) and added regression coverage.
+- ✅ `src/hooks/sisyphus-junior-notepad/index.ts`: Now requires `sessionID` + non-empty `prompt` before injecting, preventing accidental mutation of invalid tool calls; keeps the fork’s “inject only for Sisyphus-Junior executions” policy.
+- ✅ `src/hooks/atlas/index.ts` + `src/hooks/atlas/index.test.ts`: Fixed background-task detection to match fork `delegate_task` output (`Background task continued`) so Atlas does not transform/append verification reminders for background launches/continuations; added regression tests for undefined `tool.execute.after` output guard and background continuation outputs; `delegate_task` single-task directive is now prepended for stronger enforcement.
+- ✅ User-facing text cleanup: Removed stale `boulder` wording from builtin command description (`src/features/builtin-commands/commands.ts`) and eliminated ambiguous `delegate_task()` prose in prompts/skills (standardized on `delegate_task(...)` and ensured schema-required args appear where examples are provided).
+- ✅ Repo-level diff audit (local upstream clone): Upstream-only files count = **56**, all under `src/` and all in explicitly excluded subsystems (task tool + claude-tasks + boulder-state + tmux-subagent + task-reminder + unstable-agent-babysitter + anthropic recovery hook + metis/momus). No upstream-only files exist outside `src/` (excluding `docs/`, `dist/`, `node_modules/`).

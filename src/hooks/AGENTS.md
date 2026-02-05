@@ -2,7 +2,9 @@
 
 ## OVERVIEW
 
-31 lifecycle hooks intercepting/modifying agent behavior. Events: PreToolUse, PostToolUse, UserPromptSubmit, Stop, onSummarize.
+Hook collection intercepting/modifying agent behavior across multiple lifecycle events.
+
+**Source of truth**: `src/index.ts` (the call order in the plugin event handlers).
 
 ## STRUCTURE
 
@@ -20,34 +22,50 @@ hooks/
 ├── rules-injector/             # Conditional rules from .claude/rules/
 ├── directory-agents-injector/  # Auto-injects AGENTS.md files
 ├── directory-readme-injector/  # Auto-injects README.md files
-├── preemptive-compaction/      # Triggers summary at 85% context
+├── preemptive-compaction.ts    # Triggers summary before context limit
+├── compaction-context-injector/ # Injects structured compaction guidance
 ├── edit-error-recovery/        # Recovers from tool failures
+├── delegate-task-retry/        # Retries failed delegations
 ├── thinking-block-validator/   # Ensures valid <thinking> format
 ├── context-window-monitor.ts   # Reminds agents of remaining headroom
 ├── session-recovery/           # Auto-recovers from crashes
 ├── think-mode/                 # Dynamic thinking budget
 ├── keyword-detector/           # ultrawork/search/analyze modes
+├── question-label-truncator/   # Truncates question option labels
+├── subagent-question-blocker/  # Blocks question tool for subagent sessions
+├── prometheus-md-only/         # Planner read-only mode
+├── sisyphus-junior-notepad/    # Injects notepad context for Junior tasks
+├── agent-usage-reminder/       # Nudges to use specialized agents/tools
+├── category-skill-reminder/    # Reminds orchestrators of category+skills
+├── non-interactive-env/        # Non-TTY environment handling
+├── interactive-bash-session/   # Interactive bash session management
 ├── background-notification/    # OS notification on task completion
 └── tool-output-truncator.ts    # Prevents context bloat
 ```
+
+This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set of hooks in this fork.
 
 ## HOOK EVENTS
 
 | Event | Timing | Can Block | Use Case |
 |-------|--------|-----------|----------|
-| PreToolUse | Before tool | Yes | Validate/modify inputs, inject context |
-| PostToolUse | After tool | No | Append warnings, truncate output |
-| UserPromptSubmit | On prompt | Yes | Keyword detection, mode switching |
-| Stop | Session idle | No | Auto-continue (todo-continuation, ralph-loop) |
-| onSummarize | Compaction | No | Preserve critical state |
+| `chat.message` | On user message | Yes | Keyword detection, slash commands, work session bootstrap |
+| `tool.execute.before` | Before tool | Yes | Validate/modify tool args, inject context |
+| `tool.execute.after` | After tool | No | Append warnings, truncate output, recovery |
+| `event` | Session lifecycle | No | Cleanup + background handlers |
+| `experimental.session.compacting` | Compaction | No | Compaction context injection |
 
 ## EXECUTION ORDER
 
-**chat.message**: keywordDetector → claudeCodeHooks → autoSlashCommand → startWork → ralphLoop
+**chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → multiPlanTrigger → planningWithFiles → preCompletionVerification → stopContinuationGuard → (ralphLoop start/cancel)
 
-**tool.execute.before**: claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector
+**tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → atlasHook → tmuxParallelAgents → swarmAgent → silentToolOutput
 
-**tool.execute.after**: editErrorRecovery → delegateTaskRetry → commentChecker → toolOutputTruncator → emptyTaskResponseDetector → claudeCodeHooks
+**tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → preemptiveCompaction → contextWindowMonitor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → agentUsageReminder → categorySkillReminder → interactiveBashSession → editErrorRecovery → delegateTaskRetry → atlasHook → taskResumeInfo → sessionHandoffHook → swarmAgent
+
+Notes:
+- Conditional rules and governance add additional per-tool logic inside these handlers (see `src/index.ts`).
+- Order is intentionally tuned to avoid context bloat and ensure safety checks run before mutating tool args.
 
 ## HOW TO ADD
 

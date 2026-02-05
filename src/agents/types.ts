@@ -1,10 +1,10 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 
 /**
- * Agent mode determines UI model selection behavior:
- * - "primary": Respects user's UI-selected model (sisyphus, atlas)
- * - "subagent": Uses own fallback chain, ignores UI selection (oracle, explore, etc.)
- * - "all": Available in both contexts (OpenCode compatibility)
+ * Agent mode guides model selection behavior and usage:
+ * - "primary": top-level agents; may respect UI model selection when wired (currently Sisyphus).
+ * - "subagent": specialist/background agents; use own fallback chains, ignore UI selection.
+ * - "all": available in both contexts (OpenCode compatibility).
  */
 export type AgentMode = "primary" | "subagent" | "all"
 

@@ -4,9 +4,11 @@ import { resolveCommandsInText, resolveFileReferencesInText } from "../../shared
 import { discoverCommandsFromDir, skillToCommandInfo } from "../../shared/command-discovery"
 import { getCommandDirectories } from "../../shared/paths"
 import { discoverAllSkills, type LoadedSkill } from "../../features/opencode-skill-loader"
+import { loadBuiltinCommands } from "../../features/builtin-commands"
+import type { BuiltinCommandName } from "../../features/builtin-commands/types"
 import type { CommandScope, CommandInfo, SlashcommandToolOptions } from "./types"
 
-export function discoverCommandsSync(): CommandInfo[] {
+export function discoverCommandsSync(disabledBuiltinCommands?: BuiltinCommandName[]): CommandInfo[] {
   const dirs = getCommandDirectories()
 
   const userCommands = discoverCommandsFromDir<CommandScope>(dirs.user, "user")
@@ -14,7 +16,28 @@ export function discoverCommandsSync(): CommandInfo[] {
   const projectCommands = discoverCommandsFromDir<CommandScope>(dirs.project, "project")
   const opencodeProjectCommands = discoverCommandsFromDir<CommandScope>(dirs.opencodeProject, "opencode-project")
 
-  return [...opencodeProjectCommands, ...projectCommands, ...opencodeGlobalCommands, ...userCommands]
+  const builtinCommandsMap = loadBuiltinCommands(disabledBuiltinCommands)
+  const builtinCommands: CommandInfo[] = Object.values(builtinCommandsMap).map((cmd) => ({
+    name: cmd.name,
+    metadata: {
+      name: cmd.name,
+      description: cmd.description || "",
+      argumentHint: cmd.argumentHint,
+      model: cmd.model,
+      agent: cmd.agent,
+      subtask: cmd.subtask,
+    },
+    content: cmd.template,
+    scope: "builtin",
+  }))
+
+  return [
+    ...builtinCommands,
+    ...opencodeProjectCommands,
+    ...projectCommands,
+    ...opencodeGlobalCommands,
+    ...userCommands,
+  ]
 }
 
 async function formatLoadedCommand(cmd: CommandInfo, userMessage?: string): Promise<string> {

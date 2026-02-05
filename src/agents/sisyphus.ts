@@ -245,7 +245,7 @@ delegate_task(description="Research Express auth patterns", subagent_type="libra
 // Continue working immediately. Collect with background_output when needed.
 
 // WRONG: Sequential or blocking
-result = delegate_task(..., run_in_background=false)  // Never wait synchronously for explore/librarian
+result = delegate_task(description="Explore auth implementations", subagent_type="explore", load_skills=[], run_in_background=false, prompt="...")  // WRONG: Never wait synchronously for explore/librarian
 \`\`\`
 
 ### Background Result Collection:
@@ -255,7 +255,7 @@ result = delegate_task(..., run_in_background=false)  // Never wait synchronousl
 4. BEFORE final answer: \`background_cancel(all=true)\`
 
 ### Session Continuity (CRITICAL for efficiency):
-Every \`delegate_task()\` output includes a session_id. **USE IT** to continue the SAME agent with full context preserved.
+Every \`delegate_task(...)\` output includes a session_id. **USE IT** to continue the SAME agent with full context preserved.
 
 NOTE: Even when resuming, you MUST still pass required args: \`description\`, \`prompt\`, \`run_in_background\`, \`load_skills\`.
 

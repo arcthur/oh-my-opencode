@@ -3,13 +3,16 @@ import {
   getDefaultAnthropicContextLimit,
   formatContextLimit,
 } from "../shared/context-limits"
+import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
 
 const ANTHROPIC_ACTUAL_LIMIT = getDefaultAnthropicContextLimit()
 const CONTEXT_WARNING_THRESHOLD = 0.70
 
 function getContextReminder(actualLimit: number): string {
   const limitLabel = formatContextLimit(actualLimit)
-  return `[SYSTEM REMINDER - ${limitLabel} Context Window]
+  return `${createSystemDirective(SystemDirectiveTypes.CONTEXT_WINDOW_MONITOR)}
+
+[SYSTEM REMINDER - ${limitLabel} Context Window]
 
 You are using Anthropic Claude with ${limitLabel} context window.
 You have plenty of context remaining - do NOT rush or skip tasks.
@@ -63,13 +66,11 @@ export function createContextWindowMonitorHook(ctx: PluginInput) {
       const lastTokens = lastAssistant.tokens
       const totalInputTokens = (lastTokens?.input ?? 0) + (lastTokens?.cache?.read ?? 0)
 
-      const actualUsagePercentage = totalInputTokens / ANTHROPIC_ACTUAL_LIMIT
-
-      if (actualUsagePercentage < CONTEXT_WARNING_THRESHOLD) return
+      const usagePercentage = totalInputTokens / ANTHROPIC_ACTUAL_LIMIT
+      if (usagePercentage < CONTEXT_WARNING_THRESHOLD) return
 
       remindedSessions.add(sessionID)
 
-      const usagePercentage = totalInputTokens / ANTHROPIC_ACTUAL_LIMIT
       const usedPct = (usagePercentage * 100).toFixed(1)
       const remainingPct = ((1 - usagePercentage) * 100).toFixed(1)
       const usedTokens = totalInputTokens.toLocaleString()

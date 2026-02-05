@@ -182,7 +182,7 @@ delegate_task(description="Quick fix", category="quick", load_skills=["git-maste
 
 | Rule | Implementation |
 |------|----------------|
-| **PARALLEL FIRST** | Fire ALL **truly independent** agents simultaneously via delegate_task(run_in_background=true) |
+| **PARALLEL FIRST** | Fire ALL **truly independent** agents simultaneously via delegate_task(..., run_in_background=true) |
 | **DATA DEPENDENCY CHECK** | If task B requires output FROM task A, B MUST wait for A to complete |
 | **10+ CONCURRENT** | Use 10+ background agents if needed for comprehensive exploration |
 | **COLLECT BEFORE DEPENDENT** | Collect results with background_output() BEFORE invoking dependent tasks |

@@ -103,8 +103,6 @@ export function findDesktopBinary(
 }
 
 export async function findOpenCodeBinary(): Promise<{ binary: string; path: string } | null> {
-  // Use cross-platform Bun.which() instead of spawning 'which'/'where' commands
-  // This fixes Windows compatibility issues (#599, #1005)
   for (const binary of OPENCODE_BINARIES) {
     try {
       const path = Bun.which(binary)

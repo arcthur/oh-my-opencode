@@ -10,6 +10,9 @@ exports[`generateModelConfig no providers available returns ULTIMATE_FALLBACK fo
     "explore": {
       "model": "opencode/glm-4.7-free",
     },
+    "hephaestus": {
+      "model": "opencode/glm-4.7-free",
+    },
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
@@ -19,15 +22,18 @@ exports[`generateModelConfig no providers available returns ULTIMATE_FALLBACK fo
     "oracle": {
       "model": "opencode/glm-4.7-free",
     },
-    "prometheus": {
+    "plan-synthesizer": {
       "model": "opencode/glm-4.7-free",
     },
-    "sisyphus": {
+    "prometheus": {
       "model": "opencode/glm-4.7-free",
     },
   },
   "categories": {
     "artistry": {
+      "model": "opencode/glm-4.7-free",
+    },
+    "deep": {
       "model": "opencode/glm-4.7-free",
     },
     "quick": {
@@ -60,35 +66,38 @@ exports[`generateModelConfig single native provider uses Claude models when only
       "model": "anthropic/claude-sonnet-4-5",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "anthropic/claude-haiku-4-5",
     },
     "librarian": {
-      "model": "opencode/glm-4.7-free",
+      "model": "anthropic/claude-sonnet-4-5",
     },
     "multimodal-looker": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-haiku-4-5",
     },
     "oracle": {
       "model": "anthropic/claude-opus-4-5",
-      "variant": "high",
+      "variant": "max",
     },
-    "prometheus": {
-      "model": "anthropic/claude-sonnet-4-5",
-    },
-    "sisyphus": {
-      "model": "anthropic/claude-sonnet-4-5",
-    },
-  },
-  "categories": {
-    "artistry": {
+    "plan-synthesizer": {
       "model": "anthropic/claude-opus-4-5",
       "variant": "max",
     },
+    "prometheus": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
+    "sisyphus": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
+  },
+  "categories": {
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "unspecified-high": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -97,7 +106,8 @@ exports[`generateModelConfig single native provider uses Claude models when only
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "writing": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -111,47 +121,52 @@ exports[`generateModelConfig single native provider uses Claude models with isMa
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "anthropic/claude-sonnet-4-5",
     },
     "explore": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "librarian": {
-      "model": "opencode/glm-4.7-free",
+      "model": "anthropic/claude-sonnet-4-5",
     },
     "multimodal-looker": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-haiku-4-5",
     },
     "oracle": {
       "model": "anthropic/claude-opus-4-5",
-      "variant": "high",
+      "variant": "max",
     },
-    "prometheus": {
-      "model": "anthropic/claude-opus-4-5",
-    },
-    "sisyphus": {
-      "model": "anthropic/claude-opus-4-5",
-    },
-  },
-  "categories": {
-    "artistry": {
+    "plan-synthesizer": {
       "model": "anthropic/claude-opus-4-5",
       "variant": "max",
     },
+    "prometheus": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
+    "sisyphus": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
+  },
+  "categories": {
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "unspecified-high": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "unspecified-low": {
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "writing": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -168,7 +183,11 @@ exports[`generateModelConfig single native provider uses OpenAI models when only
       "model": "openai/gpt-5.2",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/gpt-5-nano",
+    },
+    "hephaestus": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
@@ -177,35 +196,40 @@ exports[`generateModelConfig single native provider uses OpenAI models when only
       "model": "openai/gpt-5.2",
     },
     "oracle": {
-      "model": "openai/gpt-5.2-codex",
+      "model": "openai/gpt-5.2",
+      "variant": "high",
+    },
+    "plan-synthesizer": {
+      "model": "openai/gpt-5.2",
       "variant": "high",
     },
     "prometheus": {
       "model": "openai/gpt-5.2",
-    },
-    "sisyphus": {
-      "model": "openai/gpt-5.2",
+      "variant": "high",
     },
   },
   "categories": {
-    "artistry": {
-      "model": "openai/gpt-5.2",
-      "variant": "max",
+    "deep": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "quick": {
-      "model": "openai/gpt-5.1-codex-mini",
+      "model": "opencode/glm-4.7-free",
     },
     "ultrabrain": {
       "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
-      "model": "openai/gpt-5.2",
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "unspecified-low": {
-      "model": "openai/gpt-5.2",
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "visual-engineering": {
-      "model": "openai/gpt-5.2",
+      "model": "opencode/glm-4.7-free",
     },
     "writing": {
       "model": "openai/gpt-5.2",
@@ -222,7 +246,11 @@ exports[`generateModelConfig single native provider uses OpenAI models with isMa
       "model": "openai/gpt-5.2",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/gpt-5-nano",
+    },
+    "hephaestus": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
@@ -231,35 +259,40 @@ exports[`generateModelConfig single native provider uses OpenAI models with isMa
       "model": "openai/gpt-5.2",
     },
     "oracle": {
-      "model": "openai/gpt-5.2-codex",
+      "model": "openai/gpt-5.2",
+      "variant": "high",
+    },
+    "plan-synthesizer": {
+      "model": "openai/gpt-5.2",
       "variant": "high",
     },
     "prometheus": {
       "model": "openai/gpt-5.2",
-    },
-    "sisyphus": {
-      "model": "openai/gpt-5.2",
+      "variant": "high",
     },
   },
   "categories": {
-    "artistry": {
-      "model": "openai/gpt-5.2",
-      "variant": "max",
+    "deep": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "quick": {
-      "model": "openai/gpt-5.1-codex-mini",
+      "model": "opencode/glm-4.7-free",
     },
     "ultrabrain": {
       "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "openai/gpt-5.2",
+      "variant": "high",
     },
     "unspecified-low": {
-      "model": "openai/gpt-5.2",
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "visual-engineering": {
-      "model": "openai/gpt-5.2",
+      "model": "opencode/glm-4.7-free",
     },
     "writing": {
       "model": "openai/gpt-5.2",
@@ -273,50 +306,51 @@ exports[`generateModelConfig single native provider uses Gemini models when only
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-pro",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/gpt-5-nano",
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
     "multimodal-looker": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-flash",
     },
     "oracle": {
-      "model": "google/gemini-3-pro-preview",
-      "variant": "high",
+      "model": "google/gemini-3-pro",
+      "variant": "max",
+    },
+    "plan-synthesizer": {
+      "model": "google/gemini-3-pro",
     },
     "prometheus": {
-      "model": "google/gemini-3-flash-preview",
-    },
-    "sisyphus": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-pro",
     },
   },
   "categories": {
     "artistry": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
       "variant": "max",
     },
     "quick": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
     "ultrabrain": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
+      "variant": "max",
     },
     "unspecified-high": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
     "unspecified-low": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
     "visual-engineering": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "writing": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
   },
 }
@@ -327,50 +361,51 @@ exports[`generateModelConfig single native provider uses Gemini models with isMa
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/gpt-5-nano",
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
     "multimodal-looker": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-flash",
     },
     "oracle": {
-      "model": "google/gemini-3-pro-preview",
-      "variant": "high",
+      "model": "google/gemini-3-pro",
+      "variant": "max",
+    },
+    "plan-synthesizer": {
+      "model": "google/gemini-3-pro",
     },
     "prometheus": {
-      "model": "google/gemini-3-pro-preview",
-    },
-    "sisyphus": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
   },
   "categories": {
     "artistry": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
       "variant": "max",
     },
     "quick": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
     "ultrabrain": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
+      "variant": "max",
     },
     "unspecified-high": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "unspecified-low": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
     "visual-engineering": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "writing": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
   },
 }
@@ -384,35 +419,50 @@ exports[`generateModelConfig all native providers uses preferred models from fal
       "model": "anthropic/claude-sonnet-4-5",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "anthropic/claude-haiku-4-5",
+    },
+    "hephaestus": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
-      "model": "opencode/glm-4.7-free",
+      "model": "anthropic/claude-sonnet-4-5",
     },
     "multimodal-looker": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-flash",
     },
     "oracle": {
-      "model": "openai/gpt-5.2-codex",
+      "model": "openai/gpt-5.2",
       "variant": "high",
     },
+    "plan-synthesizer": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
     "prometheus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
       "variant": "max",
+    },
+    "deep": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -421,10 +471,10 @@ exports[`generateModelConfig all native providers uses preferred models from fal
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "writing": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
   },
 }
@@ -435,50 +485,66 @@ exports[`generateModelConfig all native providers uses preferred models with isM
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "anthropic/claude-sonnet-4-5",
     },
     "explore": {
       "model": "anthropic/claude-haiku-4-5",
     },
+    "hephaestus": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
+    },
     "librarian": {
-      "model": "opencode/glm-4.7-free",
+      "model": "anthropic/claude-sonnet-4-5",
     },
     "multimodal-looker": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-flash",
     },
     "oracle": {
-      "model": "openai/gpt-5.2-codex",
+      "model": "openai/gpt-5.2",
       "variant": "high",
+    },
+    "plan-synthesizer": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "prometheus": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
       "variant": "max",
+    },
+    "deep": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "unspecified-low": {
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "writing": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
   },
 }
@@ -489,26 +555,36 @@ exports[`generateModelConfig fallback providers uses OpenCode Zen models when on
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "opencode/kimi-k2.5-free",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/claude-haiku-4-5",
+    },
+    "hephaestus": {
+      "model": "opencode/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
     "multimodal-looker": {
-      "model": "opencode/gemini-3-pro",
+      "model": "opencode/gemini-3-flash",
     },
     "oracle": {
-      "model": "opencode/gpt-5.2-codex",
+      "model": "opencode/gpt-5.2",
       "variant": "high",
     },
+    "plan-synthesizer": {
+      "model": "opencode/claude-opus-4-5",
+      "variant": "max",
+    },
     "prometheus": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "opencode/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "opencode/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
@@ -516,11 +592,16 @@ exports[`generateModelConfig fallback providers uses OpenCode Zen models when on
       "model": "opencode/gemini-3-pro",
       "variant": "max",
     },
+    "deep": {
+      "model": "opencode/gpt-5.2-codex",
+      "variant": "medium",
+    },
     "quick": {
       "model": "opencode/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "opencode/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "opencode/claude-sonnet-4-5",
@@ -543,26 +624,36 @@ exports[`generateModelConfig fallback providers uses OpenCode Zen models with is
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "opencode/claude-opus-4-5",
+      "model": "opencode/kimi-k2.5-free",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/claude-haiku-4-5",
+    },
+    "hephaestus": {
+      "model": "opencode/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
     "multimodal-looker": {
-      "model": "opencode/gemini-3-pro",
+      "model": "opencode/gemini-3-flash",
     },
     "oracle": {
-      "model": "opencode/gpt-5.2-codex",
+      "model": "opencode/gpt-5.2",
       "variant": "high",
+    },
+    "plan-synthesizer": {
+      "model": "opencode/claude-opus-4-5",
+      "variant": "max",
     },
     "prometheus": {
       "model": "opencode/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
       "model": "opencode/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
@@ -570,14 +661,20 @@ exports[`generateModelConfig fallback providers uses OpenCode Zen models with is
       "model": "opencode/gemini-3-pro",
       "variant": "max",
     },
+    "deep": {
+      "model": "opencode/gpt-5.2-codex",
+      "variant": "medium",
+    },
     "quick": {
       "model": "opencode/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "opencode/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "opencode/claude-opus-4-5",
+      "variant": "max",
     },
     "unspecified-low": {
       "model": "opencode/claude-sonnet-4-5",
@@ -600,23 +697,33 @@ exports[`generateModelConfig fallback providers uses GitHub Copilot models when 
       "model": "github-copilot/claude-sonnet-4.5",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "github-copilot/gpt-5-mini",
+    },
+    "hephaestus": {
+      "model": "github-copilot/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
-      "model": "github-copilot/gpt-5.2",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "multimodal-looker": {
-      "model": "github-copilot/gemini-3-pro-preview",
+      "model": "github-copilot/gemini-3-flash-preview",
     },
     "oracle": {
-      "model": "github-copilot/gpt-5.2-codex",
+      "model": "github-copilot/gpt-5.2",
       "variant": "high",
     },
+    "plan-synthesizer": {
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
+    },
     "prometheus": {
-      "model": "github-copilot/claude-sonnet-4.5",
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "github-copilot/claude-sonnet-4.5",
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
   },
   "categories": {
@@ -624,11 +731,16 @@ exports[`generateModelConfig fallback providers uses GitHub Copilot models when 
       "model": "github-copilot/gemini-3-pro-preview",
       "variant": "max",
     },
+    "deep": {
+      "model": "github-copilot/gpt-5.2-codex",
+      "variant": "medium",
+    },
     "quick": {
       "model": "github-copilot/claude-haiku-4.5",
     },
     "ultrabrain": {
       "model": "github-copilot/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "github-copilot/claude-sonnet-4.5",
@@ -651,26 +763,36 @@ exports[`generateModelConfig fallback providers uses GitHub Copilot models with 
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "github-copilot/claude-opus-4.5",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "github-copilot/gpt-5-mini",
+    },
+    "hephaestus": {
+      "model": "github-copilot/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
-      "model": "github-copilot/gpt-5.2",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "multimodal-looker": {
-      "model": "github-copilot/gemini-3-pro-preview",
+      "model": "github-copilot/gemini-3-flash-preview",
     },
     "oracle": {
-      "model": "github-copilot/gpt-5.2-codex",
+      "model": "github-copilot/gpt-5.2",
       "variant": "high",
+    },
+    "plan-synthesizer": {
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
     "prometheus": {
       "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
     "sisyphus": {
       "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
   },
   "categories": {
@@ -678,14 +800,20 @@ exports[`generateModelConfig fallback providers uses GitHub Copilot models with 
       "model": "github-copilot/gemini-3-pro-preview",
       "variant": "max",
     },
+    "deep": {
+      "model": "github-copilot/gpt-5.2-codex",
+      "variant": "medium",
+    },
     "quick": {
       "model": "github-copilot/claude-haiku-4.5",
     },
     "ultrabrain": {
       "model": "github-copilot/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
     "unspecified-low": {
       "model": "github-copilot/claude-sonnet-4.5",
@@ -705,44 +833,42 @@ exports[`generateModelConfig fallback providers uses ZAI model for librarian whe
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/gpt-5-nano",
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
     "multimodal-looker": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "zai-coding-plan/glm-4.6v",
     },
     "oracle": {
-      "model": "zai-coding-plan/glm-4.7",
-      "variant": "high",
+      "model": "opencode/glm-4.7-free",
+    },
+    "plan-synthesizer": {
+      "model": "opencode/glm-4.7-free",
     },
     "prometheus": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "sisyphus": {
       "model": "zai-coding-plan/glm-4.7",
     },
   },
   "categories": {
-    "artistry": {
-      "model": "zai-coding-plan/glm-4.7",
-      "variant": "max",
-    },
     "quick": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "ultrabrain": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "unspecified-high": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "unspecified-low": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "visual-engineering": {
       "model": "zai-coding-plan/glm-4.7",
@@ -759,44 +885,42 @@ exports[`generateModelConfig fallback providers uses ZAI model for librarian wit
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/gpt-5-nano",
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
     "multimodal-looker": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "zai-coding-plan/glm-4.6v",
     },
     "oracle": {
-      "model": "zai-coding-plan/glm-4.7",
-      "variant": "high",
+      "model": "opencode/glm-4.7-free",
+    },
+    "plan-synthesizer": {
+      "model": "opencode/glm-4.7-free",
     },
     "prometheus": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "sisyphus": {
       "model": "zai-coding-plan/glm-4.7",
     },
   },
   "categories": {
-    "artistry": {
-      "model": "zai-coding-plan/glm-4.7",
-      "variant": "max",
-    },
     "quick": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "ultrabrain": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "unspecified-high": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "unspecified-low": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "opencode/glm-4.7-free",
     },
     "visual-engineering": {
       "model": "zai-coding-plan/glm-4.7",
@@ -813,38 +937,53 @@ exports[`generateModelConfig mixed provider scenarios uses Claude + OpenCode Zen
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "opencode/kimi-k2.5-free",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "anthropic/claude-haiku-4-5",
+    },
+    "hephaestus": {
+      "model": "opencode/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
     "multimodal-looker": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "opencode/gemini-3-flash",
     },
     "oracle": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "opencode/gpt-5.2",
       "variant": "high",
     },
+    "plan-synthesizer": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
     "prometheus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "opencode/gemini-3-pro",
       "variant": "max",
+    },
+    "deep": {
+      "model": "opencode/gpt-5.2-codex",
+      "variant": "medium",
     },
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "opencode/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -853,10 +992,10 @@ exports[`generateModelConfig mixed provider scenarios uses Claude + OpenCode Zen
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "opencode/gemini-3-pro",
     },
     "writing": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "opencode/gemini-3-flash",
     },
   },
 }
@@ -867,50 +1006,65 @@ exports[`generateModelConfig mixed provider scenarios uses OpenAI + Copilot comb
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "github-copilot/gpt-5-mini",
+    },
+    "hephaestus": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
-      "model": "github-copilot/gpt-5.2",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "multimodal-looker": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/gemini-3-flash-preview",
     },
     "oracle": {
-      "model": "openai/gpt-5.2-codex",
+      "model": "openai/gpt-5.2",
       "variant": "high",
     },
+    "plan-synthesizer": {
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
+    },
     "prometheus": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/gemini-3-pro-preview",
       "variant": "max",
     },
+    "deep": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
+    },
     "quick": {
-      "model": "openai/gpt-5.1-codex-mini",
+      "model": "github-copilot/claude-haiku-4.5",
     },
     "ultrabrain": {
       "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "unspecified-low": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "visual-engineering": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/gemini-3-pro-preview",
     },
     "writing": {
-      "model": "openai/gpt-5.2",
+      "model": "github-copilot/gemini-3-flash-preview",
     },
   },
 }
@@ -924,35 +1078,38 @@ exports[`generateModelConfig mixed provider scenarios uses Claude + ZAI combinat
       "model": "anthropic/claude-sonnet-4-5",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "anthropic/claude-haiku-4-5",
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
     "multimodal-looker": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "zai-coding-plan/glm-4.6v",
     },
     "oracle": {
       "model": "anthropic/claude-opus-4-5",
-      "variant": "high",
+      "variant": "max",
     },
-    "prometheus": {
-      "model": "anthropic/claude-sonnet-4-5",
-    },
-    "sisyphus": {
-      "model": "anthropic/claude-sonnet-4-5",
-    },
-  },
-  "categories": {
-    "artistry": {
+    "plan-synthesizer": {
       "model": "anthropic/claude-opus-4-5",
       "variant": "max",
     },
+    "prometheus": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
+    "sisyphus": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
+  },
+  "categories": {
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "unspecified-high": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -961,7 +1118,8 @@ exports[`generateModelConfig mixed provider scenarios uses Claude + ZAI combinat
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "writing": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -978,35 +1136,42 @@ exports[`generateModelConfig mixed provider scenarios uses Gemini + Claude combi
       "model": "anthropic/claude-sonnet-4-5",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "anthropic/claude-haiku-4-5",
     },
     "librarian": {
-      "model": "opencode/glm-4.7-free",
+      "model": "anthropic/claude-sonnet-4-5",
     },
     "multimodal-looker": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-flash",
     },
     "oracle": {
+      "model": "google/gemini-3-pro",
+      "variant": "max",
+    },
+    "plan-synthesizer": {
       "model": "anthropic/claude-opus-4-5",
-      "variant": "high",
+      "variant": "max",
     },
     "prometheus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
       "variant": "max",
     },
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "google/gemini-3-pro",
+      "variant": "max",
     },
     "unspecified-high": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -1015,10 +1180,10 @@ exports[`generateModelConfig mixed provider scenarios uses Gemini + Claude combi
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "writing": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
   },
 }
@@ -1029,50 +1194,65 @@ exports[`generateModelConfig mixed provider scenarios uses all fallback provider
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "opencode/kimi-k2.5-free",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "opencode/claude-haiku-4-5",
+    },
+    "hephaestus": {
+      "model": "github-copilot/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
     "multimodal-looker": {
-      "model": "opencode/gemini-3-pro",
+      "model": "github-copilot/gemini-3-flash-preview",
     },
     "oracle": {
-      "model": "opencode/gpt-5.2-codex",
+      "model": "github-copilot/gpt-5.2",
       "variant": "high",
     },
+    "plan-synthesizer": {
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
+    },
     "prometheus": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "github-copilot/claude-opus-4.5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "opencode/gemini-3-pro",
+      "model": "github-copilot/gemini-3-pro-preview",
       "variant": "max",
     },
+    "deep": {
+      "model": "github-copilot/gpt-5.2-codex",
+      "variant": "medium",
+    },
     "quick": {
-      "model": "opencode/claude-haiku-4-5",
+      "model": "github-copilot/claude-haiku-4.5",
     },
     "ultrabrain": {
-      "model": "opencode/gpt-5.2-codex",
+      "model": "github-copilot/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "unspecified-low": {
-      "model": "opencode/claude-sonnet-4-5",
+      "model": "github-copilot/claude-sonnet-4.5",
     },
     "visual-engineering": {
-      "model": "opencode/gemini-3-pro",
+      "model": "github-copilot/gemini-3-pro-preview",
     },
     "writing": {
-      "model": "opencode/gemini-3-flash",
+      "model": "github-copilot/gemini-3-flash-preview",
     },
   },
 }
@@ -1083,38 +1263,53 @@ exports[`generateModelConfig mixed provider scenarios uses all providers togethe
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "opencode/kimi-k2.5-free",
     },
     "explore": {
-      "model": "opencode/grok-code",
+      "model": "anthropic/claude-haiku-4-5",
+    },
+    "hephaestus": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
     "multimodal-looker": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-flash",
     },
     "oracle": {
-      "model": "openai/gpt-5.2-codex",
+      "model": "openai/gpt-5.2",
       "variant": "high",
     },
+    "plan-synthesizer": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
+    },
     "prometheus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
       "variant": "max",
+    },
+    "deep": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "anthropic/claude-sonnet-4-5",
@@ -1123,10 +1318,10 @@ exports[`generateModelConfig mixed provider scenarios uses all providers togethe
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "writing": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
   },
 }
@@ -1137,50 +1332,66 @@ exports[`generateModelConfig mixed provider scenarios uses all providers with is
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "opencode/kimi-k2.5-free",
     },
     "explore": {
       "model": "anthropic/claude-haiku-4-5",
+    },
+    "hephaestus": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
     "multimodal-looker": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-flash",
     },
     "oracle": {
-      "model": "openai/gpt-5.2-codex",
+      "model": "openai/gpt-5.2",
       "variant": "high",
+    },
+    "plan-synthesizer": {
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "prometheus": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "sisyphus": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
   },
   "categories": {
     "artistry": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
       "variant": "max",
+    },
+    "deep": {
+      "model": "openai/gpt-5.2-codex",
+      "variant": "medium",
     },
     "quick": {
       "model": "anthropic/claude-haiku-4-5",
     },
     "ultrabrain": {
       "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh",
     },
     "unspecified-high": {
       "model": "anthropic/claude-opus-4-5",
+      "variant": "max",
     },
     "unspecified-low": {
       "model": "anthropic/claude-sonnet-4-5",
     },
     "visual-engineering": {
-      "model": "google/gemini-3-pro-preview",
+      "model": "google/gemini-3-pro",
     },
     "writing": {
-      "model": "google/gemini-3-flash-preview",
+      "model": "google/gemini-3-flash",
     },
   },
 }

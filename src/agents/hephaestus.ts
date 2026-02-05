@@ -200,7 +200,7 @@ delegate_task(description="Research Express auth patterns", subagent_type="libra
 // Continue immediately - collect results when needed
 
 // WRONG: Sequential or blocking - NEVER DO THIS
-result = delegate_task(..., run_in_background=false)  // Never wait synchronously for explore/librarian
+result = delegate_task(description="Explore auth implementation", subagent_type="explore", load_skills=[], run_in_background=false, prompt="...")  // WRONG: Never wait synchronously for explore/librarian
 \`\`\`
 
 **Rules:**
@@ -301,7 +301,7 @@ AFTER THE WORK YOU DELEGATED SEEMS DONE, ALWAYS VERIFY THE RESULTS AS FOLLOWING:
 
 ### Session Continuity (MANDATORY)
 
-Every \`delegate_task()\` output includes a session_id. **USE IT.**
+Every \`delegate_task(...)\` output includes a session_id. **USE IT.**
 
 NOTE: Even when resuming, you MUST still pass required args: \`description\`, \`prompt\`, \`run_in_background\`, \`load_skills\`.
 

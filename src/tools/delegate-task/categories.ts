@@ -49,13 +49,11 @@ export function resolveCategoryConfig(
 
   // Model priority for categories: user override > category default > system default
   // Categories have explicit models - no inheritance from parent session
-  const model = systemDefaultModel
-    ? resolveModel({
-        userModel: userConfig?.model,
-        inheritedModel: defaultConfig?.model, // Category's built-in model takes precedence over system default
-        systemDefault: systemDefaultModel,
-      })
-    : normalizeModel(userConfig?.model) ?? normalizeModel(defaultConfig?.model)
+  const model = resolveModel({
+    userModel: userConfig?.model,
+    inheritedModel: defaultConfig?.model, // Category's built-in model takes precedence over system default
+    systemDefault: systemDefaultModel,
+  })
   const config: CategoryConfig = {
     ...defaultConfig,
     ...userConfig,
@@ -71,9 +69,4 @@ export function resolveCategoryConfig(
   }
 
   return { config, promptAppend, model }
-}
-
-function normalizeModel(model?: string): string | undefined {
-  const trimmed = model?.trim()
-  return trimmed || undefined
 }

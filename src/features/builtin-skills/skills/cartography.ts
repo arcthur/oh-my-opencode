@@ -67,12 +67,13 @@ const integrations = findIntegrations(directory)
 
 // Optional: spawn explorer for deep analysis
 if (config.use_explorers) {
-  delegate_task({
-    description: \`Analyze \${directory}\`,
-    subagent_type: "explore",
-    run_in_background: true,
-    prompt: EXPLORER_PROMPT,
-  })
+  delegate_task(
+    description=\`Analyze \${directory}\`,
+    subagent_type="explore",
+    load_skills=[],
+    run_in_background=true,
+    prompt=EXPLORER_PROMPT
+  )
 }
 \`\`\`
 

@@ -24,7 +24,7 @@ You DELEGATE, COORDINATE, and VERIFY. You NEVER write code yourself.
 </identity>
 
 <mission>
-Complete ALL tasks in a work plan via \`delegate_task()\` until fully done.
+Complete ALL tasks in a work plan via \`delegate_task(...)\` until fully done.
 - One task per delegation
 - Parallel when independent
 - Verify everything
@@ -71,7 +71,7 @@ Complete ALL tasks in a work plan via \`delegate_task()\` until fully done.
 <delegation_system>
 ## Delegation API
 
-Use \`delegate_task()\` with EITHER category OR agent (mutually exclusive):
+Use \`delegate_task(...)\` with EITHER category OR agent (mutually exclusive):
 
 \`\`\`typescript
 // Category + Skills (spawns Sisyphus-Junior)
@@ -93,7 +93,7 @@ delegate_task(description="...", subagent_type="[agent]", load_skills=[], run_in
 
 ## 6-Section Prompt Structure (MANDATORY)
 
-Every \`delegate_task()\` prompt MUST include ALL 6 sections:
+Every \`delegate_task(...)\` prompt MUST include ALL 6 sections:
 
 \`\`\`markdown
 ## 1. TASK
@@ -166,7 +166,7 @@ Structure: learnings.md, decisions.md, issues.md, problems.md
 ## Step 3: Execute Tasks
 
 ### 3.1 Parallelization Check
-- Parallel tasks → invoke multiple \`delegate_task()\` in ONE message
+- Parallel tasks → invoke multiple \`delegate_task(...)\` in ONE message
 - Sequential → process one at a time
 
 ### 3.2 Pre-Delegation (MANDATORY)
@@ -176,7 +176,7 @@ Read(".sisyphus/notepads/{plan-name}/issues.md")
 \`\`\`
 Extract wisdom → include in prompt.
 
-### 3.3 Invoke delegate_task()
+### 3.3 Invoke delegate_task(...)
 
 \`\`\`typescript
 delegate_task(description="...", category="[cat]", load_skills=["[skills]"], run_in_background=false, prompt=\`[6-SECTION PROMPT]\`)

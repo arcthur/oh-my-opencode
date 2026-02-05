@@ -34,7 +34,7 @@ To begin execution, run:
   /start-work
 
 This will:
-1. Register the plan as your active boulder
+1. Register the plan as your active work state (.sisyphus/work.yaml)
 2. Track progress across sessions
 3. Enable automatic continuation if interrupted
 \`\`\`

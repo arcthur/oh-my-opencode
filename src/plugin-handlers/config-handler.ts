@@ -14,8 +14,8 @@ import {
   loadOpencodeProjectSkills,
   discoverUserClaudeSkills,
   discoverProjectClaudeSkills,
-  discoverOpencodeGlobalSkills as discoverOpencodeGlobalSkillsForAwareness,
-  discoverOpencodeProjectSkills as discoverOpencodeProjectSkillsForAwareness,
+  discoverOpencodeGlobalSkills,
+  discoverOpencodeProjectSkills,
 } from "../features/opencode-skill-loader";
 import {
   loadUserAgents,
@@ -25,17 +25,17 @@ import { loadMcpConfigs } from "../features/claude-code-mcp-loader";
 import { loadAllPluginComponents } from "../features/claude-code-plugin-loader";
 import { createBuiltinMcps } from "../mcp";
 import type { OhMyOpenCodeConfig } from "../config";
-import { log } from "../shared";
-import { getOpenCodeConfigPaths } from "../shared/opencode-config-dir";
+import { log, fetchAvailableModels, readConnectedProvidersCache, resolveModelPipeline } from "../shared";
 import { migrateAgentConfig } from "../shared/permission-compat";
-import { AGENT_NAME_MAP, migrateAgentNames } from "../shared/migration";
+import { AGENT_NAME_MAP } from "../shared/migration";
+import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
 import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus";
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
 import type { ModelCacheState } from "../plugin-state";
 import type { CategoryConfig } from "../config/schema";
 
 export interface ConfigHandlerDeps {
-  ctx: { directory: string };
+  ctx: { directory: string; client?: any };
   pluginConfig: OhMyOpenCodeConfig;
   modelCacheState: ModelCacheState;
 }
@@ -45,6 +45,28 @@ export function resolveCategoryConfig(
   userCategories?: Record<string, CategoryConfig>
 ): CategoryConfig | undefined {
   return userCategories?.[categoryName] ?? DEFAULT_CATEGORIES[categoryName];
+}
+
+const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus", "atlas"] as const;
+
+function reorderAgentsByPriority(agents: Record<string, unknown>): Record<string, unknown> {
+  const ordered: Record<string, unknown> = {};
+  const seen = new Set<string>();
+
+  for (const key of CORE_AGENT_ORDER) {
+    if (Object.prototype.hasOwnProperty.call(agents, key)) {
+      ordered[key] = agents[key];
+      seen.add(key);
+    }
+  }
+
+  for (const [key, value] of Object.entries(agents)) {
+    if (!seen.has(key)) {
+      ordered[key] = value;
+    }
+  }
+
+  return ordered;
 }
 
 export function createConfigHandler(deps: ConfigHandlerDeps) {
@@ -105,15 +127,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       log(`Plugin load errors`, { errors: pluginComponents.errors });
     }
 
-    if (!(config.model as string | undefined)?.trim()) {
-      const paths = getOpenCodeConfigPaths({ binary: "opencode", version: null })
-      throw new Error(
-        'oh-my-opencode requires a default model.\n\n' +
-        `Add this to ${paths.configJsonc}:\n\n` +
-        '  "model": "anthropic/claude-sonnet-4-5"\n\n' +
-        '(Replace with your preferred provider/model)'
-      )
-    }
+    // Migrate disabled_agents from old names to new names
+    const migratedDisabledAgents = (pluginConfig.disabled_agents ?? []).map((agent) => {
+      return AGENT_NAME_MAP[agent.toLowerCase()] ?? AGENT_NAME_MAP[agent] ?? agent
+    }) as typeof pluginConfig.disabled_agents
 
     const includeClaudeSkillsForAwareness = pluginConfig.claude_code?.skills ?? true;
     const [
@@ -124,8 +141,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     ] = await Promise.all([
       includeClaudeSkillsForAwareness ? discoverUserClaudeSkills() : Promise.resolve([]),
       includeClaudeSkillsForAwareness ? discoverProjectClaudeSkills() : Promise.resolve([]),
-      discoverOpencodeGlobalSkillsForAwareness(),
-      discoverOpencodeProjectSkillsForAwareness(),
+      discoverOpencodeGlobalSkills(),
+      discoverOpencodeProjectSkills(),
     ]);
 
     const allDiscoveredSkills = [
@@ -135,25 +152,15 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       ...discoveredUserSkills,
     ];
 
-    // Migrate disabled_agents from old names to new names
-    const migratedDisabledAgents = (pluginConfig.disabled_agents ?? []).map(agent => {
-      return AGENT_NAME_MAP[agent.toLowerCase()] ?? AGENT_NAME_MAP[agent] ?? agent
-    }) as typeof pluginConfig.disabled_agents
-
-    // Migrate agent names in pluginConfig.agents (e.g., sisyphus → Sisyphus)
-    const { migrated: migratedAgents } = migrateAgentNames(
-      (pluginConfig.agents ?? {}) as Record<string, unknown>
-    )
-
     const builtinAgents = await createBuiltinAgents(
       migratedDisabledAgents,
-      migratedAgents as typeof pluginConfig.agents,
+      pluginConfig.agents,
       ctx.directory,
-      config.model as string | undefined,
+      undefined,
       pluginConfig.categories,
       pluginConfig.git_master,
       allDiscoveredSkills,
-      undefined,
+      ctx.client,
       undefined,
       config.model as string | undefined
     );
@@ -193,8 +200,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       explore?: { tools?: Record<string, unknown> };
       librarian?: { tools?: Record<string, unknown> };
       "multimodal-looker"?: { tools?: Record<string, unknown> };
-      Atlas?: { tools?: Record<string, unknown> };
-      Sisyphus?: { tools?: Record<string, unknown> };
+      atlas?: { tools?: Record<string, unknown> };
+      sisyphus?: { tools?: Record<string, unknown> };
     };
     const configAgent = config.agent as AgentConfig | undefined;
 
@@ -206,7 +213,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       };
 
       agentConfig["sisyphus-junior"] = createSisyphusJuniorAgentWithOverrides(
-        (migratedAgents as Record<string, unknown>)["sisyphus-junior"] as Parameters<typeof createSisyphusJuniorAgentWithOverrides>[0],
+        pluginConfig.agents?.["sisyphus-junior"],
         config.model as string | undefined
       );
 
@@ -217,7 +224,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           buildConfigWithoutName as Record<string, unknown>
         );
         const openCodeBuilderOverride =
-          (migratedAgents as Record<string, unknown>)["OpenCode-Builder"];
+          pluginConfig.agents?.["OpenCode-Builder"];
         const openCodeBuilderBase = {
           ...migratedBuildConfig,
           description: `${configAgent?.build?.description ?? "Build agent"} (OpenCode default)`,
@@ -230,81 +237,102 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
 
       if (plannerEnabled) {
         const prometheusOverride =
-          migratedAgents["prometheus"] as
-            | (Record<string, unknown> & { category?: string; model?: string | string[] })
+          pluginConfig.agents?.["prometheus"] as
+            | (Record<string, unknown> & {
+                category?: string
+                model?: string | string[]
+                variant?: string
+                reasoningEffort?: string
+                textVerbosity?: string
+                thinking?: { type: string; budgetTokens?: number }
+                temperature?: number
+                top_p?: number
+                maxTokens?: number
+              })
             | undefined;
-        const defaultModel = config.model as string | undefined;
 
-        // Prometheus override supports "category" and multi-model "model" for multi-plan,
-        // but the actual OpenCode agent definition MUST have a single model string.
-        // We strip config-only keys before merging overrides into the agent definition.
-        // Also extract prompt_append separately to append it instead of overwriting prompt.
-        const {
-          category: prometheusOverrideCategory,
-          model: prometheusOverrideModel,
-          prompt_append: prometheusPromptAppend,
-          ...prometheusOverrideAgentFields
-        } = (prometheusOverride ?? {}) as Record<string, unknown> & {
-          category?: string
-          model?: string | string[]
-          prompt_append?: string
-        }
-
-        // Resolve full category config (model, temperature, top_p, tools, etc.)
-        // Apply all category properties when category is specified, but explicit
-        // overrides (model, temperature, etc.) will take precedence during merge
-        const categoryConfig = prometheusOverrideCategory
+        const categoryConfig = prometheusOverride?.category
           ? resolveCategoryConfig(
-              prometheusOverrideCategory,
+              prometheusOverride.category,
               pluginConfig.categories
             )
           : undefined;
 
-        // Model resolution: explicit override → category config → OpenCode default
-        // If model is an array (multi-plan mode), use the first model for Prometheus agent itself
-        const rawModel = prometheusOverrideModel ?? categoryConfig?.model ?? defaultModel;
-        const resolvedModel = Array.isArray(rawModel) ? rawModel[0] : rawModel;
+        const prometheusRequirement = AGENT_MODEL_REQUIREMENTS["prometheus"];
+        const connectedProviders = readConnectedProvidersCache();
+        // IMPORTANT: Do NOT pass ctx.client to fetchAvailableModels during plugin initialization.
+        // Calling client API (e.g., client.provider.list()) from config handler causes deadlock:
+        // - Plugin init waits for server response
+        // - Server waits for plugin init to complete before handling requests
+        // Use cache-only mode instead. If cache is unavailable, fallback chain uses first model.
+        // See: https://github.com/code-yeongyu/oh-my-opencode/issues/1301
+        const availableModels = await fetchAvailableModels(undefined, {
+          connectedProviders: connectedProviders ?? undefined,
+        });
 
+        // Multi-plan may configure `agents.prometheus.model` as an array.
+        // Prometheus agent itself must use a single model string, so we use the first element.
+        const overrideModel = Array.isArray(prometheusOverride?.model)
+          ? prometheusOverride.model[0]
+          : prometheusOverride?.model;
+
+        const currentModel = config.model as string | undefined;
+        const modelResolution = resolveModelPipeline({
+          intent: {
+            userModel: overrideModel,
+            categoryDefaultModel: categoryConfig?.model,
+          },
+          constraints: { availableModels },
+          policy: {
+            fallbackChain: prometheusRequirement?.fallbackChain,
+            systemDefaultModel: currentModel,
+          },
+        });
+        const resolvedModel = modelResolution?.model;
+        const resolvedVariant = modelResolution?.variant;
+
+        const variantToUse = prometheusOverride?.variant ?? resolvedVariant;
+        const reasoningEffortToUse = prometheusOverride?.reasoningEffort ?? categoryConfig?.reasoningEffort;
+        const textVerbosityToUse = prometheusOverride?.textVerbosity ?? categoryConfig?.textVerbosity;
+        const thinkingToUse = prometheusOverride?.thinking ?? categoryConfig?.thinking;
+        const temperatureToUse = prometheusOverride?.temperature ?? categoryConfig?.temperature;
+        const topPToUse = prometheusOverride?.top_p ?? categoryConfig?.top_p;
+        const maxTokensToUse = prometheusOverride?.maxTokens ?? categoryConfig?.maxTokens;
         const prometheusBase = {
-          // Only include model if one was resolved - let OpenCode apply its own default if none
+          name: "prometheus",
           ...(resolvedModel ? { model: resolvedModel } : {}),
-          mode: "primary" as const,
+          ...(variantToUse ? { variant: variantToUse } : {}),
+          mode: "all" as const,
           prompt: PROMETHEUS_SYSTEM_PROMPT,
           permission: PROMETHEUS_PERMISSION,
           description: `${configAgent?.plan?.description ?? "Plan agent"} (Prometheus - OhMyOpenCode)`,
-          color: (configAgent?.plan?.color as string) ?? "#FF6347",
-          // Apply category properties (temperature, top_p, tools, etc.)
-          ...(categoryConfig?.temperature !== undefined
-            ? { temperature: categoryConfig.temperature }
-            : {}),
-          ...(categoryConfig?.top_p !== undefined
-            ? { top_p: categoryConfig.top_p }
-            : {}),
-          ...(categoryConfig?.maxTokens !== undefined
-            ? { maxTokens: categoryConfig.maxTokens }
-            : {}),
+          color: (configAgent?.plan?.color as string) ?? "#9D4EDD", // Amethyst Purple - wisdom/foresight
+          ...(temperatureToUse !== undefined ? { temperature: temperatureToUse } : {}),
+          ...(topPToUse !== undefined ? { top_p: topPToUse } : {}),
+          ...(maxTokensToUse !== undefined ? { maxTokens: maxTokensToUse } : {}),
           ...(categoryConfig?.tools ? { tools: categoryConfig.tools } : {}),
-          ...(categoryConfig?.thinking ? { thinking: categoryConfig.thinking } : {}),
-          ...(categoryConfig?.reasoningEffort !== undefined
-            ? { reasoningEffort: categoryConfig.reasoningEffort }
+          ...(thinkingToUse ? { thinking: thinkingToUse } : {}),
+          ...(reasoningEffortToUse !== undefined
+            ? { reasoningEffort: reasoningEffortToUse }
             : {}),
-          ...(categoryConfig?.textVerbosity !== undefined
-            ? { textVerbosity: categoryConfig.textVerbosity }
+          ...(textVerbosityToUse !== undefined
+            ? { textVerbosity: textVerbosityToUse }
             : {}),
         };
 
         // Properly handle prompt_append for Prometheus
-        // Append it to prompt instead of shallow spread overwriting
+        // Extract prompt_append and append it to prompt instead of shallow spread
         // Fixes: https://github.com/code-yeongyu/oh-my-opencode/issues/723
         if (prometheusOverride) {
-          const merged = {
-            ...prometheusBase,
-            ...prometheusOverrideAgentFields,
-            // Ensure model is always a single string even if config provided an array.
-            ...(resolvedModel ? { model: resolvedModel } : {}),
-          };
-          if (prometheusPromptAppend && merged.prompt) {
-            merged.prompt = merged.prompt + "\n" + prometheusPromptAppend;
+          const { category: _category, model: _model, prompt_append, ...restOverride } =
+            prometheusOverride as Record<string, unknown> & {
+              category?: string
+              model?: string | string[]
+              prompt_append?: string
+            };
+          const merged = { ...prometheusBase, ...restOverride };
+          if (prompt_append && merged.prompt) {
+            merged.prompt = merged.prompt + "\n" + prompt_append;
           }
           agentConfig["prometheus"] = merged;
         } else {
@@ -312,27 +340,35 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         }
       }
 
-    const filteredConfigAgents = configAgent
-      ? Object.fromEntries(
-          Object.entries(configAgent)
-            .filter(([key]) => {
-              if (key === "build") return false;
-              if (key === "plan" && replacePlan) return false;
-              return true;
-            })
-            .map(([key, value]) => [
-              key,
-              value ? migrateAgentConfig(value as Record<string, unknown>) : value,
-            ])
-        )
-      : {};
+      const filteredConfigAgents = configAgent
+        ? Object.fromEntries(
+            Object.entries(configAgent)
+              .filter(([key]) => {
+                if (key === "build") return false;
+                if (key === "plan" && replacePlan) return false;
+                // Filter out agents that oh-my-opencode provides to prevent
+                // OpenCode defaults from overwriting user config in oh-my-opencode.json
+                // See: https://github.com/code-yeongyu/oh-my-opencode/issues/472
+                if (key in builtinAgents) return false;
+                return true;
+              })
+              .map(([key, value]) => [
+                key,
+                value ? migrateAgentConfig(value as Record<string, unknown>) : value,
+              ])
+          )
+        : {};
 
       const migratedBuild = configAgent?.build
         ? migrateAgentConfig(configAgent.build as Record<string, unknown>)
         : {};
 
-      const planDemoteConfig = replacePlan
-        ? { mode: "subagent" as const }
+      const planDemoteConfig = replacePlan && agentConfig["prometheus"]
+        ? {
+            ...(agentConfig["prometheus"] as Record<string, unknown>),
+            name: "plan",
+            mode: "subagent" as const,
+          }
         : undefined;
 
       config.agent = {
@@ -355,6 +391,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         ...pluginAgents,
         ...configAgent,
       };
+    }
+
+    if (config.agent) {
+      config.agent = reorderAgentsByPriority(config.agent as Record<string, unknown>);
     }
 
     const agentResult = config.agent as AgentConfig;
@@ -416,8 +456,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       : { servers: {} };
 
     config.mcp = {
-      ...(config.mcp as Record<string, unknown>),
       ...createBuiltinMcps(pluginConfig.disabled_mcps),
+      ...(config.mcp as Record<string, unknown>),
       ...mcpResult.servers,
       ...pluginComponents.mcpServers,
     };

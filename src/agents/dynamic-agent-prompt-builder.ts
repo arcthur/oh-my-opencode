@@ -181,7 +181,7 @@ export function buildCategorySkillsDelegationGuide(categories: AvailableCategory
 
   return `### Category + Skills Delegation System
 
-**delegate_task() combines categories and skills for optimal task execution.**
+**delegate_task(...) combines categories and skills for optimal task execution.**
 
 #### Available Categories (Domain-Optimized Models)
 

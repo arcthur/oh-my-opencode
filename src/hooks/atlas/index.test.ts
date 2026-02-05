@@ -5,6 +5,11 @@ import { tmpdir } from "node:os"
 import * as yaml from "js-yaml"
 import { createAtlasHook } from "./index"
 import type { WorkState } from "../../features/work-state"
+import {
+  _resetForTesting,
+  setMainSession,
+  subagentSessions,
+} from "../../features/claude-code-session-state"
 
 import {
   MESSAGE_STORAGE,
@@ -111,6 +116,20 @@ describe("atlas hook", () => {
   })
 
   describe("tool.execute.after handler", () => {
+    test("should handle undefined output gracefully", async () => {
+      // given - hook and undefined output (e.g., from /review command)
+      const hook = createAtlasHook(createMockPluginInput())
+
+      // when
+      const result = hook["tool.execute.after"](
+        { tool: "delegate_task", sessionID: "session-123" },
+        undefined as unknown as { title: string; output: string; metadata: Record<string, unknown> }
+      )
+
+      // then - returns without throwing
+      await expect(result).resolves.toBeUndefined()
+    })
+
     test("should ignore non-delegate_task tools", async () => {
       // given - hook and non-delegate_task tool
       const hook = createAtlasHook(createMockPluginInput())
@@ -227,6 +246,31 @@ describe("atlas hook", () => {
       expect(output.output).toContain("LIE")
       expect(output.output).toContain('session_id="')
       
+      cleanupMessageStorage(sessionID)
+    })
+
+    test("should not transform background task output (continued)", async () => {
+      // given - background continuation output, Atlas caller
+      const sessionID = "session-background-continued-test"
+      setupMessageStorage(sessionID, "atlas")
+
+      const hook = createAtlasHook(createMockPluginInput())
+      const originalOutput = "Background task continued.\n\nTask ID: bg_12345\nSession ID: ses_abc"
+      const output = {
+        title: "delegate_task",
+        output: originalOutput,
+        metadata: {},
+      }
+
+      // when
+      await hook["tool.execute.after"](
+        { tool: "delegate_task", sessionID },
+        output
+      )
+
+      // then - output unchanged (no verification reminders injected)
+      expect(output.output).toBe(originalOutput)
+
       cleanupMessageStorage(sessionID)
     })
 
@@ -642,15 +686,15 @@ describe("atlas hook", () => {
     const MAIN_SESSION_ID = "main-session-123"
 
      beforeEach(() => {
-       mock.module("../../features/claude-code-session-state", () => ({
-         getMainSessionID: () => MAIN_SESSION_ID,
-         subagentSessions: new Set<string>(),
-       }))
+       _resetForTesting()
+       setMainSession(MAIN_SESSION_ID)
+       subagentSessions.clear()
        setupMessageStorage(MAIN_SESSION_ID, "atlas")
      })
 
     afterEach(() => {
       cleanupMessageStorage(MAIN_SESSION_ID)
+      _resetForTesting()
     })
 
     test("should inject continuation when work has incomplete tasks", async () => {

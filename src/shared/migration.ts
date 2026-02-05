@@ -40,10 +40,10 @@ export const BUILTIN_AGENT_NAMES = new Set([
 export const HOOK_NAME_MAP: Record<string, string | null> = {
   // Legacy names (backward compatibility)
   "anthropic-auto-compact": "context-window-limit-recovery",
+  "anthropic-context-window-limit-recovery": "context-window-limit-recovery",
   "sisyphus-orchestrator": "atlas",
 
   // Removed / unsupported hooks - filtered out and user warned
-  "preemptive-compaction": null,
   "empty-message-sanitizer": null,
   "grep-output-truncator": null,
   "tasks-todowrite-disabler": null,

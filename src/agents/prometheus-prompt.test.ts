@@ -27,6 +27,15 @@ describe("PROMETHEUS_SYSTEM_PROMPT multi-plan policy", () => {
     expect(prompt).not.toMatch(/\bmomus\b/)
   })
 
+  test("should not reference boulder-state (fork uses work-state)", () => {
+    // #given
+    const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
+
+    // #when / #then
+    expect(prompt).not.toMatch(/\bboulder\b/)
+    expect(prompt).toContain(".sisyphus/work.yaml")
+  })
+
   test("should require assumptions and risks in the plan template", () => {
     // #given
     const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()

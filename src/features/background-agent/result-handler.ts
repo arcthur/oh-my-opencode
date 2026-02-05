@@ -3,9 +3,8 @@ import type { OpencodeClient, Todo } from "./constants"
 import { TASK_CLEANUP_DELAY_MS } from "./constants"
 import { log } from "../../shared"
 import { getTaskToastManager } from "../task-toast-manager"
-import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../hook-message-injector"
-import { existsSync, readdirSync } from "node:fs"
-import { join } from "node:path"
+import { findNearestMessageWithFields } from "../hook-message-injector"
+import { getMessageDir } from "../../shared/session-utils"
 import type { ConcurrencyManager } from "./concurrency"
 import type { TaskStateManager } from "./state"
 
@@ -94,19 +93,6 @@ export function formatDuration(start: Date, end?: Date): string {
     return `${minutes}m ${seconds % 60}s`
   }
   return `${seconds}s`
-}
-
-export function getMessageDir(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) return null
-
-  const directPath = join(MESSAGE_STORAGE, sessionID)
-  if (existsSync(directPath)) return directPath
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-    if (existsSync(sessionPath)) return sessionPath
-  }
-  return null
 }
 
 export async function tryCompleteTask(

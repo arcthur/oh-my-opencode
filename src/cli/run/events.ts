@@ -116,7 +116,9 @@ function logEventVerbose(ctx: RunContext, payload: EventPayload): void {
   const isMainSession = sessionID === ctx.sessionID
   const sessionTag = isMainSession
     ? pc.green("[MAIN]")
-    : pc.yellow(`[${String(sessionID).slice(0, 8)}]`)
+    : sessionID
+      ? pc.yellow(`[${String(sessionID).slice(0, 8)}]`)
+      : pc.dim("[system]")
 
   switch (payload.type) {
     case "session.idle":
@@ -127,14 +129,17 @@ function logEventVerbose(ctx: RunContext, payload: EventPayload): void {
     }
 
     case "message.part.updated": {
-      // Skip verbose logging for partial message updates
-      // Only log tool invocation state changes, not text streaming
       const partProps = props as MessagePartUpdatedProps | undefined
       const part = partProps?.part
       if (part?.type === "tool-invocation") {
         const toolPart = part as { toolName?: string; state?: string }
         console.error(
           pc.dim(`${sessionTag} message.part (tool): ${toolPart.toolName} [${toolPart.state}]`)
+        )
+      } else if (part?.type === "text" && part.text) {
+        const preview = part.text.slice(0, 80).replace(/\n/g, "\\n")
+        console.error(
+          pc.dim(`${sessionTag} message.part (text): "${preview}${part.text.length > 80 ? "..." : ""}"`)
         )
       }
       break
@@ -143,11 +148,10 @@ function logEventVerbose(ctx: RunContext, payload: EventPayload): void {
     case "message.updated": {
       const msgProps = props as MessageUpdatedProps | undefined
       const role = msgProps?.info?.role ?? "unknown"
-      const content = msgProps?.content ?? ""
-      const preview = content.slice(0, 100).replace(/\n/g, "\\n")
-      console.error(
-        pc.dim(`${sessionTag} message.updated (${role}): "${preview}${content.length > 100 ? "..." : ""}"`)
-      )
+      const model = msgProps?.info?.modelID
+      const agent = msgProps?.info?.agent
+      const details = [role, agent, model].filter(Boolean).join(", ")
+      console.error(pc.dim(`${sessionTag} message.updated (${details})`))
       break
     }
 
@@ -157,7 +161,7 @@ function logEventVerbose(ctx: RunContext, payload: EventPayload): void {
       const input = toolProps?.input ?? {}
       const inputStr = JSON.stringify(input).slice(0, 150)
       console.error(
-        pc.cyan(`${sessionTag} ⚡ TOOL.EXECUTE: ${pc.bold(toolName)}`)
+        pc.cyan(`${sessionTag} TOOL.EXECUTE: ${pc.bold(toolName)}`)
       )
       console.error(pc.dim(`   input: ${inputStr}${inputStr.length >= 150 ? "..." : ""}`))
       break
@@ -168,7 +172,7 @@ function logEventVerbose(ctx: RunContext, payload: EventPayload): void {
       const output = resultProps?.output ?? ""
       const preview = output.slice(0, 200).replace(/\n/g, "\\n")
       console.error(
-        pc.green(`${sessionTag} ✓ TOOL.RESULT: "${preview}${output.length > 200 ? "..." : ""}"`)
+        pc.green(`${sessionTag} TOOL.RESULT: "${preview}${output.length > 200 ? "..." : ""}"`)
       )
       break
     }
@@ -176,7 +180,7 @@ function logEventVerbose(ctx: RunContext, payload: EventPayload): void {
     case "session.error": {
       const errorProps = props as SessionErrorProps | undefined
       const errorMsg = serializeError(errorProps?.error)
-      console.error(pc.red(`${sessionTag} ❌ SESSION.ERROR: ${errorMsg}`))
+      console.error(pc.red(`${sessionTag} SESSION.ERROR: ${errorMsg}`))
       break
     }
 
@@ -261,16 +265,6 @@ function handleMessageUpdated(
   if (props?.info?.sessionID !== ctx.sessionID) return
   if (props?.info?.role !== "assistant") return
 
-  const content = props.content
-  if (!content || content === state.lastOutput) return
-
-  if (state.lastPartText.length === 0) {
-    const newContent = content.slice(state.lastOutput.length)
-    if (newContent) {
-      process.stdout.write(newContent)
-    }
-  }
-  state.lastOutput = content
   state.hasReceivedMeaningfulWork = true
 }
 
@@ -302,7 +296,7 @@ function handleToolExecute(
   }
 
   state.hasReceivedMeaningfulWork = true
-  process.stdout.write(`\n${pc.cyan("⚡")} ${pc.bold(toolName)}${inputPreview}\n`)
+  process.stdout.write(`\n${pc.cyan(">")} ${pc.bold(toolName)}${inputPreview}\n`)
 }
 
 function handleToolResult(

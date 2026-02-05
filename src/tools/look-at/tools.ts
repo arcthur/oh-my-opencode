@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url"
 import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin"
 import { LOOK_AT_DESCRIPTION, MULTIMODAL_LOOKER_AGENT } from "./constants"
 import type { LookAtArgs } from "./types"
-import { findByNameCaseInsensitive, log } from "../../shared"
+import { findByNameCaseInsensitive, log, promptWithModelSuggestionRetry } from "../../shared"
 
 interface LookAtArgsWithAlias extends LookAtArgs {
   path?: string
@@ -158,7 +158,7 @@ Original error: ${createResult.error}`
 
       log(`[look_at] Sending prompt with file passthrough to session ${sessionID}`)
       try {
-        await ctx.client.session.prompt({
+        await promptWithModelSuggestionRetry(ctx.client, {
           path: { id: sessionID },
           body: {
             agent: MULTIMODAL_LOOKER_AGENT,

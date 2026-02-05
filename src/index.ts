@@ -12,6 +12,7 @@ import {
   createThinkModeHook,
   createClaudeCodeHooksHook,
   createContextWindowLimitRecoveryHook,
+  createCompactionContextInjector,
   createRulesInjectorHook,
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
@@ -93,6 +94,7 @@ import {
 import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
+import { createWorkStateManager } from "./features/work-state";
 import { type HookName } from "./config";
 import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION, includesCaseInsensitive } from "./shared";
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
@@ -125,9 +127,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createContextWindowMonitorHook(ctx)
     : null;
 
-  // Preemptive compaction: auto-trigger session summarization before hitting context limit
-  // Controlled by experimental.preemptive_compaction (default: true since v2.9.0)
-  const preemptiveCompactionEnabled = pluginConfig.experimental?.preemptive_compaction !== false;
+  // Preemptive compaction: auto-trigger session summarization before hitting context limit.
+  // Enabled by default; disable via disabled_hooks ("preemptive-compaction") or experimental.preemptive_compaction=false.
+  const preemptiveCompactionEnabled =
+    isHookEnabled("preemptive-compaction") &&
+    pluginConfig.experimental?.preemptive_compaction !== false;
   const preemptiveCompaction = preemptiveCompactionEnabled
     ? createPreemptiveCompactionHook(ctx, {
         threshold: pluginConfig.experimental?.preemptive_compaction_threshold,
@@ -214,15 +218,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       ledger: governanceConfig?.ledger?.enabled,
     });
   }
-  const anthropicContextWindowLimitRecovery = isHookEnabled(
-    "context-window-limit-recovery"
-  )
+  const contextWindowLimitRecovery = isHookEnabled("context-window-limit-recovery")
     ? createContextWindowLimitRecoveryHook(ctx, {
         experimental: pluginConfig.experimental,
       })
     : null;
-  // NOTE: compactionContextInjector removed - OpenCode API does not yet support experimental.session.compacting
-  // When API support is added, reintegrate from claude-code-hooks or compaction-context-injector
+
+  const compactionContextInjector = isHookEnabled("compaction-context-injector")
+    ? createCompactionContextInjector()
+    : null;
   const rulesInjector = isHookEnabled("rules-injector")
     ? createRulesInjectorHook(ctx)
     : null;
@@ -300,17 +304,17 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createStartWorkHook(ctx)
     : null;
 
-  const atlasHook = isHookEnabled("atlas")
-    ? createAtlasHook(ctx)
-    : null;
-
   const prometheusMdOnly = isHookEnabled("prometheus-md-only")
     ? createPrometheusMdOnlyHook(ctx)
     : null;
 
   const taskResumeInfo = createTaskResumeInfoHook();
 
-  const backgroundManager = new BackgroundManager(ctx);
+  const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task);
+
+  const atlasHook = isHookEnabled("atlas")
+    ? createAtlasHook(ctx, { directory: ctx.directory, backgroundManager })
+    : null;
 
   initTaskToastManager(ctx.client);
 
@@ -342,7 +346,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
 
   const todoContinuationEnforcer = todoContinuationEnabled
-    ? createTodoContinuationEnforcer(ctx, { backgroundManager })
+    ? createTodoContinuationEnforcer(ctx, {
+        backgroundManager,
+        isContinuationStopped: stopContinuationGuard?.isStopped,
+      })
     : null;
 
   const antiSlopEnforcer = isHookEnabled("anti-slop-enforcer")
@@ -546,11 +553,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     getSessionID: getSessionIDForMcp,
   });
 
-  const commands = discoverCommandsSync();
-  const slashcommandTool = createSlashcommandTool({
-    commands,
-    skills: mergedSkills,
-  });
+	  const commands = discoverCommandsSync(pluginConfig.disabled_commands);
+	  const slashcommandTool = createSlashcommandTool({
+	    commands,
+	    skills: mergedSkills,
+	  });
 
   const autoSlashCommand = isHookEnabled("auto-slash-command")
     ? createAutoSlashCommandHook({ skills: mergedSkills })
@@ -589,12 +596,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           message.variant = variant
         }
         firstMessageVariantGate.markApplied(input.sessionID)
-      } else {
-        applyAgentVariant(pluginConfig, input.agent, message)
-      }
+	      } else {
+	        applyAgentVariant(pluginConfig, input.agent, message)
+	      }
 
-      await keywordDetector?.["chat.message"]?.(input, output);
-      await claudeCodeHooks["chat.message"]?.(input, output);
+	      // Think-mode must run before keyword-detector injection so detection sees the raw user prompt.
+	      await thinkMode?.["chat.params"]?.(output as any, input.sessionID)
+
+	      await keywordDetector?.["chat.message"]?.(input, output);
+	      await claudeCodeHooks["chat.message"]?.(input, output);
 
       // Governance user prompt processing
       if (governanceEnabled) {
@@ -748,7 +758,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await directoryReadmeInjector?.event(input);
       await rulesInjector?.event(input);
       await thinkMode?.event(input);
-      await anthropicContextWindowLimitRecovery?.event(input);
+      await contextWindowLimitRecovery?.event(input);
       await agentUsageReminder?.event(input);
       await categorySkillReminder?.event?.(input);
       await interactiveBashSession?.event(input);
@@ -872,6 +882,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await planningWithFiles?.["tool.execute.before"]?.(input, output);
       await delegationValidator?.["tool.execute.before"]?.(input, output);
       await sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output);
+      await atlasHook?.["tool.execute.before"]?.(input, output);
       await tmuxParallelAgents?.["tool.execute.before"]?.(input, output);
       await swarmAgent?.["tool.execute.before"]?.(input, output);
 
@@ -913,10 +924,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         };
       }
 
-      if (ralphLoop && input.tool === "slashcommand") {
-        const args = output.args as { command?: string } | undefined;
-        const command = args?.command?.replace(/^\//, "").toLowerCase();
-        const sessionID = input.sessionID || getMainSessionID();
+	      if (ralphLoop && input.tool === "slashcommand") {
+	        const args = output.args as { command?: string } | undefined;
+	        const command = args?.command?.replace(/^\//, "").toLowerCase();
+	        const sessionID = input.sessionID || getMainSessionID();
 
         if (command === "ralph-loop" && sessionID) {
           const rawArgs =
@@ -961,12 +972,28 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
                : undefined,
              completionPromise: promiseMatch?.[1],
            });
-         }
-      }
+	         }
+	      }
 
-      // Governance pre-tool checks (run late to capture final args and avoid tracing denied calls)
-      if (governanceEnabled) {
-        try {
+	      if (input.tool === "slashcommand") {
+	        const args = output.args as { command?: string } | undefined;
+	        const command = args?.command?.replace(/^\//, "").toLowerCase();
+	        const sessionID = input.sessionID || getMainSessionID();
+
+	        if (command === "stop-continuation" && sessionID) {
+	          stopContinuationGuard?.stop(sessionID);
+	          todoContinuationEnforcer?.cancelAllCountdowns();
+	          ralphLoop?.cancelLoop(sessionID);
+	          createWorkStateManager(ctx.directory).clear();
+	          log("[stop-continuation] All continuation mechanisms stopped", {
+	            sessionID,
+	          });
+	        }
+	      }
+
+	      // Governance pre-tool checks (run late to capture final args and avoid tracing denied calls)
+	      if (governanceEnabled) {
+	        try {
           const govResult = executePreToolGovernance({
             sessionId: input.sessionID,
             toolName: input.tool,
@@ -1006,6 +1033,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
 
     "tool.execute.after": async (input, output) => {
+      // Guard against undefined output (e.g., from /review command - see issue #1035)
+      if (!output) {
+        return;
+      }
       await planningWithFiles?.["tool.execute.after"]?.(input, output);
       await claudeCodeHooks["tool.execute.after"](input, output);
 
@@ -1084,8 +1115,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
       await userMemory?.["tool.execute.after"]?.(input, output);
       await orgMemory?.["tool.execute.after"]?.(input, output);
-      await contextWindowMonitor?.["tool.execute.after"](input, output);
       await preemptiveCompaction?.["tool.execute.after"]?.(input, output);
+      await contextWindowMonitor?.["tool.execute.after"](input, output);
       await commentChecker?.["tool.execute.after"](input, output);
       await directoryAgentsInjector?.["tool.execute.after"](input, output);
       await directoryReadmeInjector?.["tool.execute.after"](input, output);
@@ -1100,6 +1131,59 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await taskResumeInfo["tool.execute.after"](input, output);
       await sessionHandoffHook?.["tool.execute.after"]?.(input, output);
       await swarmAgent?.["tool.execute.after"]?.(input, output);
+    },
+
+    "experimental.session.compacting": async (
+      input: { sessionID: string },
+      output?: { context: string[] }
+    ) => {
+      // Claude Code compatibility: allow PreCompact hooks to inject extra compaction context
+      if (output && Array.isArray(output.context)) {
+        await claudeCodeHooks["experimental.session.compacting"]?.(input, output);
+      }
+
+      if (!compactionContextInjector) {
+        return;
+      }
+
+      // Best-effort: infer provider/model from recent assistant messages for accurate injection metadata
+      let providerID = "anthropic";
+      let modelID = "claude-opus-4-5";
+      try {
+        const messagesResp = await ctx.client.session.messages({
+          path: { id: input.sessionID },
+        });
+        const payload = messagesResp as { data?: Array<{ info?: Record<string, unknown> }> } | Array<{ info?: Record<string, unknown> }>;
+        const messages = Array.isArray(payload) ? payload : (payload.data ?? []);
+
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const info = messages[i]?.info as Record<string, unknown> | undefined;
+          const model = info?.model as { providerID?: string; modelID?: string } | undefined;
+          const infoProviderID = info?.providerID as string | undefined;
+          const infoModelID = info?.modelID as string | undefined;
+
+          if (model?.providerID && model?.modelID) {
+            providerID = model.providerID;
+            modelID = model.modelID;
+            break;
+          }
+          if (infoProviderID && infoModelID) {
+            providerID = infoProviderID;
+            modelID = infoModelID;
+            break;
+          }
+        }
+      } catch {
+        // Best-effort only; compaction should proceed even if metadata is unavailable
+      }
+
+      await compactionContextInjector({
+        sessionID: input.sessionID,
+        providerID,
+        modelID,
+        usageRatio: 0.8,
+        directory: ctx.directory,
+      });
     },
   };
 };

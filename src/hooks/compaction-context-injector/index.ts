@@ -68,13 +68,13 @@ Structure forces preservation - each section acts as a checklist preventing info
 - User preferences learned
 
 ## 10. Agent Verification State (Critical for Reviewers)
-- **Current Agent**: What agent is running (momus, oracle, etc.)
+- **Current Agent**: What agent is running (plan-synthesizer, oracle, etc.)
 - **Verification Progress**: Files already verified/validated
 - **Pending Verifications**: Files still needing verification
 - **Previous Rejections**: If reviewer agent, what was rejected and why
 - **Acceptance Status**: Current state of review process
 
-This section is CRITICAL for reviewer agents (momus, oracle) to maintain continuity.
+This section is CRITICAL for reviewer agents (plan-synthesizer, oracle) to maintain continuity.
 
 This structured context is CRITICAL for maintaining continuity after compaction.
 Preserving this information prevents the gradual information loss that occurs with freeform summarization.

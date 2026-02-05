@@ -1,29 +1,29 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { existsSync, readdirSync } from "node:fs"
-import { join } from "node:path"
 import type { BackgroundManager } from "../features/background-agent"
 import { getMainSessionID, subagentSessions } from "../features/claude-code-session-state"
 import {
     findNearestMessageWithFields,
-    MESSAGE_STORAGE,
     type ToolPermission,
 } from "../features/hook-message-injector"
 import { log } from "../shared/logger"
+import { getMessageDir } from "../shared/session-utils"
 import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
 
 const HOOK_NAME = "todo-continuation-enforcer"
 
-const DEFAULT_SKIP_AGENTS = ["prometheus"]
+const DEFAULT_SKIP_AGENTS = ["prometheus", "compaction"]
 
 export interface TodoContinuationEnforcerOptions {
   backgroundManager?: BackgroundManager
   skipAgents?: string[]
+  isContinuationStopped?: (sessionID: string) => boolean
 }
 
 export interface TodoContinuationEnforcer {
   handler: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
   markRecovering: (sessionID: string) => void
   markRecoveryComplete: (sessionID: string) => void
+  cancelAllCountdowns: () => void
 }
 
 interface Todo {
@@ -53,20 +53,6 @@ const COUNTDOWN_SECONDS = 2
 const TOAST_DURATION_MS = 900
 const COUNTDOWN_GRACE_PERIOD_MS = 500
 
-function getMessageDir(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) return null
-
-  const directPath = join(MESSAGE_STORAGE, sessionID)
-  if (existsSync(directPath)) return directPath
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-    if (existsSync(sessionPath)) return sessionPath
-  }
-
-  return null
-}
-
 function getIncompleteCount(todos: Todo[]): number {
   return todos.filter(t => t.status !== "completed" && t.status !== "cancelled").length
 }
@@ -95,7 +81,7 @@ export function createTodoContinuationEnforcer(
   ctx: PluginInput,
   options: TodoContinuationEnforcerOptions = {}
 ): TodoContinuationEnforcer {
-  const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS } = options
+  const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS, isContinuationStopped } = options
   const sessions = new Map<string, SessionState>()
 
   function getState(sessionID: string): SessionState {
@@ -155,7 +141,7 @@ export function createTodoContinuationEnforcer(
 
   interface ResolvedMessageInfo {
     agent?: string
-    model?: { providerID: string; modelID: string }
+    model?: { providerID: string; modelID: string; variant?: string }
     tools?: Record<string, ToolPermission>
   }
 
@@ -205,7 +191,11 @@ export function createTodoContinuationEnforcer(
       const prevMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
       agentName = agentName ?? prevMessage?.agent
       model = model ?? (prevMessage?.model?.providerID && prevMessage?.model?.modelID
-        ? { providerID: prevMessage.model.providerID, modelID: prevMessage.model.modelID }
+        ? { 
+            providerID: prevMessage.model.providerID, 
+            modelID: prevMessage.model.modelID,
+            ...(prevMessage.model.variant ? { variant: prevMessage.model.variant } : {})
+          }
         : undefined)
       tools = tools ?? prevMessage?.tools
     }
@@ -382,6 +372,7 @@ ${todoList}`
       }
 
       let resolvedInfo: ResolvedMessageInfo | undefined
+      let hasCompactionMessage = false
       try {
         const messagesResp = await ctx.client.session.messages({
           path: { id: sessionID },
@@ -397,6 +388,10 @@ ${todoList}`
         }>
         for (let i = messages.length - 1; i >= 0; i--) {
           const info = messages[i].info
+          if (info?.agent === "compaction") {
+            hasCompactionMessage = true
+            continue
+          }
           if (info?.agent || info?.model || (info?.modelID && info?.providerID)) {
             resolvedInfo = {
               agent: info.agent,
@@ -410,9 +405,18 @@ ${todoList}`
         log(`[${HOOK_NAME}] Failed to fetch messages for agent check`, { sessionID, error: String(err) })
       }
 
-      log(`[${HOOK_NAME}] Agent check`, { sessionID, agentName: resolvedInfo?.agent, skipAgents })
+      log(`[${HOOK_NAME}] Agent check`, { sessionID, agentName: resolvedInfo?.agent, skipAgents, hasCompactionMessage })
       if (resolvedInfo?.agent && skipAgents.includes(resolvedInfo.agent)) {
         log(`[${HOOK_NAME}] Skipped: agent in skipAgents list`, { sessionID, agent: resolvedInfo.agent })
+        return
+      }
+      if (hasCompactionMessage && !resolvedInfo?.agent) {
+        log(`[${HOOK_NAME}] Skipped: compaction occurred but no agent info resolved`, { sessionID })
+        return
+      }
+
+      if (isContinuationStopped?.(sessionID)) {
+        log(`[${HOOK_NAME}] Skipped: continuation stopped for session`, { sessionID })
         return
       }
 
@@ -481,9 +485,17 @@ ${todoList}`
     }
   }
 
+  const cancelAllCountdowns = (): void => {
+    for (const sessionID of sessions.keys()) {
+      cancelCountdown(sessionID)
+    }
+    log(`[${HOOK_NAME}] All countdowns cancelled`)
+  }
+
   return {
     handler,
     markRecovering,
     markRecoveryComplete,
+    cancelAllCountdowns,
   }
 }

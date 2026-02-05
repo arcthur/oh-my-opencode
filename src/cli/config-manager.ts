@@ -519,16 +519,6 @@ export const ANTIGRAVITY_PROVIDER_CONFIG = {
           high: { thinkingLevel: "high" },
         },
       },
-      "antigravity-gemini-3-pro-low": {
-        name: "Gemini 3 Pro Low (Antigravity)",
-        limit: { context: 1048576, output: 65535 },
-        modalities: { input: ["text", "image", "pdf"], output: ["text"] },
-      },
-      "antigravity-gemini-3-pro-high": {
-        name: "Gemini 3 Pro High (Antigravity)",
-        limit: { context: 1048576, output: 65535 },
-        modalities: { input: ["text", "image", "pdf"], output: ["text"] },
-      },
       "antigravity-gemini-3-flash": {
         name: "Gemini 3 Flash (Antigravity)",
         limit: { context: 1048576, output: 65536 },

@@ -1,15 +1,10 @@
-import { describe, test, expect, beforeEach, mock } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { createSisyphusJuniorNotepadHook, NOTEPAD_DIRECTIVE } from "./index"
-
-// Mock session state
-const mockSessionAgents = new Map<string, string>()
-
-mock.module("../../features/claude-code-session-state", () => ({
-  getSessionAgent: (sessionID: string) => mockSessionAgents.get(sessionID),
-}))
-
-// Re-import after mocking
-const { createSisyphusJuniorNotepadHook: createHook } = await import("./index")
+import {
+  _resetForTesting,
+  clearSessionAgent,
+  updateSessionAgent,
+} from "../../features/claude-code-session-state"
 
 function createMockCtx() {
   return {
@@ -20,14 +15,19 @@ function createMockCtx() {
 
 describe("sisyphus-junior-notepad hook", () => {
   beforeEach(() => {
-    mockSessionAgents.clear()
+    _resetForTesting()
+  })
+
+  afterEach(() => {
+    _resetForTesting()
   })
 
   describe("tool.execute.before", () => {
     test("injects notepad directive when sisyphus delegates to sisyphus-junior", async () => {
       // given
-      mockSessionAgents.set("session-1", "sisyphus")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-1"
+      updateSessionAgent(sessionID, "sisyphus")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           subagent_type: "sisyphus-junior",
@@ -37,7 +37,7 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-1" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -45,12 +45,15 @@ describe("sisyphus-junior-notepad hook", () => {
       expect(output.args.prompt).toContain("<Work_Context>")
       expect(output.args.prompt).toContain("NOTEPAD PATH")
       expect(output.args.prompt).toContain("Implement the feature")
+
+      clearSessionAgent(sessionID)
     })
 
     test("injects notepad directive when atlas delegates to sisyphus-junior", async () => {
       // given
-      mockSessionAgents.set("session-2", "atlas")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-2"
+      updateSessionAgent(sessionID, "atlas")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           subagent_type: "sisyphus-junior",
@@ -60,18 +63,21 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-2" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // then
       expect(output.args.prompt).toContain("<Work_Context>")
+
+      clearSessionAgent(sessionID)
     })
 
     test("injects notepad directive for category-based delegation (spawns sisyphus-junior)", async () => {
       // given
-      mockSessionAgents.set("session-3", "sisyphus")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-3"
+      updateSessionAgent(sessionID, "sisyphus")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           category: "visual-engineering",
@@ -81,19 +87,22 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-3" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // then
       expect(output.args.prompt).toContain("<Work_Context>")
       expect(output.args.prompt).toContain("Build the component")
+
+      clearSessionAgent(sessionID)
     })
 
     test("does NOT inject when target is not sisyphus-junior", async () => {
       // given
-      mockSessionAgents.set("session-4", "sisyphus")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-4"
+      updateSessionAgent(sessionID, "sisyphus")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           subagent_type: "oracle",
@@ -103,19 +112,22 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-4" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // then
       expect(output.args.prompt).toBe("Analyze the architecture")
       expect(output.args.prompt).not.toContain("<Work_Context>")
+
+      clearSessionAgent(sessionID)
     })
 
     test("does NOT inject when caller is not an orchestrator", async () => {
       // given
-      mockSessionAgents.set("session-5", "sisyphus-junior")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-5"
+      updateSessionAgent(sessionID, "sisyphus-junior")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           subagent_type: "sisyphus-junior",
@@ -125,18 +137,21 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-5" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // then
       expect(output.args.prompt).toBe("Some task")
+
+      clearSessionAgent(sessionID)
     })
 
     test("does NOT inject for non-delegate_task tools", async () => {
       // given
-      mockSessionAgents.set("session-6", "sisyphus")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-6"
+      updateSessionAgent(sessionID, "sisyphus")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           prompt: "Some prompt",
@@ -145,18 +160,21 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "edit", sessionID: "session-6" },
+        { tool: "edit", sessionID },
         output
       )
 
       // then
       expect(output.args.prompt).toBe("Some prompt")
+
+      clearSessionAgent(sessionID)
     })
 
     test("avoids double-injection if prompt already has Work_Context", async () => {
       // given
-      mockSessionAgents.set("session-7", "sisyphus")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-7"
+      updateSessionAgent(sessionID, "sisyphus")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const existingPrompt = "<Work_Context>Already has context</Work_Context>\nDo the work"
       const output = {
         args: {
@@ -167,17 +185,19 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-7" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // then - should not double-inject
       expect(output.args.prompt).toBe(existingPrompt)
+
+      clearSessionAgent(sessionID)
     })
 
     test("handles missing sessionID gracefully", async () => {
       // given
-      const hook = createHook(createMockCtx())
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           subagent_type: "sisyphus-junior",
@@ -197,8 +217,9 @@ describe("sisyphus-junior-notepad hook", () => {
 
     test("handles empty prompt", async () => {
       // given
-      mockSessionAgents.set("session-8", "atlas")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-8"
+      updateSessionAgent(sessionID, "atlas")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           category: "quick",
@@ -208,18 +229,21 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-8" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // then
-      expect(output.args.prompt).toContain("<Work_Context>")
+      expect(output.args.prompt).toBe("")
+
+      clearSessionAgent(sessionID)
     })
 
     test("handles undefined prompt", async () => {
       // given
-      mockSessionAgents.set("session-9", "sisyphus")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-9"
+      updateSessionAgent(sessionID, "sisyphus")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           subagent_type: "sisyphus-junior",
@@ -228,12 +252,14 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-9" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
       // then
-      expect(output.args.prompt).toContain("<Work_Context>")
+      expect(output.args.prompt).toBeUndefined()
+
+      clearSessionAgent(sessionID)
     })
 
     test("notepad directive contains required elements", () => {
@@ -250,8 +276,9 @@ describe("sisyphus-junior-notepad hook", () => {
 
     test("preserves other args when injecting", async () => {
       // given
-      mockSessionAgents.set("session-10", "sisyphus")
-      const hook = createHook(createMockCtx())
+      const sessionID = "session-10"
+      updateSessionAgent(sessionID, "sisyphus")
+      const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
           category: "visual-engineering",
@@ -263,7 +290,7 @@ describe("sisyphus-junior-notepad hook", () => {
 
       // when
       await hook["tool.execute.before"](
-        { tool: "delegate_task", sessionID: "session-10" },
+        { tool: "delegate_task", sessionID },
         output
       )
 
@@ -272,6 +299,8 @@ describe("sisyphus-junior-notepad hook", () => {
       expect(output.args.category).toBe("visual-engineering")
       expect(output.args.load_skills).toEqual(["frontend-ui-ux"])
       expect(output.args.run_in_background).toBe(true)
+
+      clearSessionAgent(sessionID)
     })
   })
 })
