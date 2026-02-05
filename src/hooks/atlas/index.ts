@@ -54,10 +54,12 @@ You have an active work plan with incomplete tasks. Continue working.
 
 RULES:
 - Proceed without asking for permission
-- Mark each checkbox [x] in the plan file when done
+- Change \`- [ ]\` to \`- [x]\` in the plan file when done
 - Use the notepad at .sisyphus/notepads/{PLAN_NAME}/ to record learnings
 - Do not stop until all tasks are complete
-- If blocked, document the blocker and move to the next task`
+- If blocked, document the blocker and move to the next task
+
+Plan file: \`{PLAN_PATH}\``
 
 const VERIFICATION_REMINDER = `**MANDATORY: WHAT YOU MUST DO RIGHT NOW**
 
@@ -193,7 +195,12 @@ delegate_task(
 \`\`\``
 }
 
-function buildOrchestratorReminder(planName: string, progress: { total: number; completed: number }, sessionId: string): string {
+function buildOrchestratorReminder(
+  planName: string,
+  planPath: string,
+  progress: { total: number; completed: number },
+  sessionId: string
+): string {
   const remaining = progress.total - progress.completed
   return `
 ---
@@ -208,8 +215,8 @@ ${buildVerificationReminder(sessionId)}
 
 RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
 
-Update the plan file \`.sisyphus/plans/${planName}.md\`:
-- Change \`[ ]\` to \`[x]\` for the completed task
+Update the plan file \`${planPath}\`:
+- Change \`- [ ]\` to \`- [x]\` for the completed task
 - Use \`Edit\` tool to modify the checkbox
 
 **DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
@@ -221,7 +228,7 @@ Update the plan file \`.sisyphus/plans/${planName}.md\`:
 
 **STEP 6: PROCEED TO NEXT TASK**
 
-- Read the plan file to identify the next \`[ ]\` task
+- Read the plan file to identify the next \`- [ ]\` task
 - Start immediately - DO NOT STOP
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -465,7 +472,13 @@ export function createAtlasHook(
     return state
   }
 
-  async function injectContinuation(sessionID: string, planName: string, remaining: number, total: number): Promise<void> {
+  async function injectContinuation(
+    sessionID: string,
+    planName: string,
+    planPath: string,
+    remaining: number,
+    total: number
+  ): Promise<void> {
     const hasRunningBgTasks = backgroundManager
       ? backgroundManager.getTasksByParentSession(sessionID).some(t => t.status === "running")
       : false
@@ -476,7 +489,8 @@ export function createAtlasHook(
     }
 
     const prompt = WORK_CONTINUATION_PROMPT
-      .replace(/{PLAN_NAME}/g, planName) +
+      .replace(/{PLAN_NAME}/g, planName)
+      .replace(/{PLAN_PATH}/g, planPath) +
       `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`
 
     try {
@@ -602,7 +616,7 @@ export function createAtlasHook(
 
         state.lastContinuationInjectedAt = now
         const remaining = progress.total - progress.completed
-        injectContinuation(sessionID, workState.plan_name, remaining, progress.total)
+        injectContinuation(sessionID, workState.plan_name, workState.active_plan, remaining, progress.total)
         return
       }
 
@@ -823,7 +837,7 @@ ${fileChanges}
 ${originalResponse}
 
 <system-reminder>
-${buildOrchestratorReminder(currentWorkState.plan_name, progress, subagentSessionId)}
+${buildOrchestratorReminder(currentWorkState.plan_name, currentWorkState.active_plan, progress, subagentSessionId)}
 </system-reminder>`
 
           log(`[${HOOK_NAME}] Output transformed for orchestrator mode (work)`, {

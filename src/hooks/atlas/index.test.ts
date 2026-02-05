@@ -917,6 +917,8 @@ describe("atlas hook", () => {
       const callArgs = mockInput._promptMock.mock.calls[0][0]
       expect(callArgs.body.parts[0].text).toContain("2/4 completed")
       expect(callArgs.body.parts[0].text).toContain("2 remaining")
+      expect(callArgs.body.parts[0].text).toContain("Plan file:")
+      expect(callArgs.body.parts[0].text).toContain("progress-plan.md")
     })
 
      test("should not inject when last agent is not Atlas", async () => {
