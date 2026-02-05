@@ -42,8 +42,8 @@ flowchart TD
     User[User Request] --> Prometheus
 
     subgraph Planning Phase
-        Prometheus[Prometheus<br>Planner] --> MultiPlan[multi_plan tool<br>(optional)]
-        MultiPlan --> Synth[Plan Synthesizer<br>(plan-synthesizer)]
+        Prometheus["Prometheus<br>Planner"] --> MultiPlan["multi_plan tool<br>(optional)"]
+        MultiPlan --> Synth["Plan Synthesizer<br>(plan-synthesizer)"]
         Synth --> Prometheus
         Prometheus --> PlanFile["/.sisyphus/plans/{name}.md"]
     end
