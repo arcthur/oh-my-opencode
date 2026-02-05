@@ -216,6 +216,42 @@ describe("fuzzyMatchModel", () => {
 		expect(result).toBe("anthropic/claude-opus-4-5")
 	})
 
+	// given available models with similar model IDs (e.g., glm-4.7 and glm-4.7-free)
+	// when searching for the longer variant (glm-4.7-free)
+	// then return exact model ID match, not the shorter one
+	it("should prefer exact model ID match over shorter substring match", () => {
+		const available = new Set([
+			"zai-coding-plan/glm-4.7",
+			"zai-coding-plan/glm-4.7-free",
+		])
+		const result = fuzzyMatchModel("glm-4.7-free", available)
+		expect(result).toBe("zai-coding-plan/glm-4.7-free")
+	})
+
+	// given available models with similar model IDs
+	// when searching for the shorter variant
+	// then return the shorter match (existing behavior preserved)
+	it("should still prefer shorter match when searching for shorter variant", () => {
+		const available = new Set([
+			"zai-coding-plan/glm-4.7",
+			"zai-coding-plan/glm-4.7-free",
+		])
+		const result = fuzzyMatchModel("glm-4.7", available)
+		expect(result).toBe("zai-coding-plan/glm-4.7")
+	})
+
+	// given same model ID from multiple providers
+	// when searching for exact model ID
+	// then return shortest full string (preserves tie-break behavior)
+	it("should use shortest tie-break when multiple providers have same model ID", () => {
+		const available = new Set([
+			"opencode/gpt-5.2",
+			"openai/gpt-5.2",
+		])
+		const result = fuzzyMatchModel("gpt-5.2", available)
+		expect(result).toBe("openai/gpt-5.2")
+	})
+
 	// given available models from multiple providers
 	// when providers filter is specified
 	// then only search models from specified providers
@@ -583,7 +619,7 @@ describe("fetchAvailableModels with provider-models cache (whitelist-filtered)",
 		rmSync(tempDir, { recursive: true, force: true })
 	})
 
-	function writeProviderModelsCache(data: { models: Record<string, string[]>; connected: string[] }) {
+	function writeProviderModelsCache(data: { models: Record<string, Array<string | Record<string, unknown> | null>>; connected: string[] }) {
 		const cacheDir = join(tempDir, "oh-my-opencode")
 		require("fs").mkdirSync(cacheDir, { recursive: true })
 		writeFileSync(join(cacheDir, "provider-models.json"), JSON.stringify({
@@ -686,6 +722,72 @@ describe("fetchAvailableModels with provider-models cache (whitelist-filtered)",
 		expect(result.has("opencode/glm-4.7-free")).toBe(true)
 		expect(result.has("anthropic/claude-opus-4-5")).toBe(false)
 		expect(result.has("google/gemini-3-pro")).toBe(false)
+	})
+
+	it("should handle object[] format with metadata (Ollama-style)", async () => {
+		writeProviderModelsCache({
+			models: {
+				ollama: [
+					{ id: "ministral-3:14b-32k-agent", provider: "ollama", context: 32768, output: 8192 },
+					{ id: "qwen3-coder:32k-agent", provider: "ollama", context: 32768, output: 8192 },
+				],
+			},
+			connected: ["ollama"],
+		})
+
+		const result = await fetchAvailableModels(undefined, {
+			connectedProviders: ["ollama"],
+		})
+
+		expect(result.size).toBe(2)
+		expect(result.has("ollama/ministral-3:14b-32k-agent")).toBe(true)
+		expect(result.has("ollama/qwen3-coder:32k-agent")).toBe(true)
+	})
+
+	it("should handle mixed string[] and object[] formats across providers", async () => {
+		writeProviderModelsCache({
+			models: {
+				anthropic: ["claude-opus-4-5", "claude-sonnet-4-5"],
+				ollama: [
+					{ id: "ministral-3:14b-32k-agent", provider: "ollama" },
+					{ id: "qwen3-coder:32k-agent", provider: "ollama" },
+				],
+			},
+			connected: ["anthropic", "ollama"],
+		})
+
+		const result = await fetchAvailableModels(undefined, {
+			connectedProviders: ["anthropic", "ollama"],
+		})
+
+		expect(result.size).toBe(4)
+		expect(result.has("anthropic/claude-opus-4-5")).toBe(true)
+		expect(result.has("anthropic/claude-sonnet-4-5")).toBe(true)
+		expect(result.has("ollama/ministral-3:14b-32k-agent")).toBe(true)
+		expect(result.has("ollama/qwen3-coder:32k-agent")).toBe(true)
+	})
+
+	it("should skip invalid entries in object[] format", async () => {
+		writeProviderModelsCache({
+			models: {
+				ollama: [
+					{ id: "valid-model", provider: "ollama" },
+					{ provider: "ollama" },
+					{ id: "", provider: "ollama" },
+					null,
+					"string-model",
+				],
+			},
+			connected: ["ollama"],
+		})
+
+		const result = await fetchAvailableModels(undefined, {
+			connectedProviders: ["ollama"],
+		})
+
+		expect(result.size).toBe(2)
+		expect(result.has("ollama/valid-model")).toBe(true)
+		expect(result.has("ollama/string-model")).toBe(true)
 	})
 })
 

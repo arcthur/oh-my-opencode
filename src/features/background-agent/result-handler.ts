@@ -8,6 +8,33 @@ import { getMessageDir } from "../../shared/session-utils"
 import type { ConcurrencyManager } from "./concurrency"
 import type { TaskStateManager } from "./state"
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function getErrorText(error: unknown): string {
+  if (!error) return ""
+  if (typeof error === "string") return error
+  if (error instanceof Error) return `${error.name}: ${error.message}`
+
+  if (isRecord(error)) {
+    const name = error["name"]
+    const message = error["message"]
+    if (typeof name === "string" && typeof message === "string") {
+      return `${name}: ${message}`
+    }
+    if (typeof message === "string") return message
+    if (typeof name === "string") return name
+  }
+
+  return ""
+}
+
+function isAbortedSessionError(error: unknown): boolean {
+  const text = getErrorText(error)
+  return text.toLowerCase().includes("aborted")
+}
+
 export interface ResultHandlerContext {
   client: OpencodeClient
   concurrencyManager: ConcurrencyManager
@@ -140,6 +167,7 @@ export async function notifyParentSession(
 ): Promise<void> {
   const { client, state } = ctx
   const duration = formatDuration(task.startedAt ?? new Date(), task.completedAt)
+  let parentSessionAborted = false
 
   log("[background-agent] notifyParentSession called for task:", task.id)
 
@@ -213,7 +241,14 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
         break
       }
     }
-  } catch {
+  } catch (error) {
+    if (isAbortedSessionError(error)) {
+      parentSessionAborted = true
+      log("[background-agent] Parent session aborted, skipping notification:", {
+        taskId: task.id,
+        parentSessionID: task.parentSessionID,
+      })
+    }
     const messageDir = getMessageDir(task.parentSessionID)
     const currentMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
     agent = currentMessage?.agent ?? task.parentAgent
@@ -228,23 +263,33 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     resolvedModel: model,
   })
 
-  try {
-    await client.session.prompt({
-      path: { id: task.parentSessionID },
-      body: {
+  if (!parentSessionAborted) {
+    try {
+      await client.session.prompt({
+        path: { id: task.parentSessionID },
+        body: {
+          noReply: !allComplete,
+          ...(agent !== undefined ? { agent } : {}),
+          ...(model !== undefined ? { model } : {}),
+          parts: [{ type: "text", text: notification }],
+        },
+      })
+      log("[background-agent] Sent notification to parent session:", {
+        taskId: task.id,
+        allComplete,
         noReply: !allComplete,
-        ...(agent !== undefined ? { agent } : {}),
-        ...(model !== undefined ? { model } : {}),
-        parts: [{ type: "text", text: notification }],
-      },
-    })
-    log("[background-agent] Sent notification to parent session:", {
-      taskId: task.id,
-      allComplete,
-      noReply: !allComplete,
-    })
-  } catch (error) {
-    log("[background-agent] Failed to send notification:", error)
+      })
+    } catch (error) {
+      if (isAbortedSessionError(error)) {
+        parentSessionAborted = true
+        log("[background-agent] Parent session aborted, skipping notification:", {
+          taskId: task.id,
+          parentSessionID: task.parentSessionID,
+        })
+      } else {
+        log("[background-agent] Failed to send notification:", error)
+      }
+    }
   }
 
   // Cleanup after retention period (track timer to prevent memory leaks)

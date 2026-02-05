@@ -1,10 +1,10 @@
 # Upstream Sync Notes (Fork Policy + Sync Anchors)
 
 > Last updated: 2026-02-05  
-> Fork branch: `dev` @ `a0957cbf` *(worktree contains uncommitted sync work)*  
-> Upstream baseline: `dev` @ `1e587c55` *(local clone: `../oh-my-opencode-upstream`)*  
+> Fork branch: `dev` @ `0f1098c9` *(worktree contains uncommitted sync work)*  
+> Upstream baseline: `dev` @ `617d7f4f` *(local clone: `../oh-my-opencode-upstream`)*  
 > merge-base: `66fd761a`  
-> Divergence (`upstream/dev...dev`): behind **411** / ahead **124** commits
+> Divergence (`upstream/dev...dev`): behind **528** / ahead **125** commits
 
 This document is the **authoritative policy record** for syncing this fork with `upstream/dev`.
 
@@ -119,6 +119,7 @@ bun run build:schema
 | 2026-02-03 | `1e587c55` | `66fd761a` | Drop upstream `tmux-subagent`/`claude-tasks`/`unstable-agent-babysitter`; remove upstream schema/docs no-op hook names; keep fork-owned replacements (`work-state`, `sisyphus-tasks`, `sisyphus-swarm`, governance/memory/multi-plan). |
 | 2026-02-04 | `1e587c55` | `66fd761a` | Wire compaction context injection (`experimental.session.compacting` + `compaction-context-injector`) and Claude Code PreCompact; align context-window compaction hooks; add hook-name migration for renamed upstream recovery hook; complete Atlas `tool.execute.before` enforcement wiring and harden `tool.execute.after`. |
 | 2026-02-05 | `1e587c55` | `66fd761a` | Align tool-layer robustness: restore builtin slashcommand discovery (respecting `disabled_commands`), re-add look-at model-suggestion retry path with fork-compatible agent matching, and restore LSP binary lookup via OpenCode data-dir `bin/` path. |
+| 2026-02-05 | `617d7f4f` | `66fd761a` | Sync upstream/dev follow-ups: tolerate mixed provider-models cache formats (string[] vs object[] metadata), port Windows-safe LSP spawning (Node child_process) + open-file didChange behavior, and suppress background-agent parent notification retries when parent session is aborted. |
 
 ### 2026-02-03 Addendum (File-by-File Review + Link Validation)
 
@@ -321,3 +322,13 @@ Audit metrics (fork vs local upstream clone, excluding `docs/`, `dist/`, `node_m
 - ✅ `src/hooks/atlas/index.ts` + `src/hooks/atlas/index.test.ts`: Fixed background-task detection to match fork `delegate_task` output (`Background task continued`) so Atlas does not transform/append verification reminders for background launches/continuations; added regression tests for undefined `tool.execute.after` output guard and background continuation outputs; `delegate_task` single-task directive is now prepended for stronger enforcement.
 - ✅ User-facing text cleanup: Removed stale `boulder` wording from builtin command description (`src/features/builtin-commands/commands.ts`) and eliminated ambiguous `delegate_task()` prose in prompts/skills (standardized on `delegate_task(...)` and ensured schema-required args appear where examples are provided).
 - ✅ Repo-level diff audit (local upstream clone): Upstream-only files count = **56**, all under `src/` and all in explicitly excluded subsystems (task tool + claude-tasks + boulder-state + tmux-subagent + task-reminder + unstable-agent-babysitter + anthropic recovery hook + metis/momus). No upstream-only files exist outside `src/` (excluding `docs/`, `dist/`, `node_modules/`).
+
+### 2026-02-05 Addendum (Upstream/dev @ `617d7f4f` — selective port, fork-safe)
+
+- `src/hooks/write-existing-file-guard/*` + `src/config/schema.ts` + `src/hooks/index.ts` + `src/index.ts` + `src/hooks/AGENTS.md`: Ported upstream hook and wired it into `tool.execute.before` (after `subagent-question-blocker`). Blocks accidental writes to existing files via `Write` tool; includes regression tests.
+- `src/features/opencode-skill-loader/loader.ts` + `src/features/opencode-skill-loader/skill-builder.ts` + `src/features/opencode-skill-loader/merger.ts` (+ tests): Ported upstream “nested skills” discovery (bounded depth) + cross-scope deduplication with scope priority (`opencode-project > opencode > project > user`). Keeps fork naming conventions (prefixed nested skill names).
+- `src/features/opencode-skill-loader/skill-content.ts` + `src/features/builtin-skills/skills.ts` (+ tests): Added end-to-end `disabledSkills` filtering for both builtin and discovered skills; cache bypass to make disabling deterministic.
+- `src/tools/delegate-task/*` + `src/index.ts`: Threaded `disabledSkills` into `delegate_task` skill resolution. Fixed model precedence so explicit `categories[category].model` overrides the “Sisyphus Junior model override” configuration; aligned default artistry variant (`max` → `high`) with upstream without changing fork tool schema.
+- `src/shared/connected-providers-cache.ts` + `src/shared/model-availability.ts` (+ tests): Hardened provider-models cache parsing to accept both `string[]` and metadata object arrays (e.g. Ollama-style `{ id, context, output }`). Improved `fuzzyMatchModel` with exact model-ID matching and made fallback-availability permissive when providers are connected but model cache is incomplete.
+- `src/tools/lsp/client.ts` (+ `src/tools/lsp/client.test.ts`): Ported upstream Windows-safe spawn strategy (Node `child_process`) and added cwd validation to avoid Bun segfaults. Synced `openFile` to emit `didChange`/`didSave` when file content changes on disk.
+- `src/features/background-agent/result-handler.ts` (+ `src/features/background-agent/result-handler.test.ts`): Swallowed “aborted session” errors during parent-session lookup/notification, preventing log spam + repeated retries when the parent session has been aborted.

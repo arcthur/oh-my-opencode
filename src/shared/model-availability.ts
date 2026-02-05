@@ -2,7 +2,28 @@ import { existsSync, readFileSync } from "fs"
 import { join } from "path"
 import { log } from "./logger"
 import { getOpenCodeCacheDir } from "./data-path"
-import { readProviderModelsCache, hasProviderModelsCache } from "./connected-providers-cache"
+import { readProviderModelsCache, hasProviderModelsCache, readConnectedProvidersCache } from "./connected-providers-cache"
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function getModelIdFromProviderModelsCacheItem(item: unknown): string | null {
+  if (typeof item === "string") {
+    const trimmed = item.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+
+  if (isRecord(item)) {
+    const id = item["id"]
+    if (typeof id === "string") {
+      const trimmed = id.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+  }
+
+  return null
+}
 
 /**
  * Fuzzy match a target model name against available models
@@ -76,7 +97,21 @@ export function fuzzyMatchModel(target: string, available: Set<string>, provider
     return exactMatch
   }
 
-  // Priority 2: Shorter model name (more specific)
+  // Priority 2: Exact model ID match (part after provider/)
+  // This ensures "glm-4.7-free" matches "zai-coding-plan/glm-4.7-free" over "zai-coding-plan/glm-4.7"
+  const exactModelIdMatches = matches.filter((model) => {
+    const modelId = model.split("/").slice(1).join("/")
+    return normalizeModelName(modelId) === targetNormalized
+  })
+  if (exactModelIdMatches.length > 0) {
+    const result = exactModelIdMatches.reduce((shortest, current) =>
+      current.length < shortest.length ? current : shortest
+    )
+    log("[fuzzyMatchModel] exact model ID match found", { result, candidateCount: exactModelIdMatches.length })
+    return result
+  }
+
+  // Priority 3: Shorter model name (more specific)
   const result = matches.reduce((shortest, current) => (current.length < shortest.length ? current : shortest))
   log("[fuzzyMatchModel] shortest match", { result })
   return result
@@ -170,7 +205,10 @@ export async function fetchAvailableModels(
         if (!connectedSet.has(providerId)) {
           continue
         }
-        for (const modelId of modelIds) {
+        if (!Array.isArray(modelIds)) continue
+        for (const modelItem of modelIds) {
+          const modelId = getModelIdFromProviderModelsCacheItem(modelItem)
+          if (!modelId) continue
           modelSet.add(`${providerId}/${modelId}`)
         }
       }
@@ -260,19 +298,34 @@ export function isAnyFallbackModelAvailable(
   fallbackChain: Array<{ providers: string[]; model: string }>,
   availableModels: Set<string>
 ): boolean {
-  if (availableModels.size === 0) {
-    return false
-  }
-
-  for (const entry of fallbackChain) {
-    const hasAvailableProvider = entry.providers.some((provider) => {
-      return fuzzyMatchModel(entry.model, availableModels, [provider]) !== null
-    })
-    if (hasAvailableProvider) {
-      return true
+  // If we have models, check them first
+  if (availableModels.size > 0) {
+    for (const entry of fallbackChain) {
+      const hasAvailableProvider = entry.providers.some((provider) => {
+        return fuzzyMatchModel(entry.model, availableModels, [provider]) !== null
+      })
+      if (hasAvailableProvider) {
+        return true
+      }
     }
   }
-  log("[isAnyFallbackModelAvailable] no model available in chain", { chainLength: fallbackChain.length })
+
+  // Fallback: check if any provider in the chain is connected.
+  // This handles race conditions where availableModels is empty or incomplete
+  // but we know the provider is connected.
+  const connectedProviders = readConnectedProvidersCache()
+  if (connectedProviders) {
+    const connectedSet = new Set(connectedProviders)
+    for (const entry of fallbackChain) {
+      if (entry.providers.some((p) => connectedSet.has(p))) {
+        log("[isAnyFallbackModelAvailable] model not in available set, but provider is connected", {
+          model: entry.model,
+          availableCount: availableModels.size,
+        })
+        return true
+      }
+    }
+  }
   return false
 }
 
