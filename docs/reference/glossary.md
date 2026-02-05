@@ -76,12 +76,12 @@ A session summarization step that reduces context window usage.
 
 Contract (current wiring):
 
-- `compaction-context-injector` exists under `src/hooks/compaction-context-injector/` but is **not currently wired** in `src/index.ts`.
-- Claude Code `PreCompact` support exists under `src/hooks/claude-code-hooks/pre-compact.ts`, but the OpenCode surface (`experimental.session.compacting`) is **not currently wired** in `src/index.ts`.
+- `compaction-context-injector` is wired via `experimental.session.compacting` in `src/index.ts` (runs only if the OpenCode runtime emits this surface during compaction).
+- Claude Code `PreCompact` support exists under `src/hooks/claude-code-hooks/pre-compact.ts` and is invoked on the same `experimental.session.compacting` surface (best-effort; depends on runtime support).
 
 ## Preemptive Compaction
 
-A proactive summarize trigger before hitting a hard context limit. Implementation: `src/hooks/preemptive-compaction/`.
+A proactive summarize trigger before hitting a hard context limit. Implementation: `src/hooks/preemptive-compaction.ts`.
 
 ## Cartography / Codemap
 

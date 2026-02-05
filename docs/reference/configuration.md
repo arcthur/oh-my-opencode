@@ -70,7 +70,7 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
 
 ## Google Auth
 
-**Recommended**: For Google Gemini authentication, install the [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin. It provides multi-account load balancing, more models (including Claude via Antigravity), and active maintenance. See [Installation > Google Gemini](../../README.md#google-gemini-antigravity-oauth).
+**Recommended**: For Google Gemini authentication, install the [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin. It provides multi-account load balancing, more models (including Claude via Antigravity), and active maintenance. See [Installation > Google Gemini (Antigravity OAuth)](../guide/installation.md#google-gemini-antigravity-oauth).
 
 ## Agents
 
@@ -92,6 +92,8 @@ Override built-in agent settings:
 
 Each agent supports: `model`, `temperature`, `top_p`, `prompt`, `prompt_append`, `tools`, `disable`, `description`, `mode`, `color`, `permission`.
 
+**Note**: The `agents` override keys are limited to `AgentOverridesSchema` in `src/config/schema.ts` (unknown agent keys are ignored). Some built-in agents (e.g., `hephaestus`) can be disabled via `disabled_agents` but are not currently overrideable via the `agents` block.
+
 Use `prompt_append` to add extra instructions without replacing the default system prompt:
 
 ```json
@@ -104,7 +106,7 @@ Use `prompt_append` to add extra instructions without replacing the default syst
 }
 ```
 
-You can also override settings for `Sisyphus` (the main orchestrator) and `build` (the default agent) using the same options.
+You can also override settings for `sisyphus` (the main orchestrator) and `build` (the default agent) using the same options.
 
 ### Permission Options
 
@@ -140,7 +142,7 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available built-in agents: `Sisyphus`, `Atlas`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`
+Available built-in agents: `sisyphus`, `atlas`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`, `hephaestus`
 
 ## Multi-Plan Pipeline
 
@@ -269,34 +271,34 @@ You can also customize Sisyphus agents like other agents:
 ```jsonc
 {
   "agents": {
-    "Sisyphus": {
+    "sisyphus": {
       "model": "anthropic/claude-sonnet-4",
       "temperature": 0.3
     },
     "OpenCode-Builder": {
       "model": "anthropic/claude-opus-4"
     },
-    "Prometheus": {
+    "prometheus": {
       "model": "openai/gpt-5.2"
     },
     "plan-synthesizer": {
       "model": "anthropic/claude-opus-4-5"
     },
-    "Sisyphus-Junior": {
+    "sisyphus-junior": {
       "model": "anthropic/claude-sonnet-4-5"
     }
   }
 }
 ```
 
-For **multi-model planning**, you can set `agents.Prometheus.model` to a `string[]` (2-5 models). Prometheus will use the **first** entry as its own runtime model, and the full array will be used for the multi-plan pipeline.
+For **multi-model planning**, you can set `agents.prometheus.model` to a `string[]` (2-5 models). Prometheus will use the **first** entry as its own runtime model, and the full array will be used for the multi-plan pipeline.
 
-**Example: Enable multi-model planning via `agents.Prometheus.model` array:**
+**Example: Enable multi-model planning via `agents.prometheus.model` array:**
 
 ```jsonc
 {
   "agents": {
-    "Prometheus": {
+    "prometheus": {
       "model": [
         "anthropic/claude-opus-4-5",
         "openai/gpt-5.2"
@@ -349,7 +351,7 @@ Configure concurrency limits for background agent tasks. This controls how many 
 
 ## Categories
 
-Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `Sisyphus-Junior` agent.
+Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `sisyphus-junior` agent.
 
 **Built-in Categories (defaults):**
 
@@ -506,7 +508,7 @@ Categories follow the same fallback logic as agents:
 // User has: Claude Pro (not max20)
 {
   "agents": {
-    "Sisyphus": { "model": "anthropic/claude-sonnet-4-5" },
+    "sisyphus": { "model": "anthropic/claude-sonnet-4-5" },
     "oracle": { "model": "anthropic/claude-opus-4-5" },
     "explore": { "model": "opencode/grok-code" },
     "librarian": { "model": "opencode/glm-4.7-free" }
@@ -520,7 +522,7 @@ Categories follow the same fallback logic as agents:
 // User has: Claude Max (max20 mode)
 {
   "agents": {
-    "Sisyphus": { "model": "anthropic/claude-opus-4-5" },
+    "sisyphus": { "model": "anthropic/claude-opus-4-5" },
     "oracle": { "model": "anthropic/claude-opus-4-5" },
     "explore": { "model": "anthropic/claude-haiku-4-5" },
     "librarian": { "model": "opencode/glm-4.7-free" }
@@ -534,7 +536,7 @@ Categories follow the same fallback logic as agents:
 // User has: OpenAI/ChatGPT Plus only
 {
   "agents": {
-    "Sisyphus": { "model": "openai/gpt-5.2" },
+    "sisyphus": { "model": "openai/gpt-5.2" },
     "oracle": { "model": "openai/gpt-5.2-codex" },
     "explore": { "model": "opencode/grok-code" },
     "multimodal-looker": { "model": "openai/gpt-5.2" },
@@ -549,7 +551,7 @@ Categories follow the same fallback logic as agents:
 // User has: All native providers
 {
   "agents": {
-    "Sisyphus": { "model": "anthropic/claude-opus-4-5" },
+    "sisyphus": { "model": "anthropic/claude-opus-4-5" },
     "oracle": { "model": "openai/gpt-5.2-codex" },
     "explore": { "model": "anthropic/claude-haiku-4-5" },
     "multimodal-looker": { "model": "google/gemini-3-pro-preview" },
@@ -564,7 +566,7 @@ Categories follow the same fallback logic as agents:
 // User has: GitHub Copilot only (no native providers)
 {
   "agents": {
-    "Sisyphus": { "model": "github-copilot/claude-sonnet-4.5" },
+    "sisyphus": { "model": "github-copilot/claude-sonnet-4.5" },
     "oracle": { "model": "github-copilot/gpt-5.2-codex" },
     "explore": { "model": "opencode/grok-code" },
     "librarian": { "model": "github-copilot/gpt-5.2" }
@@ -592,7 +594,7 @@ You can always override automatic selection in `oh-my-opencode.json`:
 ```json
 {
   "agents": {
-    "Sisyphus": {
+    "sisyphus": {
       "model": "anthropic/claude-sonnet-4-5"  // Force specific model
     },
     "oracle": {
@@ -621,7 +623,7 @@ Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For wiring
 
 **Note on `directory-agents-injector`**: This hook is **automatically disabled** when running on OpenCode 1.1.37+ because OpenCode now has native support for dynamically resolving AGENTS.md files from subdirectories (PR #10678). This prevents duplicate AGENTS.md injection. For older OpenCode versions, the hook remains active to provide the same functionality.
 
-**Note on `compaction-context-injector`**: The hook exists in the repo, but it is not currently wired in `src/index.ts` (pending a stable compaction lifecycle surface in OpenCode). The repo also contains a Claude Code `PreCompact` implementation (`src/hooks/claude-code-hooks/pre-compact.ts`), but `experimental.session.compacting` is not currently registered in `src/index.ts`, so compaction-time injection is effectively **disabled** in the current wiring.
+**Note on `compaction-context-injector`**: This hook is wired in `src/index.ts` under the `experimental.session.compacting` lifecycle surface. When OpenCode emits that event during compaction, the plugin can run Claude Code compat `PreCompact` hooks and/or inject extra compaction-time context via `compaction-context-injector` (best-effort; depends on runtime support and hook enablement).
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
 

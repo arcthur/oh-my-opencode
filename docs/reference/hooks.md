@@ -47,7 +47,6 @@ If you need a definitive answer for “can I disable this?”, consult the wirin
 Some names exist in `HookNameSchema` but are **not currently wired** in `src/index.ts` (disabling them has no effect).
 As of this repo state, the following are present but not wired:
 
-- `compaction-context-injector` (module exists; not integrated)
 - `repo-overview-injector` (module exists; not integrated)
 - `runtime-tracker` (module exists; not integrated)
 
@@ -88,24 +87,26 @@ Execution order (high-level):
 
 1. Question label truncator
 2. Subagent question blocker
-3. User memory
-4. Org memory
-5. Claude Code compat layer (if enabled)
-6. Non-interactive env (if enabled)
-7. Comment checker (if enabled)
-8. Directory AGENTS injector (if enabled)
-9. Directory README injector (if enabled)
-10. Rules injector (if enabled)
-11. Prometheus MD-only (if enabled)
-12. Planning-with-files (if enabled)
-13. Delegation validator (if enabled)
-14. Sisyphus-junior notepad (if enabled)
-15. Tmux parallel agents (if enabled)
-16. Swarm agent (if enabled)
-17. Conditional rules (if enabled; special handling for `delegate_task`)
-18. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
-19. Governance pre-tool checks (if enabled)
-20. Silent tool output pre-hook (if enabled)
+3. Write existing file guard (if enabled)
+4. User memory
+5. Org memory
+6. Claude Code compat layer (if enabled)
+7. Non-interactive env (if enabled)
+8. Comment checker (if enabled)
+9. Directory AGENTS injector (if enabled)
+10. Directory README injector (if enabled)
+11. Rules injector (if enabled)
+12. Prometheus MD-only (if enabled)
+13. Planning-with-files (if enabled)
+14. Delegation validator (if enabled)
+15. Sisyphus-junior notepad (if enabled)
+16. Atlas orchestration (if enabled)
+17. Tmux parallel agents (if enabled)
+18. Swarm agent (if enabled)
+19. Conditional rules (if enabled; special handling for `delegate_task`)
+20. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
+21. Governance pre-tool checks (if enabled)
+22. Silent tool output pre-hook (if enabled)
 
 ### `tool.execute.after`
 
@@ -119,8 +120,8 @@ Execution order (high-level):
 6. Governance post-tool processing (if enabled)
 7. User memory
 8. Org memory
-9. Context window monitor (if enabled)
-10. Preemptive compaction (if enabled)
+9. Preemptive compaction (if enabled)
+10. Context window monitor (if enabled)
 11. Comment checker (if enabled)
 12. Directory AGENTS injector (if enabled)
 13. Directory README injector (if enabled)
@@ -160,7 +161,7 @@ Mapping (Claude Code hook type → intended OpenCode surface):
 | `PostToolUse` | `tool.execute.after` | `src/hooks/claude-code-hooks/post-tool-use.ts` | Wired via explicit calls in `src/index.ts` |
 | `UserPromptSubmit` | `chat.message` | `src/hooks/claude-code-hooks/user-prompt-submit.ts` | Wired via explicit calls in `src/index.ts` |
 | `Stop` | `event(type="session.idle")` | `src/hooks/claude-code-hooks/stop.ts` | Wired via explicit calls in `src/index.ts` |
-| `PreCompact` | `experimental.session.compacting` | `src/hooks/claude-code-hooks/pre-compact.ts` | Implemented, **not currently wired** (OpenCode surface not integrated) |
+| `PreCompact` | `experimental.session.compacting` | `src/hooks/claude-code-hooks/pre-compact.ts` | Wired via `experimental.session.compacting` in `src/index.ts` (best-effort; depends on runtime support) |
 
 ### Claude Code extended config (`opencode-cc-plugin.json`)
 
