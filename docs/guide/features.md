@@ -312,8 +312,8 @@ Hooks intercept and modify behavior at key points in the agent lifecycle.
 ### Hook Events
 
 Note: This section uses **Claude Code-style hook names** (e.g., `PreToolUse`, `PostToolUse`, `Stop`, `PreCompact`) as a stable conceptual vocabulary.
-OpenCode runtime wiring uses OpenCode lifecycle events; for the source of truth see `src/index.ts` and `docs/reference/hooks.md`.
-As of the current wiring, compaction-time injection (`PreCompact`) is implemented in the repo but **not registered** in `src/index.ts` (no `experimental.session.compacting` handler).
+OpenCode runtime wiring uses OpenCode lifecycle events; for the source of truth see `src/hooks/runtime/pipeline-order.ts`, `src/index.ts`, and `docs/reference/hooks.md`.
+Compaction-time injection (`PreCompact`) is registered on `experimental.session.compacting` as a best-effort bridge (depends on runtime surface availability).
 
 | Event | When | Can |
 |-------|------|-----|

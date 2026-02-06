@@ -71,10 +71,10 @@ Org Memory:
 | User memory | `src/features/user-memory/` | Persistent user-layer memory with retrieval and injection | Wired |
 | Org memory | `src/features/org-memory/` | Persistent org-layer memory with injection | Wired |
 | Session handoff | `src/features/session-handoff/` | Cross-session summaries and references | Wired |
-| Repo overview injector | `src/hooks/repo-overview-injector/` | Generate and inject a per-repo overview | Present, not wired in `src/index.ts` |
-| Runtime tracker | `src/hooks/runtime-tracker/` | Track tool runtimes and inject hints | Present, not wired in `src/index.ts` |
-| Compaction-time injection helper | `src/hooks/compaction-context-injector/` | Add structured context at compaction time | Present, not wired in `src/index.ts` |
-| Claude Code `PreCompact` | `src/hooks/claude-code-hooks/pre-compact.ts` | Compatibility layer for compaction injection | Implemented, not wired (no `experimental.session.compacting` handler) |
+| Repo overview injector | `src/hooks/repo-overview-injector/` | Generate and inject a per-repo overview | Wired |
+| Runtime tracker | `src/hooks/runtime-tracker/` | Track tool runtimes and inject hints | Wired |
+| Compaction-time injection helper | `src/hooks/compaction-context-injector/` | Add structured context at compaction time | Wired (best-effort via `experimental.session.compacting`) |
+| Claude Code `PreCompact` | `src/hooks/claude-code-hooks/pre-compact.ts` | Compatibility layer for compaction injection | Wired (best-effort via `experimental.session.compacting`) |
 
 ### 2.2 Token-limit recovery pipeline
 
@@ -102,10 +102,8 @@ Notes:
 
 ### 2.4 Gaps and limitations (as of current wiring)
 
-1. **Repo overview**: the schema and hook exist, but the injector is not wired, so onboarding still relies on ad-hoc exploration.
-2. **Runtime tracking**: the schema and hook exist, but the tracker is not wired, so there is no systematic “avoid repeating expensive tools” feedback.
-3. **Compaction-time injection**: utilities exist but are not wired because OpenCode does not currently expose a stable compaction lifecycle surface in this plugin.
-4. **Observation masking**: not implemented (tool outputs are truncated/pruned, not masked with reversible handles).
+1. **Compaction-time surface stability**: compaction-time injection is wired but still depends on the OpenCode runtime emitting `experimental.session.compacting`.
+2. **Observation masking**: not implemented (tool outputs are truncated/pruned, not masked with reversible handles).
 
 ---
 
@@ -164,9 +162,9 @@ Old tool outputs deep in history can often be removed safely; the agent generall
 
 ### 4.1 Quick wins (wiring and defaults)
 
-1. Wire `repo-overview-injector` into `src/index.ts` (respect `repo_overview` config).
-2. Wire `runtime-tracker` into `src/index.ts` (respect `runtime_tracker` config).
-3. Validate `experimental.dynamic_context_pruning` defaults and document safe tuning for `strategies.clear_tool_results.keep_recent_turns`.
+1. Validate `experimental.dynamic_context_pruning` defaults and document safe tuning for `strategies.clear_tool_results.keep_recent_turns`.
+2. Tune `runtime_tracker` defaults (`threshold_ms`, `hint_cooldown_ms`) to reduce noisy hints in large repos.
+3. Tune `repo_overview` defaults (`min_tool_calls`, `cache_duration_ms`) to balance onboarding speed vs context budget.
 
 ### 4.2 Medium-term improvements
 

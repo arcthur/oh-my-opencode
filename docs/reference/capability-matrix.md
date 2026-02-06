@@ -30,5 +30,4 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 
 ## Known Limitations (Wiring)
 
-- `repo-overview-injector` and `runtime-tracker` exist in `HookNameSchema` but are not currently wired in `src/index.ts`.
 - Compaction-time injection is wired via `experimental.session.compacting` (Claude Code `PreCompact` + `compaction-context-injector`), but it depends on the OpenCode runtime emitting that experimental surface.

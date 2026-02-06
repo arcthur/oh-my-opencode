@@ -61,5 +61,5 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 
 ## Execution Chain (Code Is Source of Truth)
 
-- Lifecycle ordering is implemented in `src/index.ts`.
+- Lifecycle order table is implemented in `src/hooks/runtime/pipeline-order.ts` and wired in `src/index.ts`.
 - The documentation mirror is `src/hooks/AGENTS.md`.

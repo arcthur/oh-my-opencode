@@ -46,12 +46,12 @@ This journey explains how Oh-My-OpenCode executes work in parallel, how results 
 
 - Background manager: `src/features/background-agent/`
 - Delegation tool: `src/tools/delegate-task/`
-- OMO agent runner: `src/tools/call-omo-agent/`
+- Delegation execution path (merged runner): `src/tools/delegate-task/executor.ts`
 - Tmux integration (fork-owned): `src/hooks/tmux-parallel-agents/` and `docs/journeys/swarm-coordination.md`
   - For manual worktrees + tmux (multi-process agents): use the built-in \`parallel-agents\` skill.
 
 ## Operational Notes
 
 - If you see tool output getting truncated unexpectedly, verify hook ordering:
-  - `src/index.ts` (`tool.execute.after`)
+  - `src/hooks/runtime/pipeline-order.ts` (`tool.execute.after`)
   - `src/hooks/AGENTS.md` (documentation mirror)

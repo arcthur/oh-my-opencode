@@ -48,6 +48,6 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 
 ## Practical Debug Checklist
 
-- Verify hook order in `src/index.ts` (`tool.execute.after` and `event`).
+- Verify runtime order in `src/hooks/runtime/pipeline-order.ts` and event node wiring in `src/index.ts`.
 - Confirm `disabled_hooks` and feature config in `oh-my-opencode.json`.
 - If compaction seems to “forget” critical constraints, inspect compaction triggers (`preemptive-compaction`, `context-window-limit-recovery`) and whether your build has any compaction-time injection wired (see `docs/reference/hooks.md`).

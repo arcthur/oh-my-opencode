@@ -1789,6 +1789,23 @@
               }
             }
           }
+        },
+        "hook_runtime_v2": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "mode": {
+              "default": "shadow",
+              "type": "string",
+              "enum": [
+                "shadow",
+                "enforce"
+              ]
+            }
+          }
         }
       }
     },

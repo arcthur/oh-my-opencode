@@ -11,7 +11,7 @@ This journey gives a practical, end-to-end debugging chain: reproduce → inspec
 flowchart TD
   Sym["Symptom observed"] --> Repro["Reproduce with minimal steps"]
   Repro --> Conf["Validate config (oh-my-opencode.json)"]
-  Conf --> Order["Verify hook ordering (src/index.ts + src/hooks/AGENTS.md)"]
+  Conf --> Order["Verify hook ordering (runtime order + node wiring)"]
   Order --> Loc{"Where does it fail?"}
 
   Loc -->|Tool arguments| Before["tool.execute.before hooks"]
@@ -31,14 +31,14 @@ This journey focuses on diagnosing misbehavior in production-like usage: orderin
 
 - Run doctor: see `docs/guide/cli.md`
 - Validate config: `docs/reference/configuration.md`
-- Confirm hook order: `src/index.ts` + `src/hooks/AGENTS.md`
+- Confirm hook order: `src/hooks/runtime/pipeline-order.ts` + `src/index.ts` + `docs/reference/hooks.md`
 
 ## Common Symptoms → Where to Inspect
 
 - **Tool output missing/changed**:
   - `src/hooks/silent-tool-output/`
   - `src/hooks/tool-output-truncator.ts`
-  - `src/index.ts` (`tool.execute.after` ordering)
+  - `src/hooks/runtime/pipeline-order.ts` (`tool.execute.after` ordering)
 - **Unexpected compaction / lost constraints**:
   - `src/hooks/preemptive-compaction.ts`
   - `src/hooks/context-window-limit-recovery/`

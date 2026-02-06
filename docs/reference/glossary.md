@@ -27,7 +27,7 @@ A lifecycle interceptor wired by the plugin for events such as:
 - `tool.execute.after`
 - `event`
 
-Canonical wiring and ordering: `src/index.ts`.
+Canonical runtime order: `src/hooks/runtime/pipeline-order.ts`; canonical node wiring: `src/index.ts`.
 
 ## Skill
 

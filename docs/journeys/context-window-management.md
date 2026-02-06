@@ -27,7 +27,7 @@ flowchart TD
 
 A comprehensive guide to context window management in oh-my-opencode. This document details how the system manages LLM context windows to maintain information integrity and system stability during extended sessions.
 
-**Status note (wiring matters)**: This document describes both (a) components that are wired in `src/index.ts` and (b) modules that exist in the repo but are **not currently wired** (e.g., `repo-overview-injector`, `runtime-tracker`). Compaction-time injection is wired via `experimental.session.compacting`, but it depends on the OpenCode runtime emitting that experimental surface. For authoritative wiring and ordering, treat `docs/reference/hooks.md` and `src/index.ts` as the source of truth.
+**Status note (wiring matters)**: This document describes runtime components that are actually wired. Canonical event order lives in `src/hooks/runtime/pipeline-order.ts`, and canonical node wiring lives in `src/index.ts`. Compaction-time injection is wired via `experimental.session.compacting`, but still depends on the OpenCode runtime emitting that experimental surface.
 
 ## Table of Contents
 
@@ -155,7 +155,7 @@ oh-my-opencode Context Management
 │       └── storage.ts                 # Tool output management
 ├── Context Injection                  # Context bootstrapping
 │   ├── src/hooks/compaction-context-injector/   # Compaction-time injection helper (wired via experimental.session.compacting)
-│   ├── src/hooks/repo-overview-injector/        # Project context injection (present, not wired)
+│   ├── src/hooks/repo-overview-injector/        # Project context injection
 │   └── src/hooks/directory-agents-injector/     # Directory-level context
 ├── Memory Systems                     # Persistent memory
 │   ├── src/features/user-memory/      # Cross-session user memory
@@ -168,7 +168,7 @@ oh-my-opencode Context Management
 │       └── hook.ts                    # Injection hook
 ├── Monitoring                         # Runtime monitoring
 │   ├── src/hooks/context-window-monitor.ts      # Usage tracking (70% warning)
-│   └── src/hooks/runtime-tracker/               # Tool performance tracking (present, not wired)
+│   └── src/hooks/runtime-tracker/               # Tool performance tracking
 └── Output Optimization                # Output size management
     ├── src/hooks/tool-output-truncator.ts       # Tool output truncation
     └── src/shared/dynamic-truncator.ts          # Dynamic size adjustment
@@ -178,8 +178,8 @@ oh-my-opencode Context Management
 
 ```mermaid
 flowchart TD
-  START["Session start"] --> BOOT["Bootstrap injection\n- User memory\n- Org memory\n- AGENTS.md context\n- Repository overview (present, not wired)"]
-  BOOT --> NORMAL["Normal operation\n- Tool invocations\n- Output shaping\n- Runtime tracking (present, not wired)"]
+  START["Session start"] --> BOOT["Bootstrap injection\n- User memory\n- Org memory\n- AGENTS.md context\n- Repository overview"]
+  BOOT --> NORMAL["Normal operation\n- Tool invocations\n- Output shaping\n- Runtime tracking"]
 
   NORMAL --> WARN["Context warnings\ncontext-window-monitor (70% default)"]
   WARN --> NORMAL
@@ -446,13 +446,13 @@ This structured approach ensures comprehensive information preservation during l
 
 ## Memory Systems
 
-### 1. Repository Overview (present, not wired)
+### 1. Repository Overview
 
 Provides an optional hook that can inject project context early in a session, reducing redundant exploration.
 
-**Status**: The `repo-overview-injector` module exists in this repo, but it is **not currently wired** in `src/index.ts`. The `repo_overview` config block is schema-recognized, but it has **no effect** unless you integrate the hook into the runtime wiring.
+**Status**: The `repo-overview-injector` hook is wired in the runtime pipeline. Injection behavior is controlled by hook enablement and the `repo_overview` config block.
 
-When wired and enabled, injected content typically includes:
+When enabled, injected content typically includes:
 - Project name and description (from package.json)
 - Technology stack (TypeScript, React, Python, etc.)
 - Frameworks (Next.js, Express, Django, etc.)
@@ -461,9 +461,9 @@ When wired and enabled, injected content typically includes:
 - Core file listing (package.json, tsconfig.json, etc.)
 - Directory structure tree (max depth configurable)
 
-**Caching (when wired)**: Stored at `~/.opencode/cache/repo-overview/` with configurable TTL (default: 1 hour)
+**Caching**: Stored at `~/.opencode/cache/repo-overview/` with configurable TTL (default: 1 hour)
 
-**Injection Timing (when wired)**: Configurable via `min_tool_calls` (default: 1 = first tool use). Set to 2+ to skip injection for trivial one-shot interactions.
+**Injection Timing**: Configurable via `min_tool_calls` (default: 1 = first tool use). Set to 2+ to skip injection for trivial one-shot interactions.
 
 **Configuration** (top-level):
 ```json
@@ -584,11 +584,11 @@ Automatically injects directory-level AGENTS.md files to provide localized conte
 
 This enables project-specific and directory-specific context to be automatically provided without explicit configuration.
 
-### 5. Runtime Tracker (present, not wired)
+### 5. Runtime Tracker
 
 Monitors tool execution times to help the agent avoid repeating slow operations.
 
-**Status**: The `runtime-tracker` module exists in this repo, but it is **not currently wired** in `src/index.ts`. The `runtime_tracker` config block is schema-recognized, but it has **no effect** unless you integrate the hook into the runtime wiring.
+**Status**: The `runtime-tracker` hook is wired in the runtime pipeline. Behavior is controlled by hook enablement and the `runtime_tracker` config block.
 
 **Tracked Metrics** (per session):
 - Average duration (rolling window of last N calls)
@@ -605,7 +605,7 @@ Monitors tool execution times to help the agent avoid repeating slow operations.
 
 **Throttling**: Hints are throttled via `hint_cooldown_ms` (default: 60 seconds per tool) to prevent spam when a tool is repeatedly slow.
 
-**Configuration** (top-level; effective only when wired):
+**Configuration** (top-level):
 ```json
 {
   "runtime_tracker": {
@@ -645,7 +645,7 @@ oh-my-opencode config
 └── runtime_tracker                 # Runtime Tracker (top-level)
 ```
 
-**Note**: DCP configuration is under `experimental.dynamic_context_pruning`, while memory systems are top-level configurations. `repo_overview` and `runtime_tracker` are schema-recognized, but the corresponding hooks are **not wired** in `src/index.ts` by default.
+**Note**: DCP configuration is under `experimental.dynamic_context_pruning`, while memory systems are top-level configurations. `repo_overview` and `runtime_tracker` are top-level configs for hooks that are wired in the runtime pipeline.
 
 ### Complete Configuration Example
 
@@ -850,7 +850,7 @@ Enable context-window-monitor for early warnings at 70%:
 
 ### 5. Leverage Runtime Tracking
 
-If you wire the `runtime-tracker` hook, enable runtime tracking to identify and optimize slow operations:
+Enable runtime tracking to identify and optimize slow operations:
 
 ```
 [Runtime: 5.2s - Tool "grep" averaged 4.8s over 3 calls]
@@ -859,7 +859,7 @@ If you wire the `runtime-tracker` hook, enable runtime tracking to identify and 
 
 ### 6. Use Repository Overview
 
-If you wire the `repo-overview-injector` hook, enable repository overview injection to eliminate redundant project exploration at session start. The cached overview provides immediate context about:
+Enable repository overview injection to eliminate redundant project exploration at session start. The cached overview provides immediate context about:
 - Project structure
 - Technology stack
 - Build commands
@@ -945,7 +945,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 1. Enable `tool-output-truncator` hook
 2. Configure `experimental.truncate_all_tool_outputs: true`
 3. Use more precise queries (narrower grep patterns, specific file paths)
-4. If you wire the `runtime-tracker` hook, enable runtime tracking to identify problematic tools
+4. Enable runtime tracking to identify problematic tools
 5. Use line limits when reading large files
 
 ### Issue: Slow Tool Operations
@@ -958,7 +958,7 @@ Set `turn_protection.turns` based on your typical task complexity:
 - Network-dependent operations
 
 **Solutions**:
-1. If you wire the `runtime-tracker` hook, enable `runtime_tracker` to identify slow tools
+1. Enable `runtime_tracker` to identify slow tools
 2. Use more targeted queries
 3. Consider caching frequently accessed information
 4. Break large operations into smaller, focused invocations
@@ -1037,8 +1037,8 @@ Set `turn_protection.turns` based on your typical task complexity:
 | Version | Date | Changes |
 |---------|------|---------|
 | 3.1.1 | 2026-01 | Added bidirectional compatibility between DCP and upstream `SessionCompaction.prune()` to prevent conflicts |
-| 3.1.0 | 2026-01 | Added Org Memory (project/team-level memory), optimized DCP strategy execution order, added hint throttling to the Runtime Tracker module (present, not wired) |
-| 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, added User Memory, added Repository Overview injector (present, not wired), added Runtime Tracker module (present, not wired) |
+| 3.1.0 | 2026-01 | Added Org Memory (project/team-level memory), optimized DCP strategy execution order, added hint throttling to Runtime Tracker |
+| 3.0.0 | 2026-01 | Added clear_tool_results strategy, enhanced compaction template, added User Memory, added Repository Overview injector, added Runtime Tracker module |
 | 2.9.0 | TBD | Initial DCP implementation with deduplication, supersede_writes, purge_errors |
 | 2.8.0 | TBD | Preemptive compaction hook |
 | 2.7.0 | TBD | Context window monitoring |

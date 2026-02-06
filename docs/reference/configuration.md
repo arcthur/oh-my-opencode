@@ -654,6 +654,12 @@ Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-m
 
 Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For wiring status (including reserved-but-not-wired names) and ordering, see `docs/reference/hooks.md`.
 
+**Note on `claude-code-hooks` enablement**:
+
+- `disabled_hooks` supports `"claude-code-hooks"`.
+- `claude_code.hooks=false` is treated as a compatibility alias that disables the same bridge.
+- If both are set and conflict, **disabled wins**.
+
 **Note on `directory-agents-injector`**: This hook is **automatically disabled** when running on OpenCode 1.1.37+ because OpenCode now has native support for dynamically resolving AGENTS.md files from subdirectories (PR #10678). This prevents duplicate AGENTS.md injection. For older OpenCode versions, the hook remains active to provide the same functionality.
 
 **Note on `compaction-context-injector`**: This hook is wired in `src/index.ts` under the `experimental.session.compacting` lifecycle surface. When OpenCode emits that event during compaction, the plugin can run Claude Code compat `PreCompact` hooks and/or inject extra compaction-time context via `compaction-context-injector` (best-effort; depends on runtime support and hook enablement).
@@ -710,7 +716,11 @@ Opt-in experimental features that may change or be removed in future versions. U
   "experimental": {
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
-    "auto_resume": true
+    "auto_resume": true,
+    "hook_runtime_v2": {
+      "enabled": true,
+      "mode": "shadow"
+    }
   }
 }
 ```
@@ -722,8 +732,15 @@ Opt-in experimental features that may change or be removed in future versions. U
 | `auto_resume`               | `false` | Automatically resumes session after successful recovery from thinking block errors or thinking disabled violations. Extracts the last user message and continues.                             |
 | `preemptive_compaction`     | `true`  | Proactively summarizes sessions before hitting the context window limit (Anthropic only).                                                                                                    |
 | `preemptive_compaction_threshold` | `0.85` | Trigger compaction when token usage ratio exceeds this threshold (range: 0.5–0.95).                                                                                                       |
+| `hook_runtime_v2.enabled` | `false` | Enables Hook Runtime V2 dispatcher. `false`: legacy path. `true`: use runtime mode below. |
+| `hook_runtime_v2.mode` | `shadow` | `shadow`: execute legacy path and log runtime-order mismatch. `enforce`: runtime dispatcher order is authoritative. |
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
+
+Runtime V2 failure-policy defaults:
+
+- `tool.execute.before`: fail-closed
+- `event`, `tool.execute.after`, `chat.message`, `experimental.session.compacting`: fail-open
 
 ## Session Handoff
 

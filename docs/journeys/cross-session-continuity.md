@@ -91,7 +91,7 @@ sequenceDiagram
   Idle-->>Idle: Session handoff extraction + persistence
 ```
 
-For the authoritative ordering and wiring, see `docs/reference/hooks.md` and `src/index.ts`.
+For the authoritative ordering and wiring, see `docs/reference/hooks.md`, `src/hooks/runtime/pipeline-order.ts`, and `src/index.ts`.
 
 ## Configuration Summary
 

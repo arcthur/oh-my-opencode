@@ -276,6 +276,15 @@ export const DynamicContextPruningConfigSchema = z.object({
   }).optional(),
 })
 
+export const HookRuntimeV2ModeSchema = z.enum(["shadow", "enforce"])
+
+export const HookRuntimeV2ConfigSchema = z.object({
+  /** Enable hook runtime v2 dispatcher (default: false) */
+  enabled: z.boolean().default(false),
+  /** shadow: validate/compare without changing execution path, enforce: runtime dispatcher is authoritative */
+  mode: HookRuntimeV2ModeSchema.default("shadow"),
+})
+
 export const ExperimentalConfigSchema = z.object({
   aggressive_truncation: z.boolean().optional(),
   auto_resume: z.boolean().optional(),
@@ -287,6 +296,8 @@ export const ExperimentalConfigSchema = z.object({
   truncate_all_tool_outputs: z.boolean().optional(),
   /** Dynamic context pruning configuration */
   dynamic_context_pruning: DynamicContextPruningConfigSchema.optional(),
+  /** Hook runtime v2 configuration */
+  hook_runtime_v2: HookRuntimeV2ConfigSchema.optional(),
 })
 
 export const SkillSourceSchema = z.union([
@@ -1018,6 +1029,8 @@ export type SisyphusAgentConfig = z.infer<typeof SisyphusAgentConfigSchema>
 export type CommentCheckerConfig = z.infer<typeof CommentCheckerConfigSchema>
 export type ExperimentalConfig = z.infer<typeof ExperimentalConfigSchema>
 export type DynamicContextPruningConfig = z.infer<typeof DynamicContextPruningConfigSchema>
+export type HookRuntimeV2Mode = z.infer<typeof HookRuntimeV2ModeSchema>
+export type HookRuntimeV2Config = z.infer<typeof HookRuntimeV2ConfigSchema>
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>
 export type RalphLoopConfig = z.infer<typeof RalphLoopConfigSchema>
