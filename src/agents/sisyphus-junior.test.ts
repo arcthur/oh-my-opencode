@@ -151,14 +151,13 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
     })
   })
 
-  describe("tool safety (task/delegate_task blocked, call_omo_agent allowed)", () => {
-    test("task and delegate_task remain blocked, call_omo_agent is allowed via tools format", () => {
+  describe("tool safety (task blocked, delegate_task research-scoped)", () => {
+    test("task remains blocked, delegate_task is allowed (research-scoped) via tools format", () => {
       // given
       const override = {
         tools: {
           task: true,
           delegate_task: true,
-          call_omo_agent: true,
           read: true,
         },
       }
@@ -171,26 +170,23 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       const permission = result.permission as Record<string, string> | undefined
       if (tools) {
         expect(tools.task).toBe(false)
-        expect(tools.delegate_task).toBe(false)
-        // call_omo_agent is NOW ALLOWED for subagents to spawn explore/librarian
-        expect(tools.call_omo_agent).toBe(true)
+        // delegate_task is allowed (research scope enforced by tool, not permission)
+        expect(tools.delegate_task).not.toBe(false)
         expect(tools.read).toBe(true)
       }
       if (permission) {
         expect(permission.task).toBe("deny")
-        expect(permission.delegate_task).toBe("deny")
-        // call_omo_agent is NOW ALLOWED for subagents to spawn explore/librarian
-        expect(permission.call_omo_agent).toBe("allow")
+        // delegate_task is "allow" (normalized from "research" for host)
+        expect(permission.delegate_task).toBe("allow")
       }
     })
 
-    test("task and delegate_task remain blocked when using permission format override", () => {
+    test("task remains blocked when using permission format override", () => {
       // given
       const override = {
         permission: {
           task: "allow",
           delegate_task: "allow",
-          call_omo_agent: "allow",
           read: "allow",
         },
       } as { permission: Record<string, string> }
@@ -198,18 +194,16 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       // when
       const result = createSisyphusJuniorAgentWithOverrides(override as Parameters<typeof createSisyphusJuniorAgentWithOverrides>[0], TEST_SYSTEM_DEFAULT_MODEL)
 
-      // then - task/delegate_task blocked, but call_omo_agent allowed for explore/librarian spawning
+      // then - task blocked, delegate_task allowed (research-scoped at tool level)
       const tools = result.tools as Record<string, boolean> | undefined
       const permission = result.permission as Record<string, string> | undefined
       if (tools) {
         expect(tools.task).toBe(false)
-        expect(tools.delegate_task).toBe(false)
-        expect(tools.call_omo_agent).toBe(true)
       }
       if (permission) {
         expect(permission.task).toBe("deny")
-        expect(permission.delegate_task).toBe("deny")
-        expect(permission.call_omo_agent).toBe("allow")
+        // delegate_task normalized to "allow" for host (research scope enforced by tool)
+        expect(permission.delegate_task).toBe("allow")
       }
     })
   })
@@ -226,6 +220,7 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       expect(result.prompt).toContain("Sisyphus-Junior")
       expect(result.prompt).toContain("You work ALONE")
       expect(result.prompt).toContain("BLOCKED ACTIONS")
+      expect(result.prompt).toContain("RESEARCH-ONLY")
     })
 
     test("prompt_append is added after base prompt", () => {

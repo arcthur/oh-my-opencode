@@ -969,6 +969,120 @@ describe("sisyphus-task", () => {
   })
 })
 
+  describe("research-scoped continuation guard", () => {
+    test("sisyphus-junior cannot continue session owned by non-research agent", async () => {
+      // #given
+      const { createDelegateTask } = require("./tools")
+
+      const mockManager = {
+        resume: async () => ({ id: "task-456", sessionID: "ses_oracle", description: "Continue", agent: "oracle", status: "running" }),
+      }
+
+      const mockClient = {
+        session: {
+          messages: async () => ({
+            data: [
+              {
+                info: { role: "assistant", time: { created: Date.now() }, agent: "oracle" },
+                parts: [{ type: "text", text: "Previous oracle output" }],
+              },
+            ],
+          }),
+          prompt: async () => ({ data: {} }),
+          status: async () => ({ data: {} }),
+        },
+        config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+        app: { agents: async () => ({ data: [] }) },
+      }
+
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+      })
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus-junior",
+        abort: new AbortController().signal,
+      }
+
+      // #when
+      const result = await tool.execute(
+        {
+          description: "Continue oracle session",
+          prompt: "Continue",
+          session_id: "ses_oracle",
+          run_in_background: false,
+          load_skills: [],
+        },
+        toolContext
+      )
+
+      // #then
+      expect(result).toContain("cannot continue session")
+      expect(result).toContain("oracle")
+    })
+
+    test("sisyphus-junior can continue session owned by explore", async () => {
+      // #given
+      const { createDelegateTask } = require("./tools")
+
+      let promptBody: any
+      const mockManager = {
+        resume: async () => ({ id: "task-789", sessionID: "ses_explore", description: "Continue", agent: "explore", status: "running" }),
+      }
+
+      const mockClient = {
+        session: {
+          messages: async () => ({
+            data: [
+              {
+                info: { role: "assistant", time: { created: Date.now() }, agent: "explore" },
+                parts: [{ type: "text", text: "Exploration output" }],
+              },
+            ],
+          }),
+          prompt: async (input: any) => {
+            promptBody = input.body
+            return { data: {} }
+          },
+          status: async () => ({ data: {} }),
+        },
+        config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+        app: { agents: async () => ({ data: [] }) },
+      }
+
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+      })
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus-junior",
+        abort: new AbortController().signal,
+      }
+
+      // #when
+      const result = await tool.execute(
+        {
+          description: "Continue explore session",
+          prompt: "Continue",
+          session_id: "ses_explore",
+          run_in_background: false,
+          load_skills: [],
+        },
+        toolContext
+      )
+
+      // #then
+      expect(result).toContain("Task continued and completed")
+      expect(promptBody?.agent).toBe("explore")
+    }, { timeout: 10000 })
+  })
+
   describe("sync mode new task (run_in_background=false)", () => {
     test("sync mode prompt error returns error message immediately", async () => {
       // given

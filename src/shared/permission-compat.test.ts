@@ -4,6 +4,8 @@ import {
   createAgentToolAllowlist,
   migrateToolsToPermission,
   migrateAgentConfig,
+  normalizePermissionForHost,
+  normalizePermissionsForHost,
 } from "./permission-compat"
 
 describe("permission-compat", () => {
@@ -129,6 +131,40 @@ describe("permission-compat", () => {
 
       // then returns unchanged
       expect(result).toEqual(config)
+    })
+  })
+
+  describe("normalizePermissionForHost", () => {
+    test("research normalizes to allow", () => {
+      // #given/#when
+      const result = normalizePermissionForHost("research")
+      // #then
+      expect(result).toBe("allow")
+    })
+
+    test("allow stays allow", () => {
+      expect(normalizePermissionForHost("allow")).toBe("allow")
+    })
+
+    test("deny stays deny", () => {
+      expect(normalizePermissionForHost("deny")).toBe("deny")
+    })
+
+    test("ask stays ask", () => {
+      expect(normalizePermissionForHost("ask")).toBe("ask")
+    })
+  })
+
+  describe("normalizePermissionsForHost", () => {
+    test("normalizes research to allow in record", () => {
+      // #given
+      const permissions = { delegate_task: "research" as const, task: "deny" as const, bash: "allow" as const }
+
+      // #when
+      const result = normalizePermissionsForHost(permissions)
+
+      // #then
+      expect(result).toEqual({ delegate_task: "allow", task: "deny", bash: "allow" })
     })
   })
 })

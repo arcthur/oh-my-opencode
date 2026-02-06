@@ -221,7 +221,7 @@ describe("Agent permission defaults", () => {
     expect(agentConfig.hephaestus.permission?.delegate_task).toBe("allow")
   })
 
-  test("sisyphus-junior must deny delegation (defense-in-depth)", async () => {
+  test("sisyphus-junior must deny task but allow delegate_task (research-scoped)", async () => {
     // #given
     track(spyOn(sisyphusJunior, "createSisyphusJuniorAgentWithOverrides")).mockReturnValue({
       name: "sisyphus-junior",
@@ -247,11 +247,12 @@ describe("Agent permission defaults", () => {
     // #when
     await handler(config)
 
-    // #then
+    // #then - task is denied, delegate_task is allowed (research scope enforced by tool)
     const agentConfig = config.agent as Record<string, { permission?: Record<string, string> }>
     expect(agentConfig["sisyphus-junior"]).toBeDefined()
-    expect(agentConfig["sisyphus-junior"].permission?.delegate_task).toBe("deny")
     expect(agentConfig["sisyphus-junior"].permission?.task).toBe("deny")
+    // delegate_task is allowed for research-scoped access (scope enforced at tool execution level)
+    expect(agentConfig["sisyphus-junior"].permission?.delegate_task).toBe("allow")
   })
 })
 
