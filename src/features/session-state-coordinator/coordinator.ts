@@ -46,6 +46,7 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
     const existing = this.sessions.get(sessionID)
     const effectiveParentID = parentID ?? existing?.parentID
     const type = this.determineSessionType(effectiveParentID)
+    // Sticky: if previously marked as subagent (e.g. via markSubagentSession before create), preserve that flag
     const isSubagent = existing?.isSubagent ?? type !== "main"
     const rootSessionID = this.resolveRootSessionID(sessionID, effectiveParentID)
 
@@ -94,11 +95,6 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
           error: String(error),
         })
       }
-    }
-
-    const existing = this.sessions.get(sessionID)
-    if (existing) {
-      existing.deletedAt = Date.now()
     }
 
     // Clean up coordinator state
@@ -321,6 +317,7 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
     const existing = this.sessions.get(sessionID)
     if (existing) return existing
 
+    log("[session-coordinator] implicit session state created", { sessionID })
     const state: SessionLifecycleState = {
       id: sessionID,
       type: "main",

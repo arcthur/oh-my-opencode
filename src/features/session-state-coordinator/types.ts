@@ -14,7 +14,6 @@ export interface SessionLifecycleState {
   agent?: string
   isSubagent: boolean
   rootSessionID?: string
-  deletedAt?: number
   // Feature-contributed metadata
   activePlan?: string
   hasPendingTodos?: boolean

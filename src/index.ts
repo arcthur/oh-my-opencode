@@ -827,11 +827,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
       if (event.type === "session.deleted") {
         const sessionInfo = props?.info as { id?: string } | undefined;
-        if (sessionInfo?.id === getMainSessionID()) {
-          setMainSession(undefined);
-        }
         if (sessionInfo?.id) {
-          // Dispatch to coordinator first (handlers do their cleanup, including contextCollector)
+          // Coordinator handles mainSessionID cleanup, subagent markers, and feature handlers
           sessionStateCoordinator.onSessionDeleted(sessionInfo.id);
           // Then clean up plugin-level state (not covered by coordinator handlers)
           resetMessageCursor(sessionInfo.id);
