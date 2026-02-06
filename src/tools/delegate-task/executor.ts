@@ -101,6 +101,54 @@ export function resolveParentContext(ctx: ToolContextWithMetadata): ParentContex
   }
 }
 
+export async function resolveContinuationContext(
+  sessionID: string,
+  client: OpencodeClient
+): Promise<{ agent?: string; model?: { providerID: string; modelID: string } }> {
+  let resumeAgent: string | undefined
+  let resumeModel: { providerID: string; modelID: string } | undefined
+
+  try {
+    const messagesResp = await client.session.messages({ path: { id: sessionID } })
+    const messages = (messagesResp.data ?? []) as SessionMessage[]
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const info = messages[i].info
+      if (!resumeAgent && info?.agent) {
+        resumeAgent = info.agent
+      }
+      if (!resumeModel && (info?.model || (info?.modelID && info?.providerID))) {
+        resumeModel = info.model ?? (info.providerID && info.modelID
+          ? { providerID: info.providerID, modelID: info.modelID }
+          : undefined)
+      }
+      if (resumeAgent && resumeModel) {
+        break
+      }
+    }
+  } catch {
+    // Fallback to local message cache below.
+  }
+
+  if (!resumeAgent || !resumeModel) {
+    const resumeMessageDir = getMessageDir(sessionID)
+    const resumeMessage = resumeMessageDir ? findNearestMessageWithFields(resumeMessageDir) : null
+    if (!resumeAgent) {
+      resumeAgent = resumeMessage?.agent
+    }
+    if (!resumeModel && resumeMessage?.model?.providerID && resumeMessage?.model?.modelID) {
+      resumeModel = {
+        providerID: resumeMessage.model.providerID,
+        modelID: resumeMessage.model.modelID,
+      }
+    }
+  }
+
+  return {
+    agent: resumeAgent,
+    model: resumeModel,
+  }
+}
+
 export async function executeBackgroundContinuation(
   args: DelegateTaskArgs,
   ctx: ToolContextWithMetadata,
@@ -187,28 +235,10 @@ export async function executeSyncContinuation(
   })
 
   try {
-    let resumeAgent: string | undefined
-    let resumeModel: { providerID: string; modelID: string } | undefined
-
-    try {
-      const messagesResp = await client.session.messages({ path: { id: args.session_id! } })
-      const messages = (messagesResp.data ?? []) as SessionMessage[]
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const info = messages[i].info
-        if (info?.agent || info?.model || (info?.modelID && info?.providerID)) {
-          resumeAgent = info.agent
-          resumeModel = info.model ?? (info.providerID && info.modelID ? { providerID: info.providerID, modelID: info.modelID } : undefined)
-          break
-        }
-      }
-    } catch {
-      const resumeMessageDir = getMessageDir(args.session_id!)
-      const resumeMessage = resumeMessageDir ? findNearestMessageWithFields(resumeMessageDir) : null
-      resumeAgent = resumeMessage?.agent
-      resumeModel = resumeMessage?.model?.providerID && resumeMessage?.model?.modelID
-        ? { providerID: resumeMessage.model.providerID, modelID: resumeMessage.model.modelID }
-        : undefined
-    }
+    const { agent: resumeAgent, model: resumeModel } = await resolveContinuationContext(
+      args.session_id!,
+      client
+    )
 
     await client.session.prompt({
       path: { id: args.session_id! },
@@ -219,7 +249,7 @@ export async function executeSyncContinuation(
           ...(resumeAgent ? getAgentToolRestrictions(resumeAgent) : {}),
           task: false,
           delegate_task: false,
-          call_omo_agent: true,
+          call_omo_agent: true, // deprecated but kept for backward compat
           question: false,
         },
         parts: [{ type: "text", text: args.prompt }],
@@ -613,7 +643,7 @@ export async function executeSyncTask(
           tools: {
             task: false,
             delegate_task: allowDelegateTask,
-            call_omo_agent: true,
+            call_omo_agent: true, // deprecated but kept for backward compat
             question: false,
           },
           parts: [{ type: "text", text: args.prompt }],

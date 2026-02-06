@@ -3,7 +3,35 @@
  * This module only supports the new permission format.
  */
 
-export type PermissionValue = "ask" | "allow" | "deny"
+/**
+ * Permission values:
+ * - "allow": full access
+ * - "deny": no access
+ * - "ask": prompt user before use
+ * - "research": scoped access — only explore/librarian subagent_type, no categories, no skill injection.
+ *   Translated to "allow" for the host runtime; enforcement is in the tool itself.
+ */
+export type PermissionValue = "ask" | "allow" | "deny" | "research"
+
+/**
+ * Normalizes a PermissionValue for the host runtime.
+ * "research" → "allow" (host doesn't understand scoped values)
+ */
+export function normalizePermissionForHost(value: PermissionValue): "ask" | "allow" | "deny" {
+  if (value === "research") return "allow"
+  return value
+}
+
+/**
+ * Normalizes a permission record for the host runtime.
+ */
+export function normalizePermissionsForHost(
+  permissions: Record<string, PermissionValue>
+): Record<string, "ask" | "allow" | "deny"> {
+  return Object.fromEntries(
+    Object.entries(permissions).map(([key, value]) => [key, normalizePermissionForHost(value)])
+  )
+}
 
 export interface PermissionFormat {
   permission: Record<string, PermissionValue>

@@ -29,9 +29,20 @@ const AGENT_RESTRICTIONS: Record<string, Record<string, boolean>> = {
 
   "sisyphus-junior": {
     task: false,
-    delegate_task: false,
+    // delegate_task is allowed but scoped to research-only (see RESEARCH_SCOPED_AGENTS)
   },
 }
+
+/**
+ * Agents whose delegate_task access is scoped to research-only mode.
+ * Research mode restricts to: subagent_type ∈ {explore, librarian}, no category, no skill injection.
+ */
+export const RESEARCH_SCOPED_AGENTS = new Set(["sisyphus-junior"])
+
+/**
+ * Agents allowed in research-scoped delegate_task calls.
+ */
+export const RESEARCH_ALLOWED_AGENTS = new Set(["explore", "librarian"])
 
 export function getAgentToolRestrictions(agentName: string): Record<string, boolean> {
   return AGENT_RESTRICTIONS[agentName]

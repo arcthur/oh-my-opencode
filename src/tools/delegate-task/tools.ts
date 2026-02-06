@@ -2,9 +2,11 @@ import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import type { DelegateTaskArgs, ToolContextWithMetadata, DelegateTaskToolOptions } from "./types"
 import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "./constants"
 import { log } from "../../shared"
+import { RESEARCH_SCOPED_AGENTS, RESEARCH_ALLOWED_AGENTS } from "../../shared/agent-tool-restrictions"
 import { buildSystemContent } from "./prompt-builder"
 import {
   resolveSkillContent,
+  resolveContinuationContext,
   resolveParentContext,
   executeBackgroundContinuation,
   executeSyncContinuation,
@@ -100,6 +102,37 @@ Prompts MUST be in English.`
       }
 
       const runInBackground = args.run_in_background === true
+
+      // Research scope enforcement: agents in RESEARCH_SCOPED_AGENTS can only
+      // use subagent_type with explore/librarian, no categories, no skill injection.
+      const callerAgent = ctx.agent?.toLowerCase()
+      const isResearchScoped = callerAgent ? RESEARCH_SCOPED_AGENTS.has(callerAgent) : false
+
+      if (isResearchScoped) {
+        if (args.category) {
+          return `Research-scoped agent "${ctx.agent}" cannot use category-based delegation. Use subagent_type with explore or librarian instead.`
+        }
+        if (args.subagent_type && !RESEARCH_ALLOWED_AGENTS.has(args.subagent_type.toLowerCase())) {
+          return `Research-scoped agent "${ctx.agent}" can only delegate to: ${[...RESEARCH_ALLOWED_AGENTS].join(", ")}. Got: "${args.subagent_type}".`
+        }
+        if (args.load_skills && args.load_skills.length > 0) {
+          log(`[delegate_task] Research-scoped agent "${ctx.agent}" attempted skill injection, stripping load_skills`)
+          args = { ...args, load_skills: [] }
+        }
+        if (args.session_id) {
+          const continuation = await resolveContinuationContext(args.session_id, options.client)
+          const continuationAgent = continuation.agent?.toLowerCase()
+          if (!continuationAgent) {
+            return `Research-scoped agent "${ctx.agent}" cannot continue session "${args.session_id}" because target agent could not be resolved. Start a new session with subagent_type="explore" or "librarian".`
+          }
+          if (!RESEARCH_ALLOWED_AGENTS.has(continuationAgent)) {
+            return `Research-scoped agent "${ctx.agent}" cannot continue session "${args.session_id}" because it belongs to "${continuation.agent}". Allowed agents: ${[...RESEARCH_ALLOWED_AGENTS].join(", ")}.`
+          }
+          if (args.subagent_type && args.subagent_type.toLowerCase() !== continuationAgent) {
+            return `Research-scoped agent "${ctx.agent}" cannot continue session "${args.session_id}" with subagent_type="${args.subagent_type}" because the session belongs to "${continuation.agent}".`
+          }
+        }
+      }
 
       const { content: skillContent, error: skillError } =
         await resolveSkillContent(args.load_skills, {

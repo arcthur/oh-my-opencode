@@ -945,6 +945,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         args.tools = {
           ...(args.tools as Record<string, boolean> | undefined),
           delegate_task: false,
+          // call_omo_agent is deprecated; keep disabled for explore/librarian to prevent loops
           ...(isExploreOrLibrarian ? { call_omo_agent: false } : {}),
         };
       }

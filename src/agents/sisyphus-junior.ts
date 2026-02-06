@@ -4,6 +4,7 @@ import { isGptModel } from "./types"
 import type { AgentOverrideConfig } from "../config/schema"
 import {
   createAgentToolRestrictions,
+  normalizePermissionsForHost,
   type PermissionValue,
 } from "../shared/permission-compat"
 
@@ -17,9 +18,11 @@ Execute tasks directly. NEVER delegate or spawn other agents.
 <Critical_Constraints>
 BLOCKED ACTIONS (will fail if attempted):
 - task tool: BLOCKED
-- delegate_task tool: BLOCKED
 
-ALLOWED: call_omo_agent - You CAN spawn explore/librarian agents for research.
+RESEARCH-ONLY: delegate_task is available in RESEARCH MODE only.
+- You CAN use delegate_task(subagent_type="explore") or delegate_task(subagent_type="librarian") for research.
+- You CANNOT use delegate_task with category or other subagent_type values.
+- You CANNOT inject skills via load_skills (pass []).
 You work ALONE for implementation. No delegation of implementation tasks.
 </Critical_Constraints>
 
@@ -52,8 +55,10 @@ function buildSisyphusJuniorPrompt(promptAppend?: string): string {
 }
 
 // Core tools that Sisyphus-Junior must NEVER have access to
-// Note: call_omo_agent is ALLOWED so subagents can spawn explore/librarian
-const BLOCKED_TOOLS = ["task", "delegate_task"]
+const BLOCKED_TOOLS = ["task"]
+
+// delegate_task is allowed but scoped to research-only mode
+// (enforced by RESEARCH_SCOPED_AGENTS in agent-tool-restrictions.ts)
 
 export const SISYPHUS_JUNIOR_DEFAULTS = {
   model: "anthropic/claude-sonnet-4-5",
@@ -82,8 +87,10 @@ export function createSisyphusJuniorAgentWithOverrides(
   for (const tool of BLOCKED_TOOLS) {
     merged[tool] = "deny"
   }
-  merged.call_omo_agent = "allow"
-  const toolsConfig = { permission: { ...merged, ...basePermission } }
+  // delegate_task is research-scoped: host sees "allow", tool enforces research restrictions
+  merged.delegate_task = "research"
+  const hostPermission = normalizePermissionsForHost({ ...merged, ...basePermission })
+  const toolsConfig = { permission: hostPermission }
 
   const base: AgentConfig = {
     description: override?.description ??

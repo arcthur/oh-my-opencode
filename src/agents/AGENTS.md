@@ -26,7 +26,7 @@ agents/
 │   └── utils.ts                # Section builders (categories, skills, agents)
 ├── dynamic-agent-prompt-builder.ts  # Dynamic prompt generation
 ├── sisyphus.ts                 # Primary agent prompt
-├── sisyphus-junior.ts          # Category-spawned executor (no delegation; may call call_omo_agent for research)
+├── sisyphus-junior.ts          # Category-spawned executor (task blocked; research-scoped delegate_task for explore/librarian only)
 ├── oracle.ts                   # Strategic advisor (GPT-5.2)
 ├── librarian.ts                # Multi-repo research (GitHub CLI, Context7)
 ├── explore.ts                  # Fast contextual grep

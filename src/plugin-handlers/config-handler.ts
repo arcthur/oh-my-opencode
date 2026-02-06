@@ -439,9 +439,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     }
     if (agentResult["sisyphus-junior"]) {
       const agent = agentResult["sisyphus-junior"] as AgentWithPermission;
-      // CRITICAL: Sisyphus-Junior is a focused executor. Never allow delegation via config-layer overrides.
-      // (The agent factory denies delegate_task/task; this is a defense-in-depth enforcement.)
-      agent.permission = { ...agent.permission, delegate_task: "deny", task: "deny" };
+      // CRITICAL: Sisyphus-Junior is a focused executor.
+      // delegate_task is allowed (research-scoped, enforced by the tool itself).
+      // task is always denied. call_omo_agent is deprecated — use delegate_task instead.
+      agent.permission = { ...agent.permission, task: "deny" };
     }
 
     config.permission = {
