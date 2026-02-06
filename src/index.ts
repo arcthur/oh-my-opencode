@@ -71,9 +71,7 @@ import { getSystemMcpServerNames } from "./features/claude-code-mcp-loader";
 import {
   setMainSession,
   getMainSessionID,
-  setSessionAgent,
   updateSessionAgent,
-  clearSessionAgent,
   getSessionAgent,
 } from "./features/claude-code-session-state";
 import { sessionStateCoordinator } from "./features/session-state-coordinator";
@@ -112,6 +110,7 @@ import {
   executePostToolGovernance,
   executeUserPromptGovernance,
   cleanupGovernanceSession,
+  hasGovernanceSession,
 } from "./features/governance";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
@@ -264,6 +263,28 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       contextCollector.resetOncePerSession(sessionID)
     },
   })
+
+  if (governanceEnabled) {
+    sessionStateCoordinator.registerFeature("governance", {
+      onSessionDeleted(sessionID) {
+        try {
+          cleanupGovernanceSession(sessionID)
+        } catch (err) {
+          log("[governance] Session cleanup error (non-fatal)", {
+            sessionID,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      },
+      contributeMetadata(sessionID) {
+        return {
+          governanceActive: hasGovernanceSession(sessionID),
+        }
+      },
+    })
+  } else {
+    sessionStateCoordinator.unregisterFeature("governance")
+  }
 
   const userMemory = createUserMemoryHook(ctx, pluginConfig.user_memory, {
     summarizer: createDefaultUserMemorySummarizer(ctx, pluginConfig.user_memory, {
@@ -796,7 +817,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           | undefined;
         if (!sessionInfo?.parentID) {
           setMainSession(sessionInfo?.id);
-          sessionStateCoordinator.setMainSessionID(sessionInfo?.id);
         }
         if (sessionInfo?.id) {
           const agent = (props as Record<string, unknown>)?.agent as string | undefined;
@@ -809,29 +829,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         const sessionInfo = props?.info as { id?: string } | undefined;
         if (sessionInfo?.id === getMainSessionID()) {
           setMainSession(undefined);
-          sessionStateCoordinator.setMainSessionID(undefined);
         }
         if (sessionInfo?.id) {
           // Dispatch to coordinator first (handlers do their cleanup, including contextCollector)
           sessionStateCoordinator.onSessionDeleted(sessionInfo.id);
           // Then clean up plugin-level state (not covered by coordinator handlers)
-          clearSessionAgent(sessionInfo.id);
           resetMessageCursor(sessionInfo.id);
           firstMessageVariantGate.clear(sessionInfo.id);
           await skillMcpManager.disconnectSession(sessionInfo.id);
           await lspManager.cleanupTempDirectoryClients();
-
-          // Cleanup governance session
-          if (governanceEnabled) {
-            try {
-              cleanupGovernanceSession(sessionInfo.id);
-            } catch (err) {
-              log("[governance] Session cleanup error (non-fatal)", {
-                sessionID: sessionInfo.id,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-          }
         }
       }
 

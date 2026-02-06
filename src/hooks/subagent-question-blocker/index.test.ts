@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { createSubagentQuestionBlockerHook } from "./index"
-import { subagentSessions, _resetForTesting } from "../../features/claude-code-session-state"
+import { _resetForTesting, markSubagentSession } from "../../features/claude-code-session-state"
 
 describe("createSubagentQuestionBlockerHook", () => {
   const hook = createSubagentQuestionBlockerHook()
@@ -26,7 +26,7 @@ describe("createSubagentQuestionBlockerHook", () => {
     test("blocks question tool for subagent sessions", async () => {
       // given
       const sessionID = "ses_subagent"
-      subagentSessions.add(sessionID)
+      markSubagentSession(sessionID)
       const input = { tool: "question", sessionID, callID: "call_1" }
       const output = { args: { questions: [] } }
 
@@ -40,7 +40,7 @@ describe("createSubagentQuestionBlockerHook", () => {
     test("blocks Question tool (case insensitive) for subagent sessions", async () => {
       // given
       const sessionID = "ses_subagent"
-      subagentSessions.add(sessionID)
+      markSubagentSession(sessionID)
       const input = { tool: "Question", sessionID, callID: "call_1" }
       const output = { args: { questions: [] } }
 
@@ -54,7 +54,7 @@ describe("createSubagentQuestionBlockerHook", () => {
     test("blocks AskUserQuestion tool for subagent sessions", async () => {
       // given
       const sessionID = "ses_subagent"
-      subagentSessions.add(sessionID)
+      markSubagentSession(sessionID)
       const input = { tool: "AskUserQuestion", sessionID, callID: "call_1" }
       const output = { args: { questions: [] } }
 
@@ -68,7 +68,7 @@ describe("createSubagentQuestionBlockerHook", () => {
     test("ignores non-question tools for subagent sessions", async () => {
       // given
       const sessionID = "ses_subagent"
-      subagentSessions.add(sessionID)
+      markSubagentSession(sessionID)
       const input = { tool: "bash", sessionID, callID: "call_1" }
       const output = { args: { command: "ls" } }
 

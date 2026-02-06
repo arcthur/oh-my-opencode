@@ -25,7 +25,7 @@ import {
 } from "./result-handler"
 import { log } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
-import { subagentSessions } from "../claude-code-session-state"
+import { markSubagentSession, unmarkSubagentSession } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
 import {
   acquireSlot,
@@ -406,7 +406,7 @@ export class BackgroundManager {
       }
 
       if (existingTask.sessionID) {
-        subagentSessions.add(existingTask.sessionID)
+        markSubagentSession(existingTask.sessionID, existingTask.parentSessionID)
       }
       this.startPolling()
 
@@ -448,7 +448,7 @@ export class BackgroundManager {
 
     this.state.addTask(task)
     this.getTaskRunId(task)
-    subagentSessions.add(input.sessionID)
+    markSubagentSession(input.sessionID, input.parentSessionID)
     this.startPolling()
 
     const acquiredGlobalSlot = await this.acquireParallelSlot(task, {
@@ -513,7 +513,7 @@ export class BackgroundManager {
 
     this.startPolling()
     if (existingTask.sessionID) {
-      subagentSessions.add(existingTask.sessionID)
+      markSubagentSession(existingTask.sessionID, existingTask.parentSessionID)
     }
 
     if (input.parentSessionID) {
@@ -618,7 +618,7 @@ export class BackgroundManager {
       this.state.cleanupPendingByParent(task)
       this.state.removeTask(task.id)
       this.state.clearNotificationsForTask(task.id)
-      subagentSessions.delete(sessionID)
+      unmarkSubagentSession(sessionID)
     }
   }
 

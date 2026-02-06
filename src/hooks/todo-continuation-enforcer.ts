@@ -1,6 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundManager } from "../features/background-agent"
-import { getMainSessionID, subagentSessions } from "../features/claude-code-session-state"
+import { getMainSessionID, isSubagentSession } from "../features/claude-code-session-state"
 import {
     findNearestMessageWithFields,
     type ToolPermission,
@@ -300,7 +300,7 @@ ${todoList}`
 
       const mainSessionID = getMainSessionID()
       const isMainSession = sessionID === mainSessionID
-      const isBackgroundTaskSession = subagentSessions.has(sessionID)
+      const isBackgroundTaskSession = isSubagentSession(sessionID)
 
       if (mainSessionID && !isMainSession && !isBackgroundTaskSession) {
         log(`[${HOOK_NAME}] Skipped: not main or background task session`, { sessionID })

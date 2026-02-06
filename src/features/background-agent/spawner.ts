@@ -1,7 +1,7 @@
 import type { BackgroundTask, LaunchInput, ResumeInput } from "./types"
 import type { OpencodeClient, QueueItem } from "./constants"
 import { log, getAgentToolRestrictions, promptWithModelSuggestionRetry } from "../../shared"
-import { subagentSessions } from "../claude-code-session-state"
+import { markSubagentSession } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
 import type { ConcurrencyManager } from "./concurrency"
 
@@ -82,7 +82,7 @@ export async function startTask(
   }
 
   const sessionID = createResult.data.id
-  subagentSessions.add(sessionID)
+  markSubagentSession(sessionID, input.parentSessionID)
 
   task.status = "running"
   task.startedAt = new Date()
@@ -174,7 +174,7 @@ export async function resumeTask(
     lastUpdate: new Date(),
   }
 
-  subagentSessions.add(task.sessionID)
+  markSubagentSession(task.sessionID, task.parentSessionID)
 
   const toastManager = getTaskToastManager()
   if (toastManager) {

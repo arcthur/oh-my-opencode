@@ -1,7 +1,7 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { execSync } from "node:child_process"
 import { createWorkStateManager, type WorkStateManager } from "../../features/work-state"
-import { getMainSessionID, subagentSessions } from "../../features/claude-code-session-state"
+import { getMainSessionID, isSubagentSession } from "../../features/claude-code-session-state"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
@@ -566,7 +566,7 @@ export function createAtlasHook(
 
         const mainSessionID = getMainSessionID()
         const isMainSession = sessionID === mainSessionID
-        const isBackgroundTaskSession = subagentSessions.has(sessionID)
+        const isBackgroundTaskSession = isSubagentSession(sessionID)
 
         // Allow continuation if: main session OR background task OR work session
         if (mainSessionID && !isMainSession && !isBackgroundTaskSession && !isWorkSession) {

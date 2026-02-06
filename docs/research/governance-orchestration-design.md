@@ -275,17 +275,15 @@ Implementation: `src/features/governance/trace-persistence.ts`
 
 ```mermaid
 flowchart TD
-  U["User Message"] --> SSC
-  SSC --> HEP
+  EVT["Session Events\n(session.created/deleted/compacted)"] --> SSC
+  MSG["User Message"] --> HEP
   HEP --> TE
-  TE --> CM
+  TE --> GOV
 
-  subgraph "SessionStateCoordinator"
+  subgraph "Session Lifecycle SSOT"
     SSC["SessionStateCoordinator"]
-    BM["BudgetMonitor\n- Track token consumption (hidden from LLM)\n- Phase 1: GC at warn_threshold (default 0.7)\n- Phase 2: fork suggestion at refactor_threshold (default 0.85)"]
-    GL["GovernanceLedger\n- Immutable audit log\n- Records all governance events\n- Diagnostic query support"]
-    SSC --> BM
-    SSC --> GL
+    FC["Feature handlers\n- context-collector\n- governance (optional)\n- other feature cleanups"]
+    SSC --> FC
   end
 
   subgraph "Hook Execution Pipeline"
@@ -298,19 +296,16 @@ flowchart TD
     HN --> ET
   end
 
-  subgraph "Tool Execution"
+  subgraph "Tool Execution + Governance Domain"
     TE["Tool Execution"]
+    GOV["Governance Session Domain\n- sessions map\n- tracer/budget/ledger/checkpoint managers"]
     AGM["ApprovalGateMiddleware (not wired)\n- Check tool criticality\n- Generate preview\n- Throw SuspendException if approval needed"]
     EV["EnvelopeValidator (not wired)\n- Wrap tool input/output in AgentEnvelope\n- Validate integrity\n- Track permissions"]
-    TE --> AGM --> EV
-  end
-
-  subgraph "Checkpoint Management"
-    CM["Checkpoint Management"]
-    SCM["SemanticCheckpointManager\n- Create checkpoints at key points\n- Detect environment changes\n- Determine recovery strategy"]
-    CM --> SCM
+    TE --> AGM --> EV --> GOV
   end
 ```
+
+**Current implementation boundary**: `SessionStateCoordinator` centralizes lifecycle dispatch and cleanup fan-out. Governance keeps independent domain state and subscribes to lifecycle events; it is not stored inside coordinator state.
 
 ### 3.2 Event Flow
 
@@ -362,6 +357,7 @@ Components implemented in `src/features/governance/`:
 
 | Component | Files | Status |
 |-----------|-------|--------|
+| Session lifecycle integration | `src/index.ts`, `src/features/session-state-coordinator/*` | Active (governance cleanup wired via coordinator `onSessionDeleted`) |
 | Checkpoint | `checkpoint.ts`, `checkpoint-types.ts` | Active |
 | Tracer | `tracer.ts`, `tracer-types.ts` | Active |
 | Budget Monitor | `budget-monitor.ts`, `budget-types.ts` | Active |

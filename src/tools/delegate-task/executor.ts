@@ -11,7 +11,11 @@ import { findNearestMessageWithFields, findFirstMessageWithAgent } from "../../f
 import { resolveMultipleSkillsAsync } from "../../features/opencode-skill-loader/skill-content"
 import { discoverSkills } from "../../features/opencode-skill-loader"
 import { getTaskToastManager } from "../../features/task-toast-manager"
-import { subagentSessions, getSessionAgent } from "../../features/claude-code-session-state"
+import {
+  getSessionAgent,
+  markSubagentSession,
+  unmarkSubagentSession,
+} from "../../features/claude-code-session-state"
 import { log, getAgentToolRestrictions, resolveModelPipeline, promptWithModelSuggestionRetry } from "../../shared"
 import { fetchAvailableModels, isModelAvailable } from "../../shared/model-availability"
 import { readConnectedProvidersCache } from "../../shared/connected-providers-cache"
@@ -555,7 +559,7 @@ export async function executeSyncTask(
 
     const sessionID = createResult.data.id
     syncSessionID = sessionID
-    subagentSessions.add(sessionID)
+    markSubagentSession(sessionID, parentContext.sessionID)
 
     if (onSyncSessionCreated) {
       log("[delegate_task] Invoking onSyncSessionCreated callback", { sessionID, parentID: parentContext.sessionID })
@@ -732,7 +736,7 @@ export async function executeSyncTask(
       toastManager.removeTask(taskId)
     }
 
-    subagentSessions.delete(sessionID)
+    unmarkSubagentSession(sessionID)
 
     return `Task completed in ${duration}.
 
@@ -750,7 +754,7 @@ session_id: ${sessionID}
       toastManager.removeTask(taskId)
     }
     if (syncSessionID) {
-      subagentSessions.delete(syncSessionID)
+      unmarkSubagentSession(syncSessionID)
     }
     return formatDetailedError(error, {
       operation: "Execute task",

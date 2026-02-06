@@ -1,7 +1,7 @@
 import type { BackgroundTask, LaunchInput } from "./types"
 import type { QueueItem } from "./constants"
 import { log } from "../../shared"
-import { subagentSessions } from "../claude-code-session-state"
+import { unmarkSubagentSession } from "../claude-code-session-state"
 
 export class TaskStateManager {
   readonly tasks: Map<string, BackgroundTask> = new Map()
@@ -85,7 +85,7 @@ export class TaskStateManager {
   removeTask(taskId: string): void {
     const task = this.tasks.get(taskId)
     if (task?.sessionID) {
-      subagentSessions.delete(task.sessionID)
+      unmarkSubagentSession(task.sessionID)
     }
     this.tasks.delete(taskId)
   }

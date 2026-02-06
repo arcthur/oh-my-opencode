@@ -6,7 +6,7 @@ import {
 } from "./storage";
 import { OMO_SESSION_PREFIX, buildSessionReminderMessage } from "./constants";
 import type { InteractiveBashSessionState } from "./types";
-import { subagentSessions } from "../../features/claude-code-session-state";
+import { listSubagentSessions } from "../../features/claude-code-session-state";
 
 interface ToolExecuteInput {
   tool: string;
@@ -180,7 +180,7 @@ export function createInteractiveBashSessionHook(ctx: PluginInput) {
       } catch {}
     }
 
-    for (const sessionId of subagentSessions) {
+    for (const sessionId of listSubagentSessions()) {
       ctx.client.session.abort({ path: { id: sessionId } }).catch(() => {})
     }
   }

@@ -14,6 +14,12 @@ This journey describes the end-to-end governance path as it is currently wired i
 
 ```mermaid
 flowchart TD
+  subgraph Lifecycle["Session lifecycle bus"]
+    EVT["session.created/session.deleted/session.compacted events"] --> SSC["SessionStateCoordinator"]
+    SSC --> GH["governance feature handler"]
+    GH --> GC["cleanupGovernanceSession(sessionId) on session.deleted"]
+  end
+
   subgraph Prompt["User prompt path"]
     P["chat.message (user prompt)"] --> UP["executeUserPromptGovernance(...)"]
     UP --> B1["Budget monitor: record estimated prompt tokens"]
@@ -35,6 +41,7 @@ flowchart TD
 
   UP --> PRE
   PT --> RUN --> AFTER
+  EVT --> P
 ```
 
 ## What Governance Does Today (Wired)
@@ -43,6 +50,7 @@ Governance is **opt-in** via `governance.enabled=true`.
 
 When enabled, the plugin currently wires:
 
+- **Session lifecycle dispatch via coordinator**: governance cleanup is triggered by the `SessionStateCoordinator` handler on `session.deleted` (single lifecycle entrypoint shared with other features).
 - **Execution tracing**: a per-session trace of tool calls and key nodes, persisted on session cleanup.
 - **Budget monitoring**: budget phase warnings and “wrap up / fork” hints based on estimated token usage.
 - **Ledger**: an append-only JSONL audit log for governance-significant events (budget snapshots, checkpoint events, etc.).
@@ -102,6 +110,6 @@ Recommended starting point (observability + budget hints, without checkpoints):
 ## Further Reading
 
 - Contract: `docs/reference/governance.md`
+- Contract: `docs/reference/session-lifecycle.md`
 - Contract: `docs/reference/configuration.md` (config loading/precedence)
 - Research: `docs/research/governance-orchestration-design.md`
-

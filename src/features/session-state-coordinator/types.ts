@@ -12,6 +12,9 @@ export interface SessionLifecycleState {
   parentID?: string
   createdAt: number
   agent?: string
+  isSubagent: boolean
+  rootSessionID?: string
+  deletedAt?: number
   // Feature-contributed metadata
   activePlan?: string
   hasPendingTodos?: boolean
@@ -66,8 +69,32 @@ export interface ISessionStateCoordinator {
   /** Set main session ID */
   setMainSessionID(id: string | undefined): void
 
-  /** Check if session is background/subagent */
+  /** Check if session is currently marked as subagent */
+  isSubagentSession(sessionID: string): boolean
+
+  /** Backward-compatible alias for subagent checks */
   isBackgroundSession(sessionID: string): boolean
+
+  /** Mark a session as subagent/background task */
+  markSubagentSession(sessionID: string, parentID?: string): void
+
+  /** Remove subagent/background marker from a session */
+  unmarkSubagentSession(sessionID: string): void
+
+  /** List all sessions currently marked as subagent/background */
+  getSubagentSessionIDs(): string[]
+
+  /** Set session agent only when current agent is missing */
+  setSessionAgent(sessionID: string, agent: string): void
+
+  /** Force-update session agent */
+  updateSessionAgent(sessionID: string, agent: string): void
+
+  /** Get session agent */
+  getSessionAgent(sessionID: string): string | undefined
+
+  /** Clear session agent */
+  clearSessionAgent(sessionID: string): void
 
   /** Query specific feature state */
   queryFeature<T = unknown>(sessionID: string, featureName: string): T | undefined

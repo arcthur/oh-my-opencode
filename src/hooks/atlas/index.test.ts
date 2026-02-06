@@ -8,7 +8,6 @@ import type { WorkState } from "../../features/work-state"
 import {
   _resetForTesting,
   setMainSession,
-  subagentSessions,
 } from "../../features/claude-code-session-state"
 
 import {
@@ -688,7 +687,6 @@ describe("atlas hook", () => {
      beforeEach(() => {
        _resetForTesting()
        setMainSession(MAIN_SESSION_ID)
-       subagentSessions.clear()
        setupMessageStorage(MAIN_SESSION_ID, "atlas")
      })
 

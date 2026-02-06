@@ -1,6 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { platform } from "os"
-import { subagentSessions, getMainSessionID } from "../features/claude-code-session-state"
+import { getMainSessionID, isSubagentSession } from "../features/claude-code-session-state"
 import {
   getOsascriptPath,
   getNotifySendPath,
@@ -282,7 +282,7 @@ export function createSessionNotification(
       const sessionID = props?.sessionID as string | undefined
       if (!sessionID) return
 
-      if (subagentSessions.has(sessionID)) return
+      if (isSubagentSession(sessionID)) return
 
       // Only trigger notifications for the main session (not subagent sessions)
       const mainSessionID = getMainSessionID()

@@ -1,5 +1,5 @@
 import type { Hooks } from "@opencode-ai/plugin"
-import { subagentSessions } from "../../features/claude-code-session-state"
+import { isSubagentSession } from "../../features/claude-code-session-state"
 import { log } from "../../shared"
 
 export function createSubagentQuestionBlockerHook(): Hooks {
@@ -10,7 +10,7 @@ export function createSubagentQuestionBlockerHook(): Hooks {
         return
       }
 
-      if (!subagentSessions.has(input.sessionID)) {
+      if (!isSubagentSession(input.sessionID)) {
         return
       }
 

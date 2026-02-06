@@ -3,7 +3,7 @@ import { detectKeywordsWithType, extractPromptText } from "./detector"
 import { isPlannerAgent } from "./constants"
 import { log } from "../../shared"
 import { isSystemDirective, removeSystemReminders } from "../../shared/system-directive"
-import { getMainSessionID, getSessionAgent, subagentSessions } from "../../features/claude-code-session-state"
+import { getMainSessionID, getSessionAgent, isSubagentSession } from "../../features/claude-code-session-state"
 import type { ContextCollector } from "../../features/context-injector"
 
 export * from "./detector"
@@ -48,7 +48,7 @@ export function createKeywordDetectorHook(ctx: PluginInput, collector?: ContextC
 
       // Skip keyword detection for background task sessions to prevent mode injection
       // (e.g., [analyze-mode]) which incorrectly triggers Prometheus restrictions
-      const isBackgroundTaskSession = subagentSessions.has(input.sessionID)
+      const isBackgroundTaskSession = isSubagentSession(input.sessionID)
       if (isBackgroundTaskSession) {
         return
       }

@@ -20,6 +20,7 @@ This document does **not** define the full internal algorithms of tracing, budge
 
 - Schema: `src/config/schema.ts` (`GovernanceConfigSchema`)
 - Runtime wiring: `src/index.ts`
+- Session lifecycle bus: `src/features/session-state-coordinator/`
 - Integration implementation: `src/features/governance/integration.ts`
 - Ledger: `src/features/governance/ledger.ts`
 - Trace persistence: `src/features/governance/trace-persistence.ts`
@@ -34,6 +35,14 @@ This document does **not** define the full internal algorithms of tracing, budge
 ## Integration Points (Wired)
 
 When `governance.enabled=true`, the plugin wires governance at the following points:
+
+### Session Lifecycle Dispatch (Coordinator)
+
+- Call site: `src/index.ts` (feature registration via `sessionStateCoordinator.registerFeature("governance", ...)`).
+- Contract:
+  - Session lifecycle events MUST flow through `SessionStateCoordinator`.
+  - Governance lifecycle handlers MUST remain idempotent (`session.deleted` may be retried/replayed by upstream event sources).
+  - Governance state remains domain-owned (internal `sessions` map and managers in `src/features/governance/integration.ts`), while lifecycle event dispatch is centralized.
 
 ### 1) `chat.message` (user prompt processing)
 
@@ -68,11 +77,14 @@ When `governance.enabled=true`, the plugin wires governance at the following poi
 
 ### 4) Session cleanup
 
-- Call site: `src/index.ts` (cleanup on session end).
-- Executes: `cleanupGovernanceSession(sessionId)`.
+- Dispatch path:
+  - Event ingestion: `src/index.ts` receives `session.deleted`.
+  - Lifecycle bus: `sessionStateCoordinator.onSessionDeleted(sessionId)`.
+  - Governance handler: registered `onSessionDeleted` invokes `cleanupGovernanceSession(sessionId)`.
 - Contract:
   - If tracing is enabled, the trace MUST be finalized and persisted to disk (best-effort).
   - Ledger cleanup MUST be best-effort and MUST NOT crash the session teardown.
+  - Duplicate cleanup triggers MUST be safe no-op for already-cleaned governance sessions.
 
 ## Configuration Surface (Implemented vs Reserved)
 
@@ -122,4 +134,3 @@ The plugin wraps governance calls with best-effort error handling:
 - The runtime uses the error prefix `Governance blocked:` as the sentinel for “rethrow and block”.
 
 Note: current integration functions do not emit blocks by default, so governance behaves as advisory/observability tooling rather than a hard gate.
-

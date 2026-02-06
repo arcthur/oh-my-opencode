@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 
 import type { BackgroundManager } from "../features/background-agent"
-import { setMainSession, subagentSessions, _resetForTesting } from "../features/claude-code-session-state"
+import {
+  _resetForTesting,
+  markSubagentSession,
+  setMainSession,
+} from "../features/claude-code-session-state"
 import { createTodoContinuationEnforcer } from "./todo-continuation-enforcer"
 
 type TimerCallback = (...args: any[]) => void
@@ -280,7 +284,7 @@ describe("todo-continuation-enforcer", () => {
     // given - main session set, background task session registered
     setMainSession("main-session")
     const bgTaskSession = "bg-task-session"
-    subagentSessions.add(bgTaskSession)
+    markSubagentSession(bgTaskSession, "main-session")
 
     const hook = createTodoContinuationEnforcer(createMockPluginInput(), {})
 

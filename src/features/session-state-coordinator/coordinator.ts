@@ -43,20 +43,28 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
    * Notify coordinator of session created
    */
   onSessionCreated(sessionID: string, parentID?: string, agent?: string): void {
-    const type = this.determineSessionType(parentID)
+    const existing = this.sessions.get(sessionID)
+    const effectiveParentID = parentID ?? existing?.parentID
+    const type = this.determineSessionType(effectiveParentID)
+    const isSubagent = existing?.isSubagent ?? type !== "main"
+    const rootSessionID = this.resolveRootSessionID(sessionID, effectiveParentID)
 
     const state: SessionLifecycleState = {
       id: sessionID,
       type,
-      parentID,
-      createdAt: Date.now(),
-      agent,
+      parentID: effectiveParentID,
+      createdAt: existing?.createdAt ?? Date.now(),
+      agent: agent ?? existing?.agent,
+      isSubagent,
+      rootSessionID,
     }
 
     this.sessions.set(sessionID, state)
 
-    if (type === "background" || type === "subagent") {
+    if (state.isSubagent) {
       this.subagentSessions.add(sessionID)
+    } else {
+      this.subagentSessions.delete(sessionID)
     }
 
     // Dispatch to all registered handlers
@@ -86,6 +94,11 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
           error: String(error),
         })
       }
+    }
+
+    const existing = this.sessions.get(sessionID)
+    if (existing) {
+      existing.deletedAt = Date.now()
     }
 
     // Clean up coordinator state
@@ -155,10 +168,103 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
   }
 
   /**
-   * Check if session is background/subagent
+   * Check if session is currently marked as subagent/background.
+   */
+  isSubagentSession(sessionID: string): boolean {
+    if (this.subagentSessions.has(sessionID)) return true
+    return this.sessions.get(sessionID)?.isSubagent ?? false
+  }
+
+  /**
+   * Backward-compatible alias for previous naming.
    */
   isBackgroundSession(sessionID: string): boolean {
-    return this.subagentSessions.has(sessionID)
+    return this.isSubagentSession(sessionID)
+  }
+
+  /**
+   * Mark a session as subagent/background.
+   */
+  markSubagentSession(sessionID: string, parentID?: string): void {
+    const existing = this.sessions.get(sessionID)
+    if (existing) {
+      const effectiveParentID = parentID ?? existing.parentID
+      let type = this.determineSessionType(effectiveParentID)
+      if (type === "main") {
+        type = "background"
+      }
+      existing.parentID = effectiveParentID
+      existing.type = type
+      existing.isSubagent = true
+      existing.rootSessionID = this.resolveRootSessionID(sessionID, effectiveParentID)
+      this.subagentSessions.add(sessionID)
+      return
+    }
+
+    const typeFromParent = this.determineSessionType(parentID)
+    const type: SessionType = typeFromParent === "main" ? "background" : typeFromParent
+    this.sessions.set(sessionID, {
+      id: sessionID,
+      type,
+      parentID,
+      createdAt: Date.now(),
+      isSubagent: true,
+      rootSessionID: this.resolveRootSessionID(sessionID, parentID),
+    })
+    this.subagentSessions.add(sessionID)
+  }
+
+  /**
+   * Remove subagent/background marker from a session.
+   */
+  unmarkSubagentSession(sessionID: string): void {
+    this.subagentSessions.delete(sessionID)
+    const existing = this.sessions.get(sessionID)
+    if (existing) {
+      existing.isSubagent = false
+    }
+  }
+
+  /**
+   * List all currently marked subagent/background sessions.
+   */
+  getSubagentSessionIDs(): string[] {
+    return Array.from(this.subagentSessions)
+  }
+
+  /**
+   * Set session agent only if not already set.
+   */
+  setSessionAgent(sessionID: string, agent: string): void {
+    const state = this.ensureSessionState(sessionID)
+    if (!state.agent) {
+      state.agent = agent
+    }
+  }
+
+  /**
+   * Force-update session agent.
+   */
+  updateSessionAgent(sessionID: string, agent: string): void {
+    const state = this.ensureSessionState(sessionID)
+    state.agent = agent
+  }
+
+  /**
+   * Get session agent.
+   */
+  getSessionAgent(sessionID: string): string | undefined {
+    return this.sessions.get(sessionID)?.agent
+  }
+
+  /**
+   * Clear session agent.
+   */
+  clearSessionAgent(sessionID: string): void {
+    const state = this.sessions.get(sessionID)
+    if (state) {
+      state.agent = undefined
+    }
   }
 
   /**
@@ -204,6 +310,28 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
     return "subagent"
   }
 
+  private resolveRootSessionID(sessionID: string, parentID?: string): string | undefined {
+    if (!parentID) return sessionID
+    const parent = this.sessions.get(parentID)
+    if (!parent) return parentID
+    return parent.rootSessionID ?? parent.id
+  }
+
+  private ensureSessionState(sessionID: string): SessionLifecycleState {
+    const existing = this.sessions.get(sessionID)
+    if (existing) return existing
+
+    const state: SessionLifecycleState = {
+      id: sessionID,
+      type: "main",
+      createdAt: Date.now(),
+      isSubagent: false,
+      rootSessionID: sessionID,
+    }
+    this.sessions.set(sessionID, state)
+    return state
+  }
+
   /**
    * Reset for testing
    * @internal
@@ -213,6 +341,17 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
     this.handlers.clear()
     this.subagentSessions.clear()
     this.mainSessionID = undefined
+  }
+
+  /**
+   * Clear subagent markers for testing.
+   * @internal
+   */
+  _clearSubagentSessionsForTesting(): void {
+    this.subagentSessions.clear()
+    for (const session of this.sessions.values()) {
+      session.isSubagent = false
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach, spyOn } from "bun:test"
 
 import { createSessionNotification } from "./session-notification"
-import { setMainSession, subagentSessions, _resetForTesting } from "../features/claude-code-session-state"
+import { setMainSession, markSubagentSession, _resetForTesting } from "../features/claude-code-session-state"
 import * as utils from "./session-notification-utils"
 
 describe("session-notification", () => {
@@ -44,14 +44,13 @@ describe("session-notification", () => {
 
   afterEach(() => {
     // given - cleanup after each test
-    subagentSessions.clear()
     _resetForTesting()
   })
 
   test("should not trigger notification for subagent session", async () => {
     // given - a subagent session exists
     const subagentSessionID = "subagent-123"
-    subagentSessions.add(subagentSessionID)
+    markSubagentSession(subagentSessionID, "main-parent")
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 0,
@@ -127,7 +126,7 @@ describe("session-notification", () => {
     const mainSessionID = "main-999"
     const subagentSessionID = "subagent-888"
     setMainSession(mainSessionID)
-    subagentSessions.add(subagentSessionID)
+    markSubagentSession(subagentSessionID, mainSessionID)
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 0,
@@ -154,7 +153,7 @@ describe("session-notification", () => {
     const subagentSessionID = "subagent-222"
     const unknownSessionID = "unknown-333"
     setMainSession(mainSessionID)
-    subagentSessions.add(subagentSessionID)
+    markSubagentSession(subagentSessionID, mainSessionID)
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 0,
