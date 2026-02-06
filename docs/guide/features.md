@@ -458,8 +458,8 @@ Disable specific hooks in config:
 
 | Tool | Description |
 |------|-------------|
-| **call_omo_agent** | Spawn explore/librarian agents. Supports `run_in_background`. |
-| **delegate_task** | Category-based task delegation. Supports categories (visual, business-logic) or direct agent targeting. |
+| **delegate_task** | Category-based task delegation. Supports categories (visual, business-logic) or direct agent targeting. Research-scoped mode for explore/librarian-only access. |
+| **call_omo_agent** | **DEPRECATED** — Use `delegate_task` instead. Spawn explore/librarian agents. Supports `run_in_background`. |
 | **background_output** | Retrieve background task results |
 | **background_cancel** | Cancel running background tasks |
 

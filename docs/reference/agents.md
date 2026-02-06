@@ -104,8 +104,8 @@ The plugin enforces additional permission constraints after agent assembly (defe
 Notable enforced behaviors include:
 
 - `atlas` is denied `task` and `call_omo_agent`, and is allowed `delegate_task`.
-- `sisyphus`, `hephaestus`, and `prometheus` are allowed `delegate_task` and denied `call_omo_agent`.
-- `sisyphus-junior` is forcibly denied `delegate_task` and `task` regardless of config-layer overrides.
+- `sisyphus`, `hephaestus`, and `prometheus` are allowed `delegate_task` and denied `call_omo_agent` (deprecated).
+- `sisyphus-junior` has `delegate_task` in research-scoped mode (explore/librarian only, no categories, no skill injection). `task` is forcibly denied regardless of config-layer overrides.
 
 See `src/plugin-handlers/config-handler.ts`.
 

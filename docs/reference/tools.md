@@ -30,10 +30,10 @@ The Oh-My-OpenCode plugin registers the following tools (in addition to any tool
 
 | Tool name | Implementation | Purpose |
 |---|---|---|
-| `delegate_task` | `src/tools/delegate-task/` | Delegate work to a subagent (sync or background) with optional skill injection |
+| `delegate_task` | `src/tools/delegate-task/` | Delegate work to a subagent (sync or background) with optional skill injection. Supports research-scoped mode for explore/librarian-only access. |
 | `multi_plan` | `src/tools/multi-plan/` | Multi-model planning orchestration (Prometheus) |
 | `swarm` | `src/tools/swarm.ts` | Sisyphus Swarm orchestration entrypoint |
-| `call_omo_agent` | `src/tools/call-omo-agent/` | Run a lightweight exploration/research agent (legacy runner) |
+| `call_omo_agent` | `src/tools/call-omo-agent/` | **DEPRECATED** — Use `delegate_task(subagent_type=..., load_skills=[])` instead. Kept for backward compatibility. |
 | `look_at` | `src/tools/look-at/` | Assistive “inspect” tool (used by multimodal workflows) |
 
 ### Skills and commands
