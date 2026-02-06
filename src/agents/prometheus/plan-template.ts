@@ -45,7 +45,7 @@ The context manifest MUST be **machine-parseable**. Write it as Markdown, but in
 [CONTEXT_MANIFEST]
 {
   "schemaVersion": 1,
-  "planName": "{name}",
+  "planId": "{name}",
   "generatedAt": "{ISO-8601 timestamp}",
   "packs": [
     {

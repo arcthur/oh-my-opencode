@@ -53,8 +53,8 @@ function shortHash(value: string, length = 8): string {
   return createHash("sha1").update(value).digest("hex").slice(0, Math.max(4, length))
 }
 
-function buildTeamId(planName: string, planPath: string): string {
-  const base = normalizeTeamName(planName)
+function buildTeamId(planId: string, planPath: string): string {
+  const base = normalizeTeamName(planId)
   const suffix = shortHash(planPath, 8)
   const maxBaseLength = Math.max(1, 64 - suffix.length - 1)
   const baseTrimmed = base.slice(0, maxBaseLength)
@@ -93,14 +93,14 @@ export function createSwarmFromPlanHook(
       if (startedBySession.has(input.sessionID)) return
 
       const state = workStateManager.load()
-      const planName = state?.plan_name?.trim()
-      const planPathRaw = state?.active_plan?.trim()
-      if (!planName || !planPathRaw) return
+      const planId = state?.plan_id?.trim()
+      const planPathRaw = state?.execution_plan_path?.trim()
+      if (!planId || !planPathRaw) return
 
       const planPath = planPathRaw.startsWith("/")
         ? planPathRaw
         : join(ctx.directory, planPathRaw)
-      const teamName = buildTeamId(planName, planPath)
+      const teamName = buildTeamId(planId, planPath)
 
       // Crash-safe idempotency: if the team already exists with active (non-stale)
       // workers, skip the full bootstrap.  Only ensure the in-process coordinator
@@ -146,7 +146,7 @@ export function createSwarmFromPlanHook(
       }
 
       if (!existsSync(planPath)) {
-        log(`[${HOOK_NAME}] Plan file missing`, { planName, planPath })
+        log(`[${HOOK_NAME}] Plan file missing`, { planId, planPath })
         return
       }
 
@@ -154,11 +154,11 @@ export function createSwarmFromPlanHook(
       try {
         planMarkdown = readFileSync(planPath, "utf-8")
       } catch (err) {
-        log(`[${HOOK_NAME}] Failed to read plan`, { planName, planPath, error: String(err) })
+        log(`[${HOOK_NAME}] Failed to read plan`, { planId, planPath, error: String(err) })
         return
       }
 
-      const manifestPath = join(ctx.directory, getContextManifestPath(planName))
+      const manifestPath = join(ctx.directory, getContextManifestPath(planId))
       const manifestMarkdown = existsSync(manifestPath)
         ? (() => {
             try {
@@ -186,7 +186,7 @@ export function createSwarmFromPlanHook(
         ))
 
       if (!coordinator) {
-        log(`[${HOOK_NAME}] Failed to start coordinator`, { teamName, planName })
+        log(`[${HOOK_NAME}] Failed to start coordinator`, { teamName, planId })
         return
       }
 
@@ -200,7 +200,7 @@ export function createSwarmFromPlanHook(
       const sync = syncPlanTodosToTaskPool({
         config,
         listId: teamName,
-        planName,
+        planId,
         planMarkdown,
         manifestMarkdown,
       })
@@ -252,7 +252,7 @@ export function createSwarmFromPlanHook(
         "## Swarm-first Execution",
         "",
         `Team: ${teamName}`,
-        `Plan: ${planName}`,
+        `Plan: ${planId}`,
         `Tasks synced: created ${sync.created.length}, skipped ${sync.skipped.length}`,
         targetWorkers > 0 ? `Workers: spawned ${spawned} (target ${targetWorkers})` : "Workers: disabled (worker_count=0)",
         "",

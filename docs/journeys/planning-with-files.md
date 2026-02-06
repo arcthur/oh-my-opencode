@@ -13,7 +13,7 @@ flowchart TD
   CM --> FS["Persist plan artifacts under .sisyphus/<directory>/<plan>/"]
 
   subgraph ToolBoundary["Tool boundaries (auto_reread)"]
-    TB["tool.execute.before for write/edit/bash/…"] --> INJ["Inject <task-plan-context> (critical priority)"]
+    TB["tool.execute.before for write/edit/bash/…"] --> INJ["Inject <plan-context> (critical priority)"]
     INJ --> TOOL["Tool runs (Write/Edit/Bash/…)"]
   end
 
@@ -23,7 +23,7 @@ flowchart TD
   end
 
   subgraph StopGuard["Stop verification"]
-    IDLE["session.idle event"] --> CHECK["Detect incomplete phases in task_plan.md"]
+    IDLE["session.idle event"] --> CHECK["Detect incomplete phases in plan.md"]
     CHECK -->|Incomplete| PROMPT["session.prompt: ask to complete or mark blocked\n(or /stop --force)"]
   end
 
@@ -60,13 +60,14 @@ Every complex task creates three markdown files:
 
 ```
 .sisyphus/{directory}/{plan-name}/
-├── task_plan.md           # Phases, goals, decisions, errors, blockers
+├── plan.md           # Phases, goals, decisions, errors, blockers
 ├── findings.md            # Research results (2-action rule)
 ├── progress.md            # Session logs, phase transitions
-└── .planning-state.json   # Persisted state (action count, error strikes)
 ```
 
-### task_plan.md - Working Memory
+Shared runtime state is persisted in `.sisyphus/work.yaml` (single active plan).
+
+### plan.md - Working Memory
 
 Your primary planning document containing:
 - **Goal**: North-star statement to prevent drift
@@ -117,17 +118,17 @@ Enable in `.opencode/oh-my-opencode.json`:
 | `auto_reread` | `true` | Re-read task_plan before Write/Edit/Bash/NotebookEdit |
 | `stop_verification` | `true` | Block stopping if phases are incomplete |
 | `auto_from_multi_plan` | `true` | Auto-create planning files from multi-plan results |
-| `reread_trigger_tools` | `["Write", "Edit", "Bash", "NotebookEdit"]` | Tools that trigger task_plan.md injection |
+| `reread_trigger_tools` | `["Write", "Edit", "Bash", "NotebookEdit"]` | Tools that trigger plan.md injection |
 | `action_count_tools` | `["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"]` | Tools counted for 2-action rule |
 
 ## Core Mechanisms
 
-### 1. PreToolUse Hook - Full task_plan.md Injection
+### 1. PreToolUse Hook - Full plan.md Injection
 
-Before Write/Edit/Bash/NotebookEdit operations, the **full** task_plan.md content is injected:
+Before Write/Edit/Bash/NotebookEdit operations, the **full** plan.md content is injected:
 
 ```xml
-<task-plan-context>
+<plan-context>
 # Task Plan: feature-name
 
 > **Goal**: Implement user authentication
@@ -177,8 +178,8 @@ Structured error handling with forced recording and escalation:
 | Strike | Action | Guidance |
 |--------|--------|----------|
 | 1 | Diagnose | Read error carefully, check context |
-| 2 | Pivot | Try alternative approach + **MUST record in task_plan.md** |
-| 3 | Reassess | Review assumptions + **MUST record in task_plan.md** |
+| 2 | Pivot | Try alternative approach + **MUST record in plan.md** |
+| 3 | Reassess | Review assumptions + **MUST record in plan.md** |
 | 4+ | Escalate | Add to Blockers section, ask for help |
 
 **Forced Error Recording (Strike 2+)**
@@ -189,7 +190,7 @@ On the second occurrence of an error, the agent is required to document it:
 <error-recording-required>
 ## Record Error Before Continuing
 
-This error has occurred 2 times. You MUST record it in task_plan.md before retrying.
+This error has occurred 2 times. You MUST record it in plan.md before retrying.
 
 **Add to ## Errors section:**
 
@@ -218,7 +219,7 @@ This prevents blind retries and forces the agent to analyze before trying again.
 - Design decisions needing human input
 - Multiple approaches exhausted
 
-The Blockers section in task_plan.md:
+The Blockers section in plan.md:
 
 ```markdown
 ## Blockers (Require Escalation)
@@ -251,7 +252,7 @@ When a phase transitions to `complete`, the agent receives a reflection prompt e
 - Reorder phases based on new understanding
 - Update phase descriptions with new context
 
-**Update task_plan.md if any changes are needed, then continue.**
+**Update plan.md if any changes are needed, then continue.**
 </phase-reflection>
 ```
 
@@ -278,7 +279,7 @@ Incomplete phases:
 
 **Options**:
 1. Complete remaining phases
-2. Mark phases as `blocked` in task_plan.md
+2. Mark phases as `blocked` in plan.md
 3. Use `/stop --force` to override
 ```
 
@@ -288,25 +289,37 @@ Incomplete phases:
 
 ### 7. State Persistence
 
-State is persisted to `.planning-state.json`:
+Planning protocol state is persisted to `.sisyphus/work.yaml`:
 
-```json
-{
-  "planName": "add-auth",
-  "actionCount": 1,
-  "lastFindingsMtime": 1767225600000,
-  "errorStrikes": {
-    "Bash:npm install failed": 2
-  },
-  "activatedAt": "2026-01-01T00:00:00.000Z",
-  "lastActivityAt": "2026-01-01T01:30:00.000Z"
-}
+```yaml
+schema_version: 2
+plan_id: add-auth
+execution_plan_path: .sisyphus/plans/add-auth/plan.md
+runtime_ledger_path: .sisyphus/plans/add-auth/ledger.yaml
+started_at: 2026-01-01T01:00:00.000Z
+session_ids:
+  - ses_main
+research_ops: 1
+last_findings_mtime: 1767225600000
+errors:
+  - key: Bash:npm install failed
+    strikes: 2
+    recorded: false
+    last_at: 2026-01-01T01:20:00.000Z
+blockers: []
+phase_completions: []
+decisions: []
+session_ids:
+  - session-123
+started_at: 2026-01-01T00:00:00.000Z
+last_updated: 2026-01-01T01:30:00.000Z
 ```
 
 This enables:
 - **Session recovery**: State survives process restarts
-- **Cross-session continuity**: Resume where you left off
+- **Cross-session continuity**: Resume the active plan where you left off
 - **Accurate mtime detection**: No keyword matching needed
+- **Single active-plan semantics**: Protocol counters/strikes are scoped to the current `active_plan`
 
 ## Silent Tool Output
 
@@ -317,7 +330,7 @@ To further reduce context consumption, use the `silent-tool-output` hook in conj
 Even when content is written to persistent files, the tool output returns full content back into context:
 
 ```
-Agent: Write("task_plan.md", <200 lines>)
+Agent: Write("plan.md", <200 lines>)
     ↓
 Tool Output: "Successfully wrote:\n<200 lines>"  ← Full content in context!
     ↓
@@ -329,9 +342,9 @@ Context: Contains 200 lines (defeats the purpose of persistent storage)
 Silent Tool Output replaces verbose outputs with minimal metadata:
 
 ```
-Agent: Write("task_plan.md", <200 lines>)
+Agent: Write("plan.md", <200 lines>)
     ↓
-Tool Output: "✓ task_plan.md updated"  ← Only metadata
+Tool Output: "✓ plan.md updated"  ← Only metadata
     ↓
 Context: Just the confirmation (trust the filesystem)
 ```
@@ -366,7 +379,7 @@ Context: Just the confirmation (trust the filesystem)
 |------|--------|-------|-----------|
 | **Write** | `Successfully wrote:\n<200 lines>` | `✓ file.ts written (5000 bytes, 200 lines)` | ~95% |
 | **Edit** | `Modified:\n<full content>` | `✓ file.ts updated` | ~95% |
-| **Read** (planning) | `<full content>` | `✓ task_plan.md loaded (50 lines) - content available in <task-plan-context>` | ~90% |
+| **Read** (planning) | `<full content>` | `✓ plan.md loaded (50 lines) - content available in <plan-context>` | ~90% |
 | **Grep** | `<100 matches>` | `<20 matches>\n... and 80 more results (use Read tool to view specific files)` | ~80% |
 
 ### Core Principle
@@ -394,7 +407,7 @@ Initialization is idempotent: existing planning files are not overwritten; re-ru
 
 ### During Work
 
-1. **Before Write/Edit/Bash**: task_plan.md auto-injected as context
+1. **Before Write/Edit/Bash**: plan.md auto-injected as context
 2. **After every 2 research operations**: Reminded to update findings.md (until findings.md is updated)
 3. **When findings.md modified**: Action counter auto-resets
 4. **On errors**: 3-strike protocol guidance provided (best-effort, based on tool output markers)
@@ -409,14 +422,14 @@ Ensure all phases are `complete` or `blocked` before stopping.
 When `auto_from_multi_plan: true`, after a successful `multi_plan` tool run completes:
 
 1. Planning files are initialized at `.sisyphus/{directory}/{planName}/` (if missing)
-2. `task_plan.md` starts from the default template (edit freely)
+2. `plan.md` starts from the default template (edit freely)
 3. The unified plan remains the source of truth for detailed TODOs; planning-with-files focuses on persistence, error tracking, and lightweight phase gating
 
 This enables seamless transition from planning to execution with full tracking.
 
 ## File Templates
 
-### task_plan.md
+### plan.md
 
 ```markdown
 # Task Plan: {name}
@@ -506,7 +519,7 @@ This enables seamless transition from planning to execution with full tracking.
 | Metric | Effect |
 |--------|--------|
 | KV-cache utilization | Improved via a stable, repeatable prefix |
-| State recovery | Survives restarts via disk state (`.planning-state.json`) |
+| State recovery | Survives restarts via `work.yaml` |
 | Findings reset signal | mtime-based (no keyword parsing) |
 | Context reduction (with `silent-tool-output`) | Reduces redundant Write/Edit echoes |
 | Error retry prevention | Forced recording on Strike 2+ |
@@ -522,7 +535,8 @@ This enables seamless transition from planning to execution with full tracking.
 
 ### What This Trades Off
 
-- **Active plan selection**: Session-scoped when possible; otherwise falls back to a heuristic (most recently active plan by state mtime).
+- **Active plan selection**: Session-scoped when possible; otherwise resolved by `work.yaml` first, then fallback to newest `plan.md` mtime.
+- **Single active-plan semantics**: Protocol state is not sharded per plan; switching plans starts a fresh active context.
 - **3-strike detection**: Best-effort (based on output markers), so signatures may be imperfect across tools/providers.
 - **Stop verification**: Advisory (prompt-based). It cannot hard-block `/stop` in OpenCode today; it encourages explicit `complete`/`blocked` states or a conscious `/stop --force`.
 
@@ -570,7 +584,8 @@ Ensure planning-with-files hook is not disabled:
 
 ### State not persisting
 
-Check that `.planning-state.json` exists in the plan directory and is writable.
+Check that `.sisyphus/work.yaml` exists and is writable.
+The legacy planning state file is no longer used.
 
 ### Stop not blocked
 

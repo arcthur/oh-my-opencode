@@ -1,24 +1,17 @@
 /**
  * Planning with Files - Type Definitions
  *
- * Manus-style persistent planning: "Context Window = RAM; Filesystem = Disk"
+ * Canonical layout:
+ * .sisyphus/plans/{plan_id}/plan.md
+ * .sisyphus/plans/{plan_id}/ledger.yaml
+ * .sisyphus/plans/{plan_id}/findings.md
+ * .sisyphus/plans/{plan_id}/progress.md
  */
-
-export type PhaseStatus = "pending" | "in_progress" | "complete" | "blocked"
-
-/** Persisted state (saved to .planning-state.json) */
-export interface PlanningState {
-  planName: string
-  actionCount: number
-  lastFindingsMtime: number
-  errorStrikes: Record<string, number>
-  activatedAt: string
-  lastActivityAt: string
-}
 
 /** Configuration - matches schema snake_case convention */
 export interface PlanningWithFilesConfig {
   enabled: boolean
+  /** Deprecated. Directory is fixed to .sisyphus/plans and ignored at runtime. */
   directory: string
   two_action_rule: boolean
   three_strike_protocol: boolean
@@ -40,9 +33,3 @@ export const DEFAULT_PLANNING_CONFIG: PlanningWithFilesConfig = {
   action_count_tools: ["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"],
   auto_from_multi_plan: true,
 }
-
-// Legacy type aliases for compatibility
-export type PlanningSession = PlanningState
-export type TaskPhase = { id: number; name: string; status: PhaseStatus; description?: string }
-export type Decision = { id: number; decision: string; rationale: string; phase?: number }
-export type ErrorRecord = { id: number; error: string; attempt: number; action: string; resolution?: string }

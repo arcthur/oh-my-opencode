@@ -43,10 +43,10 @@ export class PlanGenerator {
     parentSessionID: string
   ): Promise<PlanGenerationTask[]> {
     const tasks: PlanGenerationTask[] = []
-    const basePrompt = this.buildPlanningPrompt(session.planName, session.requestContext)
+    const basePrompt = this.buildPlanningPrompt(session.planId, session.requestContext)
 
     log("[multi-plan] Starting parallel plan generation", {
-      planName: session.planName,
+      planId: session.planId,
       modelCount: session.models.length,
     })
 
@@ -58,7 +58,7 @@ export class PlanGenerator {
         // This should never happen if Orchestrator validation is correct
         throw new Error(`Invalid model name for path: "${model.name}" - validation should have caught this`)
       }
-      const outputPath = `.sisyphus/plans/${session.planName}-${safeModelName}.md`
+      const outputPath = `.sisyphus/plans/${session.planId}-${safeModelName}.md`
 
       const task: PlanGenerationTask = {
         modelName: model.name,
@@ -277,7 +277,7 @@ export class PlanGenerator {
    * Build the base planning prompt with embedded Metis capabilities
    * (intent classification + AI-slop guardrails)
    */
-  private buildPlanningPrompt(planName: string, context: string): string {
+  private buildPlanningPrompt(planId: string, context: string): string {
     const intentClassification = buildIntentClassificationPrompt()
     const slopGuardrails = buildAISlopGuardrails()
 
@@ -288,7 +288,7 @@ ${intentClassification}
 ---
 
 ## Plan Name
-${planName}
+${planId}
 
 ## Context from Interview
 ${context}
@@ -320,7 +320,7 @@ Generate a comprehensive work plan following the standard .sisyphus/plans/*.md f
    - Must Have / Must NOT Have
 
 4. **Context Manifests (REQUIRED)**
-   - Context Manifest path: \`.sisyphus/context-manifests/${planName}.md\`
+   - Context Manifest path: \`.sisyphus/context-manifests/${planId}.md\`
    - Define 3–8 stable pack IDs (e.g., \`global\`, \`tooling\`, \`work-state\`)
    - Each pack should list items (docs/code/index) and why they matter
   - The context manifest file MUST include a valid JSON payload between markers:

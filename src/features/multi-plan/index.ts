@@ -105,7 +105,7 @@ export class MultiPlanOrchestrator {
   /**
    * Start a new multi-plan session
    *
-   * @throws {MultiPlanError} if planName or modelNames are invalid or duplicated
+   * @throws {MultiPlanError} if planId or modelNames are invalid or duplicated
    */
   async start(input: StartMultiPlanInput): Promise<MultiPlanResult> {
     const sessionId = `mp_${crypto.randomUUID().slice(0, 8)}`
@@ -113,13 +113,13 @@ export class MultiPlanOrchestrator {
     const pipelineConfig = input.pipelineConfig ?? DEFAULT_PIPELINE_CONFIG
 
     // === Centralized validation (single source of truth) ===
-    // Validate planName
-    const safePlanName = sanitizePathSegment(input.planName)
+    // Validate planId
+    const safePlanName = sanitizePathSegment(input.planId)
     if (!safePlanName) {
       throw new MultiPlanError(
-        `Invalid plan name: "${input.planName}". Plan names must be safe for file paths.`,
+        `Invalid plan name: "${input.planId}". Plan names must be safe for file paths.`,
         [],
-        { id: sessionId, planName: input.planName, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Invalid plan name" }
+        { id: sessionId, planId: input.planId, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Invalid plan name" }
       )
     }
 
@@ -131,7 +131,7 @@ export class MultiPlanOrchestrator {
         throw new MultiPlanError(
           `Invalid model name: "${model.name}". Model names must be safe for file paths.`,
           [],
-          { id: sessionId, planName: input.planName, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Invalid model name" }
+          { id: sessionId, planId: input.planId, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Invalid model name" }
         )
       }
       const existingOriginal = sanitizedToOriginal.get(sanitizedName)
@@ -139,7 +139,7 @@ export class MultiPlanOrchestrator {
         throw new MultiPlanError(
           `Duplicate model name after sanitization: "${existingOriginal}" and "${model.name}" both resolve to "${sanitizedName}".`,
           [],
-          { id: sessionId, planName: input.planName, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Duplicate model name" }
+          { id: sessionId, planId: input.planId, requestContext: input.requestContext, models, tasks: [], status: "error", startedAt: new Date(), error: "Duplicate model name" }
         )
       }
       sanitizedToOriginal.set(sanitizedName, model.name)
@@ -147,14 +147,14 @@ export class MultiPlanOrchestrator {
 
     log("[multi-plan] Starting multi-plan session", {
       sessionId,
-      planName: safePlanName,
+      planId: safePlanName,
       modelCount: models.length,
     })
 
     // Create session
     const session: MultiPlanSession = {
       id: sessionId,
-      planName: safePlanName,
+      planId: safePlanName,
       requestContext: input.requestContext,
       models,
       tasks: [],
@@ -237,7 +237,7 @@ export class MultiPlanOrchestrator {
 
       log("[multi-plan] Multi-plan session completed", {
         sessionId,
-        planName: safePlanName,
+        planId: safePlanName,
         successfulPlans: successfulTasks.length,
       })
 
@@ -290,7 +290,7 @@ export class MultiPlanOrchestrator {
 
     // Launch Plan Synthesizer as a background task (silent to avoid notification spam)
     const synthTask = await this.manager.launch({
-      description: `Plan Synthesis: ${session.planName}`,
+      description: `Plan Synthesis: ${session.planId}`,
       prompt: synthesisPrompt,
       agent: "plan-synthesizer",
       parentSessionID: parentSessionId,
@@ -345,7 +345,7 @@ adhd_detection: ${pipeline.adhd_detection}
     return `## Multi-Model Plan Synthesis Request
 
 ### Plan Name
-${session.planName}
+${session.planId}
 
 ### Pipeline Flags (Single Source of Truth)
 
@@ -376,8 +376,8 @@ ${session.requestContext}
    - Phase 7: Synthesize the final unified plan
 
 3. Generate TWO files:
-   - Comparison report: \`.sisyphus/plan-reviews/${session.planName}-comparison.md\`
-   - Final unified plan: \`.sisyphus/plans/${session.planName}.md\`
+   - Comparison report: \`.sisyphus/plan-reviews/${session.planId}-comparison.md\`
+   - Final unified plan: \`.sisyphus/plans/${session.planId}.md\`
 
 ### IMPORTANT
 
@@ -400,7 +400,7 @@ Begin by reading all the plan files.
     const failCount = session.tasks.filter((t) => t.status === "error").length
 
     const lines: string[] = [
-      `## Multi-Model Planning Complete: ${session.planName}`,
+      `## Multi-Model Planning Complete: ${session.planId}`,
       "",
       `**Models**: ${session.models.map((m) => m.name).join(", ")}`,
       `**Successful Plans**: ${successCount}/${session.models.length}`,
@@ -413,8 +413,8 @@ Begin by reading all the plan files.
     lines.push(
       "",
       `**Files Generated**:`,
-      `- Comparison Report: \`.sisyphus/plan-reviews/${session.planName}-comparison.md\``,
-      `- Final Plan: \`.sisyphus/plans/${session.planName}.md\``,
+      `- Comparison Report: \`.sisyphus/plan-reviews/${session.planId}-comparison.md\``,
+      `- Final Plan: \`.sisyphus/plans/${session.planId}.md\``,
       "",
       `Individual plans:`,
       ...session.tasks.map((t) => {
@@ -521,14 +521,14 @@ Plan Synthesizer will:
     return sanitized
   }
 
-  private getRebuttalOutputPath(planName: string, modelName: string): string {
-    const safePlanName = this.getSafePathSegment("plan", planName)
+  private getRebuttalOutputPath(planId: string, modelName: string): string {
+    const safePlanName = this.getSafePathSegment("plan", planId)
     const safeModelName = this.getSafePathSegment("model", modelName)
     return `.sisyphus/rebuttals/${safePlanName}-${safeModelName}.md`
   }
 
-  private getIndividualPlanPath(planName: string, modelName: string): string {
-    const safePlanName = this.getSafePathSegment("plan", planName)
+  private getIndividualPlanPath(planId: string, modelName: string): string {
+    const safePlanName = this.getSafePathSegment("plan", planId)
     const safeModelName = this.getSafePathSegment("model", modelName)
     return `.sisyphus/plans/${safePlanName}-${safeModelName}.md`
   }
@@ -635,7 +635,7 @@ Plan Synthesizer will:
         }
 
         // Read rebuttal content from output
-        const rebuttalPath = this.getRebuttalOutputPath(session.planName, rejection.modelName)
+        const rebuttalPath = this.getRebuttalOutputPath(session.planId, rejection.modelName)
         const absRebuttalPath = path.resolve(this.ctx.directory, rebuttalPath)
         if (fs.existsSync(absRebuttalPath)) {
           rebuttal.content = fs.readFileSync(absRebuttalPath, "utf-8")
@@ -670,8 +670,8 @@ Plan Synthesizer will:
     rejection: { modelName: string; conflicts: Array<{ conflictId: string; criticism: string }> },
     session: MultiPlanSession
   ): string {
-    const outputPath = this.getRebuttalOutputPath(session.planName, rejection.modelName)
-    const planPath = this.getIndividualPlanPath(session.planName, rejection.modelName)
+    const outputPath = this.getRebuttalOutputPath(session.planId, rejection.modelName)
+    const planPath = this.getIndividualPlanPath(session.planId, rejection.modelName)
     const conflictsBlock = rejection.conflicts
       .map(
         (c, idx) =>
@@ -766,8 +766,8 @@ ${rebuttalSummary}
 
 ### Files to Update (if needed)
 
-- Final plan: \`.sisyphus/plans/${session.planName}.md\`
-- Comparison report: \`.sisyphus/plan-reviews/${session.planName}-comparison.md\`
+- Final plan: \`.sisyphus/plans/${session.planId}.md\`
+- Comparison report: \`.sisyphus/plan-reviews/${session.planId}-comparison.md\`
 
 ### Important
 
@@ -777,7 +777,7 @@ ${rebuttalSummary}
 `
 
     const task = await this.manager.launch({
-      description: `Final Synthesis: ${session.planName}`,
+      description: `Final Synthesis: ${session.planId}`,
       prompt,
       agent: "plan-synthesizer",
       parentSessionID: parentSessionId,

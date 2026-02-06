@@ -30,10 +30,10 @@ const DEFAULTS = {
   maxItemsPerPack: 20,
 }
 
-function isSafePlanName(planName: string): boolean {
+function isSafePlanId(planId: string): boolean {
   // Allow the same character set as pack IDs, just with a longer cap.
   // This prevents path traversal like "../x" or "a/b".
-  return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(planName)
+  return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(planId)
 }
 
 function isSafePackId(id: string): boolean {
@@ -110,19 +110,19 @@ export function createContextManifestInjectorHook(
       if (requestedPackIds.length === 0) return
 
       const state = workStateManager.load()
-      const planName = state?.plan_name?.trim()
-      if (!planName) return
+      const planId = state?.plan_id?.trim()
+      if (!planId) return
 
-      if (!isSafePlanName(planName)) {
-        log(`[${HOOK_NAME}] Unsafe plan_name (skipping injection)`, {
-          planName,
+      if (!isSafePlanId(planId)) {
+        log(`[${HOOK_NAME}] Unsafe plan_id (skipping injection)`, {
+          planId,
         })
         return
       }
 
-      const manifestPath = join(ctx.directory, getContextManifestPath(planName))
+      const manifestPath = join(ctx.directory, getContextManifestPath(planId))
       if (!existsSync(manifestPath)) {
-        log(`[${HOOK_NAME}] Manifest missing`, { manifestPath, planName })
+        log(`[${HOOK_NAME}] Manifest missing`, { manifestPath, planId })
         return
       }
 
@@ -139,7 +139,7 @@ export function createContextManifestInjectorHook(
 
       const manifest = parseContextManifestFromMarkdown(markdown)
       if (!manifest) {
-        log(`[${HOOK_NAME}] Failed to parse manifest`, { manifestPath, planName })
+        log(`[${HOOK_NAME}] Failed to parse manifest`, { manifestPath, planId })
         return
       }
 
@@ -152,11 +152,10 @@ export function createContextManifestInjectorHook(
 
       output.args.prompt = `${prompt.trimEnd()}\n\n${snippet}\n`
       log(`[${HOOK_NAME}] Injected context packs`, {
-        planName,
+        planId,
         manifestPath,
         packs: requestedPackIds,
       })
     },
   }
 }
-

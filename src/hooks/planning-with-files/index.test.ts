@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import * as yaml from "js-yaml"
 import type { PluginInput } from "@opencode-ai/plugin"
 import { ContextCollector, createContextInjectorMessagesTransformHook } from "../../features/context-injector"
 import { initializePlan } from "../../features/planning-with-files/manager"
@@ -10,6 +11,12 @@ import { createPlanningWithFilesHook } from "./index"
 
 function createTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "planning-with-files-hook-"))
+}
+
+function readWorkState(projectDir: string): Record<string, unknown> | null {
+  const workPath = path.join(projectDir, ".sisyphus", "work.yaml")
+  if (!fs.existsSync(workPath)) return null
+  return (yaml.load(fs.readFileSync(workPath, "utf-8")) as Record<string, unknown> | null) ?? null
 }
 
 function createMockPluginInput(
@@ -48,7 +55,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  test("registers task_plan.md context for trigger tools (injected via ContextCollector)", async () => {
+  test("registers plan.md context for trigger tools (injected via ContextCollector)", async () => {
     // given
     await initializePlan(tmpDir, "e2e-plan", "Implement feature X")
     const collector = new ContextCollector()
@@ -67,7 +74,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     // then
     expect(collector.hasPending("session-1")).toBe(true)
     const pending = collector.getPending("session-1")
-    expect(pending.merged).toContain("<task-plan-context>")
+    expect(pending.merged).toContain("<plan-context>")
     expect(pending.merged).toContain("Implement feature X")
 
     // then - end-to-end injection into last user message
@@ -82,8 +89,8 @@ describe("planning-with-files (plugin-native hook)", () => {
     }
     await ctxInjector["experimental.chat.messages.transform"]?.({}, output as any)
 
-    expect(output.messages[0].parts[0].text).toContain("<task-plan-context>")
-    expect(output.messages[0].parts[0].text).toContain("Task Plan:")
+    expect(output.messages[0].parts[0].text).toContain("<plan-context>")
+    expect(output.messages[0].parts[0].text).toContain("# Plan: e2e-plan")
     expect(collector.hasPending("session-1")).toBe(false)
   })
 
@@ -117,6 +124,9 @@ describe("planning-with-files (plugin-native hook)", () => {
     const pending = collector.getPending("session-2")
     expect(pending.merged).toContain("<two-action-rule>")
     expect(pending.merged).toContain("findings.md")
+    const state = readWorkState(tmpDir)
+    expect(state).not.toBeNull()
+    expect(state?.research_ops).toBe(2)
   })
 
   test("does not re-emit two-action-rule on odd action counts", async () => {
@@ -188,6 +198,9 @@ describe("planning-with-files (plugin-native hook)", () => {
 
     // then - counter reset, so no reminder yet
     expect(collector.hasPending("session-3")).toBe(false)
+    const state = readWorkState(tmpDir)
+    expect(state).not.toBeNull()
+    expect(state?.research_ops).toBe(0)
   })
 
   test("initializes a new plan from chat directive", async () => {
@@ -208,12 +221,12 @@ describe("planning-with-files (plugin-native hook)", () => {
     await hook["chat.message"]?.({ sessionID: "session-init", messageID: "m1" }, output as any)
 
     // then
-    expect(
-      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "my-plan", "task_plan.md"))
-    ).toBe(true)
-    expect(
-      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "my-plan", ".planning-state.json"))
-    ).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "my-plan", "plan.md"))).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "my-plan", "ledger.yaml"))).toBe(true)
+    const state = readWorkState(tmpDir)
+    expect(state).not.toBeNull()
+    expect(state?.plan_id).toBe("my-plan")
+    expect(String(state?.execution_plan_path ?? "")).toContain("my-plan/plan.md")
     expect(output.parts[0].text).toContain("<planning-with-files-active")
   })
 
@@ -235,8 +248,8 @@ describe("planning-with-files (plugin-native hook)", () => {
     // then
     expect(promptCalls).toHaveLength(1)
     expect(promptCalls[0].sessionID).toBe("session-stop")
-    expect(promptCalls[0].text).toContain("Incomplete phases")
-    expect(promptCalls[0].text).toContain("blocked")
+    expect(promptCalls[0].text).toContain("Incomplete TODOs")
+    expect(promptCalls[0].text).toContain("ledger.yaml")
     expect(promptCalls[0].text).toContain("/stop --force")
   })
 
@@ -285,26 +298,24 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(promptCalls).toHaveLength(0)
   })
 
-  test("emits phase-reflection prompt when a phase transitions to complete", async () => {
+  test("emits phase-reflection prompt when a TODO transitions to complete", async () => {
     // given
     await initializePlan(tmpDir, "reflection-plan", "Goal")
 
     const planDir = path.join(tmpDir, ".sisyphus", "plans", "reflection-plan")
-    const taskPlanPath = path.join(planDir, "task_plan.md")
+    const planPath = path.join(planDir, "plan.md")
 
-    // Make phase 1 in_progress so we can transition it to complete
+    // Make TODO 1 pending so we can transition it to complete
     fs.writeFileSync(
-      taskPlanPath,
-      `# Task Plan: reflection-plan
+      planPath,
+      `# Plan: reflection-plan
 
 > **Goal**: Goal
 
-## Phases
+## TODOs
 
-| # | Phase | Status | Notes |
-|---|-------|--------|-------|
-| 1 | Discovery | in_progress | -
-| 2 | Implementation | pending | -
+- [ ] 1. Discovery
+- [ ] 2. Implementation
 `
     )
 
@@ -318,7 +329,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     // First cycle initializes phase cache (no reflection)
     await hook["tool.execute.before"]?.(
       { tool: "Edit", sessionID: "session-reflect", callID: "call-1" },
-      { args: { path: taskPlanPath } }
+      { args: { path: planPath } }
     )
     collector.consume("session-reflect")
     await hook["tool.execute.after"]?.(
@@ -328,26 +339,24 @@ describe("planning-with-files (plugin-native hook)", () => {
 
     expect(collector.hasPending("session-reflect")).toBe(false)
 
-    // Transition phase 1 to complete
+    // Transition TODO 1 to complete
     fs.writeFileSync(
-      taskPlanPath,
-      `# Task Plan: reflection-plan
+      planPath,
+      `# Plan: reflection-plan
 
 > **Goal**: Goal
 
-## Phases
+## TODOs
 
-| # | Phase | Status | Notes |
-|---|-------|--------|-------|
-| 1 | Discovery | complete | -
-| 2 | Implementation | pending | -
+- [x] 1. Discovery
+- [ ] 2. Implementation
 `
     )
 
     // when - second edit after completion
     await hook["tool.execute.before"]?.(
       { tool: "Edit", sessionID: "session-reflect", callID: "call-2" },
-      { args: { path: taskPlanPath } }
+      { args: { path: planPath } }
     )
     collector.consume("session-reflect")
     await hook["tool.execute.after"]?.(
@@ -359,7 +368,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(collector.hasPending("session-reflect")).toBe(true)
     const pending = collector.getPending("session-reflect")
     expect(pending.merged).toContain("<phase-reflection>")
-    expect(pending.merged).toContain("Phase 1 Complete")
+    expect(pending.merged).toContain("TODO 1 Complete")
   })
 
   test("three-strike protocol requires error recording on strike 2+", async () => {
@@ -395,7 +404,11 @@ describe("planning-with-files (plugin-native hook)", () => {
     const strike2 = collector.consume("session-strike").merged
     expect(strike2).toContain('strike="2"')
     expect(strike2).toContain("<error-recording-required>")
-    expect(strike2).toContain("MUST record it in task_plan.md")
+    expect(strike2).toContain("MUST record it in ledger.yaml")
+    const state = readWorkState(tmpDir)
+    const errors = (state?.errors as Array<Record<string, unknown>> | undefined) ?? []
+    const strikeError = errors.find((e) => e.key === "Bash:Connection refused")
+    expect(strikeError?.strikes).toBe(2)
   })
 
   test("three-strike protocol skips recording prompt once error is recorded", async () => {
@@ -409,7 +422,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     })
 
     const planDir = path.join(tmpDir, ".sisyphus", "plans", "strike-plan-recorded")
-    const taskPlanPath = path.join(planDir, "task_plan.md")
+    const ledgerPath = path.join(planDir, "ledger.yaml")
 
     // when - strike 1
     await hook["tool.execute.after"]?.(
@@ -418,16 +431,19 @@ describe("planning-with-files (plugin-native hook)", () => {
     )
     collector.consume("session-strike-recorded")
 
-    // Record error in task_plan.md before strike 2
+    // Record error in ledger.yaml before strike 2
     fs.writeFileSync(
-      taskPlanPath,
-      `# Task Plan: strike-plan-recorded
-
-## Errors
-
-| # | Error | Phase | Attempts | Root Cause | Resolution |
-|---|-------|-------|----------|------------|------------|
-| 1 | Bash:Connection refused | Phase 1 | 1 | Network | Retry |
+      ledgerPath,
+      `schema_version: 1
+plan_id: strike-plan-recorded
+errors:
+  - key: "Bash:Connection refused"
+    strikes: 1
+    root_cause: "Network"
+    resolution: "Retry"
+blockers: []
+decisions: []
+updated_at: "2026-02-06T00:00:00Z"
 `
     )
 
@@ -465,6 +481,10 @@ describe("planning-with-files (plugin-native hook)", () => {
     const pending = collector.consume("session-blocker").merged
     expect(pending).toContain("<blocker-detected>")
     expect(pending).toContain("Missing API key")
+    const state = readWorkState(tmpDir)
+    const blockers = (state?.blockers as Array<Record<string, unknown>> | undefined) ?? []
+    expect(blockers).toHaveLength(1)
+    expect(String(blockers[0]?.error_text ?? "")).toContain("Missing API key")
   })
 
   test("does not emit blocker prompt for generic errors", async () => {
@@ -487,7 +507,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(collector.hasPending("session-blocker-generic")).toBe(false)
   })
 
-  test("respects custom planning directory for active plan detection", async () => {
+  test("ignores custom planning directory and still uses canonical plans path", async () => {
     // given
     await initializePlan(tmpDir, "custom-dir-plan", "Goal", {
       ...DEFAULT_PLANNING_CONFIG,
@@ -511,7 +531,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     // then
     expect(collector.hasPending("session-custom-dir")).toBe(true)
     const pending = collector.getPending("session-custom-dir")
-    expect(pending.merged).toContain("<task-plan-context>")
+    expect(pending.merged).toContain("<plan-context>")
   })
 
   test("auto_from_multi_plan initializes planning files after successful multi_plan", async () => {
@@ -526,7 +546,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     // when - multi_plan completes successfully
     await hook["tool.execute.before"]?.(
       { tool: "multi_plan", sessionID: "session-mp", callID: "call-mp" },
-      { args: { planName: "auto-plan", context: "ctx" } }
+      { args: { planId: "auto-plan", context: "ctx" } }
     )
     await hook["tool.execute.after"]?.(
       { tool: "multi_plan", sessionID: "session-mp", callID: "call-mp" },
@@ -534,12 +554,12 @@ describe("planning-with-files (plugin-native hook)", () => {
     )
 
     // then - plan directory scaffold created
-    expect(
-      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "auto-plan", "task_plan.md"))
-    ).toBe(true)
-    expect(
-      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "auto-plan", ".planning-state.json"))
-    ).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "auto-plan", "plan.md"))).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "auto-plan", "ledger.yaml"))).toBe(true)
+    const state = readWorkState(tmpDir)
+    expect(state).not.toBeNull()
+    expect(state?.plan_id).toBe("auto-plan")
+    expect(String(state?.execution_plan_path ?? "")).toContain("auto-plan/plan.md")
   })
 
   test("auto_from_multi_plan uses structured result (MULTI_PLAN_RESULT block)", async () => {
@@ -554,10 +574,10 @@ describe("planning-with-files (plugin-native hook)", () => {
     // when - multi_plan completes with structured result (new format)
     await hook["tool.execute.before"]?.(
       { tool: "multi_plan", sessionID: "session-mp-struct", callID: "call-mp-struct" },
-      { args: { planName: "structured-plan", context: "ctx" } }
+      { args: { planId: "structured-plan", context: "ctx" } }
     )
     const structuredOutput = `✅ Multi-model planning completed successfully!
-[MULTI_PLAN_RESULT]{"status":"success","planName":"structured-plan","finalPlanPath":".sisyphus/plans/structured-plan.md"}[/MULTI_PLAN_RESULT]
+[MULTI_PLAN_RESULT]{"status":"success","planId":"structured-plan","finalPlanPath":".sisyphus/plans/structured-plan/plan.md"}[/MULTI_PLAN_RESULT]
 
 Some summary text...`
     await hook["tool.execute.after"]?.(
@@ -565,13 +585,13 @@ Some summary text...`
       { title: "multi_plan", output: structuredOutput, metadata: {} }
     )
 
-    // then - plan directory scaffold created using planName from structured result
-    expect(
-      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "structured-plan", "task_plan.md"))
-    ).toBe(true)
-    expect(
-      fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "structured-plan", ".planning-state.json"))
-    ).toBe(true)
+    // then - plan directory scaffold created using planId from structured result
+    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "structured-plan", "plan.md"))).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "structured-plan", "ledger.yaml"))).toBe(true)
+    const state = readWorkState(tmpDir)
+    expect(state).not.toBeNull()
+    expect(state?.plan_id).toBe("structured-plan")
+    expect(String(state?.execution_plan_path ?? "")).toContain("structured-plan/plan.md")
   })
 
   test("tracks active plan per session (multi_plan -> subsequent tool injection)", async () => {
@@ -590,7 +610,7 @@ Some summary text...`
     // when - multi_plan completes successfully for plan-a
     await hook["tool.execute.before"]?.(
       { tool: "multi_plan", sessionID: "session-map", callID: "call-mp" },
-      { args: { planName: "plan-a", context: "ctx" } }
+      { args: { planId: "plan-a", context: "ctx" } }
     )
     await hook["tool.execute.after"]?.(
       { tool: "multi_plan", sessionID: "session-map", callID: "call-mp" },

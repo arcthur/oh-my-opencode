@@ -39,10 +39,10 @@ function createPlanGenerator(directory: string, manager: BackgroundManager): Pla
   return new PlanGenerator(createMockCtx(directory), manager)
 }
 
-function createMockSession(planName: string, models: Array<{ name: string; model?: string }>): MultiPlanSession {
+function createMockSession(planId: string, models: Array<{ name: string; model?: string }>): MultiPlanSession {
   return {
     id: "mp_test",
-    planName,
+    planId,
     requestContext: "Test context for planning",
     models: models.map((m) => ({ name: m.name, model: m.model || "test/model" })),
     tasks: [],

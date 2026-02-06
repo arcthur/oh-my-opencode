@@ -1,405 +1,178 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, utimesSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync, writeFileSync, utimesSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
+import { randomUUID } from "node:crypto"
 import * as yaml from "js-yaml"
-import { createWorkStateManager, WorkStateManager } from "./manager"
+import { createWorkStateManager } from "./manager"
 import type { WorkState } from "./types"
 
-describe("WorkStateManager", () => {
-  const TEST_DIR = join(tmpdir(), "work-state-test-" + Date.now())
-  const SISYPHUS_DIR = join(TEST_DIR, ".sisyphus")
-  const PLANS_DIR = join(SISYPHUS_DIR, "plans")
+function createTempWorkspace(): string {
+  return join(tmpdir(), `work-state-v2-${randomUUID()}`)
+}
+
+describe("WorkStateManager v2", () => {
+  let workspaceDir: string
 
   beforeEach(() => {
-    mkdirSync(PLANS_DIR, { recursive: true })
+    workspaceDir = createTempWorkspace()
+    mkdirSync(workspaceDir, { recursive: true })
   })
 
   afterEach(() => {
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true })
+    if (existsSync(workspaceDir)) {
+      rmSync(workspaceDir, { recursive: true, force: true })
     }
   })
 
-  describe("load()", () => {
-    test("should return null when no work.yaml exists", () => {
-      // given - no state file
-      const manager = createWorkStateManager(TEST_DIR)
-      // when
-      const state = manager.load()
-      // then
-      expect(state).toBeNull()
-    })
+  test("load returns null when work.yaml is missing", () => {
+    // #given
+    const manager = createWorkStateManager(workspaceDir)
 
-    test("should normalize absolute active_plan to workspace-relative on load", () => {
-      // given - work.yaml exists with absolute plan path inside workspace
-      const planAbs = join(PLANS_DIR, "abs-plan.md")
-      writeFileSync(planAbs, "# Plan\n- [ ] Task 1")
+    // #when
+    const loaded = manager.load()
 
-      const workState: Partial<WorkState> = {
-        active_plan: planAbs,
-        plan_name: "abs-plan",
-        started_at: "2026-01-02T10:00:00Z",
-        session_ids: ["session-1"],
-        research_ops: 0,
-        last_findings_mtime: 0,
-        errors: [],
-        blockers: [],
-        phase_completions: [],
-        decisions: [],
-      }
-      writeFileSync(join(SISYPHUS_DIR, "work.yaml"), yaml.dump(workState))
-
-      const manager = createWorkStateManager(TEST_DIR)
-      // when
-      const loaded = manager.load()
-      // then
-      expect(loaded).not.toBeNull()
-      expect(loaded!.active_plan).toBe(".sisyphus/plans/abs-plan.md")
-      expect(loaded!.plan_name).toBe("abs-plan")
-    })
-
-    test("should derive plan_name from Manus plan directory (task_plan.md)", () => {
-      // given - work.yaml exists with task_plan.md (Manus-style)
-      const planDir = join(PLANS_DIR, "manus-plan")
-      mkdirSync(planDir, { recursive: true })
-      const taskPlanAbs = join(planDir, "task_plan.md")
-      writeFileSync(taskPlanAbs, "# Task Plan\n")
-
-      const workState: Partial<WorkState> = {
-        active_plan: ".sisyphus/plans/manus-plan/task_plan.md",
-        // Legacy/incorrect value that older versions may have persisted
-        plan_name: "task_plan",
-        started_at: "2026-01-02T10:00:00Z",
-        session_ids: ["session-1"],
-        research_ops: 0,
-        last_findings_mtime: 0,
-        errors: [],
-        blockers: [],
-        phase_completions: [],
-        decisions: [],
-      }
-      writeFileSync(join(SISYPHUS_DIR, "work.yaml"), yaml.dump(workState))
-
-      const manager = createWorkStateManager(TEST_DIR)
-      // when
-      const loaded = manager.load()
-      // then
-      expect(loaded).not.toBeNull()
-      expect(loaded!.active_plan).toBe(".sisyphus/plans/manus-plan/task_plan.md")
-      expect(loaded!.plan_name).toBe("manus-plan")
-    })
+    // #then
+    expect(loaded).toBeNull()
   })
 
-  describe("getPlanProgress() phase fallback (P0-3)", () => {
-    test("should use checkbox progress when checkboxes exist", () => {
-      // given - plan with checkboxes
-      const planPath = join(PLANS_DIR, "checkbox-plan.md")
-      writeFileSync(
-        planPath,
-        "# Plan\n- [x] Task 1\n- [x] Task 2\n- [ ] Task 3\n- [ ] Task 4"
-      )
+  test("initializePlan writes schema v2 state with canonical plan and ledger paths", () => {
+    // #given
+    const manager = createWorkStateManager(workspaceDir)
 
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
+    // #when
+    const state = manager.initializePlan("auth-refactor", "session-1")
 
-      // when
-      const progress = manager.getPlanProgress()
-
-      // then - checkbox-based progress
-      expect(progress.total).toBe(4)
-      expect(progress.completed).toBe(2)
-      expect(progress.isComplete).toBe(false)
-    })
-
-    test("should fallback to phase progress when no checkboxes", () => {
-      // given - plan with phases but no checkboxes (Manus-style)
-      const planPath = join(PLANS_DIR, "phase-plan.md")
-      writeFileSync(
-        planPath,
-        `# Plan
-
-## Phase 1: Setup [complete]
-Description of setup phase
-
-## Phase 2: Implementation [in_progress]
-Description of implementation
-
-## Phase 3: Testing [pending]
-Description of testing
-`
-      )
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // when
-      const progress = manager.getPlanProgress()
-
-      // then - phase-based progress fallback
-      expect(progress.total).toBe(3)
-      expect(progress.completed).toBe(1) // Only Phase 1 is complete
-      expect(progress.isComplete).toBe(false)
-    })
-
-    test("should parse Manus task_plan.md phases table when no checkboxes exist", () => {
-      // given - Manus task_plan.md with phases table
-      const planDir = join(PLANS_DIR, "manus-table-plan")
-      mkdirSync(planDir, { recursive: true })
-      const planPath = join(planDir, "task_plan.md")
-      writeFileSync(
-        planPath,
-        `# Task Plan: manus-table-plan
-
-## Phases
-
-| # | Phase | Status | Notes |
-|---|-------|--------|-------|
-| 1 | Discovery | complete | -
-| 2 | Implementation | in_progress | -
-| 3 | Verification | pending | -
-`
-      )
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // when
-      const progress = manager.getPlanProgress()
-
-      // then - phase-table progress fallback
-      expect(progress.total).toBe(3)
-      expect(progress.completed).toBe(1)
-      expect(progress.isComplete).toBe(false)
-    })
-
-    test("should treat Manus blocked phases as non-actionable for completion", () => {
-      // given - all phases are complete or blocked in Manus task_plan.md
-      const planDir = join(PLANS_DIR, "manus-blocked-plan")
-      mkdirSync(planDir, { recursive: true })
-      const planPath = join(planDir, "task_plan.md")
-      writeFileSync(
-        planPath,
-        `# Task Plan: manus-blocked-plan
-
-## Phases
-
-| # | Phase | Status | Notes |
-|---|-------|--------|-------|
-| 1 | Discovery | complete | -
-| 2 | Implementation | blocked | waiting on user
-| 3 | Verification | blocked | waiting on infra
-`
-      )
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // when
-      const progress = manager.getPlanProgress()
-
-      // then - consider blocked as non-actionable completion for Manus
-      expect(progress.total).toBe(3)
-      expect(progress.completed).toBe(3)
-      expect(progress.isComplete).toBe(true)
-    })
-
-    test("should not report complete when plan has no checkboxes and no phases", () => {
-      // given - plan with neither checkboxes nor phases
-      const planPath = join(PLANS_DIR, "empty-plan.md")
-      writeFileSync(planPath, "# Plan\n\nSome description text without tasks.")
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // when
-      const progress = manager.getPlanProgress()
-
-      // then - should NOT report as complete (isComplete=false to avoid false positives)
-      expect(progress.total).toBe(0)
-      expect(progress.completed).toBe(0)
-      expect(progress.isComplete).toBe(false)
-    })
-
-    test("should report complete when all checkboxes are checked", () => {
-      // given - fully completed plan
-      const planPath = join(PLANS_DIR, "done-plan.md")
-      writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2\n- [x] Task 3")
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // when
-      const progress = manager.getPlanProgress()
-
-      // then
-      expect(progress.total).toBe(3)
-      expect(progress.completed).toBe(3)
-      expect(progress.isComplete).toBe(true)
-    })
-
-    test("should report complete when all phases are complete", () => {
-      // given - all phases complete (no checkboxes)
-      const planPath = join(PLANS_DIR, "done-phases.md")
-      writeFileSync(
-        planPath,
-        `# Plan
-
-## Phase 1: Setup [complete]
-Done
-
-## Phase 2: Implementation [done]
-Done
-`
-      )
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // when
-      const progress = manager.getPlanProgress()
-
-      // then - all phases complete
-      expect(progress.total).toBe(2)
-      expect(progress.completed).toBe(2)
-      expect(progress.isComplete).toBe(true)
-    })
+    // #then
+    expect(state.schema_version).toBe(2)
+    expect(state.plan_id).toBe("auth-refactor")
+    expect(state.execution_plan_path).toBe(".sisyphus/plans/auth-refactor/plan.md")
+    expect(state.runtime_ledger_path).toBe(".sisyphus/plans/auth-refactor/ledger.yaml")
+    expect(state.session_ids).toEqual(["session-1"])
   })
 
-  describe("task_snapshot caching", () => {
-    test("should cache task progress in work.yaml", () => {
-      // given - plan with checkboxes
-      const planPath = join(PLANS_DIR, "snapshot-plan.md")
-      writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [ ] Task 2\n- [ ] Task 3")
+  test("initializePlan rejects non-canonical execution plan path", () => {
+    // #given
+    const manager = createWorkStateManager(workspaceDir)
 
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // when - get progress (triggers cache)
-      const progress = manager.getPlanProgress()
-
-      // then - snapshot should be cached
-      const snapshot = manager.getTaskSnapshot()
-      expect(snapshot).not.toBeNull()
-      expect(snapshot!.total).toBe(3)
-      expect(snapshot!.completed).toBe(1)
-      expect(snapshot!.plan_mtime).toBeGreaterThan(0)
-      expect(snapshot!.last_sync).toBeTruthy()
-    })
-
-    test("should use cached snapshot when plan file unchanged", () => {
-      // given - plan with checkboxes
-      const planPath = join(PLANS_DIR, "cache-hit-plan.md")
-      writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [ ] Task 2")
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // First call - cache miss, calculates from file
-      const progress1 = manager.getPlanProgress()
-      const snapshot1 = manager.getTaskSnapshot()
-
-      // when - second call (should use cache)
-      const progress2 = manager.getPlanProgress()
-      const snapshot2 = manager.getTaskSnapshot()
-
-      // then - same results, same snapshot
-      expect(progress2.total).toBe(progress1.total)
-      expect(progress2.completed).toBe(progress1.completed)
-      expect(snapshot2!.last_sync).toBe(snapshot1!.last_sync) // Same sync time = cache hit
-    })
-
-    test("should invalidate cache when plan file is modified", async () => {
-      // given - plan with checkboxes
-      const planPath = join(PLANS_DIR, "cache-invalidate-plan.md")
-      writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [ ] Task 2")
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // First call - cache miss
-      const progress1 = manager.getPlanProgress()
-      expect(progress1.completed).toBe(1)
-      const snapshot1 = manager.getTaskSnapshot()
-
-      // when - modify file (complete task 2)
-      writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2")
-      // Force bump mtime to avoid FS timestamp granularity flakiness
-      const baseMtime = snapshot1?.plan_mtime ?? 0
-      const bumpedMtime = new Date((baseMtime > 0 ? baseMtime : Date.now()) + 2000)
-      utimesSync(planPath, new Date(), bumpedMtime)
-
-      // then - cache should be invalidated
-      const progress2 = manager.getPlanProgress()
-      expect(progress2.completed).toBe(2)
-      const snapshot2 = manager.getTaskSnapshot()
-      expect(snapshot2!.completed).toBe(2)
-      expect(snapshot2!.plan_mtime).toBeGreaterThan(snapshot1!.plan_mtime)
-    })
-
-    test("syncTaskSnapshot should force recalculate", () => {
-      // given - plan with checkboxes and existing snapshot
-      const planPath = join(PLANS_DIR, "force-sync-plan.md")
-      writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
-
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
-
-      // Initial cache
-      manager.getPlanProgress()
-      const snapshot1 = manager.getTaskSnapshot()
-
-      // Wait 1ms to ensure different timestamp (ISO string precision is ms)
-      Bun.sleepSync(1)
-
-      // when - force sync
-      const progress = manager.syncTaskSnapshot()
-
-      // then - snapshot should be updated
-      expect(progress.total).toBe(2)
-      expect(progress.completed).toBe(0)
-      const snapshot2 = manager.getTaskSnapshot()
-      expect(snapshot2!.last_sync).not.toBe(snapshot1!.last_sync) // Different sync time
-    })
+    // #when / #then
+    expect(() =>
+      manager.initializePlan(
+        "auth-refactor",
+        "session-1",
+        ".sisyphus/plans/auth-refactor.md"
+      )
+    ).toThrow("Invalid work-state invariant")
   })
 
-  describe("clearPhaseCache() precision (P1)", () => {
-    test("should clear cache for specific plan", () => {
-      // given - manager with state
-      const planPath = join(PLANS_DIR, "test-plan.md")
-      writeFileSync(planPath, "# Plan\n## 1. Task [pending]")
+  test("load rejects state with broken plan invariant", () => {
+    // #given
+    const badState: WorkState = {
+      schema_version: 2,
+      plan_id: "demo",
+      execution_plan_path: ".sisyphus/plans/demo.md",
+      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      started_at: new Date().toISOString(),
+      session_ids: ["session-1"],
+      research_ops: 0,
+      last_findings_mtime: 0,
+      errors: [],
+      blockers: [],
+      phase_completions: [],
+      decisions: [],
+    }
+    mkdirSync(join(workspaceDir, ".sisyphus"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), yaml.dump(badState), "utf-8")
+    const manager = createWorkStateManager(workspaceDir)
 
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
+    // #when
+    const loaded = manager.load()
 
-      // Populate phase cache
-      manager.detectPhaseCompletion()
+    // #then
+    expect(loaded).toBeNull()
+  })
 
-      // when - clear cache for specific plan
-      manager.clearPhaseCache("test-plan")
+  test("switchPlan replaces active plan and resets session list", () => {
+    // #given
+    const manager = createWorkStateManager(workspaceDir)
+    manager.initializePlan("plan-a", "session-a")
 
-      // then - cache should be cleared (next detectPhaseCompletion returns empty)
-      const completions = manager.detectPhaseCompletion()
-      expect(completions).toEqual([]) // First call after clear returns empty
-    })
+    // #when
+    const switched = manager.switchPlan("plan-b", "session-b")
 
-    test("should clear all caches for directory", () => {
-      // given - manager with state
-      const planPath = join(PLANS_DIR, "test-plan.md")
-      writeFileSync(planPath, "# Plan\n## 1. Task [pending]")
+    // #then
+    expect(switched.plan_id).toBe("plan-b")
+    expect(switched.execution_plan_path).toBe(".sisyphus/plans/plan-b/plan.md")
+    expect(switched.runtime_ledger_path).toBe(".sisyphus/plans/plan-b/ledger.yaml")
+    expect(switched.session_ids).toEqual(["session-b"])
+  })
 
-      const manager = createWorkStateManager(TEST_DIR)
-      manager.initialize(planPath, "session-1")
+  test("getPlanProgress reads numbered checkbox todos from canonical plan.md", () => {
+    // #given
+    const planDir = join(workspaceDir, ".sisyphus", "plans", "demo")
+    mkdirSync(planDir, { recursive: true })
+    writeFileSync(
+      join(planDir, "plan.md"),
+      "# Demo\n\n## TODOs\n\n- [x] 1. Setup\n- [ ] 2. Implement\n- [ ] 3. Verify\n",
+      "utf-8"
+    )
 
-      // Populate phase cache
-      manager.detectPhaseCompletion()
+    const manager = createWorkStateManager(workspaceDir)
+    manager.initializePlan("demo", "session-1")
 
-      // when - clear all caches
-      manager.clearAllPhaseCaches()
+    // #when
+    const progress = manager.getPlanProgress()
 
-      // then - cache should be cleared
-      const completions = manager.detectPhaseCompletion()
-      expect(completions).toEqual([])
-    })
+    // #then
+    expect(progress.total).toBe(3)
+    expect(progress.completed).toBe(1)
+    expect(progress.isComplete).toBe(false)
+  })
+
+  test("task snapshot invalidates when plan.md mtime changes", () => {
+    // #given
+    const planDir = join(workspaceDir, ".sisyphus", "plans", "snapshot")
+    const planPath = join(planDir, "plan.md")
+    mkdirSync(planDir, { recursive: true })
+    writeFileSync(planPath, "# Demo\n- [x] 1. Done\n- [ ] 2. Pending\n", "utf-8")
+
+    const manager = createWorkStateManager(workspaceDir)
+    manager.initializePlan("snapshot", "session-1")
+
+    const first = manager.getPlanProgress()
+    expect(first.completed).toBe(1)
+    const firstSnapshot = manager.getTaskSnapshot()
+
+    // #when
+    writeFileSync(planPath, "# Demo\n- [x] 1. Done\n- [x] 2. Pending\n", "utf-8")
+    const baselineMtime = firstSnapshot?.plan_mtime ?? Date.now()
+    const bumpedMtime = new Date(baselineMtime + 2000)
+    utimesSync(planPath, new Date(), bumpedMtime)
+
+    const second = manager.getPlanProgress()
+    const secondSnapshot = manager.getTaskSnapshot()
+
+    // #then
+    expect(second.completed).toBe(2)
+    expect(secondSnapshot?.plan_mtime).toBeGreaterThan(firstSnapshot?.plan_mtime ?? 0)
+  })
+
+  test("findPlans discovers only canonical plan.md files in plan directories", () => {
+    // #given
+    mkdirSync(join(workspaceDir, ".sisyphus", "plans", "p1"), { recursive: true })
+    mkdirSync(join(workspaceDir, ".sisyphus", "plans", "p2"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p1", "plan.md"), "# p1\n- [ ] 1. a")
+    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p2", "plan.md"), "# p2\n- [ ] 1. b")
+    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "legacy.md"), "# legacy")
+
+    const manager = createWorkStateManager(workspaceDir)
+
+    // #when
+    const plans = manager.findPlans()
+
+    // #then
+    expect(plans).toContain(".sisyphus/plans/p1/plan.md")
+    expect(plans).toContain(".sisyphus/plans/p2/plan.md")
+    expect(plans.some((p) => p.endsWith("legacy.md"))).toBe(false)
   })
 })

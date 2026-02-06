@@ -8,8 +8,8 @@ describe("context-manifests/parser", () => {
 
 [CONTEXT_MANIFEST]
 {
-  "schemaVersion": 1,
-  "planName": "demo",
+  "schemaVersion": 2,
+  "planId": "demo",
   "generatedAt": "2026-02-05T00:00:00Z",
   "packs": [
     {
@@ -29,8 +29,8 @@ describe("context-manifests/parser", () => {
 
     // #then
     expect(manifest).not.toBeNull()
-    expect(manifest!.schemaVersion).toBe(1)
-    expect(manifest!.planName).toBe("demo")
+    expect(manifest!.schemaVersion).toBe(2)
+    expect(manifest!.planId).toBe("demo")
     expect(manifest!.packs).toHaveLength(1)
     expect(manifest!.packs[0]!.id).toBe("global")
     expect(manifest!.packs[0]!.items[0]!.kind).toBe("doc")
@@ -60,7 +60,7 @@ describe("context-manifests/parser", () => {
 
   test("should return null when schemaVersion is unsupported", () => {
     // #given
-    const markdown = `[CONTEXT_MANIFEST]{"schemaVersion":2,"planName":"x","packs":[]}[/CONTEXT_MANIFEST]`
+    const markdown = `[CONTEXT_MANIFEST]{"schemaVersion":1,"planId":"x","packs":[]}[/CONTEXT_MANIFEST]`
 
     // #when
     const manifest = parseContextManifestFromMarkdown(markdown)
@@ -75,8 +75,8 @@ describe("context-manifests/parser", () => {
 
 [CONTEXT_MANIFEST]
 {
-  "schemaVersion": 1,
-  "planName": "demo",
+  "schemaVersion": 2,
+  "planId": "demo",
   "generatedAt": "2026-02-05T00:00:00Z",
   "packs": [
     {
@@ -96,4 +96,3 @@ describe("context-manifests/parser", () => {
     expect(manifest).toBeNull()
   })
 })
-

@@ -11,9 +11,12 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   const sisyphusDir = join(directory, ".sisyphus")
   mkdirSync(sisyphusDir, { recursive: true })
 
+  const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
-    active_plan: state.active_plan ?? "",
-    plan_name: state.plan_name ?? "",
+    schema_version: 2,
+    execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
+    runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
+    plan_id: planId,
     started_at: state.started_at ?? new Date().toISOString(),
     session_ids: state.session_ids ?? [],
     research_ops: state.research_ops ?? 0,
@@ -68,8 +71,9 @@ describe("context-manifest-injector hook", () => {
     const hook = createContextManifestInjectorHook(createMockPluginInput())
 
     writeWorkState(testDir, {
-      active_plan: ".sisyphus/plans/demo.md",
-      plan_name: "demo",
+      execution_plan_path: ".sisyphus/plans/demo/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      plan_id: "demo",
       session_ids: ["s1"],
     })
 
@@ -78,8 +82,8 @@ describe("context-manifest-injector hook", () => {
     writeFileSync(
       manifestPath,
       `# demo\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({
-        schemaVersion: 1,
-        planName: "demo",
+        schemaVersion: 2,
+        planId: "demo",
         generatedAt: "2026-02-05T00:00:00Z",
         packs: [
           {
@@ -110,8 +114,9 @@ describe("context-manifest-injector hook", () => {
     const hook = createContextManifestInjectorHook(createMockPluginInput())
 
     writeWorkState(testDir, {
-      active_plan: ".sisyphus/plans/demo.md",
-      plan_name: "demo",
+      execution_plan_path: ".sisyphus/plans/demo/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      plan_id: "demo",
       session_ids: ["s1"],
     })
 
@@ -120,8 +125,8 @@ describe("context-manifest-injector hook", () => {
     writeFileSync(
       manifestPath,
       `# demo\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({
-        schemaVersion: 1,
-        planName: "demo",
+        schemaVersion: 2,
+        planId: "demo",
         generatedAt: "2026-02-05T00:00:00Z",
         packs: [
           {
@@ -159,13 +164,14 @@ describe("context-manifest-injector hook", () => {
     expect(ids).toEqual(["global", "tooling"])
   })
 
-  test("should not allow plan_name path traversal (even if file exists)", async () => {
+  test("should not allow plan_id path traversal (even if file exists)", async () => {
     // #given
     const hook = createContextManifestInjectorHook(createMockPluginInput())
 
     writeWorkState(testDir, {
-      active_plan: ".sisyphus/plans/demo.md",
-      plan_name: "../escape",
+      execution_plan_path: ".sisyphus/escape/plan.md",
+      runtime_ledger_path: ".sisyphus/escape/ledger.yaml",
+      plan_id: "../escape",
       session_ids: ["s1"],
     })
 
@@ -175,8 +181,8 @@ describe("context-manifest-injector hook", () => {
     writeFileSync(
       escapedPath,
       `# escape\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({
-        schemaVersion: 1,
-        planName: "escape",
+        schemaVersion: 2,
+        planId: "escape",
         generatedAt: "2026-02-05T00:00:00Z",
         packs: [
           {
@@ -206,8 +212,9 @@ describe("context-manifest-injector hook", () => {
     // #given
     const hook = createContextManifestInjectorHook(createMockPluginInput())
     writeWorkState(testDir, {
-      active_plan: ".sisyphus/plans/demo.md",
-      plan_name: "demo",
+      execution_plan_path: ".sisyphus/plans/demo/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      plan_id: "demo",
       session_ids: ["s1"],
     })
 
@@ -241,4 +248,3 @@ describe("context-manifest-injector hook", () => {
     expect(output.args.prompt).not.toContain("auto-injected")
   })
 })
-

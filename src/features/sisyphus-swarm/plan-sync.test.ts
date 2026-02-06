@@ -68,8 +68,8 @@ describe("sisyphus-swarm/plan-sync", () => {
 
   test("syncPlanTodosToTaskPool creates one task per pending todo (idempotent)", () => {
     // #given
-    const planName = "demo-plan"
-    const listId = planName
+    const planId = "demo-plan"
+    const listId = planId
     const planMarkdown = `# Demo
 
 ## TODOs
@@ -85,8 +85,8 @@ describe("sisyphus-swarm/plan-sync", () => {
     const manifestMarkdown = `
 [CONTEXT_MANIFEST]
 {
-  "schemaVersion": 1,
-  "planName": "demo-plan",
+  "schemaVersion": 2,
+  "planId": "demo-plan",
   "generatedAt": "2026-02-05T00:00:00Z",
   "packs": [
     {
@@ -112,7 +112,7 @@ describe("sisyphus-swarm/plan-sync", () => {
     const first = syncPlanTodosToTaskPool({
       config,
       listId,
-      planName,
+      planId,
       planMarkdown,
       manifestMarkdown,
     })
@@ -132,7 +132,7 @@ describe("sisyphus-swarm/plan-sync", () => {
     const second = syncPlanTodosToTaskPool({
       config,
       listId,
-      planName,
+      planId,
       planMarkdown,
       manifestMarkdown,
     })
@@ -143,4 +143,3 @@ describe("sisyphus-swarm/plan-sync", () => {
     expect(taskIds2).toHaveLength(1)
   })
 })
-

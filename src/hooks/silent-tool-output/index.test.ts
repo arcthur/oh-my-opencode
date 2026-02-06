@@ -28,32 +28,32 @@ describe("silent-tool-output hook", () => {
     // when
     await hook["tool.execute.before"]?.(
       { tool: "Write", sessionID: "s2", callID: "c2" },
-      { args: { path: "task_plan.md", content: "# Plan" } }
+      { args: { path: "plan.md", content: "# Plan" } }
     )
     await hook["tool.execute.after"]?.({ tool: "Write", sessionID: "s2", callID: "c2" }, output)
 
     // then
-    expect(output.output).toBe("✓ task_plan.md updated")
+    expect(output.output).toBe("✓ plan.md updated")
   })
 
   test("optimizes Read output for planning files", async () => {
     // given
     const hook = createSilentToolOutputHook({} as never, { optimize_planning_reads: true })
-    const output = { title: "Read", output: "# Task Plan", metadata: {} }
+    const output = { title: "Read", output: "# Plan", metadata: {} }
 
     // when
     await hook["tool.execute.before"]?.(
       { tool: "Read", sessionID: "s3", callID: "c3" },
-      { args: { path: "task_plan.md" } }
+      { args: { path: "plan.md" } }
     )
     await hook["tool.execute.after"]?.({ tool: "Read", sessionID: "s3", callID: "c3" }, output)
 
     // then
-    expect(output.output).toContain("task_plan.md loaded")
-    expect(output.output).toContain("<task-plan-context>")
+    expect(output.output).toContain("plan.md loaded")
+    expect(output.output).toContain("<plan-context>")
   })
 
-  test("optimizes Read output for findings without task-plan-context hint", async () => {
+  test("optimizes Read output for findings without plan-context hint", async () => {
     // given
     const hook = createSilentToolOutputHook({} as never, { optimize_planning_reads: true })
     const output = { title: "Read", output: "# Findings", metadata: {} }
@@ -67,7 +67,7 @@ describe("silent-tool-output hook", () => {
 
     // then
     expect(output.output).toContain("findings.md loaded")
-    expect(output.output).not.toContain("<task-plan-context>")
+    expect(output.output).not.toContain("<plan-context>")
   })
 
   test("does not optimize Read output for non-planning files", async () => {
@@ -108,4 +108,3 @@ describe("silent-tool-output hook", () => {
     expect(output.output).toContain("... and 5 more results")
   })
 })
-

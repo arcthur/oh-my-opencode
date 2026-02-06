@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach, mock } from "bun:test"
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
-import { join } from "node:path"
+import { isAbsolute, join } from "node:path"
 import { tmpdir } from "node:os"
 import * as yaml from "js-yaml"
 import { createAtlasHook } from "./index"
@@ -21,9 +21,38 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   if (!existsSync(sisyphusDir)) {
     mkdirSync(sisyphusDir, { recursive: true })
   }
+  const planId = state.plan_id ?? "test-plan"
+  const canonicalPlanPath = `.sisyphus/plans/${planId}/plan.md`
+  const canonicalLedgerPath = `.sisyphus/plans/${planId}/ledger.yaml`
+  const canonicalPlanAbsPath = join(directory, canonicalPlanPath)
+  const canonicalPlanDir = join(directory, ".sisyphus", "plans", planId)
+  mkdirSync(canonicalPlanDir, { recursive: true })
+
+  const legacyPlanPathRaw = state.execution_plan_path
+  const legacyPlanPath =
+    typeof legacyPlanPathRaw === "string" && legacyPlanPathRaw.length > 0
+      ? (isAbsolute(legacyPlanPathRaw) ? legacyPlanPathRaw : join(directory, legacyPlanPathRaw))
+      : null
+
+  if (legacyPlanPath && existsSync(legacyPlanPath)) {
+    writeFileSync(canonicalPlanAbsPath, readFileSync(legacyPlanPath, "utf-8"))
+  } else if (!existsSync(canonicalPlanAbsPath)) {
+    writeFileSync(canonicalPlanAbsPath, "# Plan: test-plan\n\n## TODOs\n\n- [ ] 1. Placeholder\n")
+  }
+
+  const canonicalLedgerAbsPath = join(directory, canonicalLedgerPath)
+  if (!existsSync(canonicalLedgerAbsPath)) {
+    writeFileSync(
+      canonicalLedgerAbsPath,
+      `schema_version: 1\nplan_id: ${planId}\nerrors: []\nblockers: []\ndecisions: []\nupdated_at: "2026-02-06T00:00:00Z"\n`
+    )
+  }
+
   const fullState: WorkState = {
-    active_plan: state.active_plan ?? "",
-    plan_name: state.plan_name ?? "",
+    schema_version: 2,
+    execution_plan_path: canonicalPlanPath,
+    runtime_ledger_path: canonicalLedgerPath,
+    plan_id: planId,
     started_at: state.started_at ?? new Date().toISOString(),
     session_ids: state.session_ids ?? [],
     research_ops: state.research_ops ?? 0,
@@ -32,6 +61,8 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
     blockers: state.blockers ?? [],
     phase_completions: state.phase_completions ?? [],
     decisions: state.decisions ?? [],
+    task_snapshot: state.task_snapshot,
+    last_updated: state.last_updated,
   }
   writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
 }
@@ -157,10 +188,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -218,10 +249,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -282,10 +313,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
-        plan_name: "complete-plan",
+        plan_id: "complete-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -319,10 +350,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -355,10 +386,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [sessionID],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -392,10 +423,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2\n- [x] Task 3")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
-        plan_name: "my-feature",
+        plan_id: "my-feature",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -429,10 +460,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -701,10 +732,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2\n- [ ] Task 3")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -750,10 +781,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "complete-plan",
+        plan_id: "complete-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -778,10 +809,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -815,10 +846,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -850,10 +881,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -893,10 +924,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [x] Task 1\n- [x] Task 2\n- [ ] Task 3\n- [ ] Task 4")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "progress-plan",
+        plan_id: "progress-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -916,7 +947,7 @@ describe("atlas hook", () => {
       expect(callArgs.body.parts[0].text).toContain("2/4 completed")
       expect(callArgs.body.parts[0].text).toContain("2 remaining")
       expect(callArgs.body.parts[0].text).toContain("Plan file:")
-      expect(callArgs.body.parts[0].text).toContain("progress-plan.md")
+      expect(callArgs.body.parts[0].text).toContain(".sisyphus/plans/progress-plan/plan.md")
     })
 
      test("should not inject when last agent is not Atlas", async () => {
@@ -925,10 +956,10 @@ describe("atlas hook", () => {
        writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
 
        const state: Partial<WorkState> = {
-         active_plan: planPath,
+         execution_plan_path: planPath,
          started_at: "2026-01-02T10:00:00Z",
          session_ids: [MAIN_SESSION_ID],
-         plan_name: "test-plan",
+         plan_id: "test-plan",
        }
        writeWorkState(TEST_DIR, state)
 
@@ -957,10 +988,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [ ] Task 2")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 
@@ -997,10 +1028,10 @@ describe("atlas hook", () => {
       writeFileSync(planPath, "# Plan\n- [ ] Task 1")
 
       const state: Partial<WorkState> = {
-        active_plan: planPath,
+        execution_plan_path: planPath,
         started_at: "2026-01-02T10:00:00Z",
         session_ids: [MAIN_SESSION_ID],
-        plan_name: "test-plan",
+        plan_id: "test-plan",
       }
       writeWorkState(TEST_DIR, state)
 

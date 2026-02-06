@@ -133,7 +133,7 @@ export function parsePrometheusPlanTodos(markdown: string): PrometheusPlanTodo[]
 export type SyncPlanTodosInput = {
   config: Partial<OhMyOpenCodeConfig>
   listId: string
-  planName: string
+  planId: string
   planMarkdown: string
   manifestMarkdown?: string
   renderOptions?: {
@@ -149,7 +149,7 @@ export type SyncPlanTodosResult = {
 }
 
 export function syncPlanTodosToTaskPool(input: SyncPlanTodosInput): SyncPlanTodosResult {
-  const { config, listId, planName, planMarkdown, manifestMarkdown } = input
+  const { config, listId, planId, planMarkdown, manifestMarkdown } = input
   const renderOptions = input.renderOptions ?? {}
 
   const todos = parsePrometheusPlanTodos(planMarkdown).filter((t) => !t.isComplete)
@@ -171,7 +171,7 @@ export function syncPlanTodosToTaskPool(input: SyncPlanTodosInput): SyncPlanTodo
   const skipped: Array<{ todoNumber: number; reason: string }> = []
 
   for (const todo of todos) {
-    const planTaskKey = `${planName}#${todo.todoNumber}`
+    const planTaskKey = `${planId}#${todo.todoNumber}`
     if (existingKeys.has(planTaskKey)) {
       skipped.push({ todoNumber: todo.todoNumber, reason: "already_exists" })
       continue
@@ -204,7 +204,7 @@ export function syncPlanTodosToTaskPool(input: SyncPlanTodosInput): SyncPlanTodo
         subject,
         description: descriptionParts.join("\n"),
         metadata: {
-          planName,
+          planId,
           planTaskKey,
           todoNumber: todo.todoNumber,
           contextPackIds: todo.contextPackIds,
@@ -219,4 +219,3 @@ export function syncPlanTodosToTaskPool(input: SyncPlanTodosInput): SyncPlanTodo
 
   return { created, skipped }
 }
-

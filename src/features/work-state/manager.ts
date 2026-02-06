@@ -6,7 +6,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs"
-import { dirname, join, basename, isAbsolute, relative, resolve, sep } from "node:path"
+import { dirname, join, isAbsolute, relative, resolve, sep } from "node:path"
 import * as yaml from "js-yaml"
 import {
   WorkStateSchema,
@@ -22,6 +22,8 @@ import {
   WORK_STATE_DIR,
   WORK_STATE_FILE,
   PLANS_DIR,
+  PLAN_FILE,
+  LEDGER_FILE,
 } from "./types"
 import { log } from "../../shared/logger"
 
@@ -39,23 +41,55 @@ export class WorkStateManager {
   }
 
   private getCacheKey(): string {
-    return `${this.directory}:${this.state?.plan_name ?? "unknown"}`
+    return `${this.directory}:${this.state?.plan_id ?? "unknown"}`
   }
 
-  private isManusTaskPlanPath(planPath: string): boolean {
-    const file = basename(planPath).toLowerCase()
-    return file === "task_plan.md" || file === "task-plan.md"
+  private getCanonicalExecutionPlanPath(planId: string): string {
+    return `${PLANS_DIR}/${planId}/${PLAN_FILE}`
   }
 
-  private derivePlanName(planPath: string): string {
-    // Manus plans store the plan as a folder containing task_plan.md.
-    // Use the directory name as plan_name to keep work-state stable and human-readable.
-    if (this.isManusTaskPlanPath(planPath)) {
-      const parent = basename(dirname(planPath))
-      return parent || basename(planPath, ".md")
+  private getCanonicalRuntimeLedgerPath(planId: string): string {
+    return `${PLANS_DIR}/${planId}/${LEDGER_FILE}`
+  }
+
+  private normalizePath(inputPath: string): string {
+    if (!inputPath) return inputPath
+    const abs = isAbsolute(inputPath) ? inputPath : resolve(this.directory, inputPath)
+    const rel = relative(this.directory, abs)
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+      return inputPath.split(sep).join("/")
     }
+    return rel.split(sep).join("/")
+  }
 
-    return basename(planPath, ".md")
+  private ensurePlanInvariant(planId: string, executionPlanPath: string, runtimeLedgerPath: string): void {
+    const normalizedPlanPath = this.normalizePath(executionPlanPath)
+    const normalizedLedgerPath = this.normalizePath(runtimeLedgerPath)
+    const expectedPlanPath = this.getCanonicalExecutionPlanPath(planId)
+    const expectedLedgerPath = this.getCanonicalRuntimeLedgerPath(planId)
+
+    if (normalizedPlanPath !== expectedPlanPath || normalizedLedgerPath !== expectedLedgerPath) {
+      throw new Error(
+        `[${HOOK_NAME}] Invalid work-state invariant for plan_id="${planId}". ` +
+        `Expected execution_plan_path="${expectedPlanPath}", runtime_ledger_path="${expectedLedgerPath}" ` +
+        `but got execution_plan_path="${normalizedPlanPath}", runtime_ledger_path="${normalizedLedgerPath}".`
+      )
+    }
+  }
+
+  private derivePlanIdFromExecutionPlanPath(planPath: string): string {
+    const normalized = this.normalizePath(planPath)
+    const segments = normalized.split("/")
+    const planFile = segments.at(-1)
+    const plansFolder = segments.at(-3)
+    const planId = segments.at(-2)
+    if (planFile !== PLAN_FILE || plansFolder !== "plans" || !planId) {
+      throw new Error(
+        `[${HOOK_NAME}] Invalid execution plan path "${planPath}". ` +
+        `Expected format: .sisyphus/plans/{plan_id}/${PLAN_FILE}.`
+      )
+    }
+    return planId
   }
 
   // === File Paths ===
@@ -73,9 +107,7 @@ export class WorkStateManager {
    */
   private getAbsolutePlanPath(): string | null {
     if (!this.state) return null
-    return this.state.active_plan.startsWith("/")
-      ? this.state.active_plan
-      : join(this.directory, this.state.active_plan)
+    return join(this.directory, this.state.execution_plan_path)
   }
 
   /**
@@ -93,36 +125,18 @@ export class WorkStateManager {
 
   // === Lifecycle ===
 
-  /**
-   * Normalize a plan path to be workspace-relative when possible.
-   * Keeps absolute paths when the target is outside the workspace.
-   */
-  private normalizePlanPath(inputPath: string): string {
-    if (!inputPath) return inputPath
+  initializePlan(planId: string, sessionId: string, executionPlanPath?: string): WorkState {
+    const canonicalExecutionPlanPath = this.getCanonicalExecutionPlanPath(planId)
+    const canonicalRuntimeLedgerPath = this.getCanonicalRuntimeLedgerPath(planId)
+    const selectedExecutionPlanPath = this.normalizePath(executionPlanPath ?? canonicalExecutionPlanPath)
 
-    const abs = isAbsolute(inputPath) ? inputPath : resolve(this.directory, inputPath)
-    const rel = relative(this.directory, abs)
-
-    // Outside workspace or cannot be represented safely as relative.
-    if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
-      return inputPath
-    }
-
-    // Normalize separators for portability (store forward slashes).
-    return rel.split(sep).join("/")
-  }
-
-  /**
-   * Initialize work state for a new plan.
-   * Called by /start-work when beginning new work.
-   */
-  initialize(planPath: string, sessionId: string): WorkState {
-    const normalizedPlanPath = this.normalizePlanPath(planPath)
-    const planName = this.derivePlanName(normalizedPlanPath)
+    this.ensurePlanInvariant(planId, selectedExecutionPlanPath, canonicalRuntimeLedgerPath)
 
     this.state = {
-      active_plan: normalizedPlanPath,
-      plan_name: planName,
+      schema_version: 2,
+      plan_id: planId,
+      execution_plan_path: selectedExecutionPlanPath,
+      runtime_ledger_path: canonicalRuntimeLedgerPath,
       started_at: new Date().toISOString(),
       session_ids: [sessionId],
       research_ops: 0,
@@ -135,8 +149,12 @@ export class WorkStateManager {
     }
 
     this.save()
-    log(`[${HOOK_NAME}] Initialized work state`, { planName, sessionId })
+    log(`[${HOOK_NAME}] Initialized work state`, { planId, sessionId })
     return this.state
+  }
+
+  switchPlan(planId: string, sessionId: string, executionPlanPath?: string): WorkState {
+    return this.initializePlan(planId, sessionId, executionPlanPath)
   }
 
   /**
@@ -153,20 +171,12 @@ export class WorkStateManager {
       const content = readFileSync(this.statePath, "utf-8")
       const parsed = yaml.load(content)
       const validated = WorkStateSchema.parse(parsed)
-
-      // Normalize plan path for portability (best-effort).
-      const normalized = this.normalizePlanPath(validated.active_plan)
-      const derivedPlanName = this.derivePlanName(normalized)
-      const shouldRewrite =
-        normalized !== validated.active_plan || derivedPlanName !== validated.plan_name
-
-      this.state = shouldRewrite
-        ? { ...validated, active_plan: normalized, plan_name: derivedPlanName }
-        : validated
-
-      if (shouldRewrite) {
-        this.save()
-      }
+      this.ensurePlanInvariant(
+        validated.plan_id,
+        validated.execution_plan_path,
+        validated.runtime_ledger_path
+      )
+      this.state = validated
 
       return this.state
     } catch (err) {
@@ -188,6 +198,11 @@ export class WorkStateManager {
         mkdirSync(dir, { recursive: true })
       }
 
+      this.ensurePlanInvariant(
+        this.state.plan_id,
+        this.state.execution_plan_path,
+        this.state.runtime_ledger_path
+      )
       this.state.last_updated = new Date().toISOString()
       const content = yaml.dump(this.state, { indent: 2 })
       writeFileSync(this.statePath, content, "utf-8")
@@ -375,7 +390,7 @@ export class WorkStateManager {
     }
     if (strikes === 2) {
       if (requiresRecording) {
-        return "Strike 2: MUST record this error in task_plan.md Errors section before retrying."
+        return "Strike 2: MUST record this error in ledger.yaml before retrying."
       }
       return "Strike 2: Error pattern detected. Try different approach."
     }
@@ -493,7 +508,7 @@ export class WorkStateManager {
    * Get progress from plan file with snapshot caching.
    * Uses cached snapshot if plan file hasn't changed (mtime check).
    * Primary: checkbox counting (- [ ] / - [x])
-   * Fallback: phase status counting when no checkboxes (e.g., Manus-style task_plan.md)
+   * Fallback: phase status counting when no checkboxes.
    */
   getPlanProgress(): PlanProgress {
     if (!this.state) return { total: 0, completed: 0, isComplete: true }
@@ -547,14 +562,11 @@ export class WorkStateManager {
         }
       }
 
-      // Fallback: use parsePhases() for Manus-style or phase-tagged plans
+      // Fallback: use parsePhases() for phase-tagged plans
       const phases = this.parsePhases()
       if (phases.length > 0) {
         const phaseTotal = phases.length
-        const isManusTaskPlan = this.isManusTaskPlanPath(planPath)
-        const phaseCompleted = phases.filter(
-          (p) => p.status === "complete" || (isManusTaskPlan && p.status === "blocked")
-        ).length
+        const phaseCompleted = phases.filter((p) => p.status === "complete").length
         return {
           total: phaseTotal,
           completed: phaseCompleted,
@@ -617,9 +629,7 @@ export class WorkStateManager {
   parsePhases(): Phase[] {
     if (!this.state) return []
 
-    const planPath = this.state.active_plan.startsWith("/")
-      ? this.state.active_plan
-      : join(this.directory, this.state.active_plan)
+    const planPath = join(this.directory, this.state.execution_plan_path)
 
     if (!existsSync(planPath)) return []
 
@@ -648,31 +658,17 @@ export class WorkStateManager {
         phases.push({ id, name, status })
       }
 
-      // Manus-style phases table under "## Phases"
-      if (phases.length === 0) {
-        const phasesSectionMatch = content.match(
-          /##\s*Phases\b[\s\S]*?(?=\n##\s|\n#\s|$)/i
-        )
-        const phasesSection = phasesSectionMatch?.[0] ?? content
-        const tableRowRegex =
-          /^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*(pending|in_progress|complete|blocked)\s*\|/gim
-
-        while ((match = tableRowRegex.exec(phasesSection)) !== null) {
-          const id = match[1]
-          const name = match[2].trim()
-          const status = match[3].toLowerCase() as PhaseStatus
-          phases.push({ id, name, status })
-        }
-      }
-
       // If no explicit phases, treat checkboxes as tasks
       if (phases.length === 0) {
         const checkboxes = content.match(/^[-*]\s*\[[ xX]\]\s*(.+)$/gm) || []
         checkboxes.forEach((line, idx) => {
           const isComplete = /\[[xX]\]/.test(line)
-          const name = line.replace(/^[-*]\s*\[[ xX]\]\s*/, "").trim()
+          const rawName = line.replace(/^[-*]\s*\[[ xX]\]\s*/, "").trim()
+          const numbered = rawName.match(/^(\d+)[.)]\s+(.+)$/)
+          const id = numbered?.[1] ?? String(idx + 1)
+          const name = (numbered?.[2] ?? rawName).trim()
           phases.push({
-            id: String(idx + 1),
+            id,
             name: name.slice(0, 50),
             status: isComplete ? "complete" : "pending",
           })
@@ -741,32 +737,32 @@ export class WorkStateManager {
   }
 
   /**
-   * Generate reflection prompt for completed phase.
+   * Generate reflection prompt for completed TODO.
    */
   generateReflectionPrompt(completedPhase: { id: string; name: string }): string {
     const allPhases = this.parsePhases()
     const remainingPhases = allPhases
       .filter((p) => p.status === "pending" || p.status === "in_progress")
-      .map((p) => `  - Phase ${p.id}: ${p.name} (${p.status})`)
+      .map((p) => `  - TODO ${p.id}: ${p.name} (${p.status})`)
       .join("\n")
 
     return `<phase-reflection>
-## Phase ${completedPhase.id} Complete: ${completedPhase.name}
+## TODO ${completedPhase.id} Complete: ${completedPhase.name}
 
 **Before proceeding, reflect on:**
 
 1. **Discoveries**: Did you learn anything that affects the remaining plan?
 2. **Assumptions**: Were any assumptions proven wrong?
-3. **Remaining Phases**: Do they still make sense?
+3. **Remaining TODOs**: Do they still make sense?
 ${remainingPhases ? `\n**Remaining:**\n${remainingPhases}` : ""}
 
 **Actions you can take:**
-- Add new phases if needed
-- Remove phases that are no longer relevant
-- Reorder phases based on new understanding
-- Update phase descriptions with new context
+- Add new TODOs if needed
+- Remove TODOs that are no longer relevant
+- Reorder TODOs based on new understanding
+- Update TODO descriptions with new context
 
-**Update task_plan.md if any changes are needed, then continue.**
+**Update plan.md if any changes are needed, then continue.**
 </phase-reflection>`
   }
 
@@ -775,18 +771,20 @@ ${remainingPhases ? `\n**Remaining:**\n${remainingPhases}` : ""}
    */
   generateErrorRecordingPrompt(errorKey: string, strikes: number): string {
     const currentPhase = this.getCurrentPhase()
-    const phaseNote = currentPhase ? `Phase ${currentPhase.id}` : "Current phase"
+    const phaseNote = currentPhase ? `TODO ${currentPhase.id}` : "Current TODO"
 
     return `<error-recording-required>
 ## Record Error Before Continuing
 
-This error has occurred ${strikes} times. You MUST record it in task_plan.md before retrying.
+This error has occurred ${strikes} times. You MUST record it in ledger.yaml before retrying.
 
-**Add to ## Errors section:**
+**Record in \`ledger.yaml\` under \`errors\`:**
 
-| # | Error | Phase | Attempts | Root Cause | Resolution |
-|---|-------|-------|----------|------------|------------|
-| N | ${errorKey.slice(0, 50)} | ${phaseNote} | ${strikes} | [ANALYZE] | [PLAN] |
+error_key: ${errorKey.slice(0, 80)}
+todo: ${phaseNote}
+attempts: ${strikes}
+root_cause: [ANALYZE]
+resolution: [PLAN]
 
 **Required fields:**
 - **Root Cause**: Why is this happening? (not just "it failed")
@@ -813,14 +811,17 @@ ${
     return `<blocker-detected>
 ## Blocker Identified
 
-This issue requires escalation. Add to task_plan.md ## Blockers section:
+This issue requires escalation. Record it in ledger.yaml and update plan.md status:
 
-| # | Blocker | Phase | Impact | Status | Escalation |
-|---|---------|-------|--------|--------|------------|
-| N | ${issue.slice(0, 40)} | ${currentPhase?.id ?? "?"} | [DESCRIBE] | open | [WHAT NEEDED] |
+**Record in \`ledger.yaml\` under \`blockers\`:**
+blocker: ${issue.slice(0, 80)}
+todo: ${currentPhase?.id ?? "?"}
+impact: [DESCRIBE]
+status: open
+escalation: [WHAT NEEDED]
 
 **Then:**
-1. Mark the affected phase as \`blocked\` in ## Phases
+1. Mark the affected task/phase as \`blocked\` in \`plan.md\`
 2. Consider if other phases can proceed in parallel
 3. Communicate the blocker to the user
 
@@ -829,12 +830,12 @@ This issue requires escalation. Add to task_plan.md ## Blockers section:
 
   /**
    * Clear phase status cache for the current plan.
-   * @param planName Optional explicit plan name. If not provided, uses current state's plan_name.
+   * @param planId Optional explicit plan ID. If not provided, uses current state's plan_id.
    */
-  clearPhaseCache(planName?: string): void {
-    const targetPlanName = planName ?? this.state?.plan_name
-    if (targetPlanName) {
-      const key = `${this.directory}:${targetPlanName}`
+  clearPhaseCache(planId?: string): void {
+    const targetPlanId = planId ?? this.state?.plan_id
+    if (targetPlanId) {
+      const key = `${this.directory}:${targetPlanId}`
       phaseStatusCache.delete(key)
       log(`[${HOOK_NAME}] Phase cache cleared`, { key })
     }
@@ -867,17 +868,22 @@ This issue requires escalation. Add to task_plan.md ## Blockers section:
     if (!existsSync(this.plansDir)) return []
 
     try {
-      const { readdirSync } = require("node:fs")
-      const files = readdirSync(this.plansDir) as string[]
-      return files
-        .filter((f: string) => f.endsWith(".md"))
-        // Return workspace-relative stable paths for comparisons and persistence.
-        .map((f: string) => `${PLANS_DIR}/${f}`)
-        .sort((a: string, b: string) => {
-          const aStat = statSync(join(this.plansDir, basename(a)))
-          const bStat = statSync(join(this.plansDir, basename(b)))
-          return bStat.mtimeMs - aStat.mtimeMs
-        })
+      const { readdirSync } = require("node:fs") as typeof import("node:fs")
+      const entries = readdirSync(this.plansDir, { withFileTypes: true }) as Array<{
+        name: string
+        isDirectory: () => boolean
+      }>
+
+      const plans = entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => `${PLANS_DIR}/${entry.name}/${PLAN_FILE}`)
+        .filter((planPath) => existsSync(join(this.directory, planPath)))
+
+      return plans.sort((a, b) => {
+        const aStat = statSync(join(this.directory, a))
+        const bStat = statSync(join(this.directory, b))
+        return bStat.mtimeMs - aStat.mtimeMs
+      })
     } catch {
       return []
     }
@@ -891,16 +897,35 @@ This issue requires escalation. Add to task_plan.md ## Blockers section:
     const results: Array<{ path: string; name: string; progress: PlanProgress }> = []
 
     for (const planPath of plans) {
-      // Temporarily set active_plan to get progress
+      const planId = this.derivePlanIdFromExecutionPlanPath(planPath)
       const originalState = this.state
-      this.state = { ...this.state!, active_plan: planPath, plan_name: basename(planPath, ".md") }
+      const snapshotState: WorkState = {
+        ...(this.state ?? {
+          schema_version: 2,
+          plan_id: planId,
+          execution_plan_path: planPath,
+          runtime_ledger_path: this.getCanonicalRuntimeLedgerPath(planId),
+          started_at: new Date().toISOString(),
+          session_ids: [],
+          research_ops: 0,
+          last_findings_mtime: 0,
+          errors: [],
+          blockers: [],
+          phase_completions: [],
+          decisions: [],
+        }),
+        plan_id: planId,
+        execution_plan_path: planPath,
+        runtime_ledger_path: this.getCanonicalRuntimeLedgerPath(planId),
+      }
+      this.state = snapshotState
       const progress = this.getPlanProgress()
       this.state = originalState
 
       if (!progress.isComplete) {
         results.push({
           path: planPath,
-          name: basename(planPath, ".md"),
+          name: planId,
           progress,
         })
       }

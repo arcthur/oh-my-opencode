@@ -48,9 +48,9 @@ function createModelArray(modelIds: string[]): string[] {
   return modelIds
 }
 
-function createStartInput(planName: string, models: NormalizedPlanningModel[]): StartMultiPlanInput {
+function createStartInput(planId: string, models: NormalizedPlanningModel[]): StartMultiPlanInput {
   return {
-    planName,
+    planId,
     requestContext: "Test context for planning",
     parentSessionId: "parent_123",
     config: {
@@ -60,25 +60,25 @@ function createStartInput(planName: string, models: NormalizedPlanningModel[]): 
   }
 }
 
-function createCompletedTask(modelName: string, planName: string): PlanGenerationTask {
+function createCompletedTask(modelName: string, planId: string): PlanGenerationTask {
   return {
     modelName,
     taskId: `bg_${modelName}`,
     sessionId: `sess_${modelName}`,
     status: "completed",
-    outputPath: `.sisyphus/plans/${planName}-${modelName}.md`,
+    outputPath: `.sisyphus/plans/${planId}-${modelName}.md`,
     startedAt: new Date(),
     completedAt: new Date(),
   }
 }
 
-function createFailedTask(modelName: string, planName: string, error: string): PlanGenerationTask {
+function createFailedTask(modelName: string, planId: string, error: string): PlanGenerationTask {
   return {
     modelName,
     taskId: `bg_${modelName}`,
     sessionId: `sess_${modelName}`,
     status: "error",
-    outputPath: `.sisyphus/plans/${planName}-${modelName}.md`,
+    outputPath: `.sisyphus/plans/${planId}-${modelName}.md`,
     startedAt: new Date(),
     completedAt: new Date(),
     error,
@@ -140,7 +140,7 @@ describe("MultiPlanOrchestrator", () => {
       const result = await orchestrator.start(input)
 
       // then
-      expect(result.session.planName).toBe(sanitizedPlanName)
+      expect(result.session.planId).toBe(sanitizedPlanName)
       expect(result.finalPlanPath).toBe(".sisyphus/plans/plan-one.md")
       expect(result.comparisonReportPath).toBe(".sisyphus/plan-reviews/plan-one-comparison.md")
     })
@@ -531,7 +531,7 @@ describe("MultiPlanOrchestrator", () => {
   describe("runDebateRound", () => {
     test("skips rebuttals for PARALLEL_SPIKE verdicts (decision deferred to spike)", async () => {
       // given - PARALLEL_SPIKE means no model is rejected, decision deferred
-      const planName = "test-plan"
+      const planId = "test-plan"
       const mockCtx = createMockCtx(tmpDir)
       const launchMock = mock(() => Promise.resolve({ id: "bg_123", sessionID: "sess_123" }))
 
@@ -551,7 +551,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
-      const comparisonReportPath = `.sisyphus/plan-reviews/${planName}-comparison.md`
+      const comparisonReportPath = `.sisyphus/plan-reviews/${planId}-comparison.md`
       fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plan-reviews"), { recursive: true })
 
       // PARALLEL_SPIKE verdict - neither model should be rejected
@@ -584,7 +584,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const session: MultiPlanSession = {
         id: "mp_test",
-        planName,
+        planId,
         requestContext: "Test context",
         models,
         tasks: [],
@@ -608,13 +608,13 @@ describe("MultiPlanOrchestrator", () => {
 
     test("generates at most one rebuttal per model (avoids file collisions across multiple conflicts)", async () => {
       // given
-      const planName = "test-plan"
+      const planId = "test-plan"
       const mockCtx = createMockCtx(tmpDir)
 
       const launchMock = mock(() => {
         fs.mkdirSync(path.join(tmpDir, ".sisyphus", "rebuttals"), { recursive: true })
         fs.writeFileSync(
-          path.join(tmpDir, `.sisyphus/rebuttals/${planName}-gpt-5.2.md`),
+          path.join(tmpDir, `.sisyphus/rebuttals/${planId}-gpt-5.2.md`),
           "# Rebuttal\n",
           "utf-8"
         )
@@ -637,7 +637,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const orchestrator = new MultiPlanOrchestrator(mockCtx, mockManager, modelArray)
 
-      const comparisonReportPath = `.sisyphus/plan-reviews/${planName}-comparison.md`
+      const comparisonReportPath = `.sisyphus/plan-reviews/${planId}-comparison.md`
       fs.mkdirSync(path.join(tmpDir, ".sisyphus", "plan-reviews"), { recursive: true })
 
       // Same model is rejected in multiple conflicts -> should still only spawn ONE rebuttal task for that model.
@@ -674,7 +674,7 @@ describe("MultiPlanOrchestrator", () => {
 
       const session: MultiPlanSession = {
         id: "mp_test",
-        planName,
+        planId,
         requestContext: "Test context",
         models,
         tasks: [],
@@ -868,7 +868,7 @@ describe("MultiPlanOrchestrator", () => {
       // given
       const session: MultiPlanSession = {
         id: "mp_test",
-        planName: "debug-test",
+        planId: "debug-test",
         requestContext: "Original request",
         models: [{ name: "test", model: "test/model" }],
         tasks: [],
@@ -885,7 +885,7 @@ describe("MultiPlanOrchestrator", () => {
       expect(error.name).toBe("MultiPlanError")
       expect(error.message).toBe("Synthesis failed")
       expect(error.intermediateFiles).toEqual(intermediateFiles)
-      expect(error.session.planName).toBe("debug-test")
+      expect(error.session.planId).toBe("debug-test")
       expect(error.session.requestContext).toBe("Original request")
     })
   })

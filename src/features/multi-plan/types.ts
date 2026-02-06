@@ -80,7 +80,7 @@ export interface MultiPlanSession {
   /** Unique session ID */
   id: string
   /** Plan name (used in file paths) */
-  planName: string
+  planId: string
   /** Original request context from Prometheus interview */
   requestContext: string
   /** Models participating in this session (normalized) */
@@ -112,7 +112,7 @@ export interface MultiPlanSession {
  */
 export interface StartMultiPlanInput {
   /** Plan name (e.g., "add-authentication") */
-  planName: string
+  planId: string
   /** Context from Prometheus interview */
   requestContext: string
   /** Parent session ID */

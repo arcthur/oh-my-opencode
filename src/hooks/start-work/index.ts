@@ -24,7 +24,7 @@ interface PlanProgress {
   isComplete: boolean
 }
 
-function extractUserRequestPlanName(promptText: string): string | null {
+function extractUserRequestPlanId(promptText: string): string | null {
   const userRequestMatch = promptText.match(/<user-request>\s*([\s\S]*?)\s*<\/user-request>/i)
   if (!userRequestMatch) return null
 
@@ -35,16 +35,19 @@ function extractUserRequestPlanName(promptText: string): string | null {
   return cleanedArg || null
 }
 
-function findPlanByName(
-  plans: string[],
-  requestedName: string
-): string | null {
-  const lowerName = requestedName.toLowerCase()
+function extractPlanIdFromPath(planPath: string): string {
+  const normalized = planPath.replace(/\\/g, "/")
+  const parts = normalized.split("/")
+  return parts[parts.length - 2] ?? basename(planPath, ".md")
+}
 
-  const exactMatch = plans.find((p) => basename(p, ".md").toLowerCase() === lowerName)
+function findPlanById(plans: string[], requestedId: string): string | null {
+  const lowerId = requestedId.toLowerCase()
+
+  const exactMatch = plans.find((p) => extractPlanIdFromPath(p).toLowerCase() === lowerId)
   if (exactMatch) return exactMatch
 
-  const partialMatch = plans.find((p) => basename(p, ".md").toLowerCase().includes(lowerName))
+  const partialMatch = plans.find((p) => extractPlanIdFromPath(p).toLowerCase().includes(lowerId))
   return partialMatch || null
 }
 
@@ -66,7 +69,6 @@ function getPlanProgressFromFile(cwd: string, planPath: string): PlanProgress {
     return {
       total,
       completed,
-      // Unknown progress is NOT complete.
       isComplete: total === 0 ? false : completed === total,
     }
   } catch {
@@ -77,11 +79,11 @@ function getPlanProgressFromFile(cwd: string, planPath: string): PlanProgress {
 function findIncompletePlans(
   cwd: string,
   planPaths: string[]
-): Array<{ path: string; name: string; progress: PlanProgress }> {
+): Array<{ path: string; planId: string; progress: PlanProgress }> {
   return planPaths
     .map((p) => {
       const progress = getPlanProgressFromFile(cwd, p)
-      return { path: p, name: basename(p, ".md"), progress }
+      return { path: p, planId: extractPlanIdFromPath(p), progress }
     })
     .filter((p) => !p.progress.isComplete)
 }
@@ -102,13 +104,8 @@ export function createStartWorkHook(ctx: PluginInput) {
           .join("\n")
           .trim() || ""
 
-      // Only trigger on actual command execution (contains <session-context> tag)
-      // NOT on description text like "Start Sisyphus work session from Prometheus plan"
       const isStartWorkCommand = promptText.includes("<session-context>")
-
-      if (!isStartWorkCommand) {
-        return
-      }
+      if (!isStartWorkCommand) return
 
       log(`[${HOOK_NAME}] Processing start-work command`, {
         sessionID: input.sessionID,
@@ -122,24 +119,22 @@ export function createStartWorkHook(ctx: PluginInput) {
 
       let contextInfo = ""
 
-      const explicitPlanName = extractUserRequestPlanName(promptText)
+      const explicitPlanId = extractUserRequestPlanId(promptText)
 
-      if (explicitPlanName) {
-        log(`[${HOOK_NAME}] Explicit plan name requested: ${explicitPlanName}`, {
+      if (explicitPlanId) {
+        log(`[${HOOK_NAME}] Explicit plan ID requested: ${explicitPlanId}`, {
           sessionID: input.sessionID,
         })
 
         const allPlans = workStateManager.findPlans()
-        const matchedPlanPath = findPlanByName(allPlans, explicitPlanName)
+        const matchedPlanPath = findPlanById(allPlans, explicitPlanId)
 
         if (matchedPlanPath) {
+          const matchedPlanId = extractPlanIdFromPath(matchedPlanPath)
           const progress = getPlanProgressFromFile(ctx.directory, matchedPlanPath)
-          // Check if this is the same plan as existing state (resume vs switch)
-          const isSamePlan =
-            existingState && existingState.active_plan === matchedPlanPath
+          const isSamePlan = existingState && existingState.plan_id === matchedPlanId
 
           if (isSamePlan) {
-            // Same plan: append session and resume (preserve history)
             workStateManager.appendSessionId(sessionId)
             const sessions = existingState.session_ids.length + 1
 
@@ -147,17 +142,17 @@ export function createStartWorkHook(ctx: PluginInput) {
               contextInfo = `
 ## Plan Already Complete
 
-The requested plan "${basename(matchedPlanPath, ".md")}" has been completed.
+The requested plan "${matchedPlanId}" has been completed.
 All ${progress.total} tasks are done. Create a new plan with: /plan "your task"`
             } else {
               contextInfo = `
 ## Resuming Specified Plan
 
-**Plan**: ${basename(matchedPlanPath, ".md")}
+**Plan ID**: ${matchedPlanId}
 **Path**: ${matchedPlanPath}
 **Progress**: ${progress.completed}/${progress.total} tasks
 **Sessions**: ${sessions} (current session appended)
-**Original Start**: ${existingState!.started_at}
+**Original Start**: ${existingState.started_at}
 
 Continuing existing work session. Read the plan and continue from the first unchecked task.`
             }
@@ -166,14 +161,14 @@ Continuing existing work session. Read the plan and continue from the first unch
               contextInfo = `
 ## Plan Already Complete
 
-The requested plan "${basename(matchedPlanPath, ".md")}" has been completed.
+The requested plan "${matchedPlanId}" has been completed.
 All ${progress.total} tasks are done. Create a new plan with: /plan "your task"`
             } else {
-              workStateManager.initialize(matchedPlanPath, sessionId)
+              workStateManager.switchPlan(matchedPlanId, sessionId)
               contextInfo = `
 ## Auto-Selected Plan
 
-**Plan**: ${basename(matchedPlanPath, ".md")}
+**Plan ID**: ${matchedPlanId}
 **Path**: ${matchedPlanPath}
 **Progress**: ${progress.completed}/${progress.total} tasks
 **Session ID**: ${sessionId}
@@ -186,13 +181,13 @@ work.yaml has been created. Read the plan and begin execution.`
           const incompletePlans = findIncompletePlans(ctx.directory, allPlans)
           if (incompletePlans.length > 0) {
             const planList = incompletePlans
-              .map((p, i) => `${i + 1}. [${p.name}] - Progress: ${p.progress.completed}/${p.progress.total}`)
+              .map((p, i) => `${i + 1}. [${p.planId}] - Progress: ${p.progress.completed}/${p.progress.total}`)
               .join("\n")
 
             contextInfo = `
 ## Plan Not Found
 
-Could not find a plan matching "${explicitPlanName}".
+Could not find a plan matching "${explicitPlanId}".
 
 Available incomplete plans:
 ${planList}
@@ -202,22 +197,22 @@ Ask the user which plan to work on.`
             contextInfo = `
 ## Plan Not Found
 
-Could not find a plan matching "${explicitPlanName}".
+Could not find a plan matching "${explicitPlanId}".
 No incomplete plans available. Create a new plan with: /plan "your task"`
           }
         }
       } else if (existingState) {
-          const progress = workStateManager.getPlanProgress()
+        const progress = workStateManager.getPlanProgress()
 
-          if (!progress.isComplete) {
-            workStateManager.appendSessionId(sessionId)
-            const sessions = existingState.session_ids.length + 1
-            contextInfo = `
+        if (!progress.isComplete) {
+          workStateManager.appendSessionId(sessionId)
+          const sessions = existingState.session_ids.length + 1
+          contextInfo = `
 ## Active Work Session Found
 
 **Status**: RESUMING existing work
-**Plan**: ${existingState.plan_name}
-**Path**: ${existingState.active_plan}
+**Plan ID**: ${existingState.plan_id}
+**Path**: ${existingState.execution_plan_path}
 **Progress**: ${progress.completed}/${progress.total} tasks completed
 **Sessions**: ${sessions} (current session appended)
 **Started**: ${existingState.started_at}
@@ -228,14 +223,14 @@ Read the plan file and continue from the first unchecked task.`
           contextInfo = `
 ## Previous Work Complete
 
-The previous plan (${existingState.plan_name}) has been completed.
+The previous plan (${existingState.plan_id}) has been completed.
 Looking for new plans...`
         }
       }
 
       if (
-        (!existingState && !explicitPlanName) ||
-        (existingState && !explicitPlanName && workStateManager.getPlanProgress().isComplete)
+        (!existingState && !explicitPlanId) ||
+        (existingState && !explicitPlanId && workStateManager.getPlanProgress().isComplete)
       ) {
         const allPlans = workStateManager.findPlans()
         const incompletePlans = findIncompletePlans(ctx.directory, allPlans)
@@ -246,7 +241,7 @@ Looking for new plans...`
 
 ## No Plans Found
 
-No Prometheus plan files found at .sisyphus/plans/
+No plan directories found at .sisyphus/plans/
 Use Prometheus to create a work plan first: /plan "your task"`
           } else {
             contextInfo += `
@@ -257,13 +252,13 @@ All ${allPlans.length} plan(s) are complete. Create a new plan with: /plan "your
           }
         } else if (incompletePlans.length === 1) {
           const plan = incompletePlans[0]
-          workStateManager.initialize(plan.path, sessionId)
+          workStateManager.initializePlan(plan.planId, sessionId)
 
           contextInfo += `
 
 ## Auto-Selected Plan
 
-**Plan**: ${plan.name}
+**Plan ID**: ${plan.planId}
 **Path**: ${plan.path}
 **Progress**: ${plan.progress.completed}/${plan.progress.total} tasks
 **Session ID**: ${sessionId}
@@ -273,11 +268,10 @@ work.yaml has been created. Read the plan and begin execution.`
         } else {
           const planList = incompletePlans
             .map((p, i) => {
-              // Resolve relative path to absolute for statSync
               const absPath = resolvePlanPath(ctx.directory, p.path)
               const stat = statSync(absPath)
               const modified = new Date(stat.mtimeMs).toISOString()
-              return `${i + 1}. [${p.name}] - Modified: ${modified} - Progress: ${p.progress.completed}/${p.progress.total}`
+              return `${i + 1}. [${p.planId}] - Modified: ${modified} - Progress: ${p.progress.completed}/${p.progress.total}`
             })
             .join("\n")
 

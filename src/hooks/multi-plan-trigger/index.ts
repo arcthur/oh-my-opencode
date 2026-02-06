@@ -102,7 +102,7 @@ When user requests plan generation for a COMPLEX task:
 2. Call the \`multi_plan\` tool:
    \`\`\`
    multi_plan({
-     planName: "{plan-name}",
+     planId: "{plan-name}",
      context: "{complete interview context, decisions, research findings}",
      debate: true  // Optional: enable for high-stakes or controversial planning
    })

@@ -7,7 +7,7 @@ import { log } from "../../shared/logger"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 
 interface MultiPlanArgs {
-  planName: string
+  planId: string
   context: string
   debate?: boolean
 }
@@ -90,14 +90,14 @@ export function createMultiPlanTool(options: {
 
 **IMPORTANT:** Only call this tool if 2+ models are configured. Check for the system context that indicates this capability is available.`,
     args: {
-      planName: tool.schema.string().describe("Name for the plan (used in file paths). Example: 'auth-system', 'dark-mode'"),
+      planId: tool.schema.string().describe("Name for the plan (used in file paths). Example: 'auth-system', 'dark-mode'"),
       context: tool.schema.string().describe("Complete context from the interview including: user requirements, decisions made, research findings, scope boundaries, and any draft content. This is passed to each model for plan generation."),
       debate: tool.schema.boolean().optional().describe("Enable debate mode. When true, rejected models can submit rebuttals, and the Synthesizer will review them before finalizing. Use for complex/high-stakes plans where you want maximum scrutiny. Default: false"),
     },
     async execute(args: MultiPlanArgs, execCtx) {
       // Config validation (detected at tool creation time)
       if (hasModelConfigError) {
-        const safePlanName = sanitizePathSegment(args.planName) ?? "work-plan"
+        const safePlanName = sanitizePathSegment(args.planId) ?? "work-plan"
         return `❌ ${modelValidationError}
 
 Check your oh-my-opencode.json configuration.
@@ -106,7 +106,7 @@ Fallback path: \`.sisyphus/plans/${safePlanName}.md\``
 
       // Multi-plan requires at least 2 models
       if (models.length < 2) {
-        const safePlanName = sanitizePathSegment(args.planName) ?? "work-plan"
+        const safePlanName = sanitizePathSegment(args.planId) ?? "work-plan"
         const configHint = `Current configuration has ${models.length} model(s).`
         return `❌ Multi-model planning requires at least 2 models configured.
 
@@ -116,10 +116,10 @@ For single-model planning, generate the plan directly using the Write tool.
 Fallback path: \`.sisyphus/plans/${safePlanName}.md\``
       }
 
-      // Validate planName (user input, varies per execution)
-      const sanitizedPlanName = sanitizePathSegment(args.planName)
+      // Validate planId (user input, varies per execution)
+      const sanitizedPlanName = sanitizePathSegment(args.planId)
       if (!sanitizedPlanName) {
-        return `❌ Invalid plan name: "${args.planName}".
+        return `❌ Invalid plan name: "${args.planId}".
 
 Plan names must be safe for use in file paths. Avoid special characters like: < > : " / \\ | ? *`
       }
@@ -128,11 +128,11 @@ Plan names must be safe for use in file paths. Avoid special characters like: < 
       // Orchestrator.start() also validates as a defense layer
 
       const { context } = args
-      const planName = sanitizedPlanName
+      const planId = sanitizedPlanName
       const sessionID = execCtx.sessionID || ""
 
       log("[multi_plan] Starting multi-model planning", {
-        planName,
+        planId,
         modelCount: models.length,
         sessionID,
       })
@@ -143,7 +143,7 @@ Plan names must be safe for use in file paths. Avoid special characters like: < 
           : new MultiPlanOrchestrator(ctx, backgroundManager, model)
 
         const result = await orchestrator.start({
-          planName,
+          planId,
           requestContext: context,
           parentSessionId: sessionID,
           config: { models },
@@ -152,7 +152,7 @@ Plan names must be safe for use in file paths. Avoid special characters like: < 
         })
 
         log("[multi_plan] Multi-model planning completed", {
-          planName,
+          planId,
           finalPlanPath: result.finalPlanPath,
           comparisonReportPath: result.comparisonReportPath,
         })
@@ -168,7 +168,7 @@ Plan names must be safe for use in file paths. Avoid special characters like: < 
         // Include structured result for machine parsing (used by planning-with-files hook)
         const structuredResult = JSON.stringify({
           status: "success",
-          planName,
+          planId,
           finalPlanPath: result.finalPlanPath,
           comparisonReportPath: result.comparisonReportPath,
         })
@@ -210,7 +210,7 @@ You can:
 2. Use the best one as a starting point
 3. Generate the final plan manually using the Write tool
 
-Fallback path: \`.sisyphus/plans/${planName}.md\``
+Fallback path: \`.sisyphus/plans/${planId}.md\``
         }
 
         log("[multi_plan] Multi-model planning failed", { error: errorMessage })
@@ -218,7 +218,7 @@ Fallback path: \`.sisyphus/plans/${planName}.md\``
         return `❌ Multi-model planning failed: ${errorMessage}
 
 You may need to generate the plan directly using the Write tool.
-Fallback path: \`.sisyphus/plans/${planName}.md\``
+Fallback path: \`.sisyphus/plans/${planId}.md\``
       }
     },
   })

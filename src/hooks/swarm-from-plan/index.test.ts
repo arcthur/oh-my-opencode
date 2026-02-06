@@ -32,26 +32,41 @@ describe("swarm-from-plan hook", () => {
     mkdirSync(join(projectDir, ".sisyphus", "plans"), { recursive: true })
     mkdirSync(join(projectDir, ".sisyphus", "context-manifests"), { recursive: true })
 
-    // Minimal work.yaml
+    // Minimal work.yaml (v2)
     writeFileSync(
       join(projectDir, ".sisyphus", "work.yaml"),
       [
-        `active_plan: ".sisyphus/plans/demo.md"`,
-        `plan_name: "demo"`,
+        `schema_version: 2`,
+        `plan_id: "demo"`,
+        `execution_plan_path: ".sisyphus/plans/demo/plan.md"`,
+        `runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml"`,
         `started_at: "2026-02-05T00:00:00Z"`,
+        `session_ids: ["ses_main"]`,
+        `research_ops: 0`,
+        `last_findings_mtime: 0`,
+        `errors: []`,
+        `blockers: []`,
+        `phase_completions: []`,
+        `decisions: []`,
       ].join("\n"),
       "utf-8"
     )
 
     // Plan + manifest
+    mkdirSync(join(projectDir, ".sisyphus", "plans", "demo"), { recursive: true })
     writeFileSync(
-      join(projectDir, ".sisyphus", "plans", "demo.md"),
+      join(projectDir, ".sisyphus", "plans", "demo", "plan.md"),
       `# Demo\n\n## TODOs\n\n- [ ] 1. Task A\n\n  **Context Packs (REQUIRED)**:\n  - Context Packs: global\n`,
       "utf-8"
     )
     writeFileSync(
+      join(projectDir, ".sisyphus", "plans", "demo", "ledger.yaml"),
+      `schema_version: 1\nplan_id: demo\nerrors: []\nblockers: []\ndecisions: []\nupdated_at: "2026-02-05T00:00:00Z"\n`,
+      "utf-8"
+    )
+    writeFileSync(
       join(projectDir, ".sisyphus", "context-manifests", "demo.md"),
-      `[CONTEXT_MANIFEST]\n{"schemaVersion":1,"planName":"demo","generatedAt":"2026-02-05T00:00:00Z","packs":[{"id":"global","title":"G","items":[{"kind":"doc","ref":"docs/x.md"}]}]}\n[/CONTEXT_MANIFEST]`,
+      `[CONTEXT_MANIFEST]\n{"schemaVersion":2,"planId":"demo","generatedAt":"2026-02-05T00:00:00Z","packs":[{"id":"global","title":"G","items":[{"kind":"doc","ref":"docs/x.md"}]}]}\n[/CONTEXT_MANIFEST]`,
       "utf-8"
     )
 

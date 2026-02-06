@@ -43,13 +43,13 @@ describe("createMultiPlanTool", () => {
       taskId: `bg_${idx}`,
       sessionId: `sess_${idx}`,
       status: "completed" as const,
-      outputPath: `.sisyphus/plans/${input.planName}-${m.name}.md`,
+      outputPath: `.sisyphus/plans/${input.planId}-${m.name}.md`,
     }))
 
     return {
       session: {
         id: "mp_test",
-        planName: input.planName,
+        planId: input.planId,
         requestContext: input.requestContext,
         models,
         tasks,
@@ -58,9 +58,9 @@ describe("createMultiPlanTool", () => {
         debateEnabled: input.debateEnabled ?? false,
         rebuttals: [],
       },
-      comparisonReportPath: `.sisyphus/plan-reviews/${input.planName}-comparison.md`,
-      finalPlanPath: `.sisyphus/plans/${input.planName}.md`,
-      summary: `## Multi-Model Planning Complete: ${input.planName}`,
+      comparisonReportPath: `.sisyphus/plan-reviews/${input.planId}-comparison.md`,
+      finalPlanPath: `.sisyphus/plans/${input.planId}.md`,
+      summary: `## Multi-Model Planning Complete: ${input.planId}`,
     }
   }
 
@@ -85,7 +85,7 @@ describe("createMultiPlanTool", () => {
 
     // when
     const result = await tool.execute(
-      { planName: "../escape", context: "ctx" },
+      { planId: "../escape", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
@@ -107,7 +107,7 @@ describe("createMultiPlanTool", () => {
 
     // when
     const result = await tool.execute(
-      { planName: "test-plan", context: "ctx" },
+      { planId: "test-plan", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
@@ -127,7 +127,7 @@ describe("createMultiPlanTool", () => {
 
     // when
     const result = await tool.execute(
-      { planName: "../escape", context: "ctx" },
+      { planId: "../escape", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
@@ -147,7 +147,7 @@ describe("createMultiPlanTool", () => {
 
     // when
     const result = await tool.execute(
-      { planName: "test-plan", context: "ctx" },
+      { planId: "test-plan", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
@@ -168,7 +168,7 @@ describe("createMultiPlanTool", () => {
 
     // when
     const result = await tool.execute(
-      { planName: "test-plan", context: "ctx" },
+      { planId: "test-plan", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
@@ -182,7 +182,7 @@ describe("createMultiPlanTool", () => {
     startBehavior = async () => {
       throw new MultiPlanError("Synthesis failed", [".sisyphus/plans/x-claude-opus-4-5.md"], {
         id: "mp_test",
-        planName: "x",
+        planId: "x",
         requestContext: "ctx",
         models: [],
         tasks: [],
@@ -200,7 +200,7 @@ describe("createMultiPlanTool", () => {
 
     // when
     const result = await tool.execute(
-      { planName: "x", context: "ctx" },
+      { planId: "x", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
@@ -211,7 +211,7 @@ describe("createMultiPlanTool", () => {
     expect(result).toContain("Fallback path: `.sisyphus/plans/x.md`")
   })
 
-  test("passes sanitized planName to orchestrator", async () => {
+  test("passes sanitized planId to orchestrator", async () => {
     // given
     const tool = createMultiPlanTool({
       ctx: createMockCtx(),
@@ -222,12 +222,12 @@ describe("createMultiPlanTool", () => {
 
     // when
     const result = await tool.execute(
-      { planName: "  spaced-plan  ", context: "ctx" },
+      { planId: "  spaced-plan  ", context: "ctx" },
       { sessionID: "sess_123" } as any
     )
 
     // then
     expect(result).toContain("completed successfully")
-    expect(lastStartInput?.planName).toBe("spaced-plan")
+    expect(lastStartInput?.planId).toBe("spaced-plan")
   })
 })

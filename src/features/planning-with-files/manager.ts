@@ -1,218 +1,227 @@
 /**
  * Planning with Files Manager
  *
- * Optimized implementation with:
- * - State persistence via .planning-state.json
- * - Full task_plan.md re-read for KV-cache optimization
- * - Auto-detection of findings.md updates via mtime
- * - Forced error recording to task_plan.md
- * - Blockers section for issues requiring escalation
- * - Reflection prompts on phase completion
+ * Canonical layout (single plan directory model):
+ * .sisyphus/plans/{planId}/plan.md
+ * .sisyphus/plans/{planId}/ledger.yaml
+ * .sisyphus/plans/{planId}/findings.md
+ * .sisyphus/plans/{planId}/progress.md
  */
 
-import * as fs from "fs"
-import * as path from "path"
-import type { PlanningState, PlanningWithFilesConfig, PhaseStatus } from "./types"
+import * as fs from "node:fs"
+import * as path from "node:path"
+import * as yaml from "js-yaml"
+import { createWorkStateManager } from "../work-state"
+import type { PlanningWithFilesConfig } from "./types"
 import { DEFAULT_PLANNING_CONFIG } from "./types"
 
-/** In-memory cache */
-const stateCache = new Map<string, PlanningState>()
+export type TodoStatus = "pending" | "complete"
 
-/** Track last known phase statuses for reflection detection */
-const phaseStatusCache = new Map<string, Map<number, PhaseStatus>>()
-
-function getCacheKey(cwd: string, planName: string, config: PlanningWithFilesConfig): string {
-  return `${cwd}:${config.directory}:${planName}`
+export interface PlanTodo {
+  id: number
+  title: string
+  status: TodoStatus
 }
 
-/**
- * Get plan directory path
- */
-export function getPlanDir(cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG): string {
-  return path.join(cwd, ".sisyphus", config.directory, planName)
+interface LedgerErrorRecord {
+  key: string
+  strikes?: number
+  phase?: string
+  root_cause?: string
+  resolution?: string
+  recorded_at?: string
 }
 
-/**
- * Get state file path
- */
-function getStatePath(cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG): string {
-  return path.join(getPlanDir(cwd, planName, config), ".planning-state.json")
+interface LedgerState {
+  schema_version: number
+  plan_id: string
+  errors: LedgerErrorRecord[]
+  blockers: Array<Record<string, unknown>>
+  decisions: Array<Record<string, unknown>>
+  updated_at: string
 }
 
-/**
- * Load persisted state
- */
-export async function loadState(
+const DEFAULT_LEDGER_SCHEMA_VERSION = 1
+
+/** Track last known todo statuses for reflection detection */
+const todoStatusCache = new Map<string, Map<number, TodoStatus>>()
+
+function getTodoCacheKey(cwd: string, planId: string): string {
+  return `${cwd}:${planId}`
+}
+
+export function getPlanDir(cwd: string, planId: string, _config = DEFAULT_PLANNING_CONFIG): string {
+  return path.join(cwd, ".sisyphus", "plans", planId)
+}
+
+export function getExecutionPlanPath(cwd: string, planId: string, config = DEFAULT_PLANNING_CONFIG): string {
+  return path.join(getPlanDir(cwd, planId, config), "plan.md")
+}
+
+export function getLedgerPath(cwd: string, planId: string, config = DEFAULT_PLANNING_CONFIG): string {
+  return path.join(getPlanDir(cwd, planId, config), "ledger.yaml")
+}
+
+function getFindingsPath(cwd: string, planId: string, config = DEFAULT_PLANNING_CONFIG): string {
+  return path.join(getPlanDir(cwd, planId, config), "findings.md")
+}
+
+function getProgressPath(cwd: string, planId: string, config = DEFAULT_PLANNING_CONFIG): string {
+  return path.join(getPlanDir(cwd, planId, config), "progress.md")
+}
+
+export async function readPlan(
   cwd: string,
-  planName: string,
-  config = DEFAULT_PLANNING_CONFIG
-): Promise<PlanningState | null> {
-  const cacheKey = getCacheKey(cwd, planName, config)
-  if (stateCache.has(cacheKey)) {
-    return stateCache.get(cacheKey)!
-  }
-
-  try {
-    const content = await fs.promises.readFile(getStatePath(cwd, planName, config), "utf-8")
-    const state = JSON.parse(content) as PlanningState
-    stateCache.set(cacheKey, state)
-    return state
-  } catch {
-    return null
-  }
-}
-
-/**
- * Save state to disk
- */
-export async function saveState(
-  cwd: string,
-  state: PlanningState,
-  config = DEFAULT_PLANNING_CONFIG
-): Promise<void> {
-  const statePath = getStatePath(cwd, state.planName, config)
-  const cacheKey = getCacheKey(cwd, state.planName, config)
-
-  await fs.promises.mkdir(path.dirname(statePath), { recursive: true })
-  state.lastActivityAt = new Date().toISOString()
-  await fs.promises.writeFile(statePath, JSON.stringify(state, null, 2))
-  stateCache.set(cacheKey, state)
-}
-
-/**
- * Check if findings.md was modified
- */
-export async function wasFindingsModified(
-  cwd: string,
-  planName: string,
-  lastMtime: number,
-  config = DEFAULT_PLANNING_CONFIG
-): Promise<{ modified: boolean; newMtime: number }> {
-  const findingsPath = path.join(getPlanDir(cwd, planName, config), "findings.md")
-  try {
-    const stat = await fs.promises.stat(findingsPath)
-    return { modified: stat.mtimeMs > lastMtime, newMtime: stat.mtimeMs }
-  } catch {
-    return { modified: false, newMtime: lastMtime }
-  }
-}
-
-/**
- * Read FULL task_plan.md for KV-cache optimization
- */
-export async function readTaskPlan(
-  cwd: string,
-  planName: string,
+  planId: string,
   config = DEFAULT_PLANNING_CONFIG
 ): Promise<string | null> {
-  const taskPlanPath = path.join(getPlanDir(cwd, planName, config), "task_plan.md")
+  const planPath = getExecutionPlanPath(cwd, planId, config)
   try {
-    return await fs.promises.readFile(taskPlanPath, "utf-8")
+    return await fs.promises.readFile(planPath, "utf-8")
   } catch {
     return null
   }
 }
 
-/**
- * Write task_plan.md
- */
-export async function writeTaskPlan(
+export async function writePlan(
   cwd: string,
-  planName: string,
+  planId: string,
   content: string,
   config = DEFAULT_PLANNING_CONFIG
 ): Promise<void> {
-  const taskPlanPath = path.join(getPlanDir(cwd, planName, config), "task_plan.md")
-  await fs.promises.writeFile(taskPlanPath, content)
+  const planPath = getExecutionPlanPath(cwd, planId, config)
+  await fs.promises.writeFile(planPath, content, "utf-8")
 }
 
-/**
- * Detect active plan from directory
- */
+export async function readLedger(
+  cwd: string,
+  planId: string,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<LedgerState | null> {
+  const ledgerPath = getLedgerPath(cwd, planId, config)
+  try {
+    const raw = await fs.promises.readFile(ledgerPath, "utf-8")
+    const parsed = yaml.load(raw) as Partial<LedgerState> | null
+    if (!parsed || typeof parsed !== "object") return null
+
+    return {
+      schema_version: Number(parsed.schema_version ?? DEFAULT_LEDGER_SCHEMA_VERSION),
+      plan_id: String(parsed.plan_id ?? planId),
+      errors: Array.isArray(parsed.errors) ? parsed.errors as LedgerErrorRecord[] : [],
+      blockers: Array.isArray(parsed.blockers) ? parsed.blockers as Array<Record<string, unknown>> : [],
+      decisions: Array.isArray(parsed.decisions) ? parsed.decisions as Array<Record<string, unknown>> : [],
+      updated_at: typeof parsed.updated_at === "string" ? parsed.updated_at : new Date().toISOString(),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function writeLedger(
+  cwd: string,
+  planId: string,
+  ledger: LedgerState,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<void> {
+  const ledgerPath = getLedgerPath(cwd, planId, config)
+  const normalized: LedgerState = {
+    ...ledger,
+    schema_version: DEFAULT_LEDGER_SCHEMA_VERSION,
+    plan_id: planId,
+    updated_at: new Date().toISOString(),
+  }
+  await fs.promises.writeFile(ledgerPath, yaml.dump(normalized, { indent: 2 }), "utf-8")
+}
+
+function getPlanMtime(planPath: string): number {
+  try {
+    return fs.statSync(planPath).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
 export async function detectActivePlan(
   cwd: string,
   config = DEFAULT_PLANNING_CONFIG
 ): Promise<string | null> {
-  const plansDir = path.join(cwd, ".sisyphus", config.directory)
+  const workState = createWorkStateManager(cwd).load()
+  const activePlanId = workState?.plan_id
+  if (activePlanId) {
+    const activePlanPath = getExecutionPlanPath(cwd, activePlanId, config)
+    if (fs.existsSync(activePlanPath)) return activePlanId
+  }
+
+  const plansDir = path.join(cwd, ".sisyphus", "plans")
   try {
     const entries = await fs.promises.readdir(plansDir, { withFileTypes: true })
-    let latestPlan: string | null = null
+    let latestPlanId: string | null = null
     let latestMtime = 0
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
-      const statePath = path.join(plansDir, entry.name, ".planning-state.json")
-      try {
-        const stat = await fs.promises.stat(statePath)
-        if (stat.mtimeMs > latestMtime) {
-          latestMtime = stat.mtimeMs
-          latestPlan = entry.name
-        }
-      } catch {
-        // No state file
+      const planPath = path.join(plansDir, entry.name, "plan.md")
+      if (!fs.existsSync(planPath)) continue
+
+      const mtime = getPlanMtime(planPath)
+      if (mtime > latestMtime) {
+        latestMtime = mtime
+        latestPlanId = entry.name
       }
     }
-    return latestPlan
+
+    return latestPlanId
   } catch {
     return null
   }
 }
 
-/**
- * Initialize a new planning session with enhanced template
- */
 export async function initializePlan(
   cwd: string,
-  planName: string,
+  planId: string,
   goal: string,
   config = DEFAULT_PLANNING_CONFIG
-): Promise<{ taskPlanPath: string; findingsPath: string; progressPath: string }> {
-  const planDir = getPlanDir(cwd, planName, config)
+): Promise<{ planPath: string; ledgerPath: string; findingsPath: string; progressPath: string }> {
+  const planDir = getPlanDir(cwd, planId, config)
   await fs.promises.mkdir(planDir, { recursive: true })
 
-  const taskPlanPath = path.join(planDir, "task_plan.md")
-  const findingsPath = path.join(planDir, "findings.md")
-  const progressPath = path.join(planDir, "progress.md")
+  const planPath = getExecutionPlanPath(cwd, planId, config)
+  const ledgerPath = getLedgerPath(cwd, planId, config)
+  const findingsPath = getFindingsPath(cwd, planId, config)
+  const progressPath = getProgressPath(cwd, planId, config)
 
-  const now = new Date().toISOString().split("T")[0]
+  const nowIso = new Date().toISOString()
+  const today = nowIso.split("T")[0]
 
-  // Enhanced template with Blockers section
-  const taskPlanContent = `# Task Plan: ${planName}
+  const planTemplate = `# Plan: ${planId}
 
 > **Goal**: ${goal}
 
-## Phases
+## TODOs
 
-| # | Phase | Status | Notes |
-|---|-------|--------|-------|
-| 1 | Discovery | pending | Understand requirements |
-| 2 | Implementation | pending | Build the solution |
-| 3 | Verification | pending | Test and validate |
+- [ ] 1. Discovery
+- [ ] 2. Implementation
+- [ ] 3. Verification
 
-## Decisions
+## Notes
 
-| # | Decision | Rationale | Phase |
-|---|----------|-----------|-------|
-| - | (none yet) | - | - |
-
-## Errors (Must Record on Strike 2+)
-
-| # | Error | Phase | Attempts | Root Cause | Resolution |
-|---|-------|-------|----------|------------|------------|
-| - | (none yet) | - | - | - | - |
-
-## Blockers (Require Escalation)
-
-| # | Blocker | Phase | Impact | Status | Escalation |
-|---|---------|-------|--------|--------|------------|
-| - | (none yet) | - | - | - | - |
+- Keep TODO numbering stable.
+- Use \`ledger.yaml\` for runtime error/blocker tracking.
 
 ---
-*Created: ${now}*
-*Last Reflection: (none yet)*
+*Created: ${today}*
 `
 
-  const findingsContent = `# Findings: ${planName}
+  const ledgerTemplate: LedgerState = {
+    schema_version: DEFAULT_LEDGER_SCHEMA_VERSION,
+    plan_id: planId,
+    errors: [],
+    blockers: [],
+    decisions: [],
+    updated_at: nowIso,
+  }
+
+  const findingsTemplate = `# Findings: ${planId}
 
 ## Research
 
@@ -227,204 +236,176 @@ export async function initializePlan(
 | - | - |
 
 ---
-*Last updated: ${now}*
+*Last updated: ${today}*
 `
 
-  const progressContent = `# Progress: ${planName}
+  const progressTemplate = `# Progress: ${planId}
 
 ## Session Log
 
 | Time | Action | Files |
 |------|--------|-------|
-| ${new Date().toISOString().split("T")[1].slice(0, 5)} | Session started | - |
-
-## Phase Transitions
-
-| Phase | Started | Completed | Revisited |
-|-------|---------|-----------|-----------|
-| - | - | - | - |
-
-## 5-Question Reboot
-
-1. **Where am I?** -
-2. **Where am I going?** -
-3. **What is my goal?** -
-4. **What have I learned?** -
-5. **What have I completed?** -
+| ${nowIso.split("T")[1]?.slice(0, 5)} | Session started | - |
 `
 
   const writes: Array<Promise<void>> = []
-  if (!fs.existsSync(taskPlanPath)) {
-    writes.push(fs.promises.writeFile(taskPlanPath, taskPlanContent))
+  if (!fs.existsSync(planPath)) {
+    writes.push(fs.promises.writeFile(planPath, planTemplate, "utf-8"))
+  }
+  if (!fs.existsSync(ledgerPath)) {
+    writes.push(fs.promises.writeFile(ledgerPath, yaml.dump(ledgerTemplate, { indent: 2 }), "utf-8"))
   }
   if (!fs.existsSync(findingsPath)) {
-    writes.push(fs.promises.writeFile(findingsPath, findingsContent))
+    writes.push(fs.promises.writeFile(findingsPath, findingsTemplate, "utf-8"))
   }
   if (!fs.existsSync(progressPath)) {
-    writes.push(fs.promises.writeFile(progressPath, progressContent))
+    writes.push(fs.promises.writeFile(progressPath, progressTemplate, "utf-8"))
   }
+
   await Promise.all(writes)
-
-  const existingState = await loadState(cwd, planName, config)
-
-  if (existingState) {
-    await saveState(cwd, existingState, config)
-  } else {
-    const state: PlanningState = {
-      planName,
-      actionCount: 0,
-      lastFindingsMtime: Date.now(),
-      errorStrikes: {},
-      activatedAt: new Date().toISOString(),
-      lastActivityAt: new Date().toISOString(),
-    }
-    await saveState(cwd, state, config)
-  }
-
-  return { taskPlanPath, findingsPath, progressPath }
+  return { planPath, ledgerPath, findingsPath, progressPath }
 }
 
-/**
- * Parse phases from task_plan.md
- */
-export function parsePhases(content: string): Array<{ id: number; name: string; status: PhaseStatus }> {
-  const phases: Array<{ id: number; name: string; status: PhaseStatus }> = []
-  const regex = /\|\s*(\d+)\s*\|([^|]+)\|\s*(pending|in_progress|complete|blocked)\s*\|/gi
-  let match
-  while ((match = regex.exec(content)) !== null) {
-    phases.push({
-      id: parseInt(match[1]),
-      name: match[2].trim(),
-      status: match[3].toLowerCase() as PhaseStatus,
+function findTodoSection(markdown: string): string {
+  const lines = markdown.split(/\r?\n/g)
+  const start = lines.findIndex((line) => /^##\s+TODOs\b/i.test(line.trim()))
+  if (start === -1) return markdown
+
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i]?.trim() ?? "")) {
+      end = i
+      break
+    }
+  }
+
+  return lines.slice(start + 1, end).join("\n")
+}
+
+export function parsePlanTodos(content: string): PlanTodo[] {
+  const section = findTodoSection(content)
+  const lines = section.split(/\r?\n/g)
+  const todos: PlanTodo[] = []
+
+  for (const line of lines) {
+    const match = line.match(/^\s*-\s*\[([ xX])\]\s*(\d+)\.\s*(.+?)\s*$/)
+    if (!match) continue
+
+    todos.push({
+      id: Number.parseInt(match[2] ?? "", 10),
+      title: (match[3] ?? "").trim(),
+      status: (match[1] ?? "").toLowerCase() === "x" ? "complete" : "pending",
     })
   }
-  return phases
+
+  return todos.filter((todo) => Number.isFinite(todo.id) && todo.title.length > 0)
 }
 
-/**
- * Detect if any phase was just completed (for reflection trigger)
- *
- * On first call (cache miss), initializes cache and returns empty array
- * to avoid false positives on session restart.
- */
-export function detectPhaseCompletion(
+export function detectTodoCompletion(
   cwd: string,
-  planName: string,
-  currentPhases: Array<{ id: number; name: string; status: PhaseStatus }>,
-  config = DEFAULT_PLANNING_CONFIG
+  planId: string,
+  currentTodos: PlanTodo[]
 ): Array<{ id: number; name: string }> {
-  const cacheKey = getCacheKey(cwd, planName, config)
-  const previousStatuses = phaseStatusCache.get(cacheKey)
+  const cacheKey = getTodoCacheKey(cwd, planId)
+  const previousStatuses = todoStatusCache.get(cacheKey)
 
-  // First call: initialize cache, return empty (no false positives on restart)
   if (!previousStatuses) {
-    const initialCache = new Map<number, PhaseStatus>()
-    for (const phase of currentPhases) {
-      initialCache.set(phase.id, phase.status)
+    const initialCache = new Map<number, TodoStatus>()
+    for (const todo of currentTodos) {
+      initialCache.set(todo.id, todo.status)
     }
-    phaseStatusCache.set(cacheKey, initialCache)
+    todoStatusCache.set(cacheKey, initialCache)
     return []
   }
 
-  const completedPhases: Array<{ id: number; name: string }> = []
-
-  for (const phase of currentPhases) {
-    const previousStatus = previousStatuses.get(phase.id)
-    // Phase just became complete (was not complete before)
-    if (phase.status === "complete" && previousStatus !== "complete") {
-      completedPhases.push({ id: phase.id, name: phase.name })
+  const completed: Array<{ id: number; name: string }> = []
+  for (const todo of currentTodos) {
+    const previous = previousStatuses.get(todo.id)
+    if (todo.status === "complete" && previous !== "complete") {
+      completed.push({ id: todo.id, name: todo.title })
     }
   }
 
-  // Update cache
-  const newCache = new Map<number, PhaseStatus>()
-  for (const phase of currentPhases) {
-    newCache.set(phase.id, phase.status)
+  const nextCache = new Map<number, TodoStatus>()
+  for (const todo of currentTodos) {
+    nextCache.set(todo.id, todo.status)
   }
-  phaseStatusCache.set(cacheKey, newCache)
+  todoStatusCache.set(cacheKey, nextCache)
 
-  return completedPhases
+  return completed
 }
 
-/**
- * Get 3-strike guidance with forced recording requirement
- */
 export function getStrikeGuidance(strikes: number, requiresRecording: boolean): string {
   const recordingNote = requiresRecording
-    ? "\n\n**REQUIRED**: Record this error in task_plan.md ## Errors section before continuing."
+    ? "\n\n**REQUIRED**: Record this error in ledger.yaml before continuing."
     : ""
 
   switch (strikes) {
     case 1:
-      return `**Strike 1/3**: Diagnose - Read error carefully, check context`
+      return "**Strike 1/3**: Diagnose - Read error carefully, check context"
     case 2:
       return `**Strike 2/3**: Pivot - Try alternative approach${recordingNote}`
     case 3:
-      return `**Strike 3/3**: Reassess - Review assumptions, consider blocking phase${recordingNote}`
+      return `**Strike 3/3**: Reassess - Review assumptions, consider blocking task${recordingNote}`
     default:
-      return `**Strike ${strikes}/3**: ESCALATE - Add to ## Blockers section and ask for help${recordingNote}`
+      return `**Strike ${strikes}/3**: ESCALATE - Add to ledger.yaml blockers and ask for help${recordingNote}`
   }
 }
 
-/**
- * Generate reflection prompt for completed phase
- */
 export function generateReflectionPrompt(
-  completedPhase: { id: number; name: string },
-  allPhases: Array<{ id: number; name: string; status: PhaseStatus }>
+  completedTodo: { id: number; name: string },
+  allTodos: PlanTodo[]
 ): string {
-  const remainingPhases = allPhases
-    .filter(p => p.status === "pending" || p.status === "in_progress")
-    .map(p => `  - Phase ${p.id}: ${p.name} (${p.status})`)
+  const remainingTodos = allTodos
+    .filter((todo) => todo.status === "pending")
+    .map((todo) => `  - TODO ${todo.id}: ${todo.title} (${todo.status})`)
     .join("\n")
 
   return `<phase-reflection>
-## Phase ${completedPhase.id} Complete: ${completedPhase.name}
+## TODO ${completedTodo.id} Complete: ${completedTodo.name}
 
 **Before proceeding, reflect on:**
 
 1. **Discoveries**: Did you learn anything that affects the remaining plan?
 2. **Assumptions**: Were any assumptions proven wrong?
-3. **Remaining Phases**: Do they still make sense?
-${remainingPhases ? `\n**Remaining:**\n${remainingPhases}` : ""}
+3. **Remaining TODOs**: Do they still make sense?
+${remainingTodos ? `\n**Remaining:**\n${remainingTodos}` : ""}
 
 **Actions you can take:**
-- Add new phases if needed
-- Remove phases that are no longer relevant
-- Reorder phases based on new understanding
-- Update phase descriptions with new context
+- Add new TODOs if needed
+- Remove TODOs that are no longer relevant
+- Reorder TODOs based on new understanding
+- Update TODO descriptions with new context
 
-**Update task_plan.md if any changes are needed, then continue.**
+**Update plan.md if any changes are needed, then continue.**
 </phase-reflection>`
 }
 
-/**
- * Generate forced error recording prompt
- */
 export function generateErrorRecordingPrompt(
   errorKey: string,
   strikes: number,
-  currentPhase: number | null
+  currentTodo: number | null
 ): string {
-  const phaseNote = currentPhase ? `Phase ${currentPhase}` : "Current phase"
+  const todoNote = currentTodo ? `TODO ${currentTodo}` : "Current TODO"
 
   return `<error-recording-required>
 ## Record Error Before Continuing
 
-This error has occurred ${strikes} times. You MUST record it in task_plan.md before retrying.
+This error has occurred ${strikes} times. You MUST record it in ledger.yaml before retrying.
 
-**Add to ## Errors section:**
-
-| # | Error | Phase | Attempts | Root Cause | Resolution |
-|---|-------|-------|----------|------------|------------|
-| N | ${errorKey.slice(0, 50)} | ${phaseNote} | ${strikes} | [ANALYZE] | [PLAN] |
+**Add under \`errors\` in \`ledger.yaml\`:**
+- key: ${errorKey.slice(0, 80)}
+- todo: ${todoNote}
+- attempts: ${strikes}
+- root_cause: [ANALYZE]
+- resolution: [PLAN]
 
 **Required fields:**
 - **Root Cause**: Why is this happening? (not just "it failed")
 - **Resolution**: What different approach will you try?
 
 ${strikes >= 3 ? `
-**Consider adding to ## Blockers if:**
+**Consider adding to \`blockers\` if:**
 - The error requires external input (credentials, permissions)
 - Multiple approaches have failed
 - The issue is outside your control
@@ -432,91 +413,72 @@ ${strikes >= 3 ? `
 </error-recording-required>`
 }
 
-/**
- * Generate blocker recording prompt
- */
-export function generateBlockerPrompt(
-  issue: string,
-  phase: number | null
-): string {
+export function generateBlockerPrompt(issue: string, todoId: number | null): string {
   return `<blocker-detected>
 ## Blocker Identified
 
-This issue requires escalation. Add to task_plan.md ## Blockers section:
+This issue requires escalation. Record it in ledger.yaml blockers:
 
-| # | Blocker | Phase | Impact | Status | Escalation |
-|---|---------|-------|--------|--------|------------|
-| N | ${issue.slice(0, 40)} | ${phase || "?"} | [DESCRIBE] | open | [WHAT NEEDED] |
+- blocker: ${issue.slice(0, 80)}
+- todo: ${todoId ?? "?"}
+- impact: [DESCRIBE]
+- status: open
+- escalation: [WHAT NEEDED]
 
 **Then:**
-1. Mark the affected phase as \`blocked\` in ## Phases
-2. Consider if other phases can proceed in parallel
+1. Mark the affected TODO as \`blocked\` in plan.md
+2. Consider if other TODOs can proceed in parallel
 3. Communicate the blocker to the user
 
 </blocker-detected>`
 }
 
-/**
- * Check if error recording is present for a given error
- */
 export async function isErrorRecorded(
   cwd: string,
-  planName: string,
+  planId: string,
   errorKey: string,
   config = DEFAULT_PLANNING_CONFIG
 ): Promise<boolean> {
-  const content = await readTaskPlan(cwd, planName, config)
-  if (!content) return false
-
-  // Check if error appears in the Errors table
-  const errorsSection = content.match(/## Errors[\s\S]*?(?=##|$)/i)
-  if (!errorsSection) return false
-
-  // Normalize for comparison
-  const normalizedError = errorKey.slice(0, 30).toLowerCase()
-  return errorsSection[0].toLowerCase().includes(normalizedError)
+  const ledger = await readLedger(cwd, planId, config)
+  if (!ledger) return false
+  const normalizedError = errorKey.slice(0, 80).toLowerCase()
+  return ledger.errors.some((entry) => entry.key.toLowerCase().includes(normalizedError))
 }
 
-/**
- * Get current in_progress phase
- */
-export function getCurrentPhase(
-  phases: Array<{ id: number; name: string; status: PhaseStatus }>
-): number | null {
-  const inProgress = phases.find(p => p.status === "in_progress")
-  return inProgress ? inProgress.id : null
+export function getCurrentTodo(todos: PlanTodo[]): number | null {
+  const pending = todos.find((todo) => todo.status === "pending")
+  return pending ? pending.id : null
 }
 
-/**
- * Cleanup session cache
- */
-export function cleanupSession(
+export function cleanupSession(cwd: string, planId: string): void {
+  todoStatusCache.delete(getTodoCacheKey(cwd, planId))
+}
+
+export const readFindings = async (cwd: string, planId: string, config = DEFAULT_PLANNING_CONFIG) =>
+  fs.promises.readFile(getFindingsPath(cwd, planId, config), "utf-8")
+
+export const readProgress = async (cwd: string, planId: string, config = DEFAULT_PLANNING_CONFIG) =>
+  fs.promises.readFile(getProgressPath(cwd, planId, config), "utf-8")
+
+export const areAllTodosComplete = async (
   cwd: string,
-  planName: string,
+  planId: string,
   config = DEFAULT_PLANNING_CONFIG
-): void {
-  stateCache.delete(getCacheKey(cwd, planName, config))
-  phaseStatusCache.delete(getCacheKey(cwd, planName, config))
+): Promise<boolean> => {
+  const content = await readPlan(cwd, planId, config)
+  if (!content) return false
+  const todos = parsePlanTodos(content)
+  return todos.length > 0 && todos.every((todo) => todo.status === "complete")
 }
 
-// Legacy exports for compatibility
-export const initializePlanningSession = initializePlan
-export const getPlanningSession = loadState
-export const loadPlanningSession = loadState
-export const readFindings = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) =>
-  fs.promises.readFile(path.join(getPlanDir(cwd, planName, config), "findings.md"), "utf-8")
-export const readProgress = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) =>
-  fs.promises.readFile(path.join(getPlanDir(cwd, planName, config), "progress.md"), "utf-8")
-export const areAllPhasesComplete = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) => {
-  const content = await readTaskPlan(cwd, planName, config)
-  if (!content) return false
-  const phases = parsePhases(content)
-  return phases.length > 0 && phases.every(p => p.status === "complete" || p.status === "blocked")
-}
-export const getIncompletePhases = async (cwd: string, planName: string, config = DEFAULT_PLANNING_CONFIG) => {
-  const content = await readTaskPlan(cwd, planName, config)
+export const getIncompleteTodos = async (
+  cwd: string,
+  planId: string,
+  config = DEFAULT_PLANNING_CONFIG
+): Promise<string[]> => {
+  const content = await readPlan(cwd, planId, config)
   if (!content) return []
-  return parsePhases(content)
-    .filter(p => p.status !== "complete" && p.status !== "blocked")
-    .map(p => `Phase ${p.id}: ${p.name} (${p.status})`)
+  return parsePlanTodos(content)
+    .filter((todo) => todo.status !== "complete")
+    .map((todo) => `TODO ${todo.id}: ${todo.title} (${todo.status})`)
 }

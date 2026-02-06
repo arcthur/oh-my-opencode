@@ -460,7 +460,7 @@ export const PlanningWithFilesConfigSchema = z.object({
   two_action_rule: z.boolean().default(true),
   /** Enable 3-strike error protocol (default: true) */
   three_strike_protocol: z.boolean().default(true),
-  /** Enable auto re-read of task_plan before tool use (default: true) */
+  /** Enable auto re-read of execution plan before tool use (default: true) */
   auto_reread: z.boolean().default(true),
   /** Enable stop hook verification (default: true) */
   stop_verification: z.boolean().default(true),

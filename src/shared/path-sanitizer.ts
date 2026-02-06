@@ -19,7 +19,7 @@ const PATH_TRAVERSAL_PATTERNS = /(?:^|[/\\])\.\.(?:[/\\]|$)/
  * - Ensures the result is a valid basename (no directory separators)
  * - Returns undefined if the input cannot be safely sanitized
  *
- * @param name - The name to sanitize (e.g., planName, modelName)
+ * @param name - The name to sanitize (e.g., planId, modelName)
  * @param options - Sanitization options
  * @returns Sanitized name or undefined if invalid
  */

@@ -4,51 +4,42 @@
  * Manus-style persistent planning pattern for AI agents.
  *
  * Core Features:
- * - 3-file pattern: task_plan.md, findings.md, progress.md
- * - Full task_plan.md re-read for KV-cache optimization
+ * - 4-file pattern: plan.md, ledger.yaml, findings.md, progress.md
+ * - Full plan.md re-read for KV-cache optimization
  * - Auto-detection of findings.md updates via mtime
- * - State persistence via .planning-state.json
+ * - Protocol state persistence via .sisyphus/work.yaml (WorkStateManager)
  * - 2-Action Rule with auto-reset
  * - 3-Strike Error Protocol
  */
 
 export type {
-  PhaseStatus,
-  PlanningState,
   PlanningWithFilesConfig,
-  PlanningSession,
-  TaskPhase,
-  Decision,
-  ErrorRecord,
 } from "./types"
 
 export { DEFAULT_PLANNING_CONFIG } from "./types"
 
 export {
   getPlanDir,
-  loadState,
-  saveState,
-  readTaskPlan,
-  writeTaskPlan,
+  getExecutionPlanPath,
+  getLedgerPath,
+  readPlan,
+  writePlan,
+  readLedger,
+  writeLedger,
   detectActivePlan,
-  wasFindingsModified,
   initializePlan,
-  parsePhases,
+  parsePlanTodos,
   getStrikeGuidance,
   cleanupSession,
   // Reflection and error handling
-  detectPhaseCompletion,
+  detectTodoCompletion,
   generateReflectionPrompt,
   generateErrorRecordingPrompt,
   generateBlockerPrompt,
-  getCurrentPhase,
+  getCurrentTodo,
   isErrorRecorded,
-  // Legacy exports
-  initializePlanningSession,
-  getPlanningSession,
-  loadPlanningSession,
   readFindings,
   readProgress,
-  areAllPhasesComplete,
-  getIncompletePhases,
+  areAllTodosComplete,
+  getIncompleteTodos,
 } from "./manager"

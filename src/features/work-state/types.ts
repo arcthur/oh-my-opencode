@@ -1,31 +1,14 @@
 /**
  * Work State Types
  *
- * Unified state management for orchestrator workflows.
+ * Runtime state is tracked in `.sisyphus/work.yaml` and points to a canonical
+ * plan directory:
  *
- * ## Single Source of Truth Architecture
- *
- * This system uses TWO complementary sources of truth:
- *
- * 1. **STATE SSOT**: `.sisyphus/work.yaml`
- *    - Current session metadata (session_ids, started_at)
- *    - Protocol state (research_ops, errors, blockers)
- *    - Decision history and phase completions
- *    - Pointer to active plan file
- *
- * 2. **TASK LIST SSOT**: `.sisyphus/plans/*.md` (Prometheus) or `task_plan.md` (Manus)
- *    - The actual tasks/phases with progress (checkboxes or status tags)
- *    - Findings, errors, blockers in human-readable format
- *    - This is what the agent reads and modifies to track work
- *
- * ## Why Two Files?
- *
- * - **work.yaml** is machine-optimized: structured YAML for programmatic access
- * - **plans/*.md** is human-optimized: markdown for agent reasoning and human review
- * - Progress tracking uses the plan file as authoritative (getPlanProgress reads checkboxes/phases)
- * - State tracking uses work.yaml as authoritative (session management, protocol counters)
- *
- * File: .sisyphus/work.yaml
+ * `.sisyphus/plans/{plan_id}/`
+ * - `plan.md` (execution source of truth)
+ * - `ledger.yaml` (runtime ledger)
+ * - `findings.md`
+ * - `progress.md`
  */
 
 import { z } from "zod"
@@ -94,10 +77,14 @@ export const TaskSnapshotSchema = z.object({
 
 export const WorkStateSchema = z.object({
   // === Core work state ===
-  /** Path to active plan file (e.g., ".sisyphus/plans/auth-system.md") */
-  active_plan: z.string(),
-  /** Plan name derived from filename */
-  plan_name: z.string(),
+  /** Work state schema version (breaking state upgrades bump this value) */
+  schema_version: z.literal(2),
+  /** Stable plan identifier */
+  plan_id: z.string().min(1),
+  /** Canonical execution plan path (.sisyphus/plans/{plan_id}/plan.md) */
+  execution_plan_path: z.string(),
+  /** Canonical runtime ledger path (.sisyphus/plans/{plan_id}/ledger.yaml) */
+  runtime_ledger_path: z.string(),
   /** ISO timestamp when work started */
   started_at: z.string(),
   /** Session IDs that have worked on this plan */
@@ -168,3 +155,7 @@ export const WORK_STATE_FILE = "work.yaml"
 export const WORK_STATE_PATH = `${WORK_STATE_DIR}/${WORK_STATE_FILE}`
 export const PLANS_DIR = `${WORK_STATE_DIR}/plans`
 export const NOTEPADS_DIR = `${WORK_STATE_DIR}/notepads`
+export const PLAN_FILE = "plan.md"
+export const LEDGER_FILE = "ledger.yaml"
+export const FINDINGS_FILE = "findings.md"
+export const PROGRESS_FILE = "progress.md"

@@ -40,11 +40,10 @@ export const ContextPackSchema = z.object({
 export type ContextPack = z.infer<typeof ContextPackSchema>
 
 export const ContextManifestSchema = z.object({
-  schemaVersion: z.literal(1),
-  planName: z.string().min(1),
+  schemaVersion: z.literal(2),
+  planId: z.string().min(1),
   generatedAt: z.string().min(1),
   packs: z.array(ContextPackSchema),
 })
 
 export type ContextManifest = z.infer<typeof ContextManifestSchema>
-

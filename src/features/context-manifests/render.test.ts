@@ -6,8 +6,8 @@ describe("context-manifests/render", () => {
   test("should render selected packs in manifest order", () => {
     // #given
     const manifest: ContextManifest = {
-      schemaVersion: 1,
-      planName: "demo",
+      schemaVersion: 2,
+      planId: "demo",
       generatedAt: "2026-02-05T00:00:00Z",
       packs: [
         {
@@ -38,8 +38,8 @@ describe("context-manifests/render", () => {
   test("should cap items per pack and mention omission", () => {
     // #given
     const manifest: ContextManifest = {
-      schemaVersion: 1,
-      planName: "demo",
+      schemaVersion: 2,
+      planId: "demo",
       generatedAt: "2026-02-05T00:00:00Z",
       packs: [
         {
@@ -64,4 +64,3 @@ describe("context-manifests/render", () => {
     expect(text.toLowerCase()).toContain("omitted")
   })
 })
-

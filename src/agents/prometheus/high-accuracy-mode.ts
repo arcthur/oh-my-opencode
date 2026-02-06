@@ -17,7 +17,7 @@ High accuracy means maximum scrutiny on planning quality:
 
 \`\`\`typescript
 multi_plan({
-  planName: "{name}",
+  planId: "{name}",
   context: \`\${fullInterviewContextAndDecisions}\`,
   debate: true
 })

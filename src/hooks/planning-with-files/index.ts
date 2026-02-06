@@ -7,21 +7,21 @@ import type { PlanningWithFilesConfig } from "../../features/planning-with-files
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
 import {
   detectActivePlan,
-  detectPhaseCompletion as detectManusPhaseCompletion,
+  detectTodoCompletion,
+  getExecutionPlanPath,
   getPlanDir,
+  getIncompleteTodos,
   initializePlan,
-  isErrorRecorded as isManusErrorRecorded,
-  loadState,
-  parsePhases,
-  readTaskPlan,
-  saveState,
+  isErrorRecorded,
+  parsePlanTodos,
+  readPlan,
 } from "../../features/planning-with-files/manager"
 import {
   isBlockerLikely,
   BlockerPromptCache,
 } from "../../features/planning-with-files/blocker-detection"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
-import { createWorkStateManager, type WorkStateManager } from "../../features/work-state"
+import { createWorkStateManager } from "../../features/work-state"
 
 export interface PlanningWithFilesHookOptions {
   config?: Partial<PlanningWithFilesConfig>
@@ -29,13 +29,13 @@ export interface PlanningWithFilesHookOptions {
   todoContinuationEnabled?: boolean
 }
 
-function buildTaskPlanContext(content: string): string {
-  return `<task-plan-context>
+function buildPlanContext(content: string): string {
+  return `<plan-context>
 ${content}
-</task-plan-context>
+</plan-context>
 
 <reminder>
-Stay focused on the current phase. Do not deviate from the goal.
+Stay focused on the current TODO. Do not deviate from the goal.
 </reminder>`
 }
 
@@ -57,7 +57,6 @@ function extractToolError(output: { output: string }): string | null {
   const raw = output.output?.trim()
   if (!raw) return null
 
-  // Strict, low-false-positive markers.
   if (raw.startsWith("❌")) {
     return raw.slice("❌".length).trim() || "Unknown error"
   }
@@ -70,23 +69,23 @@ function extractToolError(output: { output: string }): string | null {
   return null
 }
 
-function extractPlanName(toolArgs: unknown): string | null {
+function extractPlanId(toolArgs: unknown): string | null {
   if (typeof toolArgs !== "object" || toolArgs === null) return null
   const obj = toolArgs as Record<string, unknown>
-  const rawPlanName = obj.planName
-  if (typeof rawPlanName !== "string" || !rawPlanName.trim()) return null
-  return sanitizePathSegment(rawPlanName.trim()) ?? null
+  const rawPlanId = obj.planId
+  if (typeof rawPlanId !== "string" || !rawPlanId.trim()) return null
+  return sanitizePathSegment(rawPlanId.trim()) ?? null
 }
 
 /**
- * Parse structured result from multi_plan tool output
- * Format: [MULTI_PLAN_RESULT]{"status":"success","planName":"..."}[/MULTI_PLAN_RESULT]
+ * Parse structured result from multi_plan tool output.
+ * Format: [MULTI_PLAN_RESULT]{"status":"success","planId":"..."}[/MULTI_PLAN_RESULT]
  */
-function parseMultiPlanResult(output: string): { status: string; planName?: string } | null {
+function parseMultiPlanResult(output: string): { status: string; planId?: string } | null {
   const match = output.match(/\[MULTI_PLAN_RESULT\]([\s\S]*?)\[\/MULTI_PLAN_RESULT\]/)
   if (!match) return null
   try {
-    return JSON.parse(match[1]) as { status: string; planName?: string }
+    return JSON.parse(match[1]) as { status: string; planId?: string }
   } catch {
     return null
   }
@@ -100,43 +99,46 @@ function extractPromptText(parts: Array<{ type: string; text?: string }>): strin
     .trim()
 }
 
-function parseInitDirective(prompt: string): { planName: string } | null {
+function parseInitDirective(prompt: string): { planId: string } | null {
   const match = prompt.match(
     /(?:^|\n)\s*(?:start planning for|init plan|create plan for)\s+["']?([^"'\n]+?)["']?\s*(?:\n|$)/i
   )
   if (!match) return null
 
-  const rawPlanName = match[1]?.trim()
-  if (!rawPlanName) return null
+  const rawPlanId = match[1]?.trim()
+  if (!rawPlanId) return null
 
-  const planName = sanitizePathSegment(rawPlanName)
-  if (!planName) return null
+  const planId = sanitizePathSegment(rawPlanId)
+  if (!planId) return null
 
-  return { planName }
+  return { planId }
 }
 
-function buildActiveNotice(planName: string, config: PlanningWithFilesConfig): string {
-  // Use a stable, relative path to reduce prompt noise and improve cache hits.
-  const planDir = `.sisyphus/${config.directory}/${planName}`
-  return `<planning-with-files-active plan="${planName}">
+function buildActiveNotice(planId: string): string {
+  const planDir = `.sisyphus/plans/${planId}`
+  return `<planning-with-files-active plan_id="${planId}">
 ## Planning with Files Active
 
-**Plan**: ${planName}
+**Plan ID**: ${planId}
 **Location**: ${planDir}/
 
 **Files**:
-- task_plan.md - Phases, decisions, errors, blockers
+- plan.md - Execution TODO source of truth
+- ledger.yaml - Runtime errors/blockers/decisions
 - findings.md - Research (2-action rule)
 - progress.md - Session logs
 
 **Active Protocols**:
-- Auto re-read task_plan before Write/Edit/Bash/NotebookEdit
+- Auto re-read plan.md before Write/Edit/Bash/NotebookEdit
 - 2-Action Rule with auto-reset
 - 3-Strike Error Protocol (forced recording on Strike 2+)
-- Phase Reflection (prompts on completion for plan adjustment)
-- Blockers section for escalation (distinct from retry-able errors)
+- TODO Reflection (prompts on completion for plan adjustment)
 - Stop verification
 </planning-with-files-active>`
+}
+
+function isPlanFilePath(filePath: string): boolean {
+  return filePath.replace(/\\/g, "/").endsWith("/plan.md") || filePath.endsWith("plan.md")
 }
 
 export function createPlanningWithFilesHook(
@@ -147,7 +149,8 @@ export function createPlanningWithFilesHook(
   const config: PlanningWithFilesConfig = {
     ...DEFAULT_PLANNING_CONFIG,
     ...options.config,
-    // Preserve defaults when zod optional fields are omitted
+    // directory is deprecated and ignored; canonical path is fixed to .sisyphus/plans
+    directory: "plans",
     reread_trigger_tools:
       options.config?.reread_trigger_tools ?? DEFAULT_PLANNING_CONFIG.reread_trigger_tools,
     action_count_tools:
@@ -158,7 +161,6 @@ export function createPlanningWithFilesHook(
     return {}
   }
 
-  // Use WorkStateManager for shared state (2-action rule, 3-strike, blockers)
   const workStateManager = createWorkStateManager(ctx.directory)
 
   const injectedSessions = new Set<string>()
@@ -170,11 +172,33 @@ export function createPlanningWithFilesHook(
   const rereadTriggerTools = new Set(config.reread_trigger_tools.map((t) => t.toLowerCase()))
   const actionCountTools = new Set(config.action_count_tools.map((t) => t.toLowerCase()))
 
+  const ensureActiveWorkState = (planId: string, sessionID: string): boolean => {
+    const planPath = getExecutionPlanPath(ctx.directory, planId, config)
+    if (!fs.existsSync(planPath)) return false
+
+    const workState = workStateManager.load()
+    if (!workState) {
+      workStateManager.initializePlan(planId, sessionID)
+    } else if (workState.plan_id !== planId) {
+      workStateManager.switchPlan(planId, sessionID)
+    } else {
+      workStateManager.appendSessionId(sessionID)
+    }
+
+    const currentState = workStateManager.getState()
+    if (currentState && currentState.last_findings_mtime === 0) {
+      const findingsPath = path.join(getPlanDir(ctx.directory, planId, config), "findings.md")
+      workStateManager.checkFindingsModified(findingsPath)
+    }
+
+    return true
+  }
+
   const resolveActivePlan = async (sessionID: string): Promise<string | null> => {
     const mapped = activePlanBySessionID.get(sessionID)
     if (mapped) {
-      const statePath = path.join(getPlanDir(ctx.directory, mapped, config), ".planning-state.json")
-      if (fs.existsSync(statePath)) return mapped
+      if (fs.existsSync(getExecutionPlanPath(ctx.directory, mapped, config))) return mapped
+      activePlanBySessionID.delete(sessionID)
     }
 
     const detected = await detectActivePlan(ctx.directory, config)
@@ -182,44 +206,6 @@ export function createPlanningWithFilesHook(
       activePlanBySessionID.set(sessionID, detected)
     }
     return detected
-  }
-
-  // Sync Manus-style state to WorkStateManager (best-effort)
-  const syncToWorkState = async (planName: string, sessionID: string): Promise<void> => {
-    const manusState = await loadState(ctx.directory, planName, config)
-    if (!manusState) return
-
-    // Load or initialize work state
-    let workState = workStateManager.load()
-    if (!workState) {
-      // Initialize work state with Manus plan path
-      const planDir = getPlanDir(ctx.directory, planName, config)
-      const taskPlanPath = path.join(planDir, "task_plan.md")
-      workState = workStateManager.initialize(taskPlanPath, sessionID)
-    }
-
-    // Sync fields from Manus state to work state
-    if (manusState.actionCount !== workState.research_ops) {
-      for (let i = workState.research_ops; i < manusState.actionCount; i++) {
-        workStateManager.incrementResearchOps()
-      }
-    }
-
-    if (manusState.lastFindingsMtime !== workState.last_findings_mtime) {
-      const findingsPath = path.join(getPlanDir(ctx.directory, planName, config), "findings.md")
-      workStateManager.checkFindingsModified(findingsPath)
-    }
-
-    // Sync error strikes
-    for (const [key, strikes] of Object.entries(manusState.errorStrikes)) {
-      for (let i = 0; i < strikes; i++) {
-        // Record error if not already tracked
-        const existingStrikes = workState.errors.find((e) => e.key === key)?.strikes ?? 0
-        if (existingStrikes < strikes) {
-          workStateManager.recordError(key)
-        }
-      }
-    }
   }
 
   const chatMessage = async (
@@ -230,29 +216,30 @@ export function createPlanningWithFilesHook(
     const init = parseInitDirective(prompt)
 
     if (init) {
-      await initializePlan(ctx.directory, init.planName, init.planName, config)
+      await initializePlan(ctx.directory, init.planId, init.planId, config)
       injectedSessions.delete(input.sessionID)
-      activePlanBySessionID.set(input.sessionID, init.planName)
-      await syncToWorkState(init.planName, input.sessionID)
+      activePlanBySessionID.set(input.sessionID, init.planId)
+      ensureActiveWorkState(init.planId, input.sessionID)
     }
 
     if (injectedSessions.has(input.sessionID)) return
 
-    const planName =
-      init?.planName ??
+    const planId =
+      init?.planId ??
       activePlanBySessionID.get(input.sessionID) ??
       (await detectActivePlan(ctx.directory, config))
-    if (!planName) return
-    activePlanBySessionID.set(input.sessionID, planName)
+
+    if (!planId) return
+    activePlanBySessionID.set(input.sessionID, planId)
 
     const textPartIndex = output.parts.findIndex((p) => p.type === "text" && p.text)
     if (textPartIndex === -1) return
 
-    const notice = buildActiveNotice(planName, config)
+    const notice = buildActiveNotice(planId)
     output.parts[textPartIndex].text = `${output.parts[textPartIndex].text}\n\n${notice}`
 
     injectedSessions.add(input.sessionID)
-    await syncToWorkState(planName, input.sessionID)
+    ensureActiveWorkState(planId, input.sessionID)
   }
 
   const toolExecuteBefore = async (
@@ -264,19 +251,19 @@ export function createPlanningWithFilesHook(
     if (!config.auto_reread) return
     if (!rereadTriggerTools.has(input.tool.toLowerCase())) return
 
-    const planName = await resolveActivePlan(input.sessionID)
-    if (!planName) return
+    const planId = await resolveActivePlan(input.sessionID)
+    if (!planId) return
 
-    const taskPlan = await readTaskPlan(ctx.directory, planName, config)
-    if (!taskPlan) return
+    const planMarkdown = await readPlan(ctx.directory, planId, config)
+    if (!planMarkdown) return
 
     collector.register(input.sessionID, {
-      id: "task-plan-context",
+      id: "plan-context",
       source: "planning-with-files",
       priority: "critical",
-      content: buildTaskPlanContext(taskPlan),
+      content: buildPlanContext(planMarkdown),
       metadata: {
-        planName,
+        planId,
         triggerTool: input.tool,
       },
     })
@@ -293,76 +280,57 @@ export function createPlanningWithFilesHook(
 
     // Auto-create planning files after a successful multi_plan run.
     if (config.auto_from_multi_plan && normalizedTool === "multi_plan") {
-      // Prefer structured result parsing over emoji prefix check
       const structuredResult = parseMultiPlanResult(output.output)
-      const isSuccess = structuredResult?.status === "success" ||
-        // Fallback to emoji check for backwards compatibility
-        output.output.trim().startsWith("✅")
+      const isSuccess = structuredResult?.status === "success" || output.output.trim().startsWith("✅")
 
-      // Prefer planName from structured result, fall back to tool args
-      const planNameFromResult = structuredResult?.planName
-        ? sanitizePathSegment(structuredResult.planName)
+      const planIdFromResult = structuredResult?.planId
+        ? sanitizePathSegment(structuredResult.planId)
         : null
-      const planNameFromArgs = extractPlanName(toolArgs)
-      const planName = planNameFromResult ?? planNameFromArgs
+      const planIdFromArgs = extractPlanId(toolArgs)
+      const planId = planIdFromResult ?? planIdFromArgs
 
-      if (isSuccess && planName) {
-        activePlanBySessionID.set(input.sessionID, planName)
-        const planDir = getPlanDir(ctx.directory, planName, config)
-        const alreadyInitialized = fs.existsSync(path.join(planDir, ".planning-state.json"))
+      if (isSuccess && planId) {
+        activePlanBySessionID.set(input.sessionID, planId)
+        const planDir = getPlanDir(ctx.directory, planId, config)
+        const planPath = path.join(planDir, "plan.md")
+        const ledgerPath = path.join(planDir, "ledger.yaml")
+        const findingsPath = path.join(planDir, "findings.md")
+        const progressPath = path.join(planDir, "progress.md")
+        const alreadyInitialized =
+          fs.existsSync(planPath) && fs.existsSync(ledgerPath) && fs.existsSync(findingsPath) && fs.existsSync(progressPath)
 
         if (!alreadyInitialized) {
-          await initializePlan(ctx.directory, planName, planName, config)
+          await initializePlan(ctx.directory, planId, planId, config)
         }
 
         collector.register(input.sessionID, {
           id: "auto-from-multi-plan",
           source: "planning-with-files",
           priority: "high",
-          content: `<planning-with-files-auto-from-multi-plan plan="${planName}">
-Planning files initialized at \`.sisyphus/${config.directory}/${planName}/\`.
+          content: `<planning-with-files-auto-from-multi-plan plan_id="${planId}">
+Planning files initialized at \`.sisyphus/plans/${planId}/\`.
 </planning-with-files-auto-from-multi-plan>`,
-          metadata: { planName, created: !alreadyInitialized },
+          metadata: { planId, created: !alreadyInitialized },
         })
 
-        await syncToWorkState(planName, input.sessionID)
+        ensureActiveWorkState(planId, input.sessionID)
       }
     }
 
-    const planName = await resolveActivePlan(input.sessionID)
-    if (!planName) return
-
-    const state = await loadState(ctx.directory, planName, config)
-    if (!state) return
-
-    // Ensure work state is initialized for this Manus plan
-    if (!workStateManager.getState()) {
-      const planDir = getPlanDir(ctx.directory, planName, config)
-      const taskPlanPath = path.join(planDir, "task_plan.md")
-      workStateManager.initialize(taskPlanPath, input.sessionID)
-
-      // Set initial findings mtime to prevent false "modified" detection on first call
-      const findingsPath = path.join(planDir, "findings.md")
-      workStateManager.checkFindingsModified(findingsPath)
-    }
+    const planId = await resolveActivePlan(input.sessionID)
+    if (!planId) return
+    if (!ensureActiveWorkState(planId, input.sessionID)) return
 
     const errorText = extractToolError({ output: output.output })
     if (errorText) {
-      // 3-strike protocol - use WorkStateManager for state, Manus state for backup
       if (config.three_strike_protocol) {
         const errorKey = `${input.tool}:${errorText.slice(0, 80)}`
 
-        // Record in WorkStateManager
         let { strikes, requiresRecording } = workStateManager.recordError(errorKey, errorText)
 
-        // Also update Manus state for backwards compatibility
-        state.errorStrikes[errorKey] = strikes
-        await saveState(ctx.directory, state, config)
-
-        // Check if error was already recorded in task_plan.md
         if (requiresRecording) {
-          const recordedInFile = await isManusErrorRecorded(ctx.directory, planName, errorKey, config)
-          if (recordedInFile) {
+          const recordedInLedger = await isErrorRecorded(ctx.directory, planId, errorKey, config)
+          if (recordedInLedger) {
             workStateManager.markErrorRecorded(errorKey)
             requiresRecording = false
           }
@@ -383,16 +351,15 @@ Error: ${errorText.slice(0, 150)}
           source: "planning-with-files",
           priority: "high",
           content,
-          metadata: { planName, errorKey, strikes },
+          metadata: { planId, errorKey, strikes },
         })
       }
 
       if (isBlockerLikely(errorText)) {
-        const blockerKey = `${planName}:${input.tool}:${errorText.slice(0, 80)}`
+        const blockerKey = `${planId}:${input.tool}:${errorText.slice(0, 80)}`
         if (!blockerCache.has(input.sessionID, blockerKey)) {
           blockerCache.add(input.sessionID, blockerKey)
 
-          // Add blocker to WorkStateManager
           workStateManager.addBlocker(errorText)
 
           collector.register(input.sessionID, {
@@ -400,53 +367,43 @@ Error: ${errorText.slice(0, 150)}
             source: "planning-with-files",
             priority: "high",
             content: workStateManager.generateBlockerPrompt(errorText),
-            metadata: { planName, errorText },
+            metadata: { planId, errorText },
           })
         }
       }
     }
 
-    // Phase reflection: detect transitions using Manus-style phase parsing
-    if (["Write", "Edit", "write", "edit"].includes(input.tool) && filePath?.includes("task_plan.md")) {
-      const taskPlan = await readTaskPlan(ctx.directory, planName, config)
-      if (taskPlan) {
-        const phases = parsePhases(taskPlan)
-        const completedPhases = detectManusPhaseCompletion(ctx.directory, planName, phases, config)
-        for (const phase of completedPhases) {
-          workStateManager.recordPhaseCompletion(String(phase.id))
+    if (["Write", "Edit", "write", "edit"].includes(input.tool) && filePath && isPlanFilePath(filePath)) {
+      const planMarkdown = await readPlan(ctx.directory, planId, config)
+      if (planMarkdown) {
+        const todos = parsePlanTodos(planMarkdown)
+        const completedTodos = detectTodoCompletion(ctx.directory, planId, todos)
+        for (const todo of completedTodos) {
+          workStateManager.recordPhaseCompletion(String(todo.id))
           collector.register(input.sessionID, {
-            id: `phase-reflection-${phase.id}`,
+            id: `todo-reflection-${todo.id}`,
             source: "planning-with-files",
             priority: "high",
-            content: workStateManager.generateReflectionPrompt({ id: String(phase.id), name: phase.name }),
-            metadata: { planName, phaseId: phase.id },
+            content: workStateManager.generateReflectionPrompt({ id: String(todo.id), name: todo.name }),
+            metadata: { planId, todoId: todo.id },
           })
         }
       }
     }
 
-    // 2-action rule - use WorkStateManager
-    const findingsPath = path.join(getPlanDir(ctx.directory, planName, config), "findings.md")
+    const findingsPath = path.join(getPlanDir(ctx.directory, planId, config), "findings.md")
     const findingsCheck = workStateManager.checkFindingsModified(findingsPath)
 
     if (findingsCheck.modified) {
       workStateManager.resetResearchOps()
-      // Also reset Manus state
-      state.actionCount = 0
-      state.lastFindingsMtime = findingsCheck.newMtime
-      await saveState(ctx.directory, state, config)
       return
     }
 
     if (config.two_action_rule && actionCountTools.has(input.tool.toLowerCase())) {
       const newCount = workStateManager.incrementResearchOps()
 
-      // Also update Manus state
-      state.actionCount = newCount
-      await saveState(ctx.directory, state, config)
-
       if (workStateManager.shouldRemindTwoAction()) {
-        const findingsRelPath = `.sisyphus/${config.directory}/${planName}/findings.md`
+        const findingsRelPath = `.sisyphus/plans/${planId}/findings.md`
         collector.register(input.sessionID, {
           id: "two-action-rule",
           source: "planning-with-files",
@@ -463,7 +420,7 @@ Update \`${findingsRelPath}\` with:
 
 Counter auto-resets when you modify findings.md.
 </two-action-rule>`,
-          metadata: { planName, actionCount: newCount },
+          metadata: { planId, actionCount: newCount },
         })
       }
     }
@@ -483,10 +440,11 @@ Counter auto-resets when you modify findings.md.
 
       if (deletedID) {
         injectedSessions.delete(deletedID)
+        const deletedPlanId = activePlanBySessionID.get(deletedID)
         activePlanBySessionID.delete(deletedID)
         stopVerificationLastPromptAt.delete(deletedID)
         blockerCache.delete(deletedID)
-        workStateManager.clearPhaseCache()
+        workStateManager.clearPhaseCache(deletedPlanId)
       }
       return
     }
@@ -518,21 +476,15 @@ Counter auto-resets when you modify findings.md.
       }
     }
 
-    const planName = await resolveActivePlan(sessionID)
-    if (!planName) return
+    const planId = await resolveActivePlan(sessionID)
+    if (!planId) return
 
-    const taskPlan = await readTaskPlan(ctx.directory, planName, config)
-    if (!taskPlan) return
+    const incompleteTodos = await getIncompleteTodos(ctx.directory, planId, config)
+    if (incompleteTodos.length === 0) return
 
-    const phases = parsePhases(taskPlan)
-    const incomplete = phases.filter(
-      (p) => p.status !== "complete" && p.status !== "blocked"
-    )
-    if (incomplete.length === 0) return
-
-    const reason = `Incomplete phases:\n\n${incomplete
-      .map((p) => `- Phase ${p.id}: ${p.name} (${p.status})`)
-      .join("\n")}\n\n**Options**:\n1. Complete remaining phases\n2. Mark phases as \`blocked\` in task_plan.md\n3. Use \`/stop --force\` to override`
+    const reason = `Incomplete TODOs:\n\n${incompleteTodos
+      .map((todo) => `- ${todo}`)
+      .join("\n")}\n\n**Options**:\n1. Complete remaining TODOs\n2. Mark blocked TODOs in \`plan.md\` and record blocker in \`ledger.yaml\`\n3. Use \`/stop --force\` to override`
 
     stopVerificationLastPromptAt.set(sessionID, now)
     await ctx.client.session.prompt({

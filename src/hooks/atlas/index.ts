@@ -196,7 +196,7 @@ delegate_task(
 }
 
 function buildOrchestratorReminder(
-  planName: string,
+  planId: string,
   planPath: string,
   progress: { total: number; completed: number },
   sessionId: string
@@ -205,7 +205,7 @@ function buildOrchestratorReminder(
   return `
 ---
 
-**WORK STATE:** Plan: \`${planName}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
+**WORK STATE:** Plan: \`${planId}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
 
 ---
 
@@ -474,7 +474,7 @@ export function createAtlasHook(
 
   async function injectContinuation(
     sessionID: string,
-    planName: string,
+    planId: string,
     planPath: string,
     remaining: number,
     total: number
@@ -489,12 +489,12 @@ export function createAtlasHook(
     }
 
     const prompt = WORK_CONTINUATION_PROMPT
-      .replace(/{PLAN_NAME}/g, planName)
+      .replace(/{PLAN_NAME}/g, planId)
       .replace(/{PLAN_PATH}/g, planPath) +
       `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`
 
     try {
-      log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planName, remaining })
+      log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planId, remaining })
 
       let model: { providerID: string; modelID: string } | undefined
       try {
@@ -604,7 +604,7 @@ export function createAtlasHook(
 
         const progress = workStateManager.getPlanProgress()
         if (progress.isComplete) {
-          log(`[${HOOK_NAME}] Work complete`, { sessionID, plan: workState.plan_name })
+          log(`[${HOOK_NAME}] Work complete`, { sessionID, plan: workState.plan_id })
           return
         }
 
@@ -616,7 +616,7 @@ export function createAtlasHook(
 
         state.lastContinuationInjectedAt = now
         const remaining = progress.total - progress.completed
-        injectContinuation(sessionID, workState.plan_name, workState.active_plan, remaining, progress.total)
+        injectContinuation(sessionID, workState.plan_id, workState.execution_plan_path, remaining, progress.total)
         return
       }
 
@@ -818,7 +818,7 @@ This helps maintain context across sessions and prevents knowledge loss.
             workStateManager.appendSessionId(input.sessionID)
             log(`[${HOOK_NAME}] Appended session to work`, {
               sessionID: input.sessionID,
-              plan: currentWorkState.plan_name,
+              plan: currentWorkState.plan_id,
             })
           }
 
@@ -837,11 +837,11 @@ ${fileChanges}
 ${originalResponse}
 
 <system-reminder>
-${buildOrchestratorReminder(currentWorkState.plan_name, currentWorkState.active_plan, progress, subagentSessionId)}
+${buildOrchestratorReminder(currentWorkState.plan_id, currentWorkState.execution_plan_path, progress, subagentSessionId)}
 </system-reminder>`
 
           log(`[${HOOK_NAME}] Output transformed for orchestrator mode (work)`, {
-            plan: currentWorkState.plan_name,
+            plan: currentWorkState.plan_id,
             progress: `${progress.completed}/${progress.total}`,
             fileCount: gitStats.length,
           })

@@ -17,8 +17,8 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
 
 4. **Create/Update work.yaml**:
    \`\`\`yaml
-   active_plan: /absolute/path/to/plan.md
-   plan_name: plan-name
+   execution_plan_path: /absolute/path/to/plan.md
+   plan_id: plan-name
    started_at: ISO_TIMESTAMP
    session_ids:
      - session_id_1

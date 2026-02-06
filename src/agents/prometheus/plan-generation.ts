@@ -85,7 +85,7 @@ This tool orchestrates parallel plan generation + Plan Synthesizer critique/synt
 
 \`\`\`typescript
 multi_plan({
-  planName: "{name}",
+  planId: "{name}",
   context: "{full interview context + decisions}",
   debate: false
 })

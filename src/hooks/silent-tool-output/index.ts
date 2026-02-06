@@ -38,10 +38,9 @@ const SEARCH_TOOLS = ["Grep", "Glob", "grep", "glob", "safe_grep", "safe_glob"]
  * 2. Reading them again would be redundant in context
  */
 const PLANNING_FILE_PATTERNS = [
-  /task_plan\.md$/,
+  /plan\.md$/,
   /findings\.md$/,
   /progress\.md$/,
-  /\.planning-state\.json$/,
 ]
 
 /**
@@ -59,7 +58,7 @@ export interface SilentToolOutputConfig {
 
   /**
    * Optimize read outputs for planning files.
-   * Since PreToolUse injects task_plan.md content, reading it again
+   * Since PreToolUse injects plan.md content, reading it again
    * is redundant. Returns minimal confirmation instead.
    * @default true
    */
@@ -104,8 +103,8 @@ function isPlanningFile(filePath: string): boolean {
   return PLANNING_FILE_PATTERNS.some(pattern => pattern.test(filePath))
 }
 
-function isTaskPlanFile(filePath: string): boolean {
-  return /task_plan\.md$/.test(filePath)
+function isExecutionPlanFile(filePath: string): boolean {
+  return /plan\.md$/.test(filePath)
 }
 
 /**
@@ -169,7 +168,7 @@ function createSilentWriteOutput(
 /**
  * Create optimized output for read operations on planning files.
  *
- * Since PreToolUse hook injects task_plan.md content before tool execution,
+ * Since PreToolUse hook injects plan.md content before tool execution,
  * the Read tool output is redundant. Return minimal confirmation that
  * references the injected content location.
  */
@@ -183,8 +182,8 @@ function createOptimizedReadOutput(
   }
 
   const lines = countLines(originalOutput)
-  if (isTaskPlanFile(filePath)) {
-    return `✓ ${filePath} loaded (${lines} lines) - content available in <task-plan-context>`
+  if (isExecutionPlanFile(filePath)) {
+    return `✓ ${filePath} loaded (${lines} lines) - content available in <plan-context>`
   }
   return `✓ ${filePath} loaded (${lines} lines)`
 }
