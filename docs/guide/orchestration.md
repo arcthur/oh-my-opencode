@@ -7,6 +7,7 @@
 | **Simple** | Just prompt | Simple tasks, quick fixes, single-file changes |
 | **Complex + Lazy** | Just type `ulw` or `ultrawork` | Complex tasks where explaining context is tedious. Agent figures it out. |
 | **Complex + Precise** | `@plan` → `/start-work` | Precise, multi-step work requiring true orchestration. Prometheus plans, Sisyphus executes. |
+| **Complex + Parallel (Isolated)** | `@plan` → `/start-work` (Swarm-first) | Large work where you want parallel execution with git worktree isolation and a recoverable task pool. |
 
 **Decision Flow:**
 
@@ -137,6 +138,17 @@ When the user enters `/start-work`, the execution phase begins.
 4. **Continuity**: Even if the session is interrupted, work continues in the next session through `work.yaml`.
 5. **Protocol Enforcement**: 2-action rule (research tracking) and 3-strike protocol (error recording) are managed via work.yaml.
 
+#### Swarm-first Execution (Parallel Worktrees)
+
+If Swarm-first is enabled, `/start-work` becomes a bootstrap point for a **recoverable parallel execution** model:
+
+- A Swarm team is created (or recovered) for the active plan.
+- The plan’s pending TODO blocks are synced into a task pool under `.sisyphus/tasks/<team>/`.
+- Worker processes can be spawned in tmux windows, optionally one git worktree per worker.
+- The coordinator auto-assigns tasks; completion is tracked in the task pool (not by editing the plan file in parallel).
+
+This is the closest “Trellis-style” binding between **task structure**, **workspace isolation**, and **recovery**.
+
 ---
 
 ## 5. Commands and Usage
@@ -169,9 +181,61 @@ You can control related features in `oh-my-opencode.json`.
     // "start-work",             // Disable execution trigger
     // "prometheus-md-only"      // Remove Prometheus write restrictions (not recommended)
     // "context-manifest-injector" // Disable Context Packs auto-injection
+    // "swarm-from-plan"         // Disable Swarm-first bootstrap from /start-work
   ]
 }
 ```
+
+### Swarm-first (Recommended for parallel + isolation)
+
+Swarm-first requires both Sisyphus Tasks (task pool) and Swarm to be enabled.
+
+> **Schema reference**: `src/config/schema.ts` — `SisyphusConfigSchema`, `TmuxParallelAgentsConfigSchema`
+
+```jsonc
+{
+  "sisyphus": {
+    "tasks": { "enabled": true },       // default: false
+    "swarm": {
+      "enabled": true,                  // default: false
+      "swarm_first": true,              // default: false
+      "worker_count": 3                 // default: 3
+    }
+  },
+  "tmux_parallel_agents": {
+    "enabled": true,                    // default: false (requires tmux)
+    "worktree": { "enabled": true }     // default: false
+  }
+}
+```
+
+### Parallel Runtime (Global Concurrency Control)
+
+The parallel runtime is **enabled by default** (`mode: "shadow"`, `global_slots: 6`). It controls admission for Background and Swarm subsystems. Manual worktrees (Option A in `docs/journeys/parallel-agents.md`) are intentionally outside this system.
+
+> **Schema reference**: `src/config/schema.ts` — `ParallelRuntimeConfigSchema`
+
+To tune the defaults:
+
+```jsonc
+{
+  "parallel_runtime": {
+    "enabled": true,            // default: true
+    "mode": "shadow",           // default: "shadow" — "shadow" observes, "enforce" caps
+    "global_slots": 6,          // default: 6
+    "lease_ttl_ms": 120000,     // default: 120000 (2 min)
+    "heartbeat_ms": 10000,      // default: 10000 (10 sec)
+    "acquire_timeout_ms": 15000,// default: 15000 (enforce-mode only)
+    "lock_timeout_ms": 2000     // default: 2000
+  }
+}
+```
+
+Rollout recommendation:
+1. Start with `mode="shadow"` (the default) and monitor slot pressure via `/swarm status`.
+2. Switch to `mode="enforce"` after validating throughput and timeout behavior.
+
+Note: in `enforce` mode, Background admissions may wait up to `acquire_timeout_ms`, while Swarm admissions are non-blocking (the coordinator stops assigning when at capacity).
 
 ## 7. Best Practices
 

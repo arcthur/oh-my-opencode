@@ -38,6 +38,7 @@ import {
   createPlanningWithFilesHook,
   createSilentToolOutputHook,
   createContextManifestInjectorHook,
+  createSwarmFromPlanHook,
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
   createDelegationValidatorHook,
@@ -306,13 +307,19 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createStartWorkHook(ctx)
     : null;
 
+  const swarmFromPlan = isHookEnabled("swarm-from-plan")
+    ? createSwarmFromPlanHook(ctx, pluginConfig)
+    : null;
+
   const prometheusMdOnly = isHookEnabled("prometheus-md-only")
     ? createPrometheusMdOnlyHook(ctx)
     : null;
 
   const taskResumeInfo = createTaskResumeInfoHook();
 
-  const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task);
+  const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task, {
+    parallelRuntimeConfig: pluginConfig.parallel_runtime ?? { enabled: true },
+  });
 
   const atlasHook = isHookEnabled("atlas")
     ? createAtlasHook(ctx, { directory: ctx.directory, backgroundManager })
@@ -563,11 +570,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     getSessionID: getSessionIDForMcp,
   });
 
-	  const commands = discoverCommandsSync(pluginConfig.disabled_commands);
-	  const slashcommandTool = createSlashcommandTool({
-	    commands,
-	    skills: mergedSkills,
-	  });
+  const commands = discoverCommandsSync(pluginConfig.disabled_commands);
+  const slashcommandTool = createSlashcommandTool({
+    commands,
+    skills: mergedSkills,
+  });
 
   const autoSlashCommand = isHookEnabled("auto-slash-command")
     ? createAutoSlashCommandHook({ skills: mergedSkills })
@@ -606,15 +613,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           message.variant = variant
         }
         firstMessageVariantGate.markApplied(input.sessionID)
-	      } else {
-	        applyAgentVariant(pluginConfig, input.agent, message)
-	      }
+      } else {
+        applyAgentVariant(pluginConfig, input.agent, message)
+      }
 
-	      // Think-mode must run before keyword-detector injection so detection sees the raw user prompt.
-	      await thinkMode?.["chat.params"]?.(output as any, input.sessionID)
+      // Think-mode must run before keyword-detector injection so detection sees the raw user prompt.
+      await thinkMode?.["chat.params"]?.(output as any, input.sessionID)
 
-	      await keywordDetector?.["chat.message"]?.(input, output);
-	      await claudeCodeHooks["chat.message"]?.(input, output);
+      await keywordDetector?.["chat.message"]?.(input, output);
+      await claudeCodeHooks["chat.message"]?.(input, output);
 
       // Governance user prompt processing
       if (governanceEnabled) {
@@ -671,6 +678,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await sessionHandoffHook?.["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
+      await swarmFromPlan?.["chat.message"]?.(input, output);
       await multiPlanTrigger?.["chat.message"]?.(input, output);
       await planningWithFiles?.["chat.message"]?.(input, output);
       await preCompletionVerification?.["chat.message"]?.(input, output);
@@ -938,10 +946,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         };
       }
 
-	      if (ralphLoop && input.tool === "slashcommand") {
-	        const args = output.args as { command?: string } | undefined;
-	        const command = args?.command?.replace(/^\//, "").toLowerCase();
-	        const sessionID = input.sessionID || getMainSessionID();
+      if (ralphLoop && input.tool === "slashcommand") {
+        const args = output.args as { command?: string } | undefined;
+        const command = args?.command?.replace(/^\//, "").toLowerCase();
+        const sessionID = input.sessionID || getMainSessionID();
 
         if (command === "ralph-loop" && sessionID) {
           const rawArgs =
@@ -954,7 +962,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
           const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
           const promiseMatch = rawArgs.match(
-            /--completion-promise=["']?([^"'\s]+)["']?/i
+            /--completion-promise=["']?([^"'\s]+)["']?/i,
           );
 
           ralphLoop.startLoop(sessionID, prompt, {
@@ -963,51 +971,51 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               : undefined,
             completionPromise: promiseMatch?.[1],
           });
-         } else if (command === "cancel-ralph" && sessionID) {
-           ralphLoop.cancelLoop(sessionID);
-         } else if (command === "ulw-loop" && sessionID) {
-           const rawArgs =
-             args?.command?.replace(/^\/?(ulw-loop)\s*/i, "") || "";
-           const taskMatch = rawArgs.match(/^["'](.+?)["']/);
-           const prompt =
-             taskMatch?.[1] ||
-             rawArgs.split(/\s+--/)[0]?.trim() ||
-             "Complete the task as instructed";
+        } else if (command === "cancel-ralph" && sessionID) {
+          ralphLoop.cancelLoop(sessionID);
+        } else if (command === "ulw-loop" && sessionID) {
+          const rawArgs =
+            args?.command?.replace(/^\/?(ulw-loop)\s*/i, "") || "";
+          const taskMatch = rawArgs.match(/^["'](.+?)["']/);
+          const prompt =
+            taskMatch?.[1] ||
+            rawArgs.split(/\s+--/)[0]?.trim() ||
+            "Complete the task as instructed";
 
-           const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
-           const promiseMatch = rawArgs.match(
-             /--completion-promise=["']?([^"'\s]+)["']?/i
-           );
+          const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
+          const promiseMatch = rawArgs.match(
+            /--completion-promise=["']?([^"'\s]+)["']?/i,
+          );
 
-           ralphLoop.startLoop(sessionID, prompt, {
-             ultrawork: true,
-             maxIterations: maxIterMatch
-               ? parseInt(maxIterMatch[1], 10)
-               : undefined,
-             completionPromise: promiseMatch?.[1],
-           });
-	         }
-	      }
+          ralphLoop.startLoop(sessionID, prompt, {
+            ultrawork: true,
+            maxIterations: maxIterMatch
+              ? parseInt(maxIterMatch[1], 10)
+              : undefined,
+            completionPromise: promiseMatch?.[1],
+          });
+        }
+      }
 
-	      if (input.tool === "slashcommand") {
-	        const args = output.args as { command?: string } | undefined;
-	        const command = args?.command?.replace(/^\//, "").toLowerCase();
-	        const sessionID = input.sessionID || getMainSessionID();
+      if (input.tool === "slashcommand") {
+        const args = output.args as { command?: string } | undefined;
+        const command = args?.command?.replace(/^\//, "").toLowerCase();
+        const sessionID = input.sessionID || getMainSessionID();
 
-	        if (command === "stop-continuation" && sessionID) {
-	          stopContinuationGuard?.stop(sessionID);
-	          todoContinuationEnforcer?.cancelAllCountdowns();
-	          ralphLoop?.cancelLoop(sessionID);
-	          createWorkStateManager(ctx.directory).clear();
-	          log("[stop-continuation] All continuation mechanisms stopped", {
-	            sessionID,
-	          });
-	        }
-	      }
+        if (command === "stop-continuation" && sessionID) {
+          stopContinuationGuard?.stop(sessionID);
+          todoContinuationEnforcer?.cancelAllCountdowns();
+          ralphLoop?.cancelLoop(sessionID);
+          createWorkStateManager(ctx.directory).clear();
+          log("[stop-continuation] All continuation mechanisms stopped", {
+            sessionID,
+          });
+        }
+      }
 
 	      // Governance pre-tool checks (run late to capture final args and avoid tracing denied calls)
-	      if (governanceEnabled) {
-	        try {
+      if (governanceEnabled) {
+        try {
           const govResult = executePreToolGovernance({
             sessionId: input.sessionID,
             toolName: input.tool,

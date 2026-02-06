@@ -24,6 +24,7 @@ import {
 } from "../features/sisyphus-swarm/tmux"
 import { createTask } from "../features/sisyphus-swarm/task-pool/pool"
 import { getWorker, getCoordinator } from "../features/sisyphus-swarm/runtime/registry"
+import { getRuntimeSnapshot, resolveParallelRuntimeConfig } from "../features/parallel-runtime"
 import { log } from "../shared/logger"
 
 interface SwarmToolContext {
@@ -77,11 +78,11 @@ function extractPlanSubmitText(commandString: string): string {
 /**
  * Format team status as text
  */
-function formatTeamStatus(
+async function formatTeamStatus(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>,
   orchestrator?: SwarmOrchestrator
-): string {
+): Promise<string> {
   const manifest = readManifest(teamName, config)
   if (!manifest) {
     return `Team "${teamName}" not found.`
@@ -114,6 +115,23 @@ function formatTeamStatus(
     const icon = statusIcons[status] ?? "?"
 
     lines.push(`  ${icon} ${role} ${member.name} (${member.id.slice(-6)})`)
+  }
+
+  const runtimeConfig = resolveParallelRuntimeConfig(config.parallel_runtime)
+  if (runtimeConfig.enabled) {
+    const snapshot = await getRuntimeSnapshot(runtimeConfig)
+    lines.push("")
+    lines.push("Parallel Runtime:")
+    lines.push(
+      `  Slots: ${snapshot.activeLeases}/${snapshot.globalSlots} active (${snapshot.availableSlots} available)`
+    )
+    lines.push(`  Mode: ${snapshot.mode}`)
+    lines.push(
+      `  Active by subsystem: background=${snapshot.activeBySubsystem.background}, swarm=${snapshot.activeBySubsystem.swarm}`
+    )
+    if (snapshot.oversubscribed > 0) {
+      lines.push(`  Oversubscribed: ${snapshot.oversubscribed}`)
+    }
   }
 
   return lines.join("\n")
@@ -283,7 +301,7 @@ async function executeSwarmCommand(
       }
 
       const orchestrator = orchestrators.get(directory)
-      return formatTeamStatus(teamName, config, orchestrator ?? undefined)
+      return await formatTeamStatus(teamName, config, orchestrator ?? undefined)
     }
 
     case "stop": {
@@ -528,10 +546,24 @@ export function getSwarmOrchestrator(directory: string): SwarmOrchestrator | und
 }
 
 /**
+ * Set orchestrator for a directory (internal integration hook).
+ */
+export function setSwarmOrchestrator(directory: string, orchestrator: SwarmOrchestrator): void {
+  orchestrators.set(directory, orchestrator)
+}
+
+/**
  * Get team for a session (for external access)
  */
 export function getSessionTeam(sessionId: string): string | undefined {
   return sessionTeams.get(sessionId)
+}
+
+/**
+ * Set team for a session (internal integration hook).
+ */
+export function setSessionTeam(sessionId: string, teamName: string): void {
+  sessionTeams.set(sessionId, teamName)
 }
 
 /**

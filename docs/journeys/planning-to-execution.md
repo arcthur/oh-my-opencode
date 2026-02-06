@@ -19,12 +19,27 @@ flowchart TD
   FS --> SW["Start execution (/start-work or start-work hook)"]
   CH --> SW
 
-  SW --> AT["atlas hook orchestrates tasks"]
+  SW --> MODE{"Swarm-first enabled?"}
+  MODE -->|No| AT["Single-session execution (atlas orchestration)"]
+  MODE -->|Yes| SF["Swarm-first bootstrap (swarm-from-plan)\nSync TODOs -> task pool; (optional) spawn workers"]
+
   AT --> TOOL["Tools (Read/Glob/Grep/LSP/Edit/Bash/...)"]
+  SF --> TOOL
   TOOL --> OUT["Artifacts + final answer"]
 ```
 
 This journey explains how a plan is produced, validated, and executed through orchestration.
+
+## Swarm-first (Optional)
+
+If Swarm-first is enabled, `/start-work` can act as a bootstrap point for parallel execution:
+
+- Pending plan TODO blocks are synced into `.sisyphus/tasks/<team>/`.
+- Workers can be spawned in tmux windows, optionally one git worktree per worker.
+- Progress and completion are tracked in the task pool, making recovery (across sessions) deterministic.
+- Global concurrency can be governed by `parallel_runtime` so Swarm + Background share one slot budget.
+
+See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 
 ## Recommended Reading Order
 

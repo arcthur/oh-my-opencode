@@ -58,7 +58,7 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 
 ## EXECUTION ORDER
 
-**chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → multiPlanTrigger → planningWithFiles → preCompletionVerification → stopContinuationGuard → (ralphLoop start/cancel)
+**chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → swarmFromPlan → multiPlanTrigger → planningWithFiles → preCompletionVerification → stopContinuationGuard → (ralphLoop start/cancel)
 
 **tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → atlasHook → tmuxParallelAgents → swarmAgent → silentToolOutput
 

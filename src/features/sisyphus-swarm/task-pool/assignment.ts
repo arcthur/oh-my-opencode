@@ -2,8 +2,6 @@ import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import type { Task } from "../../sisyphus-tasks/types"
 import {
   sendMessage,
-  readUnreadByType,
-  markAsRead,
   waitForMessage,
 } from "../mailbox"
 import {
@@ -18,14 +16,70 @@ import type { AgentIdentity } from "../team/types"
 import {
   readTask,
   assignTask,
+  updateTask,
   completeTask,
   reassignTask,
   getNextTaskForAgent,
-  getReadyTasks,
   filterTasks,
   getPoolStats,
 } from "./pool"
 import type { TaskAssignmentResult } from "./types"
+import {
+  recordRunEvent,
+  releaseSlot,
+  resolveParallelRuntimeConfig,
+  tryAcquireSlot,
+} from "../../parallel-runtime"
+import type { ParallelRuntimeConfig } from "../../parallel-runtime"
+
+const META_PARALLEL_LEASE_ID = "parallelRuntimeLeaseId"
+const META_PARALLEL_RUN_ID = "parallelRuntimeRunId"
+const META_PARALLEL_SUBSYSTEM = "parallelRuntimeSubsystem"
+
+function getMetadataString(
+  metadata: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  const value = metadata?.[key]
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined
+}
+
+function resolveRuntimeConfig(
+  config: Partial<OhMyOpenCodeConfig>
+): ParallelRuntimeConfig {
+  return resolveParallelRuntimeConfig(config.parallel_runtime)
+}
+
+function releaseSwarmLeaseForTask(
+  task: Task | null,
+  config: Partial<OhMyOpenCodeConfig>,
+  type: "completed" | "failed" | "cancelled" | "released",
+  metadata?: Record<string, unknown>
+): void {
+  if (!task) return
+  const runtimeConfig = resolveRuntimeConfig(config)
+  if (!runtimeConfig.enabled) return
+
+  const leaseId = getMetadataString(task.metadata, META_PARALLEL_LEASE_ID)
+  const teamName = getMetadataString(task.metadata, "teamName") ?? "team"
+  const runId =
+    getMetadataString(task.metadata, META_PARALLEL_RUN_ID) ??
+    `swarm:${teamName}:${task.id}`
+
+  recordRunEvent(
+    {
+      runId,
+      subsystem: "swarm",
+      type,
+      leaseId,
+      metadata,
+    },
+    runtimeConfig
+  ).catch(() => {})
+
+  if (!leaseId) return
+  releaseSlot(leaseId, runtimeConfig).catch(() => {})
+}
 
 /**
  * Coordinator assigns a task to a worker via mailbox
@@ -35,7 +89,10 @@ export function coordinatorAssignTask(
   coordinatorId: string,
   taskId: string,
   workerId: string,
-  config: Partial<OhMyOpenCodeConfig>
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: {
+    assignmentMetadata?: Record<string, unknown>
+  }
 ): TaskAssignmentResult {
   // Verify coordinator
   if (!isCoordinator(teamName, coordinatorId, config)) {
@@ -66,7 +123,9 @@ export function coordinatorAssignTask(
   }
 
   // Assign in task pool
-  const assigned = assignTask(listId, taskId, workerId, config)
+  const assigned = assignTask(listId, taskId, workerId, config, {
+    metadata: options?.assignmentMetadata,
+  })
   if (!assigned) {
     return { success: false, reason: "Failed to assign task" }
   }
@@ -190,6 +249,25 @@ export function workerReportCompletion(
     return false
   }
 
+  releaseSwarmLeaseForTask(completed, config, "completed", {
+    taskId,
+    workerId,
+  })
+
+  // Clear parallel-runtime lease metadata from completed task record.
+  updateTask(
+    listId,
+    {
+      taskId,
+      metadata: {
+        [META_PARALLEL_LEASE_ID]: null,
+        [META_PARALLEL_RUN_ID]: null,
+        [META_PARALLEL_SUBSYSTEM]: null,
+      },
+    },
+    config
+  )
+
   // Notify coordinator
   sendMessage(teamName, workerId, manifest.coordinatorId, {
     type: "task_completed",
@@ -202,44 +280,16 @@ export function workerReportCompletion(
 }
 
 /**
- * Coordinator receives completion notifications
+ * Auto-assign tasks with global parallel-runtime admission control.
+ *
+ * - shadow mode: still assigns when saturated, while recording would_block.
+ * - enforce mode: stops assigning new tasks once global slots are exhausted.
  */
-export function coordinatorReceiveCompletions(
+export async function autoAssignTasksWithRuntime(
   teamName: string,
   coordinatorId: string,
   config: Partial<OhMyOpenCodeConfig>
-): Array<{ taskId: string; agentId: string; messageId: string }> {
-  if (!isCoordinator(teamName, coordinatorId, config)) {
-    return []
-  }
-
-  const messages = readUnreadByType(teamName, coordinatorId, "task_completed", config)
-
-  const completions = messages.map(msg => {
-    if (msg.payload.type === "task_completed") {
-      return {
-        taskId: msg.payload.taskId,
-        agentId: msg.payload.agentId,
-        messageId: msg.id,
-      }
-    }
-    throw new Error("Unexpected message type")
-  })
-
-  // Mark as read
-  markAsRead(teamName, coordinatorId, messages.map(m => m.id), config)
-
-  return completions
-}
-
-/**
- * Auto-assign tasks to idle workers
- */
-export function autoAssignTasks(
-  teamName: string,
-  coordinatorId: string,
-  config: Partial<OhMyOpenCodeConfig>
-): TaskAssignmentResult[] {
+): Promise<TaskAssignmentResult[]> {
   if (!isCoordinator(teamName, coordinatorId, config)) {
     return []
   }
@@ -249,22 +299,18 @@ export function autoAssignTasks(
     return []
   }
 
+  const runtimeConfig = resolveRuntimeConfig(config)
   const listId = manifest.taskListId ?? teamName
   const results: TaskAssignmentResult[] = []
 
-  // Get idle workers
   const idleWorkerIds = getIdleWorkers(teamName, coordinatorId, config)
-
-  // Get all workers for capability matching
   const workers = getWorkers(teamName, config)
   const workerMap = new Map(workers.map(w => [w.id, w]))
 
-  // Assign tasks to idle workers
   for (const workerId of idleWorkerIds) {
     const worker = workerMap.get(workerId)
     if (!worker) continue
 
-    // Find next task for this worker
     const task = getNextTaskForAgent(
       listId,
       workerId,
@@ -272,16 +318,72 @@ export function autoAssignTasks(
       config,
       manifest.settings.assignmentStrategy
     )
+    if (!task) continue
 
-    if (task) {
-      const result = coordinatorAssignTask(
-        teamName,
-        coordinatorId,
-        task.id,
-        workerId,
-        config
+    let assignmentMetadata: Record<string, unknown> | undefined
+    if (runtimeConfig.enabled) {
+      const runId = `swarm:${teamName}:${task.id}`
+      const lease = await tryAcquireSlot(
+        {
+          subsystem: "swarm",
+          runId,
+          ownerSessionId: worker.sessionId,
+          metadata: {
+            teamName,
+            taskId: task.id,
+            workerId,
+          },
+        },
+        runtimeConfig
       )
-      results.push(result)
+
+      if (!lease && runtimeConfig.mode === "enforce") {
+        // Stop new assignments while at capacity. Keep workers idle.
+        break
+      }
+
+      if (lease) {
+        assignmentMetadata = {
+          [META_PARALLEL_LEASE_ID]: lease.leaseId,
+          [META_PARALLEL_RUN_ID]: lease.runId,
+          [META_PARALLEL_SUBSYSTEM]: "swarm",
+          teamName,
+        }
+      }
+    }
+
+    const result = coordinatorAssignTask(
+      teamName,
+      coordinatorId,
+      task.id,
+      workerId,
+      config,
+      {
+        assignmentMetadata,
+      }
+    )
+    results.push(result)
+
+    if (!result.success && assignmentMetadata) {
+      const leaseId = getMetadataString(assignmentMetadata, META_PARALLEL_LEASE_ID)
+      const runId = getMetadataString(assignmentMetadata, META_PARALLEL_RUN_ID)
+      if (runId) {
+        recordRunEvent(
+          {
+            runId,
+            subsystem: "swarm",
+            type: "failed",
+            leaseId,
+            metadata: {
+              reason: result.reason ?? "assignment_failed",
+            },
+          },
+          runtimeConfig
+        ).catch(() => {})
+      }
+      if (leaseId) {
+        releaseSlot(leaseId, runtimeConfig).catch(() => {})
+      }
     }
   }
 
@@ -341,6 +443,23 @@ export function reassignStaleTasks(
       )
 
       if (reassigned) {
+        releaseSwarmLeaseForTask(reassigned, config, "failed", {
+          taskId: task.id,
+          reason: "worker_unresponsive",
+          workerId: worker.id,
+        })
+        updateTask(
+          listId,
+          {
+            taskId: task.id,
+            metadata: {
+              [META_PARALLEL_LEASE_ID]: null,
+              [META_PARALLEL_RUN_ID]: null,
+              [META_PARALLEL_SUBSYSTEM]: null,
+            },
+          },
+          config
+        )
         results.push({
           success: true,
           taskId: task.id,

@@ -168,6 +168,7 @@ export function createSwarmAgentHook(
           name: swarmContext.agentName,
           sessionId: swarmContext.sessionId || sessionId,
           capabilities: ["code"],
+          worktreePath: ctx.directory,
           taskTimeoutMs: 30 * 60 * 1000, // 30 minute timeout
 
           onTaskAssigned: async (task: TaskInfo) => {

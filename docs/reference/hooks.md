@@ -67,11 +67,12 @@ Execution order (simplified to plugin-relevant steps):
 4. Session handoff (if enabled)
 5. Auto slashcommand (if enabled)
 6. Start-work (if enabled)
-7. Multi-plan trigger (if enabled)
-8. Planning-with-files (if enabled)
-9. Pre-completion verification (if enabled)
-10. Stop continuation guard (if enabled)
-11. Ralph loop template detection (if enabled)
+7. Swarm-from-plan (if enabled; Swarm-first bootstrap)
+8. Multi-plan trigger (if enabled)
+9. Planning-with-files (if enabled)
+10. Pre-completion verification (if enabled)
+11. Stop continuation guard (if enabled)
+12. Ralph loop template detection (if enabled)
 
 ### `user.prompt.submit`
 
@@ -107,6 +108,10 @@ Execution order (high-level):
 20. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
 21. Governance pre-tool checks (if enabled)
 22. Silent tool output pre-hook (if enabled)
+
+Note:
+- `tmux-parallel-agents` is a workspace/process orchestration hook (worktree/window lifecycle and rescue UX).
+- Global concurrency admission is provided by `parallel_runtime`, not by this hook.
 
 ### `tool.execute.after`
 

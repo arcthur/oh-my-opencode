@@ -39,8 +39,16 @@ flowchart TD
 
 - Prefer **Option A** when you need strong isolation (multiple agents will modify the same files, or tasks will run destructive commands, or you want clean merge boundaries).
 - Prefer **Option B** when you want fast parallel exploration (inventory, grep, doc lookup, alternative hypotheses) and integration remains in the main session.
-- Prefer **Option C** when you want a structured “team execution” model (explicit roles/tasks, coordination, progress tracking).
+- Prefer **Option C** when you want a structured “team execution” model (explicit roles/tasks, coordination, progress tracking). Swarm can be started manually (`/swarm ...`) or bootstrapped from `/start-work` when Swarm-first is enabled.
+### Parallel Runtime Admission Coverage
 
+| Path | Admission Control | Notes |
+|------|-------------------|-------|
+| **Option A** (manual worktrees + tmux) | **Not controlled** | Intentional — power users manage concurrency themselves |
+| **Option B** (background tasks) | **Controlled** via `parallel_runtime` | BackgroundManager acquires/releases slots per task |
+| **Option C** (Swarm) | **Controlled** via `parallel_runtime` | Coordinator acquires slots during task assignment |
+
+The `tmux-parallel-agents` hook is a pure infrastructure layer (windows, worktrees, rescue). It does not acquire slots because the underlying subsystem (Background or Swarm) already does.
 ## Key Docs
 
 - Swarm coordination journey: `docs/journeys/swarm-coordination.md`

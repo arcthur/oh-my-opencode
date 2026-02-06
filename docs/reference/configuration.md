@@ -349,6 +349,39 @@ Configure concurrency limits for background agent tasks. This controls how many 
 - Allow more concurrent tasks for fast/cheap models (e.g., Gemini Flash)
 - Respect provider rate limits by setting provider-level caps
 
+## Parallel Runtime
+
+Configure global concurrency admission shared by Background and Swarm execution paths.
+
+```json
+{
+  "parallel_runtime": {
+    "enabled": true,
+    "mode": "shadow",
+    "global_slots": 6,
+    "lease_ttl_ms": 120000,
+    "heartbeat_ms": 10000,
+    "acquire_timeout_ms": 15000,
+    "lock_timeout_ms": 2000
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `enabled` | `true` | Enable shared runtime admission control and slot tracking |
+| `mode` | `shadow` | `shadow`: observe and log pressure without blocking, `enforce`: hard cap |
+| `global_slots` | `6` | Global slot budget shared across subsystems |
+| `lease_ttl_ms` | `120000` | Lease expiry window used for crash/stale recovery |
+| `heartbeat_ms` | `10000` | Recommended renewal cadence for long-running runs |
+| `acquire_timeout_ms` | `15000` | Max wait for slot acquisition in enforce mode |
+| `lock_timeout_ms` | `2000` | Timeout for runtime state lock acquisition |
+
+**Effective behavior**:
+- `background_task` local limits still apply.
+- Global admission is evaluated in addition to local limits (both must pass in enforce mode).
+- `acquire_timeout_ms` applies to blocking admissions (Background); Swarm admission is non-blocking in `enforce` and simply stops new assignments when at capacity.
+
 ## Categories
 
 Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `sisyphus-junior` agent.

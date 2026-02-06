@@ -29,15 +29,19 @@ import {
 } from "../team/membership"
 import type { AgentIdentity, AgentCapability, TeamManifest } from "../team/types"
 import {
-  autoAssignTasks,
+  autoAssignTasksWithRuntime,
   reassignStaleTasks,
   getAssignmentStatus,
 } from "../task-pool/assignment"
 import {
   createTask,
+  filterTasks,
   getPoolStats,
+  readTask,
+  reassignTask,
+  updateTask,
 } from "../task-pool/pool"
-import { reassignTask } from "../task-pool/pool"
+import { recordRunEvent, releaseSlot, renewSlot, resolveParallelRuntimeConfig } from "../../parallel-runtime"
 import type { TaskCreateInput } from "../../sisyphus-tasks/types"
 import { AgentStateMachine } from "./state"
 import type { RiskLevel } from "./worker"
@@ -64,6 +68,15 @@ interface PendingPlanApproval {
   planFile?: string
   taskId?: string
   requestedAt: number
+}
+
+const META_PARALLEL_LEASE_ID = "parallelRuntimeLeaseId"
+const META_PARALLEL_RUN_ID = "parallelRuntimeRunId"
+const META_PARALLEL_SUBSYSTEM = "parallelRuntimeSubsystem"
+
+function getMetadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = metadata?.[key]
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined
 }
 
 /**
@@ -336,6 +349,8 @@ export class CoordinatorAgent {
       }
     }
 
+    // Transition through proper state machine sequence: idle/working → leaving → dead
+    this.stateMachine.dispatch({ type: "SHUTDOWN_REQUESTED" })
     this.stateMachine.dispatch({ type: "SHUTDOWN_APPROVED" })
     this.running = false
 
@@ -358,7 +373,9 @@ export class CoordinatorAgent {
 
     // Trigger auto-assignment for idle workers (level-triggered)
     // This ensures newly added tasks are immediately assigned if workers are waiting
-    autoAssignTasks(this.coordConfig.teamName, this.identity.id, this.config)
+    this.autoAssignWithAdmissionControl().catch((err) => {
+      this.coordConfig.onError?.(err instanceof Error ? err : new Error(String(err)))
+    })
 
     return task.id
   }
@@ -375,6 +392,87 @@ export class CoordinatorAgent {
     }
 
     return getAssignmentStatus(this.coordConfig.teamName, this.config)
+  }
+
+  private async autoAssignWithAdmissionControl(): Promise<void> {
+    await autoAssignTasksWithRuntime(this.coordConfig.teamName, this.identity.id, this.config)
+  }
+
+  /**
+   * Renew parallel-runtime leases for all in-progress swarm tasks.
+   *
+   * Without periodic renewal, leases expire after lease_ttl_ms (default 120s)
+   * and the global slot becomes available while the worker is still running.
+   */
+  private async renewSwarmLeases(): Promise<void> {
+    if (!this.manifest) return
+
+    const runtimeConfig = resolveParallelRuntimeConfig(this.config.parallel_runtime)
+    if (!runtimeConfig.enabled) return
+
+    const listId = this.manifest.taskListId ?? this.coordConfig.teamName
+    const inProgressTasks = filterTasks(listId, { status: "in_progress" }, this.config)
+
+    const renewals: Array<Promise<boolean>> = []
+    for (const task of inProgressTasks) {
+      const leaseId = getMetadataString(task.metadata, META_PARALLEL_LEASE_ID)
+      if (!leaseId) continue
+
+      renewals.push(
+        renewSlot(leaseId, runtimeConfig).catch(() => {
+          // Lease may have already expired or been released; non-fatal.
+          return false
+        })
+      )
+    }
+
+    if (renewals.length > 0) {
+      await Promise.all(renewals)
+    }
+  }
+
+  private releaseParallelLeaseFromTask(
+    listId: string,
+    taskId: string,
+    outcome: "completed" | "failed" | "cancelled",
+    reason?: string
+  ): void {
+    const task = readTask(listId, taskId, this.config)
+    if (!task) return
+
+    const leaseId = getMetadataString(task.metadata, META_PARALLEL_LEASE_ID)
+    const runId = getMetadataString(task.metadata, META_PARALLEL_RUN_ID)
+    const runtimeConfig = resolveParallelRuntimeConfig(this.config.parallel_runtime)
+
+    if (runtimeConfig.enabled && runId) {
+      recordRunEvent(
+        {
+          runId,
+          subsystem: "swarm",
+          type: outcome,
+          leaseId,
+          metadata: reason ? { reason } : undefined,
+        },
+        runtimeConfig
+      ).catch(() => {})
+    }
+
+    if (runtimeConfig.enabled && leaseId) {
+      releaseSlot(leaseId, runtimeConfig).catch(() => {})
+    }
+
+    updateTask(
+      listId,
+      {
+        taskId,
+        metadata: {
+          [META_PARALLEL_LEASE_ID]: null,
+          [META_PARALLEL_RUN_ID]: null,
+          [META_PARALLEL_SUBSYSTEM]: null,
+        },
+      },
+      this.config
+    )
   }
 
   /**
@@ -898,12 +996,19 @@ export class CoordinatorAgent {
 
       case "task_completed":
         this.coordConfig.onTaskCompleted?.(payload.taskId, payload.agentId)
+        {
+          const manifest = readManifest(this.coordConfig.teamName, this.config)
+          if (manifest) {
+            const listId = manifest.taskListId ?? this.coordConfig.teamName
+            this.releaseParallelLeaseFromTask(listId, payload.taskId, "completed")
+          }
+        }
         break
 
       case "idle_notification":
         // Worker is idle - trigger immediate auto-assign for responsiveness
         // (coordination loop also runs periodically as fallback)
-        autoAssignTasks(this.coordConfig.teamName, this.identity.id, this.config)
+        await this.autoAssignWithAdmissionControl()
         break
 
       case "permission_request":
@@ -924,6 +1029,12 @@ export class CoordinatorAgent {
           const manifest = readManifest(this.coordConfig.teamName, this.config)
           if (manifest) {
             const listId = manifest.taskListId ?? this.coordConfig.teamName
+            this.releaseParallelLeaseFromTask(
+              listId,
+              payload.taskId,
+              "failed",
+              payload.reason
+            )
             // Only reassign if the task is still owned by this rejecting worker.
             reassignTask(listId, payload.taskId, payload.reason, this.config, {
               expectedOwnerId: payload.agentId,
@@ -931,7 +1042,7 @@ export class CoordinatorAgent {
           }
         }
         // Trigger auto-assign to try assigning the requeued task to another worker
-        autoAssignTasks(this.coordConfig.teamName, this.identity.id, this.config)
+        await this.autoAssignWithAdmissionControl()
         break
 
       case "plan_approval_request":
@@ -989,10 +1100,13 @@ export class CoordinatorAgent {
         reassignStaleTasks(teamName, this.identity.id, this.config)
       }
 
-      // 2. Auto-assign tasks to idle workers (level-triggered from manifest)
-      autoAssignTasks(teamName, this.identity.id, this.config)
+      // 2. Renew parallel-runtime leases for active swarm tasks
+      await this.renewSwarmLeases()
 
-      // 3. Refresh manifest
+      // 3. Auto-assign tasks to idle workers (level-triggered from manifest)
+      await this.autoAssignWithAdmissionControl()
+
+      // 4. Refresh manifest
       this.manifest = readManifest(teamName, this.config)
     } catch (err) {
       this.coordConfig.onError?.(err instanceof Error ? err : new Error(String(err)))

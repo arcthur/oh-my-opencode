@@ -453,10 +453,10 @@ export async function executeBackgroundTask(
   const { manager } = executorCtx
 
   try {
+    const worktreePathRaw = (args as unknown as { __worktree_path?: unknown }).__worktree_path
     const worktreeDirectory =
-      typeof (args as unknown as { __worktree_path?: unknown }).__worktree_path === "string" &&
-      (args as unknown as { __worktree_path?: string }).__worktree_path.trim().length > 0
-        ? (args as unknown as { __worktree_path?: string }).__worktree_path
+      typeof worktreePathRaw === "string" && worktreePathRaw.trim().length > 0
+        ? worktreePathRaw
         : undefined
 
     const task = await manager.launch({
@@ -530,10 +530,10 @@ export async function executeSyncTask(
       ? await client.session.get({ path: { id: parentContext.sessionID } }).catch(() => null)
       : null
     const parentDirectory = parentSession?.data?.directory ?? directory
+    const worktreePathRaw = (args as unknown as { __worktree_path?: unknown }).__worktree_path
     const worktreeDirectory =
-      typeof (args as unknown as { __worktree_path?: unknown }).__worktree_path === "string" &&
-      (args as unknown as { __worktree_path?: string }).__worktree_path.trim().length > 0
-        ? (args as unknown as { __worktree_path?: string }).__worktree_path
+      typeof worktreePathRaw === "string" && worktreePathRaw.trim().length > 0
+        ? worktreePathRaw
         : undefined
 
     const createResult = await client.session.create({

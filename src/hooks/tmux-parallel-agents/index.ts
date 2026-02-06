@@ -156,6 +156,13 @@ interface SessionInfo {
  * Automatically creates tmux windows and git worktrees for background agent sessions.
  * Integrates with BackgroundManager lifecycle.
  *
+ * **Concurrency note**: This hook is a pure infrastructure layer for tmux windows and
+ * git worktrees.  It does NOT acquire parallel-runtime slots itself because the
+ * underlying BackgroundManager already does so for every background task it launches.
+ * Manual "Option A" worktrees (user-created outside of /start-work or delegate_task)
+ * are intentionally uncontrolled — they bypass global slot limits by design so that
+ * power users retain full manual control.
+ *
  * Features:
  * - Auto-create git worktree for file system isolation
  * - Auto-create tmux window (wm-* naming convention)
@@ -454,9 +461,17 @@ export function createTmuxParallelAgentsHook(
     }
   }
 
-  // Store pending worktree info for session.created mapping
-  // Includes createdAt for stale entry cleanup
-  const pendingWorktrees = new Map<string, { branchName: string; worktreePath: string | null; description: string; createdAt: number }>()
+  type PendingWorktreeInfo = {
+    branchName: string
+    worktreePath: string | null
+    description: string
+    createdAt: number
+  }
+
+  // Store pending worktree info for session.created mapping.
+  // Use queue per parent session to avoid overwriting when multiple
+  // background tasks are launched concurrently from one parent.
+  const pendingWorktrees = new Map<string, PendingWorktreeInfo[]>()
   const PENDING_WORKTREE_TTL_MS = 60000 // 1 minute TTL for pending entries
 
   /**
@@ -464,14 +479,23 @@ export function createTmuxParallelAgentsHook(
    */
   function cleanupStalePendingWorktrees(): void {
     const now = Date.now()
-    for (const [key, pending] of pendingWorktrees) {
-      if (now - pending.createdAt > PENDING_WORKTREE_TTL_MS) {
-        log(`[${HOOK_NAME}] Cleaning up stale pending worktree`, { key, branchName: pending.branchName })
-        // If worktree was created but never used, clean it up
-        if (pending.worktreePath && autoCleanup) {
-          removeWorktree(pending.branchName, pending.worktreePath)
+    for (const [key, queue] of pendingWorktrees) {
+      const activeQueue: PendingWorktreeInfo[] = []
+      for (const pending of queue) {
+        if (now - pending.createdAt > PENDING_WORKTREE_TTL_MS) {
+          log(`[${HOOK_NAME}] Cleaning up stale pending worktree`, { key, branchName: pending.branchName })
+          if (pending.worktreePath && autoCleanup) {
+            removeWorktree(pending.branchName, pending.worktreePath)
+          }
+          continue
         }
+        activeQueue.push(pending)
+      }
+
+      if (activeQueue.length === 0) {
         pendingWorktrees.delete(key)
+      } else {
+        pendingWorktrees.set(key, activeQueue)
       }
     }
   }
@@ -501,7 +525,9 @@ export function createTmuxParallelAgentsHook(
 
       // Store for session.created mapping (with timestamp for TTL cleanup)
       const sessionIdHint = input.sessionID || "unknown"
-      pendingWorktrees.set(sessionIdHint, { branchName, worktreePath, description, createdAt: Date.now() })
+      const queue = pendingWorktrees.get(sessionIdHint) ?? []
+      queue.push({ branchName, worktreePath, description, createdAt: Date.now() })
+      pendingWorktrees.set(sessionIdHint, queue)
 
       // If worktree was created, modify the working directory in args
       if (worktreePath) {
@@ -543,12 +569,31 @@ export function createTmuxParallelAgentsHook(
         let worktreePath: string | null = null
         let branchName = `wm/${slugify(title)}-${taskId}`
 
-        // Try to find matching pending worktree by parentID or description
-        for (const [key, pending] of pendingWorktrees) {
-          if (key === sessionInfo.parentID || pending.description === title) {
+        // Consume queued pending worktree entry by parent session first.
+        const parentQueue = pendingWorktrees.get(sessionInfo.parentID)
+        if (parentQueue && parentQueue.length > 0) {
+          const pending = parentQueue.shift()!
+          worktreePath = pending.worktreePath
+          branchName = pending.branchName
+          if (parentQueue.length === 0) {
+            pendingWorktrees.delete(sessionInfo.parentID)
+          } else {
+            pendingWorktrees.set(sessionInfo.parentID, parentQueue)
+          }
+        } else {
+          // Fallback by description for legacy/best-effort matching.
+          for (const [key, queue] of pendingWorktrees) {
+            const index = queue.findIndex((pending) => pending.description === title)
+            if (index === -1) continue
+            const pending = queue[index]!
+            queue.splice(index, 1)
             worktreePath = pending.worktreePath
             branchName = pending.branchName
-            pendingWorktrees.delete(key)
+            if (queue.length === 0) {
+              pendingWorktrees.delete(key)
+            } else {
+              pendingWorktrees.set(key, queue)
+            }
             break
           }
         }
@@ -617,10 +662,13 @@ export function createTmuxParallelAgentsHook(
         closeWindow(taskId)
       }
       // Clean up any remaining pending worktrees
-      for (const [key, pending] of pendingWorktrees) {
-        if (pending.worktreePath && autoCleanup) {
-          removeWorktree(pending.branchName, pending.worktreePath)
+      for (const [key, queue] of pendingWorktrees) {
+        for (const pending of queue) {
+          if (pending.worktreePath && autoCleanup) {
+            removeWorktree(pending.branchName, pending.worktreePath)
+          }
         }
+        pendingWorktrees.delete(key)
       }
       pendingWorktrees.clear()
     },

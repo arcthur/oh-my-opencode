@@ -1,6 +1,7 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundTask, LaunchInput, ResumeInput } from "./types"
 import type { BackgroundTaskConfig } from "../../config/schema"
+import type { ParallelRuntimeConfig, RunEventType, SlotAcquireRequest } from "../parallel-runtime"
 import {
   TASK_TTL_MS,
   MIN_STABILITY_TIME_MS,
@@ -26,6 +27,13 @@ import { log } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
 import { subagentSessions } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
+import {
+  acquireSlot,
+  recordRunEvent,
+  releaseSlot,
+  renewSlot,
+  resolveParallelRuntimeConfig,
+} from "../parallel-runtime"
 
 type ProcessCleanupHandler = () => void
 
@@ -40,14 +48,17 @@ export class BackgroundManager {
   private concurrencyManager: ConcurrencyManager
   private shutdownTriggered = false
   private config?: BackgroundTaskConfig
+  private parallelRuntimeConfig: ParallelRuntimeConfig
   private onShutdown?: () => void
   private state: TaskStateManager
+  private leaseHeartbeatTimers = new Map<string, ReturnType<typeof setInterval>>()
 
   constructor(
     ctx: PluginInput,
     config?: BackgroundTaskConfig,
     options?: {
       onShutdown?: () => void
+      parallelRuntimeConfig?: Partial<ParallelRuntimeConfig>
     }
   ) {
     this.state = new TaskStateManager()
@@ -55,6 +66,9 @@ export class BackgroundManager {
     this.directory = ctx.directory
     this.concurrencyManager = new ConcurrencyManager(config)
     this.config = config
+    this.parallelRuntimeConfig = resolveParallelRuntimeConfig(
+      options?.parallelRuntimeConfig ?? { enabled: false }
+    )
     this.onShutdown = options?.onShutdown
     this.registerProcessCleanup()
   }
@@ -73,7 +87,137 @@ export class BackgroundManager {
       client: this.client,
       concurrencyManager: this.concurrencyManager,
       state: this.state,
+      onTaskFinalized: async (task, status) => {
+        this.releaseParallelLease(task, status)
+      },
     }
+  }
+
+  private getTaskRunId(task: BackgroundTask): string {
+    if (!task.parallelRunId) {
+      task.parallelRunId = `background:${task.id}`
+    }
+    return task.parallelRunId
+  }
+
+  private shouldUseParallelRuntime(): boolean {
+    return this.parallelRuntimeConfig.enabled
+  }
+
+  private startLeaseHeartbeat(task: BackgroundTask): void {
+    if (!this.shouldUseParallelRuntime()) return
+    if (!task.parallelLeaseId) return
+
+    this.stopLeaseHeartbeat(task.id)
+    const heartbeatMs = this.parallelRuntimeConfig.heartbeat_ms
+    const timer = setInterval(() => {
+      const currentTask = this.state.getTask(task.id)
+      const leaseId = currentTask?.parallelLeaseId
+      if (!leaseId) {
+        this.stopLeaseHeartbeat(task.id)
+        return
+      }
+
+      renewSlot(leaseId, this.parallelRuntimeConfig).catch((error) => {
+        log("[background-agent] Failed to renew global lease", {
+          taskId: task.id,
+          leaseId,
+          error: String(error),
+        })
+      })
+    }, heartbeatMs)
+    timer.unref()
+    this.leaseHeartbeatTimers.set(task.id, timer)
+  }
+
+  private stopLeaseHeartbeat(taskId: string): void {
+    const timer = this.leaseHeartbeatTimers.get(taskId)
+    if (!timer) return
+    clearInterval(timer)
+    this.leaseHeartbeatTimers.delete(taskId)
+  }
+
+  private recordParallelEvent(
+    task: BackgroundTask,
+    type: RunEventType,
+    metadata?: Record<string, unknown>
+  ): void {
+    if (!this.shouldUseParallelRuntime()) return
+    const runId = this.getTaskRunId(task)
+
+    recordRunEvent(
+      {
+        runId,
+        subsystem: "background",
+        type,
+        ownerSessionId: task.sessionID ?? task.parentSessionID,
+        leaseId: task.parallelLeaseId,
+        metadata,
+      },
+      this.parallelRuntimeConfig
+    ).catch((error) => {
+      log("[background-agent] Failed to record parallel runtime event", {
+        taskId: task.id,
+        runId,
+        type,
+        error: String(error),
+      })
+    })
+  }
+
+  private async acquireParallelSlot(
+    task: BackgroundTask,
+    input: { parentSessionID: string; parentAgent?: string }
+  ): Promise<boolean> {
+    if (!this.shouldUseParallelRuntime()) return true
+
+    const request: SlotAcquireRequest = {
+      subsystem: "background",
+      runId: this.getTaskRunId(task),
+      ownerSessionId: task.sessionID ?? input.parentSessionID,
+      metadata: {
+        taskId: task.id,
+        agent: task.agent,
+        category: task.category,
+        parentAgent: input.parentAgent,
+      },
+    }
+
+    const lease = await acquireSlot(request, this.parallelRuntimeConfig)
+    if (!lease) {
+      this.recordParallelEvent(task, "timed_out", {
+        reason: "global_slots_exhausted",
+      })
+      return false
+    }
+
+    task.parallelLeaseId = lease.leaseId
+    this.startLeaseHeartbeat(task)
+    return true
+  }
+
+  private releaseParallelLease(
+    task: BackgroundTask,
+    type: "completed" | "failed" | "cancelled" | "timed_out" | "released",
+    metadata?: Record<string, unknown>
+  ): void {
+    const leaseId = task.parallelLeaseId
+    this.stopLeaseHeartbeat(task.id)
+    this.recordParallelEvent(task, type, metadata)
+
+    if (!this.shouldUseParallelRuntime() || !leaseId) {
+      task.parallelLeaseId = undefined
+      return
+    }
+
+    task.parallelLeaseId = undefined
+    releaseSlot(leaseId, this.parallelRuntimeConfig).catch((error) => {
+      log("[background-agent] Failed to release global lease", {
+        taskId: task.id,
+        leaseId,
+        error: String(error),
+      })
+    })
   }
 
   private handleTaskError(task: BackgroundTask, error: Error): void {
@@ -91,6 +235,9 @@ export class BackgroundManager {
         this.concurrencyManager.release(existingTask.concurrencyKey)
         existingTask.concurrencyKey = undefined
       }
+      this.releaseParallelLease(existingTask, "failed", {
+        error: existingTask.error,
+      })
 
       this.state.markForNotification(existingTask)
       notifyParentSession(existingTask, this.getResultHandlerContext()).catch(err => {
@@ -113,7 +260,9 @@ export class BackgroundManager {
     }
 
     const task = createTask(input)
+    this.getTaskRunId(task)
     this.state.addTask(task)
+    this.recordParallelEvent(task, "queued")
 
     if (input.parentSessionID) {
       this.state.trackPendingTask(input.parentSessionID, task.id)
@@ -158,15 +307,55 @@ export class BackgroundManager {
 
         if (item.task.status === "cancelled") {
           this.concurrencyManager.release(key)
+          this.releaseParallelLease(item.task, "cancelled", {
+            reason: "cancelled_before_start",
+          })
+          queue.shift()
+          continue
+        }
+
+        const acquiredGlobalSlot = await this.acquireParallelSlot(item.task, {
+          parentSessionID: item.input.parentSessionID,
+          parentAgent: item.input.parentAgent,
+        })
+        if (!acquiredGlobalSlot && this.parallelRuntimeConfig.mode === "enforce") {
+          this.concurrencyManager.release(key)
+          item.task.status = "error"
+          item.task.error = "Global parallel slots exhausted (background admission timeout)"
+          item.task.completedAt = new Date()
+          this.state.markForNotification(item.task)
+          await notifyParentSession(item.task, this.getResultHandlerContext()).catch((err) => {
+            log("[background-agent] Failed to notify parent after global slot timeout", {
+              taskId: item.task.id,
+              error: String(err),
+            })
+          })
           queue.shift()
           continue
         }
 
         try {
           await startTask(item, this.getSpawnerContext())
+          this.recordParallelEvent(item.task, "started")
           this.startPolling()
         } catch (error) {
           log("[background-agent] Error starting task:", error)
+          if (!item.task.concurrencyKey) {
+            this.concurrencyManager.release(key)
+          }
+          item.task.status = "error"
+          item.task.error = error instanceof Error ? error.message : String(error)
+          item.task.completedAt = new Date()
+          this.releaseParallelLease(item.task, "failed", {
+            reason: "start_task_failed",
+          })
+          this.state.markForNotification(item.task)
+          await notifyParentSession(item.task, this.getResultHandlerContext()).catch((err) => {
+            log("[background-agent] Failed to notify parent after start error", {
+              taskId: item.task.id,
+              error: String(err),
+            })
+          })
         }
 
         queue.shift()
@@ -203,6 +392,7 @@ export class BackgroundManager {
   }): Promise<BackgroundTask> {
     const existingTask = this.state.getTask(input.taskId)
     if (existingTask) {
+      this.getTaskRunId(existingTask)
       const parentChanged = input.parentSessionID !== existingTask.parentSessionID
       if (parentChanged) {
         this.state.cleanupPendingByParent(existingTask)
@@ -257,8 +447,24 @@ export class BackgroundManager {
     }
 
     this.state.addTask(task)
+    this.getTaskRunId(task)
     subagentSessions.add(input.sessionID)
     this.startPolling()
+
+    const acquiredGlobalSlot = await this.acquireParallelSlot(task, {
+      parentSessionID: input.parentSessionID,
+      parentAgent: input.parentAgent,
+    })
+    if (!acquiredGlobalSlot && this.parallelRuntimeConfig.mode === "enforce") {
+      if (input.concurrencyKey) {
+        this.concurrencyManager.release(input.concurrencyKey)
+      }
+      this.state.removeTask(task.id)
+      throw new Error("Global parallel slots exhausted (trackTask admission timeout)")
+    }
+    this.recordParallelEvent(task, "started", {
+      source: "trackTask",
+    })
 
     if (input.parentSessionID) {
       this.state.trackPendingTask(input.parentSessionID, task.id)
@@ -275,10 +481,34 @@ export class BackgroundManager {
       throw new Error(`Task not found for session: ${input.sessionId}`)
     }
 
-    await resumeTask(existingTask, input, {
-      client: this.client,
-      concurrencyManager: this.concurrencyManager,
-      onTaskError: (task, error) => this.handleTaskError(task, error),
+    this.getTaskRunId(existingTask)
+    if (existingTask.status === "running") {
+      return existingTask
+    }
+
+    const acquiredGlobalSlot = await this.acquireParallelSlot(existingTask, {
+      parentSessionID: input.parentSessionID,
+      parentAgent: input.parentAgent,
+    })
+    if (!acquiredGlobalSlot && this.parallelRuntimeConfig.mode === "enforce") {
+      throw new Error("Global parallel slots exhausted (resume admission timeout)")
+    }
+
+    try {
+      await resumeTask(existingTask, input, {
+        client: this.client,
+        concurrencyManager: this.concurrencyManager,
+        onTaskError: (task, error) => this.handleTaskError(task, error),
+      })
+    } catch (error) {
+      this.releaseParallelLease(existingTask, "failed", {
+        source: "resume",
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
+    this.recordParallelEvent(existingTask, "started", {
+      source: "resume",
     })
 
     this.startPolling()
@@ -381,6 +611,9 @@ export class BackgroundManager {
         this.concurrencyManager.release(task.concurrencyKey)
         task.concurrencyKey = undefined
       }
+      this.releaseParallelLease(task, "cancelled", {
+        reason: "session_deleted",
+      })
       this.state.clearCompletionTimer(task.id)
       this.state.cleanupPendingByParent(task)
       this.state.removeTask(task.id)
@@ -497,6 +730,9 @@ export class BackgroundManager {
           this.concurrencyManager.release(task.concurrencyKey)
           task.concurrencyKey = undefined
         }
+        this.releaseParallelLease(task, "timed_out", {
+          reason: "task_ttl_exceeded",
+        })
         this.state.cleanupPendingByParent(task)
         this.state.clearNotificationsForTask(taskId)
         this.state.removeTask(taskId)
@@ -550,6 +786,9 @@ export class BackgroundManager {
         this.concurrencyManager.release(task.concurrencyKey)
         task.concurrencyKey = undefined
       }
+      this.releaseParallelLease(task, "timed_out", {
+        reason: "stale_timeout",
+      })
 
       this.client.session.abort({
         path: { id: sessionID },
@@ -721,7 +960,15 @@ export class BackgroundManager {
         this.concurrencyManager.release(task.concurrencyKey)
         task.concurrencyKey = undefined
       }
+      this.releaseParallelLease(task, "cancelled", {
+        reason: "manager_shutdown",
+      })
     }
+
+    for (const timer of this.leaseHeartbeatTimers.values()) {
+      clearInterval(timer)
+    }
+    this.leaseHeartbeatTimers.clear()
 
     this.state.clear()
     this.concurrencyManager.clear()

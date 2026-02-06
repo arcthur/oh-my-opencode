@@ -93,6 +93,7 @@ export const HookNameSchema = z.enum([
   "delegate-task-retry",
   "prometheus-md-only",
   "start-work",
+  "swarm-from-plan",
   "atlas",
   "multi-plan-trigger",
   "planning-with-files",
@@ -346,6 +347,25 @@ export const BackgroundTaskConfigSchema = z.object({
   staleTimeoutMs: z.number().min(60000).optional(),
 })
 
+export const ParallelRuntimeModeSchema = z.enum(["shadow", "enforce"])
+
+export const ParallelRuntimeConfigSchema = z.object({
+  /** Enable global parallel runtime arbitration (default: true) */
+  enabled: z.boolean().default(true),
+  /** Admission mode: shadow=observe only, enforce=hard cap (default: shadow) */
+  mode: ParallelRuntimeModeSchema.default("shadow"),
+  /** Global slot count shared by background/swarm (default: 6) */
+  global_slots: z.number().min(1).max(1000).default(6),
+  /** Lease TTL in milliseconds (default: 120000) */
+  lease_ttl_ms: z.number().min(1000).default(120000),
+  /** Heartbeat/renew interval hint in milliseconds (default: 10000) */
+  heartbeat_ms: z.number().min(1000).default(10000),
+  /** Max wait to acquire slot in enforce mode (default: 15000) */
+  acquire_timeout_ms: z.number().min(100).default(15000),
+  /** Lock wait timeout for runtime state operations (default: 2000) */
+  lock_timeout_ms: z.number().min(100).default(2000),
+})
+
 /** Tmux Parallel Agents Configuration - auto-create tmux windows and git worktrees for background tasks */
 // ============================================================================
 // Sisyphus Tasks & Swarm Configuration
@@ -375,6 +395,10 @@ export const SisyphusSwarmConfigSchema = z.object({
   storage_path: z.string().default(".sisyphus/teams"),
   /** UI mode: toast notifications, tmux panes, or both */
   ui_mode: z.enum(["toast", "tmux", "both"]).default("toast"),
+  /** Swarm-first orchestration: auto-start Swarm from /start-work (default: false) */
+  swarm_first: z.boolean().default(false),
+  /** Target worker count when swarm_first=true (default: 3) */
+  worker_count: z.number().min(0).max(10).default(3),
 })
 
 export const SisyphusConfigSchema = z.object({
@@ -957,6 +981,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   skills: SkillsConfigSchema.optional(),
   ralph_loop: RalphLoopConfigSchema.optional(),
   background_task: BackgroundTaskConfigSchema.optional(),
+  parallel_runtime: ParallelRuntimeConfigSchema.optional(),
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
   planning_with_files: PlanningWithFilesConfigSchema.optional(),
@@ -984,6 +1009,8 @@ export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
 export type AgentOverrideConfig = z.infer<typeof AgentOverrideConfigSchema>
 export type AgentOverrides = z.infer<typeof AgentOverridesSchema>
 export type BackgroundTaskConfig = z.infer<typeof BackgroundTaskConfigSchema>
+export type ParallelRuntimeMode = z.infer<typeof ParallelRuntimeModeSchema>
+export type ParallelRuntimeConfig = z.infer<typeof ParallelRuntimeConfigSchema>
 export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>
 export type TmuxParallelAgentsConfig = z.infer<typeof TmuxParallelAgentsConfigSchema>
 export type AgentName = z.infer<typeof AgentNameSchema>

@@ -434,7 +434,10 @@ export function assignTask(
   listId: string,
   taskId: string,
   agentId: string,
-  config: Partial<OhMyOpenCodeConfig>
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: {
+    metadata?: Record<string, unknown>
+  }
 ): Task | null {
   const taskPath = getTaskPath(listId, taskId, config)
 
@@ -462,7 +465,11 @@ export function assignTask(
       agentId,
       assignedAt: Date.now(),
     })
-    task.metadata = { ...task.metadata, assignmentHistory: history }
+    task.metadata = {
+      ...task.metadata,
+      ...(options?.metadata ?? {}),
+      assignmentHistory: history,
+    }
 
     writeJsonAtomic(taskPath, task)
 

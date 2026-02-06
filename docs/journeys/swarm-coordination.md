@@ -58,6 +58,7 @@ sequenceDiagram
 - **Coordination plane**: a file-based mailbox protocol stored under `.sisyphus/teams/<team>/inboxes/<agentId>/`.
 - **Work plane**: each agent is an independent `opencode` process (often a tmux window).
 - **Task plane**: a shared task pool stored under `.sisyphus/tasks/<listId>/task_*.json`.
+- **Admission plane**: a shared parallel-runtime lease registry under `.sisyphus/runtime/parallel/` that applies global slots across Swarm and Background execution.
 
 Swarm works without a daemon: coordination is done via filesystem reads/writes.
 
@@ -71,6 +72,58 @@ Swarm works without a daemon: coordination is done via filesystem reads/writes.
 6. Stop:
    - `/swarm stop` to stop workers but keep worktrees for manual merge, or
    - `/swarm stop --cleanup` to remove worktrees and branches.
+
+## Swarm-first Bootstrap (from `/start-work`)
+
+Swarm can also be bootstrapped automatically from the “plan → execution” workflow:
+
+1. Generate a plan (`@plan`) and persist it via Planning-with-files.
+2. Run `/start-work`.
+3. If Swarm-first is enabled, the plugin will:
+   - create/recover a Swarm team for the active plan,
+   - sync pending plan TODO blocks into `.sisyphus/tasks/<team>/` (idempotent),
+   - optionally spawn worker windows in tmux (and optional git worktrees).
+
+This binds **task structure**, **workspace isolation**, and **recovery**: tasks are durable (filesystem), workers are isolated (worktrees), and re-running `/start-work` can safely recover state.
+
+### Config (Swarm-first)
+
+Swarm-first requires both Sisyphus Tasks (task pool) and Swarm to be enabled:
+
+```jsonc
+{
+  "sisyphus": {
+    "tasks": { "enabled": true },
+    "swarm": {
+      "enabled": true,
+      "swarm_first": true,
+      "worker_count": 3
+    }
+  },
+  "tmux_parallel_agents": {
+    "enabled": true,
+    "worktree": { "enabled": true }
+  }
+}
+```
+
+### Global Concurrency Admission (Swarm + Background)
+
+Swarm assignment admission can be unified with background execution limits through `parallel_runtime`:
+
+```jsonc
+{
+  "parallel_runtime": {
+    "enabled": true,
+    "mode": "shadow",
+    "global_slots": 6
+  }
+}
+```
+
+Semantics:
+- `shadow`: coordinator still assigns, but records `would_block` events when capacity is exceeded.
+- `enforce`: coordinator stops assigning new tasks when no global slot is available (non-blocking); workers remain idle until capacity returns.
 
 ## Approvals and Safety Controls
 
@@ -103,6 +156,8 @@ Swarm reuses the `tmux_parallel_agents` configuration section for worktree and r
 - `tmux_parallel_agents.worktree.dir_pattern`, `copy_files`, `symlink`: worktree ergonomics.
 - `tmux_parallel_agents.auto_rescue`: periodically detect `(y/n)` prompts and send `y` + Enter (optional).
 
+tmux integration is responsible for process/workspace ergonomics and visibility; concurrency admission is handled by `parallel_runtime`.
+
 Note: Swarm window spawning requires **running inside tmux** and having the `tmux` binary available. Worktrees additionally require a git repository.
 
 ## Where to Look in Code
@@ -118,6 +173,7 @@ Note: Swarm window spawning requires **running inside tmux** and having the `tmu
 ## Debug Checklist
 
 - Ensure `swarm-agent` hook is enabled (not in `disabled_hooks`).
+- If using Swarm-first: ensure `swarm-from-plan` hook is enabled (not in `disabled_hooks`) and `sisyphus.swarm.swarm_first=true`.
 - Ensure worker/coordinator processes have `OPENCODE_SWARM_*` env vars (created by tmux orchestrator).
 - Check `.sisyphus/teams/<team>/manifest.json` exists and members are updating `lastHeartbeat`.
 - Check inbox directories exist: `.sisyphus/teams/<team>/inboxes/<agentId>/`.

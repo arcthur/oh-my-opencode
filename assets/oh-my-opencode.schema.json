@@ -90,6 +90,7 @@
           "delegate-task-retry",
           "prometheus-md-only",
           "start-work",
+          "swarm-from-plan",
           "atlas",
           "multi-plan-trigger",
           "planning-with-files",
@@ -2091,6 +2092,49 @@
         }
       }
     },
+    "parallel_runtime": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "mode": {
+          "default": "shadow",
+          "type": "string",
+          "enum": [
+            "shadow",
+            "enforce"
+          ]
+        },
+        "global_slots": {
+          "default": 6,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "lease_ttl_ms": {
+          "default": 120000,
+          "type": "number",
+          "minimum": 1000
+        },
+        "heartbeat_ms": {
+          "default": 10000,
+          "type": "number",
+          "minimum": 1000
+        },
+        "acquire_timeout_ms": {
+          "default": 15000,
+          "type": "number",
+          "minimum": 100
+        },
+        "lock_timeout_ms": {
+          "default": 2000,
+          "type": "number",
+          "minimum": 100
+        }
+      }
+    },
     "notification": {
       "type": "object",
       "properties": {
@@ -3306,6 +3350,16 @@
                 "tmux",
                 "both"
               ]
+            },
+            "swarm_first": {
+              "default": false,
+              "type": "boolean"
+            },
+            "worker_count": {
+              "default": 3,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10
             }
           }
         }

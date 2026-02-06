@@ -39,6 +39,7 @@ export interface ResultHandlerContext {
   client: OpencodeClient
   concurrencyManager: ConcurrencyManager
   state: TaskStateManager
+  onTaskFinalized?: (task: BackgroundTask, status: "completed") => void | Promise<void>
 }
 
 export async function checkSessionTodos(
@@ -141,6 +142,8 @@ export async function tryCompleteTask(
     concurrencyManager.release(task.concurrencyKey)
     task.concurrencyKey = undefined
   }
+
+  await ctx.onTaskFinalized?.(task, "completed")
 
   state.markForNotification(task)
 
