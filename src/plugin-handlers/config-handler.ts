@@ -47,7 +47,7 @@ export function resolveCategoryConfig(
   return userCategories?.[categoryName] ?? DEFAULT_CATEGORIES[categoryName];
 }
 
-const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus", "atlas"] as const;
+const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus"] as const;
 
 function reorderAgentsByPriority(agents: Record<string, unknown>): Record<string, unknown> {
   const ordered: Record<string, unknown> = {};
@@ -200,7 +200,6 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       explore?: { tools?: Record<string, unknown> };
       librarian?: { tools?: Record<string, unknown> };
       "multimodal-looker"?: { tools?: Record<string, unknown> };
-      atlas?: { tools?: Record<string, unknown> };
       sisyphus?: { tools?: Record<string, unknown> };
     };
     const configAgent = config.agent as AgentConfig | undefined;
@@ -421,27 +420,23 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       const agent = agentResult["multimodal-looker"] as AgentWithPermission;
       agent.permission = { ...agent.permission, task: "deny", look_at: "deny" };
     }
-    if (agentResult["atlas"]) {
-      const agent = agentResult["atlas"] as AgentWithPermission;
-      agent.permission = { ...agent.permission, task: "deny", call_omo_agent: "deny", delegate_task: "allow" };
-    }
     if (agentResult.sisyphus) {
       const agent = agentResult.sisyphus as AgentWithPermission;
-      agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: questionPermission };
+      agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
     if (agentResult.hephaestus) {
       const agent = agentResult.hephaestus as AgentWithPermission;
-      agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: questionPermission };
+      agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
     if (agentResult["prometheus"]) {
       const agent = agentResult["prometheus"] as AgentWithPermission;
-      agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow", question: questionPermission };
+      agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
     if (agentResult["sisyphus-junior"]) {
       const agent = agentResult["sisyphus-junior"] as AgentWithPermission;
       // CRITICAL: Sisyphus-Junior is a focused executor.
       // delegate_task is allowed (research-scoped, enforced by the tool itself).
-      // task is always denied. call_omo_agent is deprecated — use delegate_task instead.
+      // task is always denied.
       agent.permission = { ...agent.permission, task: "deny" };
     }
 

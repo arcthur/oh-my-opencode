@@ -70,16 +70,16 @@ describe("SessionStateCoordinator", () => {
 
     // #when
     coordinator.setSessionAgent("session-1", "prometheus")
-    coordinator.setSessionAgent("session-1", "atlas")
+    coordinator.setSessionAgent("session-1", "sisyphus")
 
     // #then
     expect(coordinator.getSessionAgent("session-1")).toBe("prometheus")
 
     // #when
-    coordinator.updateSessionAgent("session-1", "atlas")
+    coordinator.updateSessionAgent("session-1", "sisyphus")
 
     // #then
-    expect(coordinator.getSessionAgent("session-1")).toBe("atlas")
+    expect(coordinator.getSessionAgent("session-1")).toBe("sisyphus")
 
     // #when
     coordinator.clearSessionAgent("session-1")

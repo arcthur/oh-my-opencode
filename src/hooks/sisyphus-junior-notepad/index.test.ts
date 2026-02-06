@@ -49,10 +49,10 @@ describe("sisyphus-junior-notepad hook", () => {
       clearSessionAgent(sessionID)
     })
 
-    test("injects notepad directive when atlas delegates to sisyphus-junior", async () => {
+    test("injects notepad directive when sisyphus delegates to sisyphus-junior", async () => {
       // given
       const sessionID = "session-2"
-      updateSessionAgent(sessionID, "atlas")
+      updateSessionAgent(sessionID, "sisyphus")
       const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {
@@ -218,7 +218,7 @@ describe("sisyphus-junior-notepad hook", () => {
     test("handles empty prompt", async () => {
       // given
       const sessionID = "session-8"
-      updateSessionAgent(sessionID, "atlas")
+      updateSessionAgent(sessionID, "sisyphus")
       const hook = createSisyphusJuniorNotepadHook(createMockCtx())
       const output = {
         args: {

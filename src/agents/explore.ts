@@ -30,7 +30,6 @@ export function createExploreAgent(model: string): AgentConfig {
     "edit",
     "task",
     "delegate_task",
-    "call_omo_agent",
   ])
 
   return {

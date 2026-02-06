@@ -22,7 +22,6 @@ export const BuiltinAgentNameSchema = z.enum([
   "librarian",
   "explore",
   "multimodal-looker",
-  "atlas",
   "plan-synthesizer",
   "hephaestus",
 ])
@@ -54,7 +53,6 @@ export const OverridableAgentNameSchema = z.enum([
   "librarian",
   "explore",
   "multimodal-looker",
-  "atlas",
   "plan-synthesizer",
   "hephaestus",
 ])
@@ -94,7 +92,7 @@ export const HookNameSchema = z.enum([
   "prometheus-md-only",
   "start-work",
   "swarm-from-plan",
-  "atlas",
+  "execution-orchestrator",
   "multi-plan-trigger",
   "planning-with-files",
   "silent-tool-output",
@@ -178,7 +176,6 @@ export const AgentOverridesSchema = z.object({
   librarian: AgentOverrideConfigSchema.optional(),
   explore: AgentOverrideConfigSchema.optional(),
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
-  atlas: AgentOverrideConfigSchema.optional(),
   "plan-synthesizer": AgentOverrideConfigSchema.optional(),
 })
 

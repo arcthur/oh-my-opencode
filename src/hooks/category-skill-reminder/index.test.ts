@@ -54,11 +54,11 @@ describe("category-skill-reminder hook", () => {
       clearSessionAgent(sessionID)
     })
 
-    test("should inject reminder for atlas agent", async () => {
-      // given - atlas agent session
+    test("should NOT inject reminder for prometheus agent", async () => {
+      // given - prometheus agent session
       const hook = createCategorySkillReminderHook(createMockPluginInput())
-      const sessionID = "atlas-session"
-      updateSessionAgent(sessionID, "Atlas")
+      const sessionID = "prometheus-session"
+      updateSessionAgent(sessionID, "Prometheus")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -67,8 +67,8 @@ describe("category-skill-reminder hook", () => {
       await hook["tool.execute.after"]({ tool: "bash", sessionID, callID: "2" }, output)
       await hook["tool.execute.after"]({ tool: "bash", sessionID, callID: "3" }, output)
 
-      // then - reminder should be injected
-      expect(output.output).toContain("[Category+Skill Reminder]")
+      // then - reminder should not be injected
+      expect(output.output).not.toContain("[Category+Skill Reminder]")
 
       clearSessionAgent(sessionID)
     })
@@ -149,16 +149,16 @@ describe("category-skill-reminder hook", () => {
       clearSessionAgent(sessionID)
     })
 
-    test("should NOT inject reminder if call_omo_agent is used", async () => {
-      // given - sisyphus agent that uses call_omo_agent
+    test("should NOT inject reminder if delegate_task is used for research", async () => {
+      // given - sisyphus agent that uses delegate_task for research
       const hook = createCategorySkillReminderHook(createMockPluginInput())
       const sessionID = "omo-agent-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
       const output = { title: "", output: "result", metadata: {} }
 
-      // when - call_omo_agent is used first
-      await hook["tool.execute.after"]({ tool: "call_omo_agent", sessionID, callID: "1" }, output)
+      // when - delegate_task is used first
+      await hook["tool.execute.after"]({ tool: "delegate_task", sessionID, callID: "1" }, output)
       await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "2" }, output)
       await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "3" }, output)
       await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "4" }, output)

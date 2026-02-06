@@ -32,7 +32,7 @@ import {
   createStopContinuationGuardHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
-  createAtlasHook,
+  createExecutionOrchestratorHook,
   createPrometheusMdOnlyHook,
   createMultiPlanTriggerHook,
   createPlanningWithFilesHook,
@@ -77,7 +77,6 @@ import {
 import { sessionStateCoordinator } from "./features/session-state-coordinator";
 import {
   builtinTools,
-  createCallOmoAgent,
   createBackgroundTools,
   createLookAt,
   createSkillTool,
@@ -97,7 +96,7 @@ import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { createWorkStateManager } from "./features/work-state";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION, includesCaseInsensitive } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
 import { DEFAULT_HANDOFF_CONFIG } from "./features/session-handoff";
 import { loadPluginConfig } from "./plugin-config";
@@ -342,8 +341,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     parallelRuntimeConfig: pluginConfig.parallel_runtime ?? { enabled: true },
   });
 
-  const atlasHook = isHookEnabled("atlas")
-    ? createAtlasHook(ctx, { directory: ctx.directory, backgroundManager })
+  const executionOrchestratorHook = isHookEnabled("execution-orchestrator")
+    ? createExecutionOrchestratorHook(ctx, { directory: ctx.directory, backgroundManager })
     : null;
 
   initTaskToastManager(ctx.client);
@@ -530,7 +529,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
   const backgroundTools = createBackgroundTools(backgroundManager, ctx.client);
 
-  const callOmoAgent = createCallOmoAgent(ctx, backgroundManager);
   const lookAt = createLookAt(ctx);
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const delegateTask = createDelegateTask({
@@ -611,7 +609,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     tool: {
       ...builtinTools,
       ...backgroundTools,
-      call_omo_agent: callOmoAgent,
       look_at: lookAt,
       delegate_task: delegateTask,
       multi_plan: multiPlanTool,
@@ -802,7 +799,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await categorySkillReminder?.event?.(input);
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
-      await atlasHook?.handler(input);
+      await executionOrchestratorHook?.handler(input);
       await conditionalRulesHooks?.event?.(input as { event: { type: string; properties?: unknown } });
       await sessionHandoffHook?.event?.(input);
       await tmuxParallelAgents?.event?.(input);
@@ -905,7 +902,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await planningWithFiles?.["tool.execute.before"]?.(input, output);
       await delegationValidator?.["tool.execute.before"]?.(input, output);
       await sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output);
-      await atlasHook?.["tool.execute.before"]?.(input, output);
+      await executionOrchestratorHook?.["tool.execute.before"]?.(input, output);
       await tmuxParallelAgents?.["tool.execute.before"]?.(input, output);
       await swarmAgent?.["tool.execute.before"]?.(input, output);
 
@@ -936,17 +933,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
-        const subagentType = args.subagent_type as string;
-        const isExploreOrLibrarian = includesCaseInsensitive(
-          ["explore", "librarian"],
-          subagentType ?? ""
-        );
 
         args.tools = {
           ...(args.tools as Record<string, boolean> | undefined),
           delegate_task: false,
-          // call_omo_agent is deprecated; keep disabled for explore/librarian to prevent loops
-          ...(isExploreOrLibrarian ? { call_omo_agent: false } : {}),
         };
       }
 
@@ -1153,7 +1143,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await interactiveBashSession?.["tool.execute.after"](input, output);
       await editErrorRecovery?.["tool.execute.after"](input, output);
       await delegateTaskRetry?.["tool.execute.after"](input, output);
-      await atlasHook?.["tool.execute.after"]?.(input, output);
+      await executionOrchestratorHook?.["tool.execute.after"]?.(input, output);
       await taskResumeInfo["tool.execute.after"](input, output);
       await sessionHandoffHook?.["tool.execute.after"]?.(input, output);
       await swarmAgent?.["tool.execute.after"]?.(input, output);

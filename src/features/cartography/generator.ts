@@ -23,7 +23,7 @@ import type {
 } from "./types"
 import {
   CODEMAP_FILE_NAME,
-  ROOT_ATLAS_FILE_NAME,
+  ROOT_PROJECT_MAP_FILE_NAME,
   MAX_ROOT_CODEMAP_LINES,
   MIN_ROOT_CODEMAP_LINES,
   MAX_SUBDIR_CODEMAP_LINES,
@@ -94,16 +94,16 @@ export function writeCodemap(content: string, meta: CodemapMeta): void {
 }
 
 /**
- * Generate root atlas (aggregation of all codemaps)
+ * Generate project map (aggregation of all codemaps)
  */
-export function generateRootAtlas(
+export function generateProjectMap(
   projectRoot: string,
   codemaps: CodemapMeta[]
 ): string {
   const lines: string[] = []
 
   // Header
-  lines.push("# PROJECT ATLAS")
+  lines.push("# PROJECT MAP")
   lines.push("")
   lines.push(`> Generated: ${new Date().toISOString()}`)
   lines.push(`> Codemaps: ${codemaps.length}`)
@@ -591,7 +591,7 @@ function isImportantFile(name: string): boolean {
 }
 
 /**
- * Build tree structure for atlas
+ * Build tree structure for project map
  */
 function buildTreeStructure(projectRoot: string, codemaps: CodemapMeta[]): string[] {
   const lines: string[] = []

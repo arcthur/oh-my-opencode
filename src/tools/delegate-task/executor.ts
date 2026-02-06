@@ -249,7 +249,6 @@ export async function executeSyncContinuation(
           ...(resumeAgent ? getAgentToolRestrictions(resumeAgent) : {}),
           task: false,
           delegate_task: false,
-          call_omo_agent: true, // deprecated but kept for backward compat
           question: false,
         },
         parts: [{ type: "text", text: args.prompt }],
@@ -643,7 +642,6 @@ export async function executeSyncTask(
           tools: {
             task: false,
             delegate_task: allowDelegateTask,
-            call_omo_agent: true, // deprecated but kept for backward compat
             question: false,
           },
           parts: [{ type: "text", text: args.prompt }],

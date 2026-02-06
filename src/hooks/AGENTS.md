@@ -10,7 +10,7 @@ Hook collection intercepting/modifying agent behavior across multiple lifecycle 
 
 ```
 hooks/
-├── atlas/                      # Orchestration, delegation & protocols (uses work-state)
+├── execution-orchestrator/     # Execution-mode orchestration protocols (uses work-state)
 ├── planning-with-files/        # Manus-style planning (uses work-state)
 ├── start-work/                 # Session initialization (uses work-state)
 ├── context-window-limit-recovery/  # Auto-summarize at token limit
@@ -60,9 +60,9 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 
 **chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → swarmFromPlan → multiPlanTrigger → planningWithFiles → preCompletionVerification → stopContinuationGuard → (ralphLoop start/cancel)
 
-**tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → atlasHook → tmuxParallelAgents → swarmAgent → silentToolOutput
+**tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → executionOrchestratorHook → tmuxParallelAgents → swarmAgent → silentToolOutput
 
-**tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → preemptiveCompaction → contextWindowMonitor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → agentUsageReminder → categorySkillReminder → interactiveBashSession → editErrorRecovery → delegateTaskRetry → atlasHook → taskResumeInfo → sessionHandoffHook → swarmAgent
+**tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → preemptiveCompaction → contextWindowMonitor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → agentUsageReminder → categorySkillReminder → interactiveBashSession → editErrorRecovery → delegateTaskRetry → executionOrchestratorHook → taskResumeInfo → sessionHandoffHook → swarmAgent
 
 Notes:
 - Conditional rules and governance add additional per-tool logic inside these handlers (see `src/index.ts`).

@@ -13,8 +13,7 @@ export const AGENT_NAME_MAP: Record<string, string> = {
   librarian: "librarian",
   explore: "explore",
   "multimodal-looker": "multimodal-looker",
-  "orchestrator-sisyphus": "atlas",
-  atlas: "atlas",
+  "orchestrator-sisyphus": "sisyphus",
   prometheus: "prometheus",
   "prometheus (planner)": "prometheus",
   metis: "plan-synthesizer",
@@ -31,7 +30,6 @@ export const BUILTIN_AGENT_NAMES = new Set([
   "explore",
   "multimodal-looker",
   "prometheus",
-  "atlas",
   "build",
 ])
 
@@ -41,7 +39,7 @@ export const HOOK_NAME_MAP: Record<string, string | null> = {
   // Legacy names (backward compatibility)
   "anthropic-auto-compact": "context-window-limit-recovery",
   "anthropic-context-window-limit-recovery": "context-window-limit-recovery",
-  "sisyphus-orchestrator": "atlas",
+  "sisyphus-orchestrator": "execution-orchestrator",
 
   // Removed / unsupported hooks - filtered out and user warned
   "empty-message-sanitizer": null,

@@ -6,7 +6,6 @@ import { createOracleAgent, ORACLE_PROMPT_METADATA } from "./oracle"
 import { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
 import { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
 import { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "./multimodal-looker"
-import { createAtlasAgent } from "./atlas"
 import { createPlanSynthesizerAgent, planSynthesizerPromptMetadata } from "./plan-synthesizer"
 import { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
 import type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynamic-agent-prompt-builder"
@@ -33,9 +32,6 @@ const agentSources: Record<BuiltinAgentName, AgentSource> = {
   librarian: createLibrarianAgent,
   explore: createExploreAgent,
   "multimodal-looker": createMultimodalLookerAgent,
-  // Note: Atlas is handled specially in createBuiltinAgents()
-  // because it needs OrchestratorContext, not just a model string
-  atlas: createAtlasAgent as unknown as AgentFactory,
   "plan-synthesizer": createPlanSynthesizerAgent,
 }
 
@@ -322,7 +318,6 @@ export async function createBuiltinAgents(
 
     if (agentName === "sisyphus") continue
     if (agentName === "hephaestus") continue
-    if (agentName === "atlas") continue
     if (disabledAgents.some((name) => name.toLowerCase() === agentName.toLowerCase())) continue
 
     const override = agentOverrides[agentName]
@@ -487,44 +482,6 @@ export async function createBuiltinAgents(
 
   for (const [name, config] of pendingAgentConfigs) {
     result[name] = config
-  }
-
-  if (!disabledAgents.some((name) => name.toLowerCase() === "atlas")) {
-    const orchestratorOverride = agentOverrides["atlas"]
-      ?? Object.entries(agentOverrides).find(([key]) => key.toLowerCase() === "atlas")?.[1]
-    const typedOrchestratorOverride = orchestratorOverride as AgentOverrideConfig | undefined
-    const atlasRequirement = AGENT_MODEL_REQUIREMENTS["atlas"]
-
-    const atlasResolution = applyModelResolution({
-      // NOTE: Atlas does NOT use uiSelectedModel - respects its own fallbackChain
-      userModel: typedOrchestratorOverride?.model ? extractSingleModel(typedOrchestratorOverride.model) : undefined,
-      categoryDefaultModel: typedOrchestratorOverride?.category ? mergedCategories[typedOrchestratorOverride.category]?.model : undefined,
-      requirement: atlasRequirement,
-      availableModels,
-      systemDefaultModel,
-    })
-
-    if (atlasResolution) {
-      const { model: atlasModel, variant: atlasResolvedVariant } = atlasResolution
-
-      let orchestratorConfig = createAtlasAgent({
-        model: atlasModel,
-        availableAgents,
-        availableSkills,
-        userCategories: categories,
-      })
-
-      if (atlasResolvedVariant) {
-        orchestratorConfig = { ...orchestratorConfig, variant: atlasResolvedVariant }
-      }
-
-      orchestratorConfig = applyOverrides(orchestratorConfig, typedOrchestratorOverride, mergedCategories, {
-        gitMasterConfig,
-        browserProvider,
-      })
-
-      result["atlas"] = orchestratorConfig
-    }
   }
 
   return result

@@ -95,7 +95,7 @@ This feature is a hook named `delegation-validator`. Disable it with:
 - Hook: `src/hooks/delegation-validator/index.ts`
 - Decision schema: `src/delegation/types.ts`
 - Extraction + validation logic: `src/delegation/validator.ts`
-- Orchestrator prompt responsibilities: `src/agents/sisyphus.ts`
+- Orchestrator prompt responsibilities: `src/agents/sisyphus/index.ts`
 
 ## Debug Checklist
 

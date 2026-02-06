@@ -107,7 +107,7 @@ Cartography stores persistent state under:
 It may generate:
 
 - `codemap.md` files across the repo
-- A root `atlas.md` (if enabled by the cartography workflow)
+- A root `project-map.md` (if enabled by the cartography workflow)
 
 See `docs/research/cartography.md` and `src/features/cartography/`.
 

@@ -246,11 +246,11 @@ describe("prometheus-md-only", () => {
       expect(output.args.prompt).toContain(SYSTEM_DIRECTIVE_PREFIX)
     })
 
-    test("should inject read-only warning when Prometheus calls call_omo_agent", async () => {
+    test("should inject read-only warning when Prometheus calls delegate_task", async () => {
       // given
       const hook = createPrometheusMdOnlyHook(createMockPluginInput())
       const input = {
-        tool: "call_omo_agent",
+        tool: "delegate_task",
         sessionID: TEST_SESSION_ID,
         callID: "call-1",
       }

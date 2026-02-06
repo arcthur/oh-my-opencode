@@ -16,7 +16,7 @@
 >
 > [!TIP]
 >
-> [![Oh My OpenCode 3.0이 정식 출시되었습니다!](./.github/assets/orchestrator-atlas.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0)
+> [![Oh My OpenCode 3.0이 정식 출시되었습니다!](./.github/assets/orchestrator-sisyphus.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0)
 > > **Oh My OpenCode 3.0이 정식 출시되었습니다! `oh-my-opencode@latest`를 사용하여 설치하세요.**
 >
 > 함께해요!

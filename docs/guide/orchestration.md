@@ -260,7 +260,7 @@ Deep dive (recommended): `docs/journeys/context-packs-and-manifests.md`
 
 ### 8.2 Deterministic Injection (v2)
 
-When Atlas calls `delegate_task(...)`, if the prompt contains:
+When Sisyphus Execution Mode calls `delegate_task(...)`, if the prompt contains:
 
 ```text
 Context Packs: global, tooling
@@ -298,7 +298,7 @@ Benefits:
 - When Prometheus generates the plan:
   - Also generate `.sisyphus/context-manifests/{name}.md`
   - Every TODO block must include a `Context Packs:` selector line (used by the injector)
-- When Atlas delegates:
+- When Sisyphus Execution Mode delegates:
   - Copy the TODO’s `Context Packs:` line verbatim into the `delegate_task` prompt (keep it a single line)
 
 ### 8.4 Troubleshooting (Quick)

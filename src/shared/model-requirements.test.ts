@@ -130,21 +130,6 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(primary.variant).toBe("max")
   })
 
-  test("atlas has valid fallbackChain with k2p5 as primary (kimi-for-coding prioritized)", () => {
-    // given - atlas agent requirement
-    const atlas = AGENT_MODEL_REQUIREMENTS["atlas"]
-
-    // when - accessing Atlas requirement
-    // then - fallbackChain exists with k2p5 as first entry (kimi-for-coding prioritized)
-    expect(atlas).toBeDefined()
-    expect(atlas.fallbackChain).toBeArray()
-    expect(atlas.fallbackChain.length).toBeGreaterThan(0)
-
-    const primary = atlas.fallbackChain[0]
-    expect(primary.model).toBe("k2p5")
-    expect(primary.providers[0]).toBe("kimi-for-coding")
-  })
-
   test("hephaestus requires gpt-5.2-codex", () => {
     // #given - hephaestus agent requirement
     const hephaestus = AGENT_MODEL_REQUIREMENTS["hephaestus"]
@@ -155,8 +140,8 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(hephaestus.requiresModel).toBe("gpt-5.2-codex")
   })
 
-  test("all 9 builtin agents have valid fallbackChain arrays", () => {
-    // #given - list of 9 agent names
+  test("all 8 builtin agents have valid fallbackChain arrays", () => {
+    // #given - list of 8 agent names
     const expectedAgents = [
       "sisyphus",
       "hephaestus",
@@ -165,7 +150,6 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
       "explore",
       "multimodal-looker",
       "prometheus",
-      "atlas",
       "plan-synthesizer",
     ]
 
@@ -173,7 +157,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     const definedAgents = Object.keys(AGENT_MODEL_REQUIREMENTS)
 
     // #then - all agents present with valid fallbackChain
-    expect(definedAgents).toHaveLength(9)
+    expect(definedAgents).toHaveLength(8)
     for (const agent of expectedAgents) {
       const requirement = AGENT_MODEL_REQUIREMENTS[agent]
       expect(requirement).toBeDefined()

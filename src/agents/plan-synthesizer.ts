@@ -700,7 +700,6 @@ export function createPlanSynthesizerAgent(model: string): AgentConfig {
   const restrictions = createAgentToolRestrictions([
     "task",
     "delegate_task",
-    "call_omo_agent",
   ])
 
   const base = {

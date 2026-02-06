@@ -55,7 +55,7 @@ Cartography creates structured documentation files (codemap.md) that capture:
 
 4. **Generation Phase**
    - Generate codemap.md for qualifying directories
-   - Generate root atlas.md aggregating all codemaps
+   - Generate root project-map.md aggregating all codemaps
    - Update state file (.opencode/cartography.json)
 
 ## Output Structure
@@ -71,7 +71,7 @@ Cartography creates structured documentation files (codemap.md) that capture:
 - Never repeats parent content
 - Specific to this directory's domain
 
-### Root Atlas (./atlas.md)
+### Root Project Map (./project-map.md)
 - Index of all codemaps
 - Quick navigation structure
 - Aggregated project view
@@ -89,7 +89,7 @@ State is persisted in \`.opencode/cartography.json\`:
 ### Auto-Injection (codemap-injector hook)
 When reading files, relevant codemaps are automatically injected:
 - Working directory codemap for implementation context
-- Root atlas for architecture questions
+- Root project map for architecture questions
 
 ### Session Handoff
 Planned: codemap references preserved across sessions via handoff integration.

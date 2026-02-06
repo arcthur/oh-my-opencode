@@ -142,7 +142,7 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available built-in agents: `sisyphus`, `atlas`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`, `hephaestus`
+Available built-in agents: `sisyphus`, `sisyphus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`, `hephaestus`
 
 ## Multi-Plan Pipeline
 
@@ -477,7 +477,7 @@ Within the Native tier, models fall back based on capability requirements:
 
 | Capability | 1st Choice | 2nd Choice | 3rd Choice |
 |------------|------------|------------|------------|
-| **High-tier tasks** (Sisyphus, Atlas) | Claude Opus | OpenAI GPT-5.2 | Gemini 3 Pro |
+| **High-tier tasks** (Sisyphus, Sisyphus Execution Mode) | Claude Opus | OpenAI GPT-5.2 | Gemini 3 Pro |
 | **Standard tasks** | Claude Sonnet | OpenAI GPT-5.2 | Gemini 3 Flash |
 | **Quick tasks** | Claude Haiku | OpenAI GPT-5.1-mini | Gemini 3 Flash |
 | **Deep reasoning** (Oracle) | OpenAI GPT-5.2-Codex | Claude Opus | Gemini 3 Pro |
@@ -493,7 +493,7 @@ Within the Native tier, models fall back based on capability requirements:
 | **Sisyphus** | High-tier (isMax20) or Standard | `anthropic/claude-opus-4-5` or `anthropic/claude-sonnet-4-5` |
 | **Oracle** | Deep reasoning | `openai/gpt-5.2-codex` |
 | **Prometheus** | High-tier/Standard | Same as Sisyphus |
-| **Atlas** | High-tier/Standard | Same as Sisyphus |
+| **Sisyphus Execution Mode** | High-tier/Standard | Same as Sisyphus |
 | **plan-synthesizer** | High-tier/Standard | Typically Opus-class or same as Sisyphus |
 | **multimodal-looker** | Visual | `google/gemini-3-pro-preview` |
 
@@ -616,7 +616,7 @@ The `isMax20` flag (Claude Max 20x mode) affects high-tier task model selection:
 | `true` | Uses `unspecified-high` | Opus-class models |
 | `false` | Uses `unspecified-low` | Sonnet-class models |
 
-**Affected agents**: Sisyphus, Prometheus, Atlas
+**Affected agents**: Sisyphus, Prometheus, Sisyphus Execution Mode
 
 **Why?**: Max20 users have 20x more Claude usage, so they can afford Opus for orchestration. Standard users should conserve quota with Sonnet.
 

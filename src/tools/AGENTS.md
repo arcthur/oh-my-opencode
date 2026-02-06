@@ -37,7 +37,7 @@ tools/
 | LSP | lsp_goto_definition, lsp_find_references, lsp_symbols, lsp_diagnostics, lsp_prepare_rename, lsp_rename | Direct |
 | Search | ast_grep_search, ast_grep_replace, grep, glob | Direct |
 | Session | session_list, session_read, session_search, session_info | Direct |
-| Agent | delegate_task, call_omo_agent | Factory |
+| Agent | delegate_task | Factory |
 | Background | background_output, background_cancel | Factory |
 | System | interactive_bash, look_at | Mixed |
 | Skill | skill, skill_mcp, slashcommand | Factory |

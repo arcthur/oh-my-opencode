@@ -32,7 +32,7 @@ The built-in agent names surfaced by configuration (`BuiltinAgentNameSchema`) ar
 
 - `sisyphus` (primary user-facing agent)
 - `hephaestus` (high-autonomy executor)
-- `atlas` (orchestrator/conductor)
+- `sisyphus` (orchestrator/conductor)
 - `oracle` (high-accuracy consultation)
 - `librarian` (docs and research)
 - `explore` (codebase exploration)
@@ -103,8 +103,7 @@ Later layers override earlier layers for the same agent name.
 The plugin enforces additional permission constraints after agent assembly (defense-in-depth).
 Notable enforced behaviors include:
 
-- `atlas` is denied `task` and `call_omo_agent`, and is allowed `delegate_task`.
-- `sisyphus`, `hephaestus`, and `prometheus` are allowed `delegate_task` and denied `call_omo_agent` (deprecated).
+- `sisyphus`, `hephaestus`, and `prometheus` are allowed `delegate_task`.
 - `sisyphus-junior` has `delegate_task` in research-scoped mode (explore/librarian only, no categories, no skill injection). `task` is forcibly denied regardless of config-layer overrides.
 
 See `src/plugin-handlers/config-handler.ts`.

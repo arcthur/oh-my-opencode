@@ -22,8 +22,8 @@ export interface InjectionTrigger {
   /** Directories relevant to the query */
   relevantDirs: string[]
 
-  /** Whether to inject root atlas */
-  injectRootAtlas: boolean
+  /** Whether to inject root project map */
+  injectRootProjectMap: boolean
 }
 
 /**
@@ -53,8 +53,8 @@ export interface SessionInjectionState {
   /** Directories already injected in this session */
   injectedDirs: Set<string>
 
-  /** Whether root atlas was injected */
-  rootAtlasInjected: boolean
+  /** Whether root project map was injected */
+  rootProjectMapInjected: boolean
 
   /** Total tokens injected */
   tokensInjected: number

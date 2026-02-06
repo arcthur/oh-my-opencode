@@ -20,7 +20,7 @@ flowchart TD
   CH --> SW
 
   SW --> MODE{"Swarm-first enabled?"}
-  MODE -->|No| AT["Single-session execution (atlas orchestration)"]
+  MODE -->|No| AT["Single-session execution (execution-orchestrator hook)"]
   MODE -->|Yes| SF["Swarm-first bootstrap (swarm-from-plan)\nSync TODOs -> task pool; (optional) spawn workers"]
 
   AT --> TOOL["Tools (Read/Glob/Grep/LSP/Edit/Bash/...)"]
@@ -52,7 +52,7 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 
 ## Where to Look in Code
 
-- Orchestrator hook: `src/hooks/atlas/`
+- Orchestrator hook: `src/hooks/execution-orchestrator/`
 - Start-work bootstrap: `src/hooks/start-work/`
 - Planning-with-files hook: `src/hooks/planning-with-files/`
 - Multi-plan trigger: `src/hooks/multi-plan-trigger/`

@@ -1,6 +1,6 @@
 # Understanding the Orchestration System
 
-Oh My OpenCode's orchestration system transforms a simple AI agent into a coordinated development team. This document explains how the Prometheus → Atlas → Junior workflow creates high-quality, reliable code output.
+Oh My OpenCode's orchestration system transforms a simple AI agent into a coordinated development team. This document explains how the Prometheus → Sisyphus Execution Mode → Junior workflow creates high-quality, reliable code output.
 
 ---
 
@@ -29,7 +29,7 @@ flowchart TB
     end
     
     subgraph Execution["Execution Layer (Orchestrator)"]
-        Orchestrator["Atlas<br/>(Conductor)<br/>Claude Opus 4.5"]
+        Orchestrator["Sisyphus Execution Mode<br/>(Conductor)<br/>Claude Opus 4.5"]
     end
     
     subgraph Workers["Worker Layer (Specialized Agents)"]
@@ -128,7 +128,7 @@ For complex or high-accuracy planning, Prometheus can call `multi_plan` to:
 
 ---
 
-## Layer 2: Execution (Atlas)
+## Layer 2: Execution (Sisyphus Execution Mode)
 
 ### The Conductor Mindset
 
@@ -136,7 +136,7 @@ The Orchestrator is like an orchestra conductor: **it doesn't play instruments, 
 
 ```mermaid
 flowchart LR
-    subgraph Orchestrator["Atlas"]
+    subgraph Orchestrator["Sisyphus Execution Mode"]
         Read["1. Read Plan"]
         Analyze["2. Analyze Tasks"]
         Wisdom["3. Accumulate Wisdom"]
@@ -378,7 +378,7 @@ delegate_task(
 ```mermaid
 sequenceDiagram
     participant User
-    participant Orchestrator as Atlas
+    participant Orchestrator as Sisyphus Execution Mode
     participant Junior as Sisyphus-Junior
     participant Notepad as .sisyphus/notepads/
     
@@ -418,7 +418,7 @@ sequenceDiagram
 ### 1. Separation of Concerns
 
 - **Planning** (Prometheus): High reasoning, interview, strategic thinking
-- **Orchestration** (Atlas): Coordination, verification, wisdom accumulation
+- **Orchestration** (Sisyphus Execution Mode): Coordination, verification, wisdom accumulation
 - **Execution** (Junior): Focused implementation, no distractions
 
 ### 2. Explicit Over Implicit

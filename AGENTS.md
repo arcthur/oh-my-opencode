@@ -44,7 +44,7 @@ oh-my-opencode/
 | Skill MCP | `src/features/skill-mcp-manager/` | MCP servers embedded in skills |
 | CLI installer | `src/cli/install.ts` | Interactive TUI (462 lines) |
 | Doctor checks | `src/cli/doctor/checks/` | 14 health checks across 6 categories |
-| Orchestrator | `src/hooks/atlas/` | Main orchestration hook (771 lines) |
+| Orchestrator | `src/hooks/execution-orchestrator/` | Main orchestration hook (single-track execution mode) |
 
 ## TDD (Test-Driven Development)
 
@@ -143,14 +143,13 @@ bun test               # Run tests (83 test files)
 
 | File | Lines | Description |
 |------|-------|-------------|
-| `src/agents/atlas.ts` | 1383 | Orchestrator agent, 7-section delegation, wisdom accumulation |
+| `src/agents/sisyphus/index.ts` | 615 | Main orchestrator agent prompt |
 | `src/features/builtin-skills/skills.ts` | 1203 | Skill definitions (playwright, git-master, frontend-ui-ux) |
 | `src/agents/prometheus-prompt.ts` | 1196 | Planning agent, interview mode, Momus loop |
 | `src/features/background-agent/manager.ts` | 1165 | Task lifecycle, concurrency, notification batching |
-| `src/hooks/atlas/index.ts` | 771 | Orchestrator hook implementation |
+| `src/hooks/execution-orchestrator/index.ts` | 771 | Orchestrator hook implementation |
 | `src/tools/delegate-task/tools.ts` | 770 | Category-based task delegation |
 | `src/cli/config-manager.ts` | 616 | JSONC parsing, multi-level config |
-| `src/agents/sisyphus.ts` | 615 | Main Sisyphus prompt |
 | `src/features/builtin-commands/templates/refactor.ts` | 619 | Refactoring command template |
 | `src/tools/lsp/client.ts` | 596 | LSP protocol, JSON-RPC |
 

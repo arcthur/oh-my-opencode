@@ -15,7 +15,7 @@ flowchart TD
   OPT --> CLR{"Clearance check\\n(requirements, scope, tests)"}
   CLR -->|Pass| PLAN["Write plan → .sisyphus/plans/<name>.md"]
   CLR -->|Fail| Q
-  PLAN --> EXEC["Execution (/start-work → atlas orchestration)"]
+  PLAN --> EXEC["Execution (/start-work → execution-orchestrator hook)"]
 ```
 
 Prometheus is the strategic planning agent in OpenCode. Named after the Titan who brought fire (knowledge/foresight) to humanity, it brings structure and clarity to complex work through thoughtful consultation.

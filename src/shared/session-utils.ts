@@ -28,14 +28,12 @@ export function getSessionAgentBestEffort(sessionID: string): string | undefined
   return typeof nearest?.agent === "string" ? nearest.agent : undefined
 }
 
-export function isCallerAtlas(sessionID?: string): boolean {
+export function isCallerSisyphus(sessionID?: string): boolean {
   if (!sessionID) return false
   const agent = getSessionAgentBestEffort(sessionID)?.toLowerCase()
-  return agent === "atlas"
+  return agent === "sisyphus"
 }
 
 export function isCallerOrchestrator(sessionID?: string): boolean {
-  if (!sessionID) return false
-  const agent = getSessionAgentBestEffort(sessionID)?.toLowerCase()
-  return agent === "atlas" || agent === "sisyphus"
+  return isCallerSisyphus(sessionID)
 }

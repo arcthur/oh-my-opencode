@@ -79,15 +79,6 @@ export const AGENT_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
       { providers: ["google", "github-copilot", "opencode"], model: "gemini-3-pro" },
     ],
   },
-  atlas: {
-    fallbackChain: [
-      { providers: ["kimi-for-coding"], model: "k2p5" },
-      { providers: ["opencode"], model: "kimi-k2.5-free" },
-      { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-sonnet-4-5" },
-      { providers: ["openai", "github-copilot", "opencode"], model: "gpt-5.2" },
-      { providers: ["google", "github-copilot", "opencode"], model: "gemini-3-pro" },
-    ],
-  },
   "plan-synthesizer": {
     fallbackChain: [
       { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-opus-4-5", variant: "max" },

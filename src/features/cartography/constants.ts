@@ -23,8 +23,8 @@ export const STATE_FILE_NAME = "cartography.json"
 /** Codemap file name */
 export const CODEMAP_FILE_NAME = "codemap.md"
 
-/** Root atlas file name */
-export const ROOT_ATLAS_FILE_NAME = "atlas.md"
+/** Root project map file name */
+export const ROOT_PROJECT_MAP_FILE_NAME = "project-map.md"
 
 // ============================================================================
 // Project-local paths (relative to project root)
@@ -43,9 +43,9 @@ export function getCodemapPath(directory: string): string {
   return join(directory, CODEMAP_FILE_NAME)
 }
 
-/** Root atlas path */
-export function getRootAtlasPath(projectRoot: string): string {
-  return join(projectRoot, ROOT_ATLAS_FILE_NAME)
+/** Root project map path */
+export function getProjectMapPath(projectRoot: string): string {
+  return join(projectRoot, ROOT_PROJECT_MAP_FILE_NAME)
 }
 
 // ============================================================================

@@ -9,7 +9,7 @@ describe("Agent Config Integration", () => {
       // given - config with old format keys
       const oldConfig = {
         Sisyphus: { model: "anthropic/claude-opus-4-5" },
-        Atlas: { model: "anthropic/claude-opus-4-5" },
+        "Sisyphus-Junior": { model: "anthropic/claude-opus-4-5" },
         "Prometheus (Planner)": { model: "anthropic/claude-opus-4-5" },
         "Metis (Plan Consultant)": { model: "anthropic/claude-sonnet-4-5" },
         "Momus (Plan Reviewer)": { model: "anthropic/claude-sonnet-4-5" },
@@ -20,20 +20,20 @@ describe("Agent Config Integration", () => {
 
       // then - keys are lowercase
       expect(result.migrated).toHaveProperty("sisyphus")
-      expect(result.migrated).toHaveProperty("atlas")
+      expect(result.migrated).toHaveProperty("sisyphus-junior")
       expect(result.migrated).toHaveProperty("prometheus")
       expect(result.migrated).toHaveProperty("plan-synthesizer")
 
       // then - old keys are removed
       expect(result.migrated).not.toHaveProperty("Sisyphus")
-      expect(result.migrated).not.toHaveProperty("Atlas")
+      expect(result.migrated).not.toHaveProperty("Sisyphus-Junior")
       expect(result.migrated).not.toHaveProperty("Prometheus (Planner)")
       expect(result.migrated).not.toHaveProperty("Metis (Plan Consultant)")
       expect(result.migrated).not.toHaveProperty("Momus (Plan Reviewer)")
 
       // then - values are preserved
       expect(result.migrated.sisyphus).toEqual({ model: "anthropic/claude-opus-4-5" })
-      expect(result.migrated.atlas).toEqual({ model: "anthropic/claude-opus-4-5" })
+      expect(result.migrated["sisyphus-junior"]).toEqual({ model: "anthropic/claude-opus-4-5" })
       expect(result.migrated.prometheus).toEqual({ model: "anthropic/claude-opus-4-5" })
       expect(result.migrated["plan-synthesizer"]).toEqual({ model: "anthropic/claude-sonnet-4-5" })
       
@@ -88,10 +88,9 @@ describe("Agent Config Integration", () => {
       // given - lowercase config keys
       const agents = [
         "sisyphus",
-        "atlas",
+        "hephaestus",
         "prometheus",
         "plan-synthesizer",
-        "hephaestus",
         "oracle",
         "librarian",
         "explore",
@@ -103,10 +102,9 @@ describe("Agent Config Integration", () => {
 
       // then - display names are correct
       expect(displayNames).toContain("Sisyphus (Ultraworker)")
-      expect(displayNames).toContain("Atlas (Plan Execution Orchestrator)")
+      expect(displayNames).toContain("Hephaestus (Autonomous Deep Worker)")
       expect(displayNames).toContain("Prometheus (Plan Builder)")
       expect(displayNames).toContain("Plan-Synthesizer (Multi-plan Synthesis)")
-      expect(displayNames).toContain("Hephaestus (Autonomous Deep Worker)")
       expect(displayNames).toContain("oracle")
       expect(displayNames).toContain("librarian")
       expect(displayNames).toContain("explore")
@@ -115,16 +113,16 @@ describe("Agent Config Integration", () => {
 
     test("handles lowercase keys case-insensitively", () => {
       // given - various case formats of lowercase keys
-      const keys = ["Sisyphus", "Atlas", "SISYPHUS", "atlas", "prometheus", "PROMETHEUS"]
+      const keys = ["Sisyphus", "Hephaestus", "SISYPHUS", "hephaestus", "prometheus", "PROMETHEUS"]
 
       // when - display names are requested
       const displayNames = keys.map((key) => getAgentDisplayName(key))
 
       // then - correct display names are returned
       expect(displayNames[0]).toBe("Sisyphus (Ultraworker)")
-      expect(displayNames[1]).toBe("Atlas (Plan Execution Orchestrator)")
+      expect(displayNames[1]).toBe("Hephaestus (Autonomous Deep Worker)")
       expect(displayNames[2]).toBe("Sisyphus (Ultraworker)")
-      expect(displayNames[3]).toBe("Atlas (Plan Execution Orchestrator)")
+      expect(displayNames[3]).toBe("Hephaestus (Autonomous Deep Worker)")
       expect(displayNames[4]).toBe("Prometheus (Plan Builder)")
       expect(displayNames[5]).toBe("Prometheus (Plan Builder)")
     })
@@ -157,7 +155,6 @@ describe("Agent Config Integration", () => {
       // given - expected builtin agents
       const expectedAgents = [
         "sisyphus",
-        "atlas",
         "prometheus",
         "plan-synthesizer",
         "hephaestus",
@@ -220,7 +217,7 @@ describe("Agent Config Integration", () => {
       // given - new format config (already lowercase)
       const newConfig = {
         sisyphus: { model: "anthropic/claude-opus-4-5" },
-        atlas: { model: "anthropic/claude-opus-4-5" },
+        prometheus: { model: "anthropic/claude-opus-4-5" },
       }
 
       // when - migration is applied (should be no-op)
@@ -234,11 +231,11 @@ describe("Agent Config Integration", () => {
 
       // when - display names are retrieved
       const sisyphusDisplay = getAgentDisplayName("sisyphus")
-      const atlasDisplay = getAgentDisplayName("atlas")
+      const prometheusDisplay = getAgentDisplayName("prometheus")
 
       // then - display names are correct
       expect(sisyphusDisplay).toBe("Sisyphus (Ultraworker)")
-      expect(atlasDisplay).toBe("Atlas (Plan Execution Orchestrator)")
+      expect(prometheusDisplay).toBe("Prometheus (Plan Builder)")
     })
   })
 })

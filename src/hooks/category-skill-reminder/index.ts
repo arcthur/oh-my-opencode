@@ -9,7 +9,6 @@ import { log } from "../../shared"
 const TARGET_AGENTS = new Set([
   "sisyphus",
   "sisyphus-junior",
-  "atlas",
 ])
 
 /**
@@ -30,7 +29,6 @@ const DELEGATABLE_WORK_TOOLS = new Set([
  */
 const DELEGATION_TOOLS = new Set([
   "delegate_task",
-  "call_omo_agent",
   "task",
 ])
 
@@ -99,13 +97,12 @@ export function createCategorySkillReminderHook(_ctx: PluginInput) {
   function isTargetAgent(sessionID: string, inputAgent?: string): boolean {
     const agent = getSessionAgent(sessionID) ?? inputAgent
     if (!agent) return false
-    const agentLower = agent.toLowerCase()
-    return (
-      TARGET_AGENTS.has(agentLower) ||
-      agentLower.includes("sisyphus") ||
-      agentLower.includes("atlas")
-    )
-  }
+  const agentLower = agent.toLowerCase()
+  return (
+    TARGET_AGENTS.has(agentLower) ||
+    agentLower.includes("sisyphus")
+  )
+}
 
   const toolExecuteAfter = async (
     input: ToolExecuteInput,

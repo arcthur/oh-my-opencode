@@ -1,11 +1,10 @@
 /**
  * Agent config keys to display names mapping.
- * Config keys are lowercase (e.g., "sisyphus", "atlas").
+ * Config keys are lowercase (e.g., "sisyphus", "prometheus").
  * Display names include suffixes for UI/logs (e.g., "Sisyphus (Ultraworker)").
  */
 export const AGENT_DISPLAY_NAMES: Record<string, string> = {
   sisyphus: "Sisyphus (Ultraworker)",
-  atlas: "Atlas (Plan Execution Orchestrator)",
   prometheus: "Prometheus (Plan Builder)",
   "sisyphus-junior": "Sisyphus-Junior",
   "plan-synthesizer": "Plan-Synthesizer (Multi-plan Synthesis)",

@@ -87,7 +87,7 @@ A proactive summarize trigger before hitting a hard context limit. Implementatio
 
 A fork-owned subsystem that:
 
-- Generates `codemap.md` files and optional `atlas.md`
+- Generates `codemap.md` files and optional `project-map.md`
 - Persists state under `.opencode/cartography.json`
 - Injects relevant summaries into model context
 

@@ -101,8 +101,8 @@ Update \`.opencode/cartography.json\`:
 - Folder composite hashes
 - Codemap metadata
 
-### 7. Generate Root Atlas
-Aggregate all codemaps into \`atlas.md\`:
+### 7. Generate Root Project Map
+Aggregate all codemaps into \`project-map.md\`:
 - Project structure overview
 - Codemap index with navigation
 
@@ -153,7 +153,7 @@ Aggregate all codemaps into \`atlas.md\`:
 ## Completion Criteria
 
 - [ ] All qualifying directories have codemap.md
-- [ ] Root atlas.md is generated
+- [ ] Root project-map.md is generated
 - [ ] State file is updated
 - [ ] No errors in generation
 - [ ] Codemaps are within line limits`,

@@ -9,7 +9,7 @@ import { join, dirname, relative } from "node:path"
 import type { CodemapCacheEntry, StalenessCheck } from "./types"
 import type { Codemap, CodemapMeta } from "../cartography/types"
 import { parseCodemap, extractCodemapSummary } from "../cartography/generator"
-import { CODEMAP_FILE_NAME, ROOT_ATLAS_FILE_NAME, STALENESS_THRESHOLD } from "../cartography/constants"
+import { CODEMAP_FILE_NAME, ROOT_PROJECT_MAP_FILE_NAME, STALENESS_THRESHOLD } from "../cartography/constants"
 import { log } from "../../shared"
 
 /**
@@ -66,17 +66,17 @@ export class CodemapCache {
   }
 
   /**
-   * Get root atlas
+   * Get root project map
    */
-  getRootAtlas(): string | null {
-    const atlasPath = join(this.projectRoot, ROOT_ATLAS_FILE_NAME)
+  getRootProjectMap(): string | null {
+    const projectMapPath = join(this.projectRoot, ROOT_PROJECT_MAP_FILE_NAME)
 
-    if (!existsSync(atlasPath)) {
+    if (!existsSync(projectMapPath)) {
       return null
     }
 
     try {
-      return readFileSync(atlasPath, "utf8")
+      return readFileSync(projectMapPath, "utf8")
     } catch {
       return null
     }
@@ -159,8 +159,8 @@ export class CodemapCache {
       return true
     }
 
-    // Check root atlas
-    if (existsSync(join(this.projectRoot, ROOT_ATLAS_FILE_NAME))) {
+    // Check root project map
+    if (existsSync(join(this.projectRoot, ROOT_PROJECT_MAP_FILE_NAME))) {
       return true
     }
 

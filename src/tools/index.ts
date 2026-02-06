@@ -43,7 +43,7 @@ import type { BackgroundManager } from "../features/background-agent"
 
 type OpencodeClient = PluginInput["client"]
 
-export { createCallOmoAgent } from "./call-omo-agent"
+
 export { createLookAt } from "./look-at"
 export { createDelegateTask, type DelegateTaskToolOptions, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS } from "./delegate-task"
 export { createMultiPlanTool } from "./multi-plan"

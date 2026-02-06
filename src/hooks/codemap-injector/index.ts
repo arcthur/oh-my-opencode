@@ -26,8 +26,8 @@ import { log } from "../../shared"
 // ============================================================================
 
 interface CodemapInjectorSessionState extends SessionInjectionState {
-  /** Whether root atlas should be injected on next relevant read */
-  pendingRootAtlas: boolean
+  /** Whether root project map should be injected on next relevant read */
+  pendingRootProjectMap: boolean
 
   /** Directories we've already suggested cartography for */
   suggestedDirs: Set<string>
@@ -56,10 +56,10 @@ export function createCodemapInjectorHook(
     if (!sessionStates.has(sessionID)) {
       sessionStates.set(sessionID, {
         injectedDirs: new Set(),
-        rootAtlasInjected: false,
+        rootProjectMapInjected: false,
         tokensInjected: 0,
         lastInjection: 0,
-        pendingRootAtlas: false,
+        pendingRootProjectMap: false,
         suggestedDirs: new Set(),
       })
     }
@@ -79,19 +79,19 @@ export function createCodemapInjectorHook(
   }
 
   /**
-   * Format root atlas for injection
+   * Format root project map for injection
    */
-  function formatRootAtlasContext(atlas: string): string {
+  function formatRootProjectMapContext(projectMap: string): string {
     // Truncate if needed
-    const lines = atlas.split("\n")
+    const lines = projectMap.split("\n")
     const maxLines = 50
 
     if (lines.length > maxLines) {
       const truncated = lines.slice(0, maxLines).join("\n")
-      return `\n\n[Project Atlas]\n${truncated}\n\n[Truncated: ${lines.length - maxLines} lines omitted]`
+      return `\n\n[Project Map]\n${truncated}\n\n[Truncated: ${lines.length - maxLines} lines omitted]`
     }
 
-    return `\n\n[Project Atlas]\n${atlas}`
+    return `\n\n[Project Map]\n${projectMap}`
   }
 
   /**
@@ -120,22 +120,22 @@ export function createCodemapInjectorHook(
       return
     }
 
-    // Inject root atlas once for architecture/refactoring queries
-    if (state.pendingRootAtlas && !state.rootAtlasInjected) {
-      const atlas = cache.getRootAtlas()
-      if (atlas) {
-        const atlasContext = formatRootAtlasContext(atlas)
-        const atlasTokens = estimateTokens(atlasContext)
+    // Inject root project map once for architecture/refactoring queries
+    if (state.pendingRootProjectMap && !state.rootProjectMapInjected) {
+      const projectMap = cache.getRootProjectMap()
+      if (projectMap) {
+        const projectMapContext = formatRootProjectMapContext(projectMap)
+        const projectMapTokens = estimateTokens(projectMapContext)
 
-        if (state.tokensInjected + atlasTokens <= config.budget) {
-          output.output += atlasContext
-          state.tokensInjected += atlasTokens
+        if (state.tokensInjected + projectMapTokens <= config.budget) {
+          output.output += projectMapContext
+          state.tokensInjected += projectMapTokens
           state.lastInjection = Date.now()
         }
       }
 
-      state.rootAtlasInjected = true
-      state.pendingRootAtlas = false
+      state.rootProjectMapInjected = true
+      state.pendingRootProjectMap = false
     }
 
     // Find codemap for this directory
@@ -177,21 +177,21 @@ export function createCodemapInjectorHook(
   }
 
   /**
-   * Handle user prompt - inject root atlas for architecture questions
+   * Handle user prompt - inject root project map for architecture questions
    */
   const userPromptSubmit = async (input: MessageInput) => {
     if (!config.enabled) return
 
     const state = getSessionState(input.sessionID)
 
-    // If we've already injected the atlas, don't queue it again
-    if (state.rootAtlasInjected) return
+    // If we've already injected the projectMap, don't queue it again
+    if (state.rootProjectMapInjected) return
 
     const messageText = input.message?.content ?? ""
     if (!messageText) return
 
     const trigger = detectQueryType(messageText)
-    state.pendingRootAtlas = trigger.injectRootAtlas
+    state.pendingRootProjectMap = trigger.injectRootProjectMap
   }
 
   /**

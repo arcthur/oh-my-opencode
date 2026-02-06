@@ -16,7 +16,7 @@
 
 > [!TIP]
 >
-> [![Oh My OpenCode 3.0が正式リリースされました！](./.github/assets/orchestrator-atlas.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0)
+> [![Oh My OpenCode 3.0が正式リリースされました！](./.github/assets/orchestrator-sisyphus.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0)
 > > **Oh My OpenCode 3.0が正式リリースされました！`oh-my-opencode@latest`を使用してインストールしてください。**
 >
 > 一緒に歩みましょう！

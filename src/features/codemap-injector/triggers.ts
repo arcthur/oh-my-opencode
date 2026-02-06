@@ -18,14 +18,14 @@ export function detectQueryType(message: string): InjectionTrigger {
   const lowerMessage = message.toLowerCase()
   const triggerKeywords: string[] = []
   let queryType: QueryType = "unknown"
-  let injectRootAtlas = false
+  let injectRootProjectMap = false
 
   // Check architecture keywords
   for (const keyword of ARCHITECTURE_KEYWORDS) {
     if (lowerMessage.includes(keyword.toLowerCase())) {
       triggerKeywords.push(keyword)
       queryType = "architecture"
-      injectRootAtlas = true
+      injectRootProjectMap = true
     }
   }
 
@@ -45,7 +45,7 @@ export function detectQueryType(message: string): InjectionTrigger {
       if (lowerMessage.includes(keyword.toLowerCase())) {
         triggerKeywords.push(keyword)
         queryType = "refactoring"
-        injectRootAtlas = true
+        injectRootProjectMap = true
       }
     }
   }
@@ -59,7 +59,7 @@ export function detectQueryType(message: string): InjectionTrigger {
     queryType,
     triggerKeywords,
     relevantDirs: [],
-    injectRootAtlas,
+    injectRootProjectMap,
   }
 }
 
@@ -119,7 +119,7 @@ export function extractDirectoryHints(message: string): string[] {
  */
 export function getInjectionStrategy(trigger: InjectionTrigger): {
   injectWorkingDir: boolean
-  injectRootAtlas: boolean
+  injectRootProjectMap: boolean
   injectRelatedDirs: boolean
   maxCodemaps: number
 } {
@@ -127,7 +127,7 @@ export function getInjectionStrategy(trigger: InjectionTrigger): {
     case "architecture":
       return {
         injectWorkingDir: false,
-        injectRootAtlas: true,
+        injectRootProjectMap: true,
         injectRelatedDirs: true,
         maxCodemaps: 3,
       }
@@ -135,7 +135,7 @@ export function getInjectionStrategy(trigger: InjectionTrigger): {
     case "navigation":
       return {
         injectWorkingDir: true,
-        injectRootAtlas: false,
+        injectRootProjectMap: false,
         injectRelatedDirs: false,
         maxCodemaps: 1,
       }
@@ -143,7 +143,7 @@ export function getInjectionStrategy(trigger: InjectionTrigger): {
     case "refactoring":
       return {
         injectWorkingDir: true,
-        injectRootAtlas: true,
+        injectRootProjectMap: true,
         injectRelatedDirs: true,
         maxCodemaps: 5,
       }
@@ -152,7 +152,7 @@ export function getInjectionStrategy(trigger: InjectionTrigger): {
     default:
       return {
         injectWorkingDir: true,
-        injectRootAtlas: false,
+        injectRootProjectMap: false,
         injectRelatedDirs: false,
         maxCodemaps: 1,
       }

@@ -61,9 +61,9 @@ describe("migrateAgentNames", () => {
     const { migrated, changed } = migrateAgentNames(agents)
 
     // then: Case-insensitive lookup should migrate correctly
-    expect(migrated["sisyphus"]).toEqual({ model: "test" })
+    // last write wins when multiple legacy keys normalize to the same canonical key
+    expect(migrated["sisyphus"]).toEqual({ model: "openai/gpt-5.2" })
     expect(migrated["planner-sisyphus"]).toEqual({ prompt: "test" })
-    expect(migrated["atlas"]).toEqual({ model: "openai/gpt-5.2" })
   })
 
   test("passes through unknown agent names unchanged", () => {
@@ -80,7 +80,7 @@ describe("migrateAgentNames", () => {
     expect(migrated["custom-agent"]).toEqual({ model: "custom/model" })
   })
 
-  test("migrates orchestrator-sisyphus to Atlas", () => {
+  test("migrates orchestrator-sisyphus to sisyphus", () => {
     // given: Config with legacy orchestrator-sisyphus agent name
     const agents = {
       "orchestrator-sisyphus": { model: "anthropic/claude-opus-4-5" },
@@ -89,24 +89,10 @@ describe("migrateAgentNames", () => {
     // when: Migrate agent names
     const { migrated, changed } = migrateAgentNames(agents)
 
-    // then: orchestrator-sisyphus should be migrated to Atlas
+    // then: orchestrator-sisyphus should be migrated to sisyphus
     expect(changed).toBe(true)
-    expect(migrated["atlas"]).toEqual({ model: "anthropic/claude-opus-4-5" })
+    expect(migrated["sisyphus"]).toEqual({ model: "anthropic/claude-opus-4-5" })
     expect(migrated["orchestrator-sisyphus"]).toBeUndefined()
-  })
-
-  test("preserves canonical lowercase atlas unchanged", () => {
-    // given: Config with canonical lowercase atlas agent name
-    const agents = {
-      atlas: { model: "anthropic/claude-opus-4-5" },
-    }
-
-    // when: Migrate agent names
-    const { migrated, changed } = migrateAgentNames(agents)
-
-    // then: lowercase atlas is canonical, no migration needed
-    expect(changed).toBe(false)
-    expect(migrated["atlas"]).toEqual({ model: "anthropic/claude-opus-4-5" })
   })
 })
 
@@ -183,16 +169,16 @@ describe("migrateHookNames", () => {
     expect(migrated).toEqual(["context-window-limit-recovery"])
   })
 
-  test("migrates sisyphus-orchestrator to atlas", () => {
+  test("migrates sisyphus-orchestrator to execution-orchestrator", () => {
     // given: Config with legacy sisyphus-orchestrator hook
     const hooks = ["sisyphus-orchestrator", "comment-checker"]
 
     // when: Migrate hook names
     const { migrated, changed, removed } = migrateHookNames(hooks)
 
-    // then: sisyphus-orchestrator should be migrated to atlas
+    // then: sisyphus-orchestrator should be migrated to execution-orchestrator
     expect(changed).toBe(true)
-    expect(migrated).toContain("atlas")
+    expect(migrated).toContain("execution-orchestrator")
     expect(migrated).toContain("comment-checker")
     expect(migrated).not.toContain("sisyphus-orchestrator")
     expect(removed).toEqual([])
@@ -229,7 +215,7 @@ describe("migrateHookNames", () => {
 
     // then: Legacy should be renamed, removed should be filtered
     expect(changed).toBe(true)
-    expect(migrated).toEqual(["context-window-limit-recovery", "preemptive-compaction", "atlas"])
+    expect(migrated).toEqual(["context-window-limit-recovery", "preemptive-compaction", "execution-orchestrator"])
     expect(removed).toEqual([])
   })
 })

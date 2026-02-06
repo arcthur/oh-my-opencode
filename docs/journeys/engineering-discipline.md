@@ -468,7 +468,7 @@ Claim "task is complete" with incomplete TODOs, should see:
 | `src/features/builtin-skills/skills.ts` | 5 skill definitions |
 | `src/hooks/anti-slop-enforcer.ts` | Anti-slop detection hook |
 | `src/hooks/pre-completion-verification.ts` | Completion verification hook |
-| `src/agents/sisyphus.ts` | Parallel Dispatch Matrix + Three-Stage Review |
+| `src/agents/sisyphus/index.ts` | Parallel Dispatch Matrix + Three-Stage Review |
 | `src/config/schema.ts` | HookNameSchema, BuiltinSkillNameSchema |
 | `src/index.ts` | Hook registration |
 | `src/agents/utils.ts` | Skills passed to Sisyphus |

@@ -31,7 +31,7 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
    decisions: []
    \`\`\`
 
-5. **Read the plan file** and start executing tasks according to atlas workflow
+5. **Read the plan file** and start executing tasks in sisyphus execution mode
 
 ## OUTPUT FORMAT
 
@@ -75,4 +75,4 @@ Reading plan and beginning execution...
 - The session_id is injected by the hook - use it directly
 - Always update work.yaml BEFORE starting work
 - Read the FULL plan file before delegating any tasks
-- Follow atlas delegation protocols (7-section format)`
+- Follow execution-mode delegation protocols (7-section format)`

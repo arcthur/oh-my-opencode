@@ -1,6 +1,5 @@
-import type { AgentConfig } from "@opencode-ai/sdk"
-import { isGptModel, type AgentMode } from "./types"
-import type { AvailableAgent, AvailableTool, AvailableSkill, AvailableCategory } from "./dynamic-agent-prompt-builder"
+import { isGptModel } from "../types"
+import type { AvailableAgent, AvailableTool, AvailableSkill, AvailableCategory } from "../dynamic-agent-prompt-builder"
 import {
   buildKeyTriggersSection,
   buildToolSelectionTable,
@@ -11,10 +10,11 @@ import {
   buildOracleSection,
   buildHardBlocksSection,
   buildAntiPatternsSection,
-  categorizeTools,
-} from "./dynamic-agent-prompt-builder"
+} from "../dynamic-agent-prompt-builder"
+import { getDefaultSisyphusExecutionProfile } from "./default"
+import { getGptSisyphusExecutionProfile } from "./gpt"
 
-const MODE: AgentMode = "primary"
+export type SisyphusPromptSource = "default" | "gpt"
 
 const SISYPHUS_ROLE_SECTION = `<Role>
 You are "Sisyphus" - Powerful AI Agent with orchestration capabilities from OhMyOpenCode.
@@ -83,6 +83,37 @@ I notice [observation]. This might cause [problem] because [reason].
 Alternative: [your suggestion].
 Should I proceed with your original request, or try the alternative?
 \`\`\``
+
+const SISYPHUS_EXECUTION_MODE = `## Execution Mode vs Interactive Mode
+
+### Execution Mode Trigger (STRICT)
+Treat the session as **Execution Mode** only when ALL are true:
+1. \`.sisyphus/work.yaml\` exists
+2. The active plan is not complete
+3. Current session is listed in \`session_ids\`
+
+### Execution Mode Rules
+- You are an executor-orchestrator: delegate implementation via \`delegate_task\`
+- \`task\` tool is forbidden in this mode
+- One atomic objective per delegation
+- Verify subagent output with your own tools before marking progress
+- Do not directly write/edit outside \`.sisyphus/\` except tiny verification fixes
+
+### Interactive Mode Rules
+- If Execution Mode trigger is NOT satisfied, you are in Interactive Mode
+- Direct implementation is allowed when it is the best option
+- Delegation is still preferred for specialized work`
+
+export function getSisyphusPromptSource(model?: string): SisyphusPromptSource {
+  if (model && isGptModel(model)) {
+    return "gpt"
+  }
+  return "default"
+}
+
+function getExecutionModeProfile(model: string): string {
+  return isGptModel(model) ? getGptSisyphusExecutionProfile() : getDefaultSisyphusExecutionProfile()
+}
 
 const SISYPHUS_PHASE1 = `## Phase 1 - Codebase Assessment (for Open-ended tasks)
 
@@ -560,12 +591,14 @@ const SISYPHUS_SOFT_GUIDELINES = `## Soft Guidelines
 
 `
 
-function buildDynamicSisyphusPrompt(
+export function buildDynamicSisyphusPrompt(
+  model: string,
   availableAgents: AvailableAgent[],
   availableTools: AvailableTool[] = [],
   availableSkills: AvailableSkill[] = [],
   availableCategories: AvailableCategory[] = []
 ): string {
+  const executionModeProfile = getExecutionModeProfile(model)
   const keyTriggers = buildKeyTriggersSection(availableAgents, availableSkills)
   const toolSelection = buildToolSelectionTable(availableAgents, availableTools, availableSkills)
   const exploreSection = buildExploreSection(availableAgents)
@@ -581,6 +614,10 @@ function buildDynamicSisyphusPrompt(
     "<Behavior_Instructions>",
     "",
     "## Phase 0 - Intent Gate (EVERY message)",
+    "",
+    SISYPHUS_EXECUTION_MODE,
+    "",
+    executionModeProfile,
     "",
     keyTriggers,
     "",
@@ -646,37 +683,3 @@ function buildDynamicSisyphusPrompt(
 
   return sections.filter((s) => s !== "").join("\n")
 }
-
-export function createSisyphusAgent(
-  model: string,
-  availableAgents?: AvailableAgent[],
-  availableToolNames?: string[],
-  availableSkills?: AvailableSkill[],
-  availableCategories?: AvailableCategory[]
-): AgentConfig {
-  const tools = availableToolNames ? categorizeTools(availableToolNames) : []
-  const skills = availableSkills ?? []
-  const categories = availableCategories ?? []
-  const prompt = availableAgents
-    ? buildDynamicSisyphusPrompt(availableAgents, tools, skills, categories)
-    : buildDynamicSisyphusPrompt([], tools, skills, categories)
-
-  const permission = { question: "allow", call_omo_agent: "deny" } as AgentConfig["permission"]
-  const base = {
-    description:
-      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically via category+skills combinations. Uses explore for internal code (parallel-friendly), librarian for external docs.",
-    mode: MODE,
-    model,
-    maxTokens: 64000,
-    prompt,
-    color: "#00CED1",
-    permission,
-  }
-
-  if (isGptModel(model)) {
-    return { ...base, reasoningEffort: "medium" }
-  }
-
-  return { ...base, thinking: { type: "enabled", budgetTokens: 32000 } }
-}
-createSisyphusAgent.mode = MODE

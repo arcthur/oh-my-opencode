@@ -235,7 +235,6 @@ export function createHandoffSummarizer(
             grep: false,
             task: false,
             delegate_task: false,
-            call_omo_agent: false,
             look_at: false,
             skill: false,
             skill_mcp: false,

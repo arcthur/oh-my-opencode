@@ -54,7 +54,7 @@ For complex or critical tasks, press **Tab** to switch to Prometheus mode.
 
 2. **Plan generation** - Based on the interview, Prometheus generates a detailed work plan with tasks, acceptance criteria, and guardrails. For complex planning, it can optionally use `multi_plan` (multi-model planning) to produce a stronger plan.
 
-3. **Run `/start-work`** - The Atlas takes over:
+3. **Run `/start-work`** - The Sisyphus Execution Mode takes over:
    - Distributes tasks to specialized sub-agents
    - Verifies each task completion independently
    - Accumulates learnings across tasks
@@ -72,7 +72,7 @@ For complex or critical tasks, press **Tab** to switch to Prometheus mode.
 
 ### Always Use Prometheus + Orchestrator Together
 
-**Do NOT use `atlas` without `/start-work`.**
+**Do NOT use `sisyphus` without `/start-work`.**
 
 The orchestrator is designed to execute work plans created by Prometheus. Using it directly without a plan leads to unpredictable behavior.
 
@@ -84,7 +84,7 @@ The orchestrator is designed to execute work plans created by Prometheus. Using 
 4. Run /start-work → Orchestrator executes
 ```
 
-**Prometheus and Atlas are a pair. Always use them together.**
+**Prometheus and Sisyphus Execution Mode are a pair. Always use them together.**
 
 ---
 
@@ -128,7 +128,7 @@ Here's a real-world config for a user with **Claude, OpenAI, Gemini, and Z.ai** 
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     // Override specific agents only - rest use fallback chain
-    "atlas": { "model": "anthropic/claude-sonnet-4-5", "variant": "max" },
+    "sisyphus": { "model": "anthropic/claude-sonnet-4-5", "variant": "max" },
     "librarian": { "model": "zai-coding-plan/glm-4.7" },
     "explore": { "model": "opencode/gpt-5-nano" },
     "multimodal-looker": { "model": "zai-coding-plan/glm-4.6v" }

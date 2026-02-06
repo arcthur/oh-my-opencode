@@ -10,7 +10,7 @@ const POLL_INTERVAL_MS = 500
 const DEFAULT_TIMEOUT_MS = 0
 const SESSION_CREATE_MAX_RETRIES = 3
 const SESSION_CREATE_RETRY_DELAY_MS = 1000
-const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus", "atlas"] as const
+const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus"] as const
 const DEFAULT_AGENT = "sisyphus"
 
 type EnvVars = Record<string, string | undefined>

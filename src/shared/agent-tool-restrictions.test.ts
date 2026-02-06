@@ -17,8 +17,8 @@ describe("agent-tool-restrictions", () => {
       expect(RESEARCH_SCOPED_AGENTS.has("sisyphus")).toBe(false)
     })
 
-    test("atlas is not research-scoped", () => {
-      expect(RESEARCH_SCOPED_AGENTS.has("atlas")).toBe(false)
+    test("prometheus is not research-scoped", () => {
+      expect(RESEARCH_SCOPED_AGENTS.has("prometheus")).toBe(false)
     })
   })
 

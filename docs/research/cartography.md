@@ -18,7 +18,7 @@ Implication: you can read/modify the implementation, but you SHOULD NOT assume e
 Cartography generates and consumes the following artifacts:
 
 - `codemap.md`: per-directory codemap file (`src/features/cartography/constants.ts` → `CODEMAP_FILE_NAME`).
-- `atlas.md`: root atlas index (`ROOT_ATLAS_FILE_NAME`).
+- `project-map.md`: root project map index (`ROOT_ATLAS_FILE_NAME`).
 - `.opencode/cartography.json`: project-local state for incremental updates (`STATE_FILE_NAME` under `PROJECT_STORAGE_DIR`).
 
 The state file tracks content hashes and codemap metadata to support incremental rebuilds and staleness detection.
@@ -32,7 +32,7 @@ flowchart TD
     DISC["Discover directories\n(include/exclude patterns)"]
     SCORE["Score directories\n(thresholds + heuristics)"]
     ANALYZE["Analyze\n(symbols, patterns, integrations)"]
-    WRITE["Write artifacts\n- codemap.md\n- atlas.md\n- .opencode/cartography.json"]
+    WRITE["Write artifacts\n- codemap.md\n- project-map.md\n- .opencode/cartography.json"]
     TRIG --> DISC --> SCORE --> ANALYZE --> WRITE
   end
 
@@ -73,14 +73,14 @@ Cartography uses a weighted scoring model to decide which directories merit a co
 
 - State is persisted under `.opencode/cartography.json`.
 - Staleness threshold: `STALENESS_THRESHOLD` in `src/features/cartography/constants.ts`.
-- Update mode computes a change report, then regenerates only impacted codemaps and updates the atlas.
+- Update mode computes a change report, then regenerates only impacted codemaps and updates the sisyphus.
 
 ### Codemap injection (hook implementation)
 
 The injector hook (`src/hooks/codemap-injector/index.ts`) is designed to:
 
 - Intercept `Read` tool output (`tool.execute.after`) and append a codemap summary for the directory.
-- Optionally enqueue root atlas injection based on prompt classification (`user.prompt.submit`).
+- Optionally enqueue root project map injection based on prompt classification (`user.prompt.submit`).
 - Enforce token budgets and per-session de-duplication.
 - Suggest running cartography for frequently accessed directories without an exact codemap.
 

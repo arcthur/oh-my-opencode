@@ -77,7 +77,6 @@ export type BuiltinAgentName =
   | "librarian"
   | "explore"
   | "multimodal-looker"
-  | "atlas"
   | "plan-synthesizer"
 
 export type OverridableAgentName =

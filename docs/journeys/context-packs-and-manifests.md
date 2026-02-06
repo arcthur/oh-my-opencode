@@ -18,7 +18,7 @@ flowchart TD
   P --> CM["Context manifest → .sisyphus/context-manifests/<name>.md"]
 
   PLAN --> SW["/start-work → .sisyphus/work.yaml"]
-  SW --> AT["Atlas orchestrates"]
+  SW --> AT["Sisyphus Execution Mode orchestrates"]
 
   AT --> DT["delegate_task prompt includes: Context Packs: ..."]
   DT --> HOOK["context-manifest-injector (tool.execute.before)"]
@@ -76,7 +76,7 @@ The injector resolves the manifest path from `work.yaml.plan_name`.
 
 ### Step 3: Delegate as usual
 
-When Atlas calls `delegate_task(...)`, it copies the TODO’s `Context Packs:` line into the delegation prompt.
+When Sisyphus Execution Mode calls `delegate_task(...)`, it copies the TODO’s `Context Packs:` line into the delegation prompt.
 
 The injector hook then appends the corresponding pack content (rendered) right before the tool executes.
 
@@ -139,7 +139,7 @@ Item kinds are intentionally limited:
       "title": "Global guardrails + repo conventions",
       "items": [
         { "kind": "doc", "ref": "docs/guide/orchestration.md", "why": "Execution workflow + SSOT expectations" },
-        { "kind": "code", "ref": "src/agents/atlas/default.ts", "why": "Delegation prompt structure expectations" }
+        { "kind": "code", "ref": "src/agents/sisyphus/index.ts", "why": "Delegation prompt structure expectations" }
       ]
     }
   ]

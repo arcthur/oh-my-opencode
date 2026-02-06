@@ -86,13 +86,12 @@ afterEach(() => {
 })
 
 describe("Plan agent demote behavior", () => {
-  test("orders core agents as sisyphus -> hephaestus -> prometheus -> atlas", async () => {
+  test("orders core agents as sisyphus -> hephaestus -> prometheus", async () => {
     // #given
     track(spyOn(agents, "createBuiltinAgents")).mockResolvedValue({
       sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
       hephaestus: { name: "hephaestus", prompt: "test", mode: "primary" },
       oracle: { name: "oracle", prompt: "test", mode: "subagent" },
-      atlas: { name: "atlas", prompt: "test", mode: "primary" },
     })
 
     const pluginConfig: OhMyOpenCodeConfig = {
@@ -118,7 +117,7 @@ describe("Plan agent demote behavior", () => {
 
     // #then
     const keys = Object.keys(config.agent as Record<string, unknown>)
-    const coreAgents = ["sisyphus", "hephaestus", "prometheus", "atlas"]
+    const coreAgents = ["sisyphus", "hephaestus", "prometheus"]
     const ordered = keys.filter((key) => coreAgents.includes(key))
     expect(ordered).toEqual(coreAgents)
   })

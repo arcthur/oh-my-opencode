@@ -293,7 +293,7 @@ Everything runs at maximum intensity - parallel agents, background tasks, aggres
 /start-work [plan-name]
 ```
 
-Uses atlas agent to execute planned tasks systematically.
+Uses sisyphus agent to execute planned tasks systematically.
 
 ### Custom Commands
 
@@ -386,7 +386,7 @@ As of the current wiring, compaction-time injection (`PreCompact`) is implemente
 | Hook | Event | Description |
 |------|-------|-------------|
 | **claude-code-hooks** | All | Executes hooks from Claude Code's settings.json. |
-| **atlas** | All | Main orchestration logic (771 lines). |
+| **sisyphus** | All | Main orchestration logic (771 lines). |
 | **interactive-bash-session** | PreToolUse | Manages tmux sessions for interactive CLI. |
 | **non-interactive-env** | PreToolUse | Handles non-interactive environment constraints. |
 
@@ -459,7 +459,6 @@ Disable specific hooks in config:
 | Tool | Description |
 |------|-------------|
 | **delegate_task** | Category-based task delegation. Supports categories (visual, business-logic) or direct agent targeting. Research-scoped mode for explore/librarian-only access. |
-| **call_omo_agent** | **DEPRECATED** — Use `delegate_task` instead. Spawn explore/librarian agents. Supports `run_in_background`. |
 | **background_output** | Retrieve background task results |
 | **background_cancel** | Cancel running background tasks |
 

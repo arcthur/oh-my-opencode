@@ -1,14 +1,14 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { execSync } from "node:child_process"
-import { createWorkStateManager, type WorkStateManager } from "../../features/work-state"
+import { createWorkStateManager } from "../../features/work-state"
 import { getMainSessionID, isSubagentSession } from "../../features/claude-code-session-state"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
-import { getMessageDir, isCallerAtlas } from "../../shared/session-utils"
+import { getMessageDir, isCallerSisyphus } from "../../shared/session-utils"
 import type { BackgroundManager } from "../../features/background-agent"
 
-export const HOOK_NAME = "atlas"
+export const HOOK_NAME = "execution-orchestrator"
 
 /**
  * Cross-platform check if a path is inside .sisyphus/ directory.
@@ -108,7 +108,7 @@ const ORCHESTRATOR_DELEGATION_REQUIRED = `
 
 **STOP. YOU ARE VIOLATING ORCHESTRATOR PROTOCOL.**
 
-You (Atlas) are attempting to directly modify a file outside \`.sisyphus/\`.
+You (Sisyphus in Execution Mode) are attempting to directly modify a file outside \`.sisyphus/\`.
 
 **Path attempted:** $FILE_PATH
 
@@ -178,6 +178,75 @@ If you were NOT given **exactly ONE atomic task**, you MUST:
 **REFUSE multi-task requests. DEMAND single-task clarity.**
 `
 
+const EXECUTION_MODE_TASK_WARNING = `
+
+---
+
+${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)}
+
+Execution Mode policy forbids direct use of \`task\`.
+Use \`delegate_task\` with a single atomic objective and explicit acceptance criteria.
+
+---
+`
+
+const EXECUTION_MODE_TASK_BLOCK_ERROR =
+  "The `task` tool is forbidden in Execution Mode. Use `delegate_task` with one atomic objective."
+
+const EXECUTION_MODE_PROMPT_MIN_NON_EMPTY_LINES = 18
+
+const EXECUTION_MODE_REQUIRED_PROMPT_SECTIONS: ReadonlyArray<{
+  name: string
+  pattern: RegExp
+}> = [
+  { name: "TASK", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?TASK\b/im },
+  { name: "EXPECTED OUTCOME", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?EXPECTED OUTCOME\b/im },
+  { name: "REQUIRED TOOLS", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?REQUIRED TOOLS\b/im },
+  { name: "MUST DO", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?MUST DO\b/im },
+  { name: "MUST NOT DO", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?MUST NOT DO\b/im },
+  { name: "CONTEXT", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?CONTEXT\b/im },
+]
+
+function getExecutionPromptValidationErrors(prompt: string): string[] {
+  const errors: string[] = []
+
+  const nonEmptyLines = prompt
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0).length
+
+  if (nonEmptyLines < EXECUTION_MODE_PROMPT_MIN_NON_EMPTY_LINES) {
+    errors.push(
+      `Prompt must contain at least ${EXECUTION_MODE_PROMPT_MIN_NON_EMPTY_LINES} non-empty lines (got ${nonEmptyLines}).`
+    )
+  }
+
+  const missingSections = EXECUTION_MODE_REQUIRED_PROMPT_SECTIONS
+    .filter((section) => !section.pattern.test(prompt))
+    .map((section) => section.name)
+
+  if (missingSections.length > 0) {
+    errors.push(`Missing sections: ${missingSections.join(", ")}.`)
+  }
+
+  return errors
+}
+
+function enforceExecutionModeDelegatePrompt(prompt: unknown): void {
+  if (typeof prompt !== "string" || prompt.trim().length === 0) {
+    throw new Error(
+      "Delegate prompt missing required execution sections. Provide a structured prompt with TASK/EXPECTED OUTCOME/REQUIRED TOOLS/MUST DO/MUST NOT DO/CONTEXT."
+    )
+  }
+
+  const errors = getExecutionPromptValidationErrors(prompt)
+  if (errors.length === 0) return
+
+  throw new Error(
+    `Delegate prompt missing required execution sections. ${errors.join(" ")}`
+  )
+}
+
 function buildVerificationReminder(sessionId: string): string {
   return `${VERIFICATION_REMINDER}
 
@@ -190,7 +259,25 @@ delegate_task(
   session_id="${sessionId}",
   load_skills=[],
   run_in_background=false,
-  prompt="fix: [describe the specific failure]"
+  prompt="
+## 1. TASK
+Fix verification failure with one atomic change.
+
+## 2. EXPECTED OUTCOME
+- [ ] Verification command passes.
+
+## 3. REQUIRED TOOLS
+- Bash, Read, lsp_diagnostics.
+
+## 4. MUST DO
+- Fix only the verified failure.
+
+## 5. MUST NOT DO
+- Do not expand scope.
+
+## 6. CONTEXT
+- Failure: [describe the specific failure]
+"
 )
 \`\`\``
 }
@@ -234,37 +321,6 @@ Update the plan file \`${planPath}\`:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **${remaining} tasks remain. Keep working.**`
-}
-
-function buildStandaloneVerificationReminder(sessionId: string): string {
-  return `
----
-
-${buildVerificationReminder(sessionId)}
-
-**STEP 4: UPDATE TODO STATUS (IMMEDIATELY)**
-
-RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
-
-1. Run \`todoread\` to see your todo list
-2. Mark the completed task as \`completed\` using \`todowrite\`
-
-**DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
-
-**STEP 5: EXECUTE QA TASKS (IF ANY)**
-
-If QA tasks exist in your todo list:
-- Execute them BEFORE proceeding
-- Mark each QA task complete after successful verification
-
-**STEP 6: PROCEED TO NEXT PENDING TASK**
-
-- Identify the next \`pending\` task from your todo list
-- Start immediately - DO NOT STOP
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**NO TODO = NO TRACKING = INCOMPLETE WORK. Use todowrite aggressively.**`
 }
 
 function extractSessionIdFromOutput(output: string): string {
@@ -416,7 +472,7 @@ interface SessionState {
 
 const CONTINUATION_COOLDOWN_MS = 5000
 
-export interface AtlasHookOptions {
+export interface ExecutionOrchestratorHookOptions {
   directory: string
   backgroundManager?: BackgroundManager
   /** Enable 2-action rule (remind to document research after 2 ops) */
@@ -450,9 +506,9 @@ function isAbortError(error: unknown): boolean {
 
 const DEFAULT_RESEARCH_TOOLS = ["Read", "Glob", "Grep", "WebFetch", "WebSearch", "Task"]
 
-export function createAtlasHook(
+export function createExecutionOrchestratorHook(
   ctx: PluginInput,
-  options?: AtlasHookOptions
+  options?: ExecutionOrchestratorHookOptions
 ) {
   const backgroundManager = options?.backgroundManager
   const twoActionRule = options?.twoActionRule ?? false
@@ -470,6 +526,20 @@ export function createAtlasHook(
       sessions.set(sessionID, state)
     }
     return state
+  }
+
+  function isExecutionModeSession(sessionID?: string): boolean {
+    if (!sessionID) return false
+
+    const workState = workStateManager.load()
+    if (!workState) return false
+
+    if (!workState.session_ids.includes(sessionID)) return false
+
+    const progress = workStateManager.getPlanProgress()
+    if (progress.isComplete) return false
+
+    return isCallerSisyphus(sessionID)
   }
 
   async function injectContinuation(
@@ -522,15 +592,15 @@ export function createAtlasHook(
           : undefined
       }
 
-       await ctx.client.session.prompt({
+      await ctx.client.session.prompt({
          path: { id: sessionID },
          body: {
-            agent: "atlas",
+           agent: "sisyphus",
            ...(model !== undefined ? { model } : {}),
            parts: [{ type: "text", text: prompt }],
          },
          query: { directory: ctx.directory },
-       })
+      })
 
       log(`[${HOOK_NAME}] Work continuation injected`, { sessionID })
     } catch (err) {
@@ -597,8 +667,8 @@ export function createAtlasHook(
           return
         }
 
-        if (!isCallerAtlas(sessionID)) {
-          log(`[${HOOK_NAME}] Skipped: last agent is not Atlas`, { sessionID })
+        if (!isExecutionModeSession(sessionID)) {
+          log(`[${HOOK_NAME}] Skipped: session is not in execution mode`, { sessionID })
           return
         }
 
@@ -672,8 +742,16 @@ export function createAtlasHook(
       input: { tool: string; sessionID?: string; callID?: string },
       output: { args: Record<string, unknown>; message?: string }
     ): Promise<void> => {
-      if (!isCallerAtlas(input.sessionID)) {
+      if (!isExecutionModeSession(input.sessionID)) {
         return
+      }
+
+      if (input.tool === "task" || input.tool === "Task") {
+        output.message = (output.message || "") + EXECUTION_MODE_TASK_WARNING
+        log(`[${HOOK_NAME}] Blocked direct task usage in execution mode`, {
+          sessionID: input.sessionID,
+        })
+        throw new Error(EXECUTION_MODE_TASK_BLOCK_ERROR)
       }
 
       // Check Write/Edit tools for orchestrator - inject strong warning
@@ -698,6 +776,7 @@ export function createAtlasHook(
       // Check delegate_task - inject single-task directive
       if (input.tool === "delegate_task") {
         const prompt = output.args.prompt as string | undefined
+        enforceExecutionModeDelegatePrompt(prompt)
         if (prompt && !prompt.includes(SYSTEM_DIRECTIVE_PREFIX)) {
           output.args.prompt = `<system-reminder>${SINGLE_TASK_DIRECTIVE}</system-reminder>\n` + prompt
           log(`[${HOOK_NAME}] Injected single-task directive to delegate_task`, {
@@ -716,12 +795,12 @@ export function createAtlasHook(
         return
       }
 
-      const isOrchestrator = isCallerAtlas(input.sessionID)
+      const isExecutionMode = isExecutionModeSession(input.sessionID)
       const outputStr = output.output && typeof output.output === "string" ? output.output : ""
       const workState = workStateManager.load()
 
       // === Protocol handling (for any session with active work) ===
-      if (workState && input.sessionID) {
+      if (workState && input.sessionID && isExecutionMode) {
         // 3-strike protocol: detect errors
         if (threeStrikeProtocol) {
           const isError = outputStr.startsWith("❌") ||
@@ -765,8 +844,8 @@ This helps maintain context across sessions and prevents knowledge loss.
         }
       }
 
-      // === Orchestrator-specific handling ===
-      if (!isOrchestrator) {
+      // === Execution-mode specific handling ===
+      if (!isExecutionMode) {
         return
       }
 
@@ -811,21 +890,24 @@ This helps maintain context across sessions and prevents knowledge loss.
         // Reload work state in case it was updated by protocol handling
         const currentWorkState = workStateManager.load()
 
-        if (currentWorkState) {
-          const progress = workStateManager.getPlanProgress()
+        if (!currentWorkState) {
+          return
+        }
 
-          if (input.sessionID && !currentWorkState.session_ids.includes(input.sessionID)) {
-            workStateManager.appendSessionId(input.sessionID)
-            log(`[${HOOK_NAME}] Appended session to work`, {
-              sessionID: input.sessionID,
-              plan: currentWorkState.plan_id,
-            })
-          }
+        const progress = workStateManager.getPlanProgress()
 
-          // Preserve original subagent response - critical for debugging failed tasks
-          const originalResponse = output.output
+        if (input.sessionID && !currentWorkState.session_ids.includes(input.sessionID)) {
+          workStateManager.appendSessionId(input.sessionID)
+          log(`[${HOOK_NAME}] Appended session to work`, {
+            sessionID: input.sessionID,
+            plan: currentWorkState.plan_id,
+          })
+        }
 
-          output.output = `
+        // Preserve original subagent response - critical for debugging failed tasks
+        const originalResponse = output.output
+
+        output.output = `
 ## SUBAGENT WORK COMPLETED
 
 ${fileChanges}
@@ -840,19 +922,11 @@ ${originalResponse}
 ${buildOrchestratorReminder(currentWorkState.plan_id, currentWorkState.execution_plan_path, progress, subagentSessionId)}
 </system-reminder>`
 
-          log(`[${HOOK_NAME}] Output transformed for orchestrator mode (work)`, {
-            plan: currentWorkState.plan_id,
-            progress: `${progress.completed}/${progress.total}`,
-            fileCount: gitStats.length,
-          })
-        } else {
-          output.output += `\n<system-reminder>\n${buildStandaloneVerificationReminder(subagentSessionId)}\n</system-reminder>`
-
-          log(`[${HOOK_NAME}] Verification reminder appended for orchestrator`, {
-            sessionID: input.sessionID,
-            fileCount: gitStats.length,
-          })
-        }
+        log(`[${HOOK_NAME}] Output transformed for execution mode`, {
+          plan: currentWorkState.plan_id,
+          progress: `${progress.completed}/${progress.total}`,
+          fileCount: gitStats.length,
+        })
       }
     },
   }

@@ -490,24 +490,6 @@ describe("override.category expansion in createBuiltinAgents", () => {
     expect(agents.sisyphus.variant).toBe("xhigh")
   })
 
-  test("atlas override with category expands category properties", async () => {
-    // #given
-    const overrides = {
-      atlas: { category: "ultrabrain" },
-    }
-
-    // #when
-    const agents = await withModelStubs(
-      { connectedProviders: null, availableModels: new Set() },
-      async () => createBuiltinAgents([], overrides, undefined, TEST_DEFAULT_MODEL)
-    )
-
-    // #then
-    expect(agents.atlas).toBeDefined()
-    expect(agents.atlas.model).toBe("openai/gpt-5.2-codex")
-    expect(agents.atlas.variant).toBe("xhigh")
-  })
-
   test("override with non-existent category has no effect on config", async () => {
     // #given
     const overrides = {
@@ -786,4 +768,3 @@ describe("buildAgent with category and skills", () => {
     expect(agent.prompt).toBe("Base prompt")
   })
 })
-
