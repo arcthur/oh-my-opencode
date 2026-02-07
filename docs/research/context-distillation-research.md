@@ -6,10 +6,10 @@ This document compares Factory.ai Droid CLI’s progressive context distillation
 
 Key observations:
 
-- Oh-My-OpenCode already implements a three-phase token-limit recovery pipeline: **Dynamic Context Pruning (DCP) → aggressive truncation → session summarization**.
+- Oh-My-OpenCode centralizes context-window governance in a single hook: **warnings → preemptive compaction → hard-limit recovery** (all owned by `context-window-governor`).
 - Persistent memories exist (**User Memory** and **Org Memory**) and can inject context via the context collector.
-- **Repository overview injection** and **runtime tracking** have schemas and code modules, but are **not currently wired** in `src/index.ts`.
-- Compaction-time injection helpers exist (`compaction-context-injector`, Claude Code `PreCompact`) but are **not currently wired** due to missing/unstable OpenCode lifecycle surfaces in this plugin.
+- **Repository overview injection** and **runtime tracking** are wired via runtime hooks.
+- Compaction-time injection helpers exist (`context-window-governor`, Claude Code `PreCompact`) and are wired **best-effort** via `experimental.session.compacting` (depends on runtime support).
 
 ---
 
@@ -62,9 +62,7 @@ Org Memory:
 | Component | Code | Role | Status |
 |---|---|---|---|
 | Context collector / injector | `src/features/context-injector/` | Central registry for injectable context | Wired |
-| Preemptive compaction | `src/hooks/preemptive-compaction/` | Proactively triggers session summarize at a threshold | Wired |
-| Token-limit recovery | `src/hooks/context-window-limit-recovery/` | Automatic recovery when a hard token limit is hit | Wired |
-| Dynamic Context Pruning (DCP) | `src/hooks/context-window-limit-recovery/` | Low-risk pruning of redundant tool history | Wired (optional via `experimental.dynamic_context_pruning`) |
+| Context window governor | `src/hooks/context-window-governor/` | Unified warnings, preemptive compaction, and hard-limit recovery | Wired |
 | Tool output shaping | `src/hooks/tool-output-truncator.ts`, `src/hooks/silent-tool-output/` | Reduce context bloat from tool output | Wired |
 | Directory context injection | `src/hooks/directory-agents-injector/`, `src/hooks/directory-readme-injector/` | Inject AGENTS.md/README.md where relevant | Wired (AGENTS injector may auto-disable on new OpenCode versions) |
 | Rules injection | `src/hooks/rules-injector/` + `src/features/conditional-rules/` | Inject path-sensitive rules into tools/delegation | Wired |
@@ -73,37 +71,35 @@ Org Memory:
 | Session handoff | `src/features/session-handoff/` | Cross-session summaries and references | Wired |
 | Repo overview injector | `src/hooks/repo-overview-injector/` | Generate and inject a per-repo overview | Wired |
 | Runtime tracker | `src/hooks/runtime-tracker/` | Track tool runtimes and inject hints | Wired |
-| Compaction-time injection helper | `src/hooks/compaction-context-injector/` | Add structured context at compaction time | Wired (best-effort via `experimental.session.compacting`) |
+| Compaction-time injection helper | `src/hooks/context-window-governor/actions/` | Add structured context at compaction time | Wired (best-effort via `experimental.session.compacting`) |
 | Claude Code `PreCompact` | `src/hooks/claude-code-hooks/pre-compact.ts` | Compatibility layer for compaction injection | Wired (best-effort via `experimental.session.compacting`) |
 
 ### 2.2 Token-limit recovery pipeline
 
-Oh-My-OpenCode’s hard-limit recovery follows a three-phase escalation:
+Oh-My-OpenCode’s hard-limit recovery is summarize-first in the current wiring:
 
 ```mermaid
 flowchart TD
-  P1["Phase 1: Dynamic Context Pruning (DCP)<br/>- Deduplicate tool calls<br/>- Supersede writes<br/>- Purge old errors<br/>- Clear old tool results"]
-  P2["Phase 2: Aggressive Truncation<br/>- Truncate large tool outputs<br/>- Target token ratio: 0.5"]
-  P3["Phase 3: Summarize<br/>- session.summarize(auto=true)"]
-  P1 --> P2 --> P3
+  DETECT["Token-limit error (session.error/message.updated)\nor usageRatio >= limit"] --> GOV["context-window-governor schedules recovery"]
+  GOV --> SUM["session.summarize(auto=true)"]
 ```
 
 Notes:
 
-- Phase 1 is gated by `experimental.dynamic_context_pruning.enabled=true`.
-- Phase 2 and 3 run only when the session is over the provider token limit.
+- Tool output shaping still runs independently via `tool-output-truncator` / `silent-tool-output`.
 
 ### 2.3 Strengths
 
-1. **Three-phase recovery**: progressively escalates from reversible pruning to lossy summarization.
-2. **Configurable DCP strategies**: fine-grained pruning controls with safety defaults.
-3. **Hierarchical file injection** (AGENTS/README): retrieves project constraints without manual prompting.
+1. **Unified governance**: single hook owns sampling, state, and mutual exclusion for compaction.
+2. **Threshold-based mitigation**: warnings + preemptive summarize reduce surprise token-limit errors.
+3. **Compaction-time continuity**: structured context injection is wired best-effort via `experimental.session.compacting`.
 4. **Multiple memory layers**: user/org memory and session handoff are separate mechanisms.
 
 ### 2.4 Gaps and limitations (as of current wiring)
 
 1. **Compaction-time surface stability**: compaction-time injection is wired but still depends on the OpenCode runtime emitting `experimental.session.compacting`.
-2. **Observation masking**: not implemented (tool outputs are truncated/pruned, not masked with reversible handles).
+2. **Provider/model limit coverage**: context limits fall back to heuristics when provider/model metadata is missing.
+3. **Observation masking**: not implemented (tool outputs are truncated, not masked with reversible handles).
 
 ---
 
@@ -162,7 +158,7 @@ Old tool outputs deep in history can often be removed safely; the agent generall
 
 ### 4.1 Quick wins (wiring and defaults)
 
-1. Validate `experimental.dynamic_context_pruning` defaults and document safe tuning for `strategies.clear_tool_results.keep_recent_turns`.
+1. Tune `context_window_governor` defaults (ratios and reset ratios) to reduce flapping and avoid late compaction.
 2. Tune `runtime_tracker` defaults (`threshold_ms`, `hint_cooldown_ms`) to reduce noisy hints in large repos.
 3. Tune `repo_overview` defaults (`min_tool_calls`, `cache_duration_ms`) to balance onboarding speed vs context budget.
 
@@ -185,9 +181,9 @@ Old tool outputs deep in history can often be removed safely; the agent generall
 
 Phase 1 (1–2 weeks):
 
-- Wire repo overview
-- Wire runtime tracker
-- Harden and document DCP tuning
+- Tune repo overview defaults
+- Tune runtime tracker defaults
+- Harden governor recovery retry behavior and document safe tuning
 
 Phase 2 (2–4 weeks):
 
@@ -208,17 +204,17 @@ Note: features that are “present but not wired” will not take effect until i
 
 ```jsonc
 {
-  "experimental": {
-    "preemptive_compaction": true,
-    "preemptive_compaction_threshold": 0.85,
-    "dynamic_context_pruning": {
-      "enabled": true,
-      "strategies": {
-        "deduplication": { "enabled": true },
-        "supersede_writes": { "enabled": true, "aggressive": false },
-        "purge_errors": { "enabled": true, "turns": 5 },
-        "clear_tool_results": { "enabled": true, "keep_recent_turns": 5 }
-      }
+  "context_window_governor": {
+    "warning_ratio": 0.7,
+    "preemptive_ratio": 0.78,
+    "limit_ratio": 1.0,
+    "warning_reset_ratio": 0.65,
+    "preemptive_reset_ratio": 0.73,
+    "recovery": {
+      "max_attempts": 2,
+      "initial_delay_ms": 2000,
+      "max_delay_ms": 30000,
+      "toast_cooldown_ms": 30000
     }
   },
   "repo_overview": {

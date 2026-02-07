@@ -332,7 +332,7 @@ Compaction-time injection (`PreCompact`) is registered on `experimental.session.
 | **directory-agents-injector** | PostToolUse | Auto-injects AGENTS.md when reading files. Walks from file to project root, collecting all AGENTS.md files. **Deprecated for OpenCode 1.1.37+** - Auto-disabled when native AGENTS.md injection is available. |
 | **directory-readme-injector** | PostToolUse | Auto-injects README.md for directory context. |
 | **rules-injector** | PostToolUse | Injects rules from `.claude/rules/` when conditions match. Supports globs and alwaysApply. |
-| **compaction-context-injector** | PreCompact | Compaction-time context injection helper. Present in the repo but not currently invoked by OpenCode (pending `experimental.session.compacting` support). |
+| **context-window-governor** | PostToolUse / Stop / PreCompact | Unified context window governance: warnings, preemptive summarize, hard-limit recovery, and compaction-time context injection (best-effort via `experimental.session.compacting`). |
 
 #### Productivity & Control
 
@@ -357,7 +357,6 @@ Compaction-time injection (`PreCompact`) is registered on `experimental.session.
 | Hook | Event | Description |
 |------|-------|-------------|
 | **session-recovery** | Stop | Recovers from session errors - missing tool results, thinking block issues, empty messages. |
-| **context-window-limit-recovery** | Stop | Handles context window limits gracefully. |
 
 #### Truncation & Context Management
 

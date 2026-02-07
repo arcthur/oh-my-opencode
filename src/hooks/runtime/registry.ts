@@ -3,7 +3,7 @@ import type { HookEventType, HookNodeId, RuntimeRegistryEntry } from "./types"
 
 const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "todo-continuation-enforcer", events: ["event"] },
-  { name: "context-window-monitor", events: ["event", "tool.execute.after"] },
+  { name: "context-window-governor", events: ["event", "tool.execute.after", "experimental.session.compacting"] },
   { name: "session-recovery", events: [] },
   { name: "session-notification", events: ["event"] },
   { name: "comment-checker", events: ["tool.execute.before", "tool.execute.after"] },
@@ -12,8 +12,6 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "directory-readme-injector", events: ["event", "tool.execute.before", "tool.execute.after"] },
   { name: "empty-task-response-detector", events: ["tool.execute.after"] },
   { name: "think-mode", events: ["chat.message", "event"] },
-  { name: "context-window-limit-recovery", events: ["event"] },
-  { name: "preemptive-compaction", events: ["event", "tool.execute.after"] },
   { name: "rules-injector", events: ["event", "tool.execute.before", "tool.execute.after"] },
   { name: "background-notification", events: ["event"] },
   { name: "auto-update-checker", events: ["event"] },
@@ -24,7 +22,6 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "interactive-bash-session", events: ["event", "tool.execute.after"] },
   { name: "thinking-block-validator", events: ["experimental.chat.messages.transform"] },
   { name: "ralph-loop", events: ["event"] },
-  { name: "compaction-context-injector", events: [] },
   { name: "claude-code-hooks", events: ["chat.message", "tool.execute.before", "tool.execute.after", "event", "experimental.session.compacting"] },
   { name: "auto-slash-command", events: ["chat.message"] },
   { name: "edit-error-recovery", events: ["tool.execute.after"] },

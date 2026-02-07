@@ -61,7 +61,7 @@ export const AgentNameSchema = BuiltinAgentNameSchema
 
 export const HookNameSchema = z.enum([
   "todo-continuation-enforcer",
-  "context-window-monitor",
+  "context-window-governor",
   "session-recovery",
   "session-notification",
   "comment-checker",
@@ -70,8 +70,6 @@ export const HookNameSchema = z.enum([
   "directory-readme-injector",
   "empty-task-response-detector",
   "think-mode",
-  "context-window-limit-recovery",
-  "preemptive-compaction",
   "rules-injector",
   "background-notification",
   "auto-update-checker",
@@ -84,7 +82,6 @@ export const HookNameSchema = z.enum([
   "thinking-block-validator",
   "ralph-loop",
 
-  "compaction-context-injector",
   "claude-code-hooks",
   "auto-slash-command",
   "edit-error-recovery",
@@ -240,48 +237,6 @@ export const CommentCheckerConfigSchema = z.object({
   custom_prompt: z.string().optional(),
 })
 
-export const DynamicContextPruningConfigSchema = z.object({
-  /** Enable dynamic context pruning (default: false) */
-  enabled: z.boolean().default(false),
-  /** Notification level: off, minimal, or detailed (default: detailed) */
-  notification: z.enum(["off", "minimal", "detailed"]).default("detailed"),
-  /** Turn protection - prevent pruning recent tool outputs */
-  turn_protection: z.object({
-    enabled: z.boolean().default(true),
-    turns: z.number().min(1).max(10).default(3),
-  }).optional(),
-  /** Tools that should never be pruned */
-  protected_tools: z.array(z.string()).default([
-    "task", "todowrite", "todoread",
-    "lsp_rename",
-    "session_read", "session_write", "session_search",
-  ]),
-  /** Pruning strategies configuration */
-  strategies: z.object({
-    /** Remove duplicate tool calls (same tool + same args) */
-    deduplication: z.object({
-      enabled: z.boolean().default(true),
-    }).optional(),
-    /** Prune write inputs when file subsequently read */
-    supersede_writes: z.object({
-      enabled: z.boolean().default(true),
-      /** Aggressive mode: prune any write if ANY subsequent read */
-      aggressive: z.boolean().default(false),
-    }).optional(),
-    /** Prune errored tool inputs after N turns */
-    purge_errors: z.object({
-      enabled: z.boolean().default(true),
-      turns: z.number().min(1).max(20).default(5),
-    }).optional(),
-    /** Clear tool results from older turns - safest form of compaction */
-    clear_tool_results: z.object({
-      enabled: z.boolean().default(true),
-      /** Number of recent turns to keep full results (default: 5) */
-      keep_recent_turns: z.number().min(1).max(20).default(5),
-    }).optional(),
-  }).optional(),
-})
-
 export const HookRuntimeV2ModeSchema = z.enum(["shadow", "enforce"])
 
 export const HookRuntimeV2ConfigSchema = z.object({
@@ -294,16 +249,31 @@ export const HookRuntimeV2ConfigSchema = z.object({
 export const ExperimentalConfigSchema = z.object({
   aggressive_truncation: z.boolean().optional(),
   auto_resume: z.boolean().optional(),
-  /** Enable preemptive compaction at threshold (default: true since v2.9.0) */
-  preemptive_compaction: z.boolean().optional(),
-  /** Threshold percentage to trigger preemptive compaction (default: 0.78) */
-  preemptive_compaction_threshold: z.number().min(0.5).max(0.95).optional(),
   /** Truncate all tool outputs, not just whitelisted tools (default: false). Tool output truncator is enabled by default - disable via disabled_hooks. */
   truncate_all_tool_outputs: z.boolean().optional(),
-  /** Dynamic context pruning configuration */
-  dynamic_context_pruning: DynamicContextPruningConfigSchema.optional(),
   /** Hook runtime v2 configuration */
   hook_runtime_v2: HookRuntimeV2ConfigSchema.optional(),
+})
+
+export const ContextWindowGovernorRecoveryConfigSchema = z.object({
+  max_attempts: z.number().min(1).max(10).default(2),
+  initial_delay_ms: z.number().min(0).max(60_000).default(2000),
+  max_delay_ms: z.number().min(0).max(300_000).default(30_000),
+  toast_cooldown_ms: z.number().min(0).max(300_000).default(30_000),
+})
+
+export const ContextWindowGovernorConfigSchema = z.object({
+  warning_ratio: z.number().min(0.1).max(0.95).default(0.7),
+  preemptive_ratio: z.number().min(0.1).max(0.99).default(0.78),
+  limit_ratio: z.number().min(0.5).max(1.5).default(1.0),
+  warning_reset_ratio: z.number().min(0.05).max(0.9).default(0.65),
+  preemptive_reset_ratio: z.number().min(0.05).max(0.95).default(0.73),
+  recovery: ContextWindowGovernorRecoveryConfigSchema.default({
+    max_attempts: 2,
+    initial_delay_ms: 2000,
+    max_delay_ms: 30000,
+    toast_cooldown_ms: 30000,
+  }),
 })
 
 export const SkillSourceSchema = z.union([
@@ -992,6 +962,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   categories: CategoriesConfigSchema.optional(),
   claude_code: ClaudeCodeConfigSchema.optional(),
   sisyphus_agent: SisyphusAgentConfigSchema.optional(),
+  context_window_governor: ContextWindowGovernorConfigSchema.optional(),
   comment_checker: CommentCheckerConfigSchema.optional(),
   experimental: ExperimentalConfigSchema.optional(),
   auto_update: z.boolean().optional(),
@@ -1037,7 +1008,7 @@ export type BuiltinSkillName = z.infer<typeof BuiltinSkillNameSchema>
 export type SisyphusAgentConfig = z.infer<typeof SisyphusAgentConfigSchema>
 export type CommentCheckerConfig = z.infer<typeof CommentCheckerConfigSchema>
 export type ExperimentalConfig = z.infer<typeof ExperimentalConfigSchema>
-export type DynamicContextPruningConfig = z.infer<typeof DynamicContextPruningConfigSchema>
+export type ContextWindowGovernorConfig = z.infer<typeof ContextWindowGovernorConfigSchema>
 export type HookRuntimeV2Mode = z.infer<typeof HookRuntimeV2ModeSchema>
 export type HookRuntimeV2Config = z.infer<typeof HookRuntimeV2ConfigSchema>
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>

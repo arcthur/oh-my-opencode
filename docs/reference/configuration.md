@@ -699,9 +699,45 @@ Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For wiring
 
 **Note on `directory-agents-injector`**: This hook is **automatically disabled** when running on OpenCode 1.1.37+ because OpenCode now has native support for dynamically resolving AGENTS.md files from subdirectories (PR #10678). This prevents duplicate AGENTS.md injection. For older OpenCode versions, the hook remains active to provide the same functionality.
 
-**Note on `compaction-context-injector`**: This hook is wired in `src/index.ts` under the `experimental.session.compacting` lifecycle surface. When OpenCode emits that event during compaction, the plugin can run Claude Code compat `PreCompact` hooks and/or inject extra compaction-time context via `compaction-context-injector` (best-effort; depends on runtime support and hook enablement).
+**Note on `context-window-governor`**: This hook is wired in `src/index.ts` under the `experimental.session.compacting` lifecycle surface. When OpenCode emits that event during compaction, the plugin can run Claude Code compat `PreCompact` hooks and/or inject extra compaction-time context via `context-window-governor` (best-effort; depends on runtime support and hook enablement).
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
+
+## Context Window Governor
+
+`context-window-governor` is the single source of truth for context window warnings, preemptive compaction, hard-limit recovery, and compaction-time context injection (best-effort via `experimental.session.compacting`).
+
+Configure it via the top-level `context_window_governor` block:
+
+```jsonc
+{
+  "context_window_governor": {
+    "warning_ratio": 0.7,
+    "preemptive_ratio": 0.78,
+    "limit_ratio": 1.0,
+    "warning_reset_ratio": 0.65,
+    "preemptive_reset_ratio": 0.73,
+    "recovery": {
+      "max_attempts": 2,
+      "initial_delay_ms": 2000,
+      "max_delay_ms": 30000,
+      "toast_cooldown_ms": 30000
+    }
+  }
+}
+```
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `warning_ratio` | `0.7` | Emit a warning reminder when usage crosses this ratio (edge-triggered) |
+| `preemptive_ratio` | `0.78` | Trigger preemptive `session.summarize(auto=true)` when usage crosses this ratio (edge-triggered) |
+| `limit_ratio` | `1.0` | Trigger recovery compaction when usage reaches this ratio or token-limit errors are observed |
+| `warning_reset_ratio` | `0.65` | Re-arm warning once usage falls below this ratio |
+| `preemptive_reset_ratio` | `0.73` | Re-arm preemptive compaction once usage falls below this ratio |
+| `recovery.max_attempts` | `2` | Maximum recovery attempts before the governor enters `failed` until reset thresholds re-arm |
+| `recovery.initial_delay_ms` | `2000` | Initial retry backoff after a failed recovery attempt |
+| `recovery.max_delay_ms` | `30000` | Maximum retry backoff for recovery attempts |
+| `recovery.toast_cooldown_ms` | `30000` | Minimum time between recovery toasts for the same session |
 
 ## MCPs
 
@@ -767,8 +803,6 @@ Opt-in experimental features that may change or be removed in future versions. U
 | `truncate_all_tool_outputs` | `false` | Truncates ALL tool outputs instead of just whitelisted tools (Grep, Glob, LSP, AST-grep). Tool output truncator is enabled by default - disable via `disabled_hooks`.                         |
 | `aggressive_truncation`     | `false` | When token limit is exceeded, aggressively truncates tool outputs to fit within limits. More aggressive than the default truncation behavior. Falls back to summarize/revert if insufficient. |
 | `auto_resume`               | `false` | Automatically resumes session after successful recovery from thinking block errors or thinking disabled violations. Extracts the last user message and continues.                             |
-| `preemptive_compaction`     | `true`  | Proactively summarizes sessions before hitting the context window limit (Anthropic only).                                                                                                    |
-| `preemptive_compaction_threshold` | `0.85` | Trigger compaction when token usage ratio exceeds this threshold (range: 0.5–0.95).                                                                                                       |
 | `hook_runtime_v2.enabled` | `false` | Enables Hook Runtime V2 dispatcher. `false`: legacy path. `true`: use runtime mode below. |
 | `hook_runtime_v2.mode` | `shadow` | `shadow`: execute legacy path and log runtime-order mismatch. `enforce`: runtime dispatcher order is authoritative. |
 

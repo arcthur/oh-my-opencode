@@ -33,15 +33,10 @@ export const BUILTIN_AGENT_NAMES = new Set([
   "build",
 ])
 
-// Migration map: old hook names → new hook names (for backward compatibility)
-// null means the hook was removed and should be filtered out from disabled_hooks
+// Legacy hooks that are no longer supported.
+// null means the hook should be removed from disabled_hooks.
 export const HOOK_NAME_MAP: Record<string, string | null> = {
-  // Legacy names (backward compatibility)
-  "anthropic-auto-compact": "context-window-limit-recovery",
-  "anthropic-context-window-limit-recovery": "context-window-limit-recovery",
   "sisyphus-orchestrator": "execution-orchestrator",
-
-  // Removed / unsupported hooks - filtered out and user warned
   "empty-message-sanitizer": null,
   "grep-output-truncator": null,
   "tasks-todowrite-disabler": null,

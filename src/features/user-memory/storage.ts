@@ -568,7 +568,7 @@ export function savePatternStats(stats: PatternStats): void {
 
 /**
  * Normalize tool arguments to a directory-level pattern
- * e.g., "src/hooks/preemptive-compaction/index.ts" -> "src/hooks/*"
+ * e.g., "src/hooks/context-window-governor/index.ts" -> "src/hooks/*"
  */
 export function normalizeArgsToPattern(tool: string, args: unknown): string | null {
   if (!args || typeof args !== "object") return null
@@ -626,7 +626,7 @@ export function normalizeArgsToPattern(tool: string, args: unknown): string | nu
 
 /**
  * Extract directory pattern from a file path
- * e.g., "src/hooks/preemptive-compaction/index.ts" -> "src/hooks/*"
+ * e.g., "src/hooks/context-window-governor/index.ts" -> "src/hooks/*"
  */
 function extractDirectoryPattern(filePath: string): string {
   const parts = filePath.split("/")

@@ -2,7 +2,7 @@ import type { Plugin } from "@opencode-ai/plugin";
 import type { Message, Part } from "@opencode-ai/sdk";
 import {
   createTodoContinuationEnforcer,
-  createContextWindowMonitorHook,
+  createContextWindowGovernorHook,
   createSessionRecoveryHook,
   createSessionNotification,
   createCommentCheckerHooks,
@@ -12,9 +12,6 @@ import {
   createEmptyTaskResponseDetectorHook,
   createThinkModeHook,
   createClaudeCodeHooksHook,
-  createContextWindowLimitRecoveryHook,
-  createCompactionContextInjector,
-  getCompactionContextPrompt,
   createRulesInjectorHook,
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
@@ -52,7 +49,6 @@ import {
   createConditionalRulesHooks,
   createSessionHandoffHook,
   createSwarmAgentHook,
-  createPreemptiveCompactionHook,
   createAnthropicEffortHook,
 } from "./hooks";
 import {
@@ -119,7 +115,7 @@ import { filterDisabledTools } from "./shared/disabled-tools";
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
 import { DEFAULT_HANDOFF_CONFIG } from "./features/session-handoff";
 import { loadPluginConfig } from "./plugin-config";
-import { createModelCacheState, getModelLimit } from "./plugin-state";
+import { createModelCacheState } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
 import { DEFAULT_SESSION_REFERENCE_CONFIG, type SessionReferenceConfig } from "./config/schema"
@@ -145,18 +141,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const modelCacheState = createModelCacheState();
 
-  const contextWindowMonitor = isHookEnabled("context-window-monitor")
-    ? createContextWindowMonitorHook(ctx)
-    : null;
-
-  // Preemptive compaction: auto-trigger session summarization before hitting context limit.
-  // Enabled by default; disable via disabled_hooks ("preemptive-compaction") or experimental.preemptive_compaction=false.
-  const preemptiveCompactionEnabled =
-    isHookEnabled("preemptive-compaction") &&
-    pluginConfig.experimental?.preemptive_compaction !== false;
-  const preemptiveCompaction = preemptiveCompactionEnabled
-    ? createPreemptiveCompactionHook(ctx, {
-        threshold: pluginConfig.experimental?.preemptive_compaction_threshold,
+  const contextWindowGovernor = isHookEnabled("context-window-governor")
+    ? createContextWindowGovernorHook(ctx, {
+        modelCacheState,
+        warningRatio: pluginConfig.context_window_governor?.warning_ratio,
+        preemptiveRatio: pluginConfig.context_window_governor?.preemptive_ratio,
+        limitRatio: pluginConfig.context_window_governor?.limit_ratio,
+        warningResetRatio: pluginConfig.context_window_governor?.warning_reset_ratio,
+        preemptiveResetRatio: pluginConfig.context_window_governor?.preemptive_reset_ratio,
+        recovery: pluginConfig.context_window_governor?.recovery
+          ? {
+              maxAttempts: pluginConfig.context_window_governor.recovery.max_attempts,
+              initialDelayMs:
+                pluginConfig.context_window_governor.recovery.initial_delay_ms,
+              maxDelayMs: pluginConfig.context_window_governor.recovery.max_delay_ms,
+              toastCooldownMs:
+                pluginConfig.context_window_governor.recovery.toast_cooldown_ms,
+            }
+          : undefined,
       })
     : null;
   const sessionRecovery = isHookEnabled("session-recovery")
@@ -253,15 +255,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       ledger: governanceConfig?.ledger?.enabled,
     });
   }
-  const contextWindowLimitRecovery = isHookEnabled("context-window-limit-recovery")
-    ? createContextWindowLimitRecoveryHook(ctx, {
-        experimental: pluginConfig.experimental,
-      })
-    : null;
-
-  const compactionContextInjector = isHookEnabled("compaction-context-injector")
-    ? createCompactionContextInjector()
-    : null;
   const rulesInjector = isHookEnabled("rules-injector")
     ? createRulesInjectorHook(ctx)
     : null;
@@ -1214,19 +1207,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (contextWindowMonitor?.event) {
+      if (contextWindowGovernor?.event) {
         nodes.push({
-          id: "context-window-monitor:event",
+          id: "context-window-governor:event",
           invoke: async () => {
-            await contextWindowMonitor.event(input);
-          },
-        });
-      }
-      if (preemptiveCompaction?.event) {
-        nodes.push({
-          id: "preemptive-compaction:event",
-          invoke: async () => {
-            await preemptiveCompaction.event?.(input);
+            await contextWindowGovernor.event(input);
           },
         });
       }
@@ -1259,14 +1244,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           id: "think-mode:event",
           invoke: async () => {
             await thinkMode.event(input);
-          },
-        });
-      }
-      if (contextWindowLimitRecovery?.event) {
-        nodes.push({
-          id: "context-window-limit-recovery:event",
-          invoke: async () => {
-            await contextWindowLimitRecovery.event(input);
           },
         });
       }
@@ -1930,19 +1907,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (preemptiveCompaction?.["tool.execute.after"]) {
+      if (contextWindowGovernor?.["tool.execute.after"]) {
         nodes.push({
-          id: "preemptive-compaction:tool.execute.after",
+          id: "context-window-governor:tool.execute.after",
           invoke: async () => {
-            await preemptiveCompaction["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (contextWindowMonitor?.["tool.execute.after"]) {
-        nodes.push({
-          id: "context-window-monitor:tool.execute.after",
-          invoke: async () => {
-            await contextWindowMonitor["tool.execute.after"]?.(input, output);
+            await contextWindowGovernor["tool.execute.after"]?.(input, output);
           },
         });
       }
@@ -2082,59 +2051,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         });
       }
 
-      if (compactionContextInjector) {
+      if (contextWindowGovernor?.["experimental.session.compacting"]) {
         nodes.push({
-          id: "internal:compaction-context-injector:experimental.session.compacting",
+          id: "context-window-governor:experimental.session.compacting",
           invoke: async () => {
-            let providerID: string | undefined;
-            let modelID: string | undefined;
-            try {
-              const messagesResp = await ctx.client.session.messages({
-                path: { id: input.sessionID },
-              });
-              const payload = messagesResp as { data?: Array<{ info?: Record<string, unknown> }> } | Array<{ info?: Record<string, unknown> }>;
-              const messages = Array.isArray(payload) ? payload : (payload.data ?? []);
-
-              for (let i = messages.length - 1; i >= 0; i--) {
-                const info = messages[i]?.info as Record<string, unknown> | undefined;
-                const model = info?.model as { providerID?: string; modelID?: string } | undefined;
-                const infoProviderID = info?.providerID as string | undefined;
-                const infoModelID = info?.modelID as string | undefined;
-
-                if (model?.providerID && model?.modelID) {
-                  providerID = model.providerID;
-                  modelID = model.modelID;
-                  break;
-                }
-                if (infoProviderID && infoModelID) {
-                  providerID = infoProviderID;
-                  modelID = infoModelID;
-                  break;
-                }
-              }
-            } catch {
-              // Best-effort only; compaction should proceed even if metadata is unavailable
-            }
-
-            if (providerID && modelID) {
-              await compactionContextInjector({
-                sessionID: input.sessionID,
-                providerID,
-                modelID,
-                usageRatio: 0.8,
-                directory: ctx.directory,
-              });
-              return;
-            }
-
-            if (output && Array.isArray(output.context)) {
-              output.context.push(getCompactionContextPrompt());
-              return;
-            }
-
-            log("[compaction-context-injector] skipped: unable to resolve model metadata", {
-              sessionID: input.sessionID,
-            });
+            await contextWindowGovernor["experimental.session.compacting"]?.(input, output);
           },
         });
       }

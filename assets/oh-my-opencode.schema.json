@@ -67,7 +67,7 @@
         "type": "string",
         "enum": [
           "todo-continuation-enforcer",
-          "context-window-monitor",
+          "context-window-governor",
           "session-recovery",
           "session-notification",
           "comment-checker",
@@ -76,8 +76,6 @@
           "directory-readme-injector",
           "empty-task-response-detector",
           "think-mode",
-          "context-window-limit-recovery",
-          "preemptive-compaction",
           "rules-injector",
           "background-notification",
           "auto-update-checker",
@@ -88,7 +86,6 @@
           "interactive-bash-session",
           "thinking-block-validator",
           "ralph-loop",
-          "compaction-context-injector",
           "claude-code-hooks",
           "auto-slash-command",
           "edit-error-recovery",
@@ -1669,6 +1666,76 @@
         }
       }
     },
+    "context_window_governor": {
+      "type": "object",
+      "properties": {
+        "warning_ratio": {
+          "default": 0.7,
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 0.95
+        },
+        "preemptive_ratio": {
+          "default": 0.78,
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 0.99
+        },
+        "limit_ratio": {
+          "default": 1,
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1.5
+        },
+        "warning_reset_ratio": {
+          "default": 0.65,
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 0.9
+        },
+        "preemptive_reset_ratio": {
+          "default": 0.73,
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 0.95
+        },
+        "recovery": {
+          "default": {
+            "max_attempts": 2,
+            "initial_delay_ms": 2000,
+            "max_delay_ms": 30000,
+            "toast_cooldown_ms": 30000
+          },
+          "type": "object",
+          "properties": {
+            "max_attempts": {
+              "default": 2,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "initial_delay_ms": {
+              "default": 2000,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 60000
+            },
+            "max_delay_ms": {
+              "default": 30000,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 300000
+            },
+            "toast_cooldown_ms": {
+              "default": 30000,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 300000
+            }
+          }
+        }
+      }
+    },
     "comment_checker": {
       "type": "object",
       "properties": {
@@ -1686,121 +1753,8 @@
         "auto_resume": {
           "type": "boolean"
         },
-        "preemptive_compaction": {
-          "type": "boolean"
-        },
-        "preemptive_compaction_threshold": {
-          "type": "number",
-          "minimum": 0.5,
-          "maximum": 0.95
-        },
         "truncate_all_tool_outputs": {
           "type": "boolean"
-        },
-        "dynamic_context_pruning": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "default": false,
-              "type": "boolean"
-            },
-            "notification": {
-              "default": "detailed",
-              "type": "string",
-              "enum": [
-                "off",
-                "minimal",
-                "detailed"
-              ]
-            },
-            "turn_protection": {
-              "type": "object",
-              "properties": {
-                "enabled": {
-                  "default": true,
-                  "type": "boolean"
-                },
-                "turns": {
-                  "default": 3,
-                  "type": "number",
-                  "minimum": 1,
-                  "maximum": 10
-                }
-              }
-            },
-            "protected_tools": {
-              "default": [
-                "task",
-                "todowrite",
-                "todoread",
-                "lsp_rename",
-                "session_read",
-                "session_write",
-                "session_search"
-              ],
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "strategies": {
-              "type": "object",
-              "properties": {
-                "deduplication": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": {
-                      "default": true,
-                      "type": "boolean"
-                    }
-                  }
-                },
-                "supersede_writes": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": {
-                      "default": true,
-                      "type": "boolean"
-                    },
-                    "aggressive": {
-                      "default": false,
-                      "type": "boolean"
-                    }
-                  }
-                },
-                "purge_errors": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": {
-                      "default": true,
-                      "type": "boolean"
-                    },
-                    "turns": {
-                      "default": 5,
-                      "type": "number",
-                      "minimum": 1,
-                      "maximum": 20
-                    }
-                  }
-                },
-                "clear_tool_results": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": {
-                      "default": true,
-                      "type": "boolean"
-                    },
-                    "keep_recent_turns": {
-                      "default": 5,
-                      "type": "number",
-                      "minimum": 1,
-                      "maximum": 20
-                    }
-                  }
-                }
-              }
-            }
-          }
         },
         "hook_runtime_v2": {
           "type": "object",

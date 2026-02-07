@@ -13,7 +13,7 @@ hooks/
 ├── execution-orchestrator/     # Execution-mode orchestration protocols (uses work-state)
 ├── planning-with-files/        # Manus-style planning (uses work-state)
 ├── start-work/                 # Session initialization (uses work-state)
-├── context-window-limit-recovery/  # Auto-summarize at token limit
+├── context-window-governor/    # Unified context window governance (warn/preemptive/recovery/inject)
 ├── todo-continuation-enforcer.ts # Force TODO completion
 ├── ralph-loop/                 # Self-referential dev loop until done
 ├── claude-code-hooks/          # settings.json hook compat layer (13 files)
@@ -22,12 +22,9 @@ hooks/
 ├── rules-injector/             # Conditional rules from .claude/rules/
 ├── directory-agents-injector/  # Auto-injects AGENTS.md files
 ├── directory-readme-injector/  # Auto-injects README.md files
-├── preemptive-compaction.ts    # Triggers summary before context limit
-├── compaction-context-injector/ # Injects structured compaction guidance
 ├── edit-error-recovery/        # Recovers from tool failures
 ├── delegate-task-retry/        # Retries failed delegations
 ├── thinking-block-validator/   # Ensures valid <thinking> format
-├── context-window-monitor.ts   # Reminds agents of remaining headroom
 ├── session-recovery/           # Auto-recovers from crashes
 ├── think-mode/                 # Dynamic thinking budget
 ├── keyword-detector/           # ultrawork/search/analyze modes
@@ -62,7 +59,7 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 
 **tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → executionOrchestratorHook → tmuxParallelAgents → swarmAgent → silentToolOutput
 
-**tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → preemptiveCompaction → contextWindowMonitor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → agentUsageReminder → categorySkillReminder → interactiveBashSession → editErrorRecovery → delegateTaskRetry → executionOrchestratorHook → taskResumeInfo → sessionHandoffHook → swarmAgent
+**tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → contextWindowGovernor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → agentUsageReminder → categorySkillReminder → interactiveBashSession → editErrorRecovery → delegateTaskRetry → executionOrchestratorHook → taskResumeInfo → sessionHandoffHook → swarmAgent
 
 Notes:
 - Conditional rules and governance add additional per-tool logic inside these handlers (see `src/index.ts`).

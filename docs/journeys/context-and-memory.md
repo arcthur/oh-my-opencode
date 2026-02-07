@@ -18,7 +18,7 @@ flowchart TD
   TOOL --> POST["tool.execute.after hooks shape output (truncate/optimize/recover)"]
 
   POST --> LIM{"Context pressure?"}
-  LIM -->|Near limit| PC["preemptive-compaction hook"]
+  LIM -->|Near limit| PC["context-window-governor (preemptive/recovery)"]
   PC --> SUM["session.summarize(auto=true)"]
   SUM --> SC["session.compacted event"]
   SC --> MEM
@@ -41,9 +41,9 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 - Context collection/injection: `src/features/context-injector/`
 - Context budget arbiter: `src/features/context-budget/` (unified token budget across all injection channels)
 - Tool output truncation: `src/hooks/tool-output-truncator.ts`
-- Preemptive compaction: `src/hooks/preemptive-compaction.ts`
-- Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/compaction-context-injector/` and Claude Code compat `src/hooks/claude-code-hooks/pre-compact.ts`
-- Session recovery on token-limit errors: `src/hooks/context-window-limit-recovery/`
+- Preemptive compaction: `src/hooks/context-window-governor/index.ts`
+- Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/context-window-governor/actions/` and Claude Code compat `src/hooks/claude-code-hooks/pre-compact.ts`
+- Session recovery on token-limit errors: `src/hooks/context-window-governor/`
 - User memory: `src/features/user-memory/`
 - Org memory: `src/features/org-memory/`
 
@@ -51,4 +51,4 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 
 - Verify runtime order in `src/hooks/runtime/pipeline-order.ts` and event node wiring in `src/index.ts`.
 - Confirm `disabled_hooks` and feature config in `oh-my-opencode.json`.
-- If compaction seems to “forget” critical constraints, inspect compaction triggers (`preemptive-compaction`, `context-window-limit-recovery`) and whether your build has any compaction-time injection wired (see `docs/reference/hooks.md`).
+- If compaction seems to “forget” critical constraints, inspect compaction triggers (`context-window-governor`, `context-window-governor`) and whether your build has any compaction-time injection wired (see `docs/reference/hooks.md`).
