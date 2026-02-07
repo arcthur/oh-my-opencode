@@ -6,6 +6,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { createRepoOverviewInjectorHook } from "./index"
 import { DEFAULT_CONFIG } from "./types"
 import * as generator from "./generator"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 function createTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "omo-repo-overview-"))
@@ -43,6 +44,8 @@ describe("createRepoOverviewInjectorHook", () => {
   let tmpDir: string
 
   beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
+
     // Mock generator functions
     generateSpy = spyOn(generator, "generateRepoOverview").mockReturnValue({
       name: "test-project",
@@ -233,6 +236,25 @@ describe("createRepoOverviewInjectorHook", () => {
       const outputB2 = createToolOutput()
       await hook["tool.execute.after"](inputB, outputB2)
       expect(outputB2.output).toContain("Repository Overview")
+    })
+
+    test("skips injection when tool-output budget is exhausted", async () => {
+      // given
+      contextBudgetArbiter.setBudgetConfig({
+        total_budget: 1,
+        reserved_budget: 0,
+        overflow_strategy: "drop-low-priority",
+      })
+      const mockCtx = createMockCtx()
+      const hook = createRepoOverviewInjectorHook(mockCtx)
+      const input = createToolInput("Read")
+      const output = createToolOutput()
+
+      // when
+      await hook["tool.execute.after"](input, output)
+
+      // then
+      expect(output.output).toBe("test output")
     })
   })
   // #endregion

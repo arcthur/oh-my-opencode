@@ -170,6 +170,10 @@ Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes: stop 
 
 This experimental lifecycle surface is used for message-level transforms, including context injection and thinking-block validation. See `src/index.ts`.
 
+### Context Budget Gating
+
+All hooks that inject context into tool output, chat messages, delegate prompts, or synthetic messages are gated by a shared `ContextBudgetArbiter` singleton (`src/features/context-budget/`). Each injection call goes through `arbiter.decide()`, which enforces total budget, per-source limits, per-channel limits, and priority-based overflow. See `docs/reference/configuration.md` § Context Budget for user-facing config.
+
 ### `experimental.session.compacting`
 
 Compaction-time ordering:

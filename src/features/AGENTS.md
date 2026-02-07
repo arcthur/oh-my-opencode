@@ -25,7 +25,8 @@ features/
 ├── claude-code-plugin-loader/  # installed_plugins.json
 ├── claude-code-session-state/  # Session state persistence
 ├── opencode-skill-loader/      # Skills from 6 directories
-├── context-injector/           # AGENTS.md/README.md injection
+├── context-injector/           # Context collection and injection
+├── context-budget/            # Unified token budget arbiter (all injection channels)
 ├── work-state/                 # Unified orchestrator state (work.yaml)
 ├── task-toast-manager/         # Toast notifications
 └── hook-message-injector/      # Message injection

@@ -4,6 +4,7 @@ import { setMainSession, updateSessionAgent, clearSessionAgent, _resetForTesting
 import { ContextCollector } from "../../features/context-injector"
 import * as sharedModule from "../../shared"
 import * as sessionState from "../../features/claude-code-session-state"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 describe("keyword-detector message transform", () => {
   let logCalls: Array<{ msg: string; data?: unknown }>
@@ -11,6 +12,7 @@ describe("keyword-detector message transform", () => {
   let getMainSessionSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
     _resetForTesting()
     logCalls = []
     logSpy = spyOn(sharedModule, "log").mockImplementation((msg: string, data?: unknown) => {
@@ -95,6 +97,31 @@ describe("keyword-detector message transform", () => {
     expect(textPart).toBeDefined()
     expect(textPart!.text).toBe("just a normal message")
   })
+
+  test("should skip prepend when chat-message budget is exhausted", async () => {
+    // given
+    contextBudgetArbiter.setBudgetConfig({
+      total_budget: 2000,
+      channel_limits: {
+        "chat-message": 0,
+      },
+      overflow_strategy: "drop-low-priority",
+    })
+    const collector = new ContextCollector()
+    const hook = createKeywordDetectorHook(createMockPluginInput(), collector)
+    const sessionID = "budget-session"
+    const output = {
+      message: {} as Record<string, unknown>,
+      parts: [{ type: "text", text: "ultrawork do something" }],
+    }
+
+    // when
+    await hook["chat.message"]({ sessionID }, output)
+
+    // then
+    const textPart = output.parts.find(p => p.type === "text")
+    expect(textPart?.text).toBe("ultrawork do something")
+  })
 })
 
 describe("keyword-detector session filtering", () => {
@@ -102,6 +129,7 @@ describe("keyword-detector session filtering", () => {
   let logSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
     _resetForTesting()
     logCalls = []
     logSpy = spyOn(sharedModule, "log").mockImplementation((msg: string, data?: unknown) => {

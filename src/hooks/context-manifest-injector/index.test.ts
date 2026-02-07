@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto"
 import * as yaml from "js-yaml"
 import { createContextManifestInjectorHook, extractRequestedContextPackIds } from "./index"
 import type { WorkState } from "../../features/work-state"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
   const sisyphusDir = join(directory, ".sisyphus")
@@ -40,6 +41,7 @@ describe("context-manifest-injector hook", () => {
   }
 
   beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
     testDir = join(tmpdir(), `context-manifest-injector-test-${randomUUID()}`)
     mkdirSync(testDir, { recursive: true })
   })
@@ -238,6 +240,53 @@ describe("context-manifest-injector hook", () => {
     const output = {
       args: {
         prompt: "Context Packs: global\n",
+      },
+    }
+
+    // #when
+    await hook["tool.execute.before"]?.({ tool: "delegate_task", sessionID: "s1", callID: "c1" }, output)
+
+    // #then
+    expect(output.args.prompt).not.toContain("auto-injected")
+  })
+
+  test("should skip delegate prompt injection when budget is exhausted", async () => {
+    // #given
+    contextBudgetArbiter.setBudgetConfig({
+      total_budget: 1,
+      reserved_budget: 0,
+      overflow_strategy: "drop-low-priority",
+    })
+    const hook = createContextManifestInjectorHook(createMockPluginInput())
+
+    writeWorkState(testDir, {
+      execution_plan_path: ".sisyphus/plans/demo/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      plan_id: "demo",
+      session_ids: ["s1"],
+    })
+
+    const manifestPath = join(testDir, ".sisyphus", "context-manifests", "demo.md")
+    mkdirSync(join(testDir, ".sisyphus", "context-manifests"), { recursive: true })
+    writeFileSync(
+      manifestPath,
+      `# demo\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({
+        schemaVersion: 2,
+        planId: "demo",
+        generatedAt: "2026-02-05T00:00:00Z",
+        packs: [
+          {
+            id: "global",
+            title: "Global",
+            items: [{ kind: "doc", ref: "docs/a.md", why: "A" }],
+          },
+        ],
+      })}\n[/CONTEXT_MANIFEST]\n`
+    )
+
+    const output = {
+      args: {
+        prompt: "## 1. TASK\nWire it\n\nContext Packs: global\n",
       },
     }
 

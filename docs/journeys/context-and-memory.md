@@ -39,6 +39,7 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 ## Where to Look in Code
 
 - Context collection/injection: `src/features/context-injector/`
+- Context budget arbiter: `src/features/context-budget/` (unified token budget across all injection channels)
 - Tool output truncation: `src/hooks/tool-output-truncator.ts`
 - Preemptive compaction: `src/hooks/preemptive-compaction.ts`
 - Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/compaction-context-injector/` and Claude Code compat `src/hooks/claude-code-hooks/pre-compact.ts`

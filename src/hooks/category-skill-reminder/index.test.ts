@@ -7,6 +7,7 @@ import {
 } from "../../features/claude-code-session-state"
 import type { AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
 import * as sharedModule from "../../shared"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 describe("category-skill-reminder hook", () => {
   let logCalls: Array<{ msg: string; data?: unknown }>
@@ -14,6 +15,7 @@ describe("category-skill-reminder hook", () => {
 
   beforeEach(() => {
     _resetForTesting()
+    contextBudgetArbiter.resetForTesting()
     logCalls = []
     logSpy = spyOn(sharedModule, "log").mockImplementation((msg: string, data?: unknown) => {
       logCalls.push({ msg, data })

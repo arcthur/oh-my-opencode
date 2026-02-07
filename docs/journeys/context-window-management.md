@@ -154,6 +154,7 @@ oh-my-opencode Context Management
 │       ├── pruning-clear-results.ts   # Clear old tool results
 │       └── storage.ts                 # Tool output management
 ├── Context Injection                  # Context bootstrapping
+│   ├── src/features/context-budget/           # Unified token budget arbiter (all channels)
 │   ├── src/hooks/compaction-context-injector/   # Compaction-time injection helper (wired via experimental.session.compacting)
 │   ├── src/hooks/repo-overview-injector/        # Project context injection
 │   └── src/hooks/directory-agents-injector/     # Directory-level context

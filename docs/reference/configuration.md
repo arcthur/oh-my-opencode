@@ -642,6 +642,43 @@ You can always override automatic selection in `oh-my-opencode.json`:
 }
 ```
 
+## Context Budget
+
+All context injection hooks share a unified token budget governed by a single `ContextBudgetArbiter` singleton (`src/features/context-budget/`). This prevents any one hook from starving others.
+
+```json
+{
+  "context_budget": {
+    "total_budget": 2000,
+    "reserved_budget": 400,
+    "overflow_strategy": "drop-low-priority",
+    "source_limits": {
+      "codemap-injector": 600,
+      "rules-injector": 500
+    },
+    "channel_limits": {
+      "tool-output": 1200,
+      "synthetic-message": 400
+    }
+  }
+}
+```
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `total_budget` | `2000` | Total tokens per turn across all injection sources |
+| `reserved_budget` | `400` | Tokens reserved for `critical`/`high` priority injections. Normal/low priority sources can only use `total_budget - reserved_budget`. |
+| `overflow_strategy` | `"drop-low-priority"` | `"drop-low-priority"` drops normal/low entries that exceed budget; `"truncate"` truncates content to fit |
+| `source_limits` | — | Per-source token caps (e.g., `"codemap-injector": 600`) |
+| `channel_limits` | — | Per-channel token caps. Channels: `messages-transform`, `tool-output`, `chat-message`, `delegate-prompt`, `synthetic-message`, `session-prompt` |
+
+**Injection channels** route through the arbiter via two paths:
+
+1. **`ContextCollector.register()`** → `arbiter.decide()` — used by `planning-with-files`, `claude-code-hooks`
+2. **Direct `arbiter.decide()`** — used by `rules-injector`, `directory-agents/readme`, `repo-overview`, `codemap-injector`, `keyword-detector`, `context-manifest-injector`, `conditional-rules`, `hook-message-injector`, `category-skill-reminder`
+
+Budget counters reset at the start of each user turn via `beginTurn()`.
+
 ## Hooks
 
 Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:

@@ -1,0 +1,85 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { contextBudgetArbiter } from "../../features/context-budget"
+import { createRulesInjectorHook } from "./index"
+
+describe("rules-injector budget integration", () => {
+  const TEST_DIR = join(tmpdir(), `rules-injector-budget-test-${Date.now()}`)
+  const SOURCE_FILE = join(TEST_DIR, "src", "a.ts")
+  const COPILOT_INSTRUCTIONS_FILE = join(TEST_DIR, ".github", "copilot-instructions.md")
+
+  beforeEach(() => {
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true, force: true })
+    }
+    mkdirSync(join(TEST_DIR, ".git"), { recursive: true })
+    mkdirSync(join(TEST_DIR, "src"), { recursive: true })
+    mkdirSync(join(TEST_DIR, ".github"), { recursive: true })
+    writeFileSync(SOURCE_FILE, "export const a = 1\n")
+    writeFileSync(COPILOT_INSTRUCTIONS_FILE, "Apply coding standards")
+
+    contextBudgetArbiter.resetForTesting()
+  })
+
+  afterEach(() => {
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true, force: true })
+    }
+  })
+
+  test("injects rule content when budget allows", async () => {
+    // #given
+    const sessionID = `rules-budget-allow-${Date.now()}-${Math.random()}`
+    const hook = createRulesInjectorHook({
+      directory: TEST_DIR,
+      client: {},
+    })
+    const output = {
+      title: SOURCE_FILE,
+      output: "base output",
+      metadata: {},
+    }
+
+    // #when
+    await hook["tool.execute.after"](
+      { tool: "read", sessionID, callID: "c1" },
+      output
+    )
+
+    // #then
+    expect(output.output).toContain("[Rule:")
+    expect(output.output).toContain("Apply coding standards")
+  })
+
+  test("skips rule injection when budget drops the block", async () => {
+    // #given
+    const sessionID = `rules-budget-drop-${Date.now()}-${Math.random()}`
+    contextBudgetArbiter.setBudgetConfig({
+      total_budget: 2000,
+      source_limits: {
+        "rules-injector": 0,
+      },
+      overflow_strategy: "drop-low-priority",
+    })
+    const hook = createRulesInjectorHook({
+      directory: TEST_DIR,
+      client: {},
+    })
+    const output = {
+      title: SOURCE_FILE,
+      output: "base output",
+      metadata: {},
+    }
+
+    // #when
+    await hook["tool.execute.after"](
+      { tool: "read", sessionID, callID: "c2" },
+      output
+    )
+
+    // #then
+    expect(output.output).toBe("base output")
+  })
+})
