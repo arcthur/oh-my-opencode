@@ -1,17 +1,33 @@
 import { describe, expect, mock, test, beforeEach, afterEach } from "bun:test"
 import type { PluginInput } from "@opencode-ai/plugin"
 import { existsSync, mkdirSync, rmSync, writeFileSync, readdirSync } from "node:fs"
+import { createHash } from "node:crypto"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
-import { clearSwarmRuntimeRegistry } from "../../features/sisyphus-swarm/runtime/registry"
-import { cleanupAllOrchestrators, getSessionTeam } from "../../tools/swarm"
+import { createSwarmRuntimeService } from "../../features/sisyphus-swarm/runtime"
+import { addMember, createAgentIdentity, createTeam } from "../../features/sisyphus-swarm/team"
+import type { CoordinatorAgent } from "../../features/sisyphus-swarm/agent"
 
 const mockCreateCoordinator = mock(async () => ({ stub: true }))
 
 mock.module("../../features/sisyphus-swarm/agent", () => ({
   createCoordinator: mockCreateCoordinator,
 }))
+
+function buildExpectedTeamId(planId: string, planPath: string): string {
+  const normalizedPlanId = planId
+    .trim()
+    .replace(/["'\\]/g, "-")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || "swarm"
+
+  const suffix = createHash("sha1").update(planPath).digest("hex").slice(0, 8)
+  const maxBaseLength = Math.max(1, 64 - suffix.length - 1)
+  return `${normalizedPlanId.slice(0, maxBaseLength)}-${suffix}`
+}
 
 describe("swarm-from-plan hook", () => {
   let projectDir: string
@@ -21,8 +37,6 @@ describe("swarm-from-plan hook", () => {
   beforeEach(() => {
     mockCreateCoordinator.mockReset()
     mockCreateCoordinator.mockImplementation(async () => ({ stub: true }))
-    clearSwarmRuntimeRegistry()
-    cleanupAllOrchestrators()
 
     projectDir = join(tmpdir(), `swarm-from-plan-hook-${Date.now()}`)
     tasksDir = join(tmpdir(), `swarm-from-plan-tasks-${Date.now()}`)
@@ -80,8 +94,6 @@ describe("swarm-from-plan hook", () => {
   })
 
   afterEach(() => {
-    clearSwarmRuntimeRegistry()
-    cleanupAllOrchestrators()
     if (existsSync(projectDir)) rmSync(projectDir, { recursive: true })
     if (existsSync(tasksDir)) rmSync(tasksDir, { recursive: true })
   })
@@ -89,7 +101,12 @@ describe("swarm-from-plan hook", () => {
   test("syncs plan todos to task pool on /start-work", async () => {
     // #given
     const { createSwarmFromPlanHook } = await import("./index")
-    const hook = createSwarmFromPlanHook({ directory: projectDir } as unknown as PluginInput, config)
+    const runtime = createSwarmRuntimeService()
+    const hook = createSwarmFromPlanHook(
+      { directory: projectDir } as unknown as PluginInput,
+      config,
+      runtime
+    )
     type ChatMessageHandler = (typeof hook)["chat.message"]
     type HookInput = Parameters<ChatMessageHandler>[0]
     type HookOutput = Parameters<ChatMessageHandler>[1]
@@ -106,7 +123,7 @@ describe("swarm-from-plan hook", () => {
 
     // #then
     expect(mockCreateCoordinator).toHaveBeenCalledTimes(1)
-    const teamName = getSessionTeam("ses_main")
+    const teamName = runtime.getSessionTeam("ses_main")?.teamName
     expect(teamName).toBeDefined()
     expect(teamName?.startsWith("demo-")).toBe(true)
 
@@ -118,5 +135,118 @@ describe("swarm-from-plan hook", () => {
     expect(text).toContain("## Swarm-first Execution")
     expect(text).toContain(`Team: ${teamName}`)
     expect(text).toContain("Plan: demo")
+  })
+
+  test("does not lock session as started when recovery coordinator boot fails", async () => {
+    // #given
+    const { createSwarmFromPlanHook } = await import("./index")
+    const runtime = createSwarmRuntimeService()
+    const planPath = join(projectDir, ".sisyphus", "plans", "demo", "plan.md")
+    const teamName = buildExpectedTeamId("demo", planPath)
+
+    const coordinator = createAgentIdentity({
+      name: "coordinator-existing",
+      role: "coordinator",
+      sessionId: "coord-existing",
+    })
+    createTeam(teamName, coordinator, config)
+    addMember(
+      teamName,
+      createAgentIdentity({
+        name: "worker-existing",
+        role: "worker",
+        sessionId: "worker-existing",
+      }),
+      config
+    )
+
+    mockCreateCoordinator.mockImplementation(async () => null)
+
+    const hook = createSwarmFromPlanHook(
+      { directory: projectDir } as unknown as PluginInput,
+      config,
+      runtime
+    )
+    type ChatMessageHandler = (typeof hook)["chat.message"]
+    type HookInput = Parameters<ChatMessageHandler>[0]
+    type HookOutput = Parameters<ChatMessageHandler>[1]
+
+    const output: HookOutput = {
+      parts: [
+        { type: "text", text: "run /start-work\n<session-context>\n..." },
+      ],
+    }
+    const input: HookInput = { sessionID: "ses_main" }
+
+    // #when
+    await hook["chat.message"](input, output)
+    await hook["chat.message"](input, output)
+
+    // #then
+    expect(mockCreateCoordinator).toHaveBeenCalledTimes(2)
+    expect(runtime.getSessionTeam("ses_main")).toBeUndefined()
+    expect(output.parts[0]?.text ?? "").not.toContain("Swarm-first Execution (recovered)")
+  })
+
+  test("replaces stale coordinator handle when session is rebound to a different team", async () => {
+    // #given
+    const { createSwarmFromPlanHook } = await import("./index")
+    const runtime = createSwarmRuntimeService()
+    const planPath = join(projectDir, ".sisyphus", "plans", "demo", "plan.md")
+    const teamName = buildExpectedTeamId("demo", planPath)
+
+    const coordinator = createAgentIdentity({
+      name: "coordinator-existing",
+      role: "coordinator",
+      sessionId: "coord-existing",
+    })
+    createTeam(teamName, coordinator, config)
+    addMember(
+      teamName,
+      createAgentIdentity({
+        name: "worker-existing",
+        role: "worker",
+        sessionId: "worker-existing",
+      }),
+      config
+    )
+
+    const staleCoordinatorStop = mock(async () => true)
+    const staleCoordinator = {
+      stop: staleCoordinatorStop,
+      getManifest: () => ({ name: "stale-team" }),
+    } as unknown as CoordinatorAgent
+    runtime.registerCoordinator("ses_main", staleCoordinator)
+    runtime.bindSessionToTeam("ses_main", projectDir, "stale-team")
+
+    const recoveredCoordinator = {
+      stop: mock(async () => true),
+      getManifest: () => ({ name: teamName }),
+    } as unknown as CoordinatorAgent
+    mockCreateCoordinator.mockImplementation(async () => recoveredCoordinator)
+
+    const hook = createSwarmFromPlanHook(
+      { directory: projectDir } as unknown as PluginInput,
+      config,
+      runtime
+    )
+    type ChatMessageHandler = (typeof hook)["chat.message"]
+    type HookInput = Parameters<ChatMessageHandler>[0]
+    type HookOutput = Parameters<ChatMessageHandler>[1]
+
+    const output: HookOutput = {
+      parts: [
+        { type: "text", text: "run /start-work\n<session-context>\n..." },
+      ],
+    }
+    const input: HookInput = { sessionID: "ses_main" }
+
+    // #when
+    await hook["chat.message"](input, output)
+
+    // #then
+    expect(staleCoordinatorStop).toHaveBeenCalledTimes(1)
+    expect(runtime.getSessionTeam("ses_main")?.teamName).toBe(teamName)
+    expect(runtime.getCoordinator("ses_main")).toBe(recoveredCoordinator)
   })
 })

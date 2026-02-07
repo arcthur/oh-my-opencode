@@ -4,6 +4,9 @@
  * Provides worker and coordinator agent implementations.
  */
 
+import { WorkerAgent as WorkerAgentImpl, createWorker as createWorkerImpl } from "./worker"
+import { CoordinatorAgent as CoordinatorAgentImpl, createCoordinator as createCoordinatorImpl } from "./coordinator"
+
 // State machine
 export {
   AgentStateSchema,
@@ -24,13 +27,19 @@ export {
   type PermissionResult,
   type PlanApprovalResult,
   type RiskLevel,
-  WorkerAgent,
-  createWorker,
 } from "./worker"
+
+// Avoid live re-exports for these to keep Bun module mocks from patching ./worker exports.
+export type WorkerAgent = WorkerAgentImpl
+export const WorkerAgent = WorkerAgentImpl
+export const createWorker = createWorkerImpl
 
 // Coordinator agent
 export {
   type CoordinatorConfig,
-  CoordinatorAgent,
-  createCoordinator,
 } from "./coordinator"
+
+// Avoid live re-exports for these to keep Bun module mocks from patching ./coordinator exports.
+export type CoordinatorAgent = CoordinatorAgentImpl
+export const CoordinatorAgent = CoordinatorAgentImpl
+export const createCoordinator = createCoordinatorImpl

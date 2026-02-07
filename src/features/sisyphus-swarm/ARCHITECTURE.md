@@ -79,6 +79,21 @@ Coordinator                     Worker                      OpenCode Session
 
 ## Key Design Decisions
 
+### 0. Single Runtime Owner (Control Plane)
+
+Swarm runtime state inside one process is owned by `SwarmRuntimeService` (`src/features/sisyphus-swarm/runtime/`):
+
+- session → team binding
+- team → orchestrator handle (team-scoped key: `{directory}::{teamName}`)
+- session → worker/coordinator handles
+
+Boundary rule:
+- `tools/` and `hooks/` consume runtime APIs
+- they must not maintain their own top-level Swarm runtime `Map`s
+- `hooks/` must not import Swarm state setters from `tools/`
+
+This keeps runtime ownership singular while `.sisyphus` files remain the durable source of truth.
+
 ### 1. Per-Message Files (Not Single Inbox File)
 
 **Problem**: Multiple senders writing to same inbox file causes race conditions.

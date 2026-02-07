@@ -109,6 +109,7 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { createWorkStateManager } from "./features/work-state";
+import { createSwarmRuntimeService } from "./features/sisyphus-swarm/runtime";
 import { HookNameSchema, type HookName } from "./config";
 import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
 import { filterDisabledTools } from "./shared/disabled-tools";
@@ -356,8 +357,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createStartWorkHook(ctx)
     : null;
 
+  const swarmRuntime = createSwarmRuntimeService();
+
   const swarmFromPlan = isHookEnabled("swarm-from-plan")
-    ? createSwarmFromPlanHook(ctx, pluginConfig)
+    ? createSwarmFromPlanHook(ctx, pluginConfig, swarmRuntime)
     : null;
 
   const prometheusMdOnly = isHookEnabled("prometheus-md-only")
@@ -452,7 +455,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   // Swarm agent: auto-initialize worker when running with OPENCODE_SWARM_* env vars
   // Enables multi-agent coordination via Sisyphus Swarm
   const swarmAgent = isHookEnabled("swarm-agent")
-    ? createSwarmAgentHook(ctx, { config: pluginConfig })
+    ? createSwarmAgentHook(ctx, { config: pluginConfig, runtime: swarmRuntime })
     : null;
 
   // Conditional rules for path-sensitive rule injection
@@ -622,7 +625,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const swarmTool = createSwarmTool({
     directory: ctx.directory,
     config: pluginConfig,
-    sessionId: getMainSessionID(),
+    runtime: swarmRuntime,
+    getSessionId: () => getMainSessionID(),
   });
 
   const skillMcpManager = new SkillMcpManager();
@@ -1301,6 +1305,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               sessionStateCoordinator.onSessionDeleted(sessionInfo.id);
               resetMessageCursor(sessionInfo.id);
               firstMessageVariantGate.clear(sessionInfo.id);
+              swarmRuntime.unbindSession(sessionInfo.id);
+              swarmRuntime.unregisterWorker(sessionInfo.id);
+              swarmRuntime.unregisterCoordinator(sessionInfo.id);
               await skillMcpManager.disconnectSession(sessionInfo.id);
               await lspManager.cleanupTempDirectoryClients();
             }

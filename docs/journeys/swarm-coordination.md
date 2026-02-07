@@ -56,11 +56,12 @@ sequenceDiagram
 ## Mental Model
 
 - **Coordination plane**: a file-based mailbox protocol stored under `.sisyphus/teams/<team>/inboxes/<agentId>/`.
+- **Control plane (in-process)**: `SwarmRuntimeService` in `src/features/sisyphus-swarm/runtime/` owns runtime handles (session↔team binding, coordinator/worker handles, team-scoped orchestrators).
 - **Work plane**: each agent is an independent `opencode` process (often a tmux window).
 - **Task plane**: a shared task pool stored under `.sisyphus/tasks/<listId>/task_*.json`.
 - **Admission plane**: a shared parallel-runtime lease registry under `.sisyphus/runtime/parallel/` that applies global slots across Swarm and Background execution.
 
-Swarm works without a daemon: coordination is done via filesystem reads/writes.
+Swarm works without a daemon: persistent truth is still filesystem-based, while runtime handles are centralized in one in-memory control-plane service.
 
 ## Typical Workflow
 
@@ -70,7 +71,7 @@ Swarm works without a daemon: coordination is done via filesystem reads/writes.
 4. Add tasks: `/swarm task add "Subject" "Description"`.
 5. Monitor: `/swarm status`.
 6. Stop:
-   - `/swarm stop` to stop workers but keep worktrees for manual merge, or
+   - `/swarm stop` to stop workers for the current team but keep worktrees for manual merge, or
    - `/swarm stop --cleanup` to remove worktrees and branches.
 
 ## Swarm-first Bootstrap (from `/start-work`)
@@ -164,6 +165,7 @@ Note: Swarm window spawning requires **running inside tmux** and having the `tmu
 
 - Swarm CLI surface: `src/tools/swarm.ts`
 - Auto-initialization hook (env-detected): `src/hooks/swarm-agent.ts`
+- Runtime control-plane service: `src/features/sisyphus-swarm/runtime/`
 - Team + manifest: `src/features/sisyphus-swarm/team/`
 - Mailbox protocol (per-message files): `src/features/sisyphus-swarm/mailbox/`
 - Task pool: `src/features/sisyphus-swarm/task-pool/`

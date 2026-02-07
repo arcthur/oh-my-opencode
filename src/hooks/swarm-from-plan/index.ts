@@ -5,12 +5,11 @@ import { createHash } from "node:crypto"
 import { join } from "node:path"
 import { createWorkStateManager } from "../../features/work-state"
 import { createCoordinator } from "../../features/sisyphus-swarm/agent"
-import { getCoordinator, registerCoordinator } from "../../features/sisyphus-swarm/runtime/registry"
+import type { SwarmRuntimeService } from "../../features/sisyphus-swarm/runtime"
 import { createSwarmOrchestrator } from "../../features/sisyphus-swarm/tmux"
 import { getStaleMembers, readManifest, teamExists } from "../../features/sisyphus-swarm/team"
 import { getContextManifestPath } from "../../features/context-manifests"
 import { syncPlanTodosToTaskPool } from "../../features/sisyphus-swarm/plan-sync"
-import { getSwarmOrchestrator, setSessionTeam, setSwarmOrchestrator } from "../../tools/swarm"
 import { log } from "../../shared/logger"
 
 export const HOOK_NAME = "swarm-from-plan"
@@ -70,15 +69,79 @@ function appendText(output: HookOutput, extra: string): void {
   output.parts.push({ type: "text", text: extra.trimEnd() })
 }
 
+function getCoordinatorTeamName(coordinator: unknown): string | undefined {
+  if (!coordinator || typeof coordinator !== "object") {
+    return undefined
+  }
+
+  const accessor = coordinator as { getManifest?: () => { name?: string } | null }
+  const manifest = accessor.getManifest?.()
+  return typeof manifest?.name === "string" ? manifest.name : undefined
+}
+
 export function createSwarmFromPlanHook(
   ctx: PluginInput,
-  config: Partial<OhMyOpenCodeConfig>
+  config: Partial<OhMyOpenCodeConfig>,
+  runtime: SwarmRuntimeService
 ) {
   const workStateManager = createWorkStateManager(ctx.directory)
   // In-memory guard prevents double-bootstrap within a single process lifetime.
   // On crash recovery (new process, same session ID), this guard is lost; we fall
   // through to the filesystem-based team existence check below (idempotent).
   const startedBySession = new Set<string>()
+
+  const ensureCoordinatorForSessionTeam = async (
+    sessionID: string,
+    teamName: string,
+    reason: "recovery" | "bootstrap"
+  ): Promise<boolean> => {
+    const existingCoordinator = runtime.getCoordinator(sessionID)
+    const existingBinding = runtime.getSessionTeam(sessionID)
+    const bindingMatchesTeam =
+      existingBinding?.directory === ctx.directory && existingBinding.teamName === teamName
+    const coordinatorTeamName = getCoordinatorTeamName(existingCoordinator)
+    const coordinatorMatchesTeam = coordinatorTeamName
+      ? coordinatorTeamName === teamName
+      : bindingMatchesTeam
+
+    if (existingCoordinator && !coordinatorMatchesTeam) {
+      try {
+        await existingCoordinator.stop()
+      } catch (err) {
+        log(`[${HOOK_NAME}] Failed to stop stale coordinator`, {
+          sessionID,
+          previousTeam: coordinatorTeamName ?? existingBinding?.teamName,
+          targetTeam: teamName,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+      runtime.unregisterCoordinator(sessionID)
+    }
+
+    if (runtime.getCoordinator(sessionID)) {
+      return true
+    }
+
+    const recovered = await createCoordinator(
+      {
+        teamName,
+        name: "coordinator",
+        sessionId: sessionID,
+        autoApprove: true,
+        loopIntervalMs: 2000,
+        onError: (err) => log(`[${HOOK_NAME}] Coordinator error (${reason})`, { error: err.message }),
+      },
+      config
+    )
+
+    if (!recovered) {
+      log(`[${HOOK_NAME}] Failed to start coordinator`, { teamName, sessionID, reason })
+      return false
+    }
+
+    runtime.registerCoordinator(sessionID, recovered)
+    return true
+  }
 
   return {
     "chat.message": async (input: HookInput, output: HookOutput): Promise<void> => {
@@ -115,23 +178,16 @@ export function createSwarmFromPlanHook(
         if (activeWorkers.length > 0) {
           // Team is still alive from a previous (crashed) process run.
           // Re-attach coordinator in-process and mark session.
-          if (!getCoordinator(input.sessionID)) {
-            const recovered = await createCoordinator(
-              {
-                teamName,
-                name: "coordinator",
-                sessionId: input.sessionID,
-                autoApprove: true,
-                loopIntervalMs: 2000,
-                onError: (err) => log(`[${HOOK_NAME}] Coordinator error (recovery)`, { error: err.message }),
-              },
-              config
-            )
-            if (recovered) {
-              registerCoordinator(input.sessionID, recovered)
-            }
+          const coordinatorReady = await ensureCoordinatorForSessionTeam(
+            input.sessionID,
+            teamName,
+            "recovery"
+          )
+          if (!coordinatorReady) {
+            return
           }
-          setSessionTeam(input.sessionID, teamName)
+
+          runtime.bindSessionToTeam(input.sessionID, ctx.directory, teamName)
           startedBySession.add(input.sessionID)
 
           appendText(output, [
@@ -170,31 +226,16 @@ export function createSwarmFromPlanHook(
         : undefined
 
       // Ensure coordinator exists (in-process)
-      const existing = getCoordinator(input.sessionID)
-      const coordinator =
-        existing ??
-        (await createCoordinator(
-          {
-            teamName,
-            name: "coordinator",
-            sessionId: input.sessionID,
-            autoApprove: true,
-            loopIntervalMs: 2000,
-            onError: (err) => log(`[${HOOK_NAME}] Coordinator error`, { error: err.message }),
-          },
-          config
-        ))
-
-      if (!coordinator) {
-        log(`[${HOOK_NAME}] Failed to start coordinator`, { teamName, planId })
+      const coordinatorReady = await ensureCoordinatorForSessionTeam(
+        input.sessionID,
+        teamName,
+        "bootstrap"
+      )
+      if (!coordinatorReady) {
         return
       }
 
-      if (!existing) {
-        registerCoordinator(input.sessionID, coordinator)
-      }
-
-      setSessionTeam(input.sessionID, teamName)
+      runtime.bindSessionToTeam(input.sessionID, ctx.directory, teamName)
 
       // Sync plan TODOs to task pool (idempotent)
       const sync = syncPlanTodosToTaskPool({
@@ -211,14 +252,9 @@ export function createSwarmFromPlanHook(
       let workerNote: string | null = null
 
       if (targetWorkers > 0 && config.tmux_parallel_agents?.enabled) {
-        let orchestrator = getSwarmOrchestrator(ctx.directory)
-        if (!orchestrator) {
-          const created = createSwarmOrchestrator(ctx.directory, config)
-          if (created) {
-            orchestrator = created
-            setSwarmOrchestrator(ctx.directory, created)
-          }
-        }
+        const orchestrator = runtime.ensureOrchestrator(ctx.directory, teamName, () =>
+          createSwarmOrchestrator(ctx.directory, config)
+        )
 
         if (orchestrator) {
           const manifest = readManifest(teamName, config)

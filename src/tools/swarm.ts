@@ -7,8 +7,10 @@
  * - /swarm create <team> - Create a team, become coordinator
  * - /swarm spawn <count> - Spawn N workers in tmux windows
  * - /swarm task add <subject> [desc] - Add task to pool
+ * - /swarm plan submit <plan> - Submit plan for approval (worker)
+ * - /swarm plan list|approve|reject|revise - Manage plan approvals (coordinator)
  * - /swarm status [team] - Show team status
- * - /swarm stop [--cleanup] - Stop all workers
+ * - /swarm stop [--cleanup] - Stop workers for active team
  */
 
 import { tool, type ToolDefinition } from "@opencode-ai/plugin/tool"
@@ -21,23 +23,21 @@ import {
 import {
   createSwarmOrchestrator,
   SwarmOrchestrator,
+  closeSwarmWindowsByTeam,
+  getCurrentSession,
+  inspectSwarmWindowsByTeam,
 } from "../features/sisyphus-swarm/tmux"
 import { createTask } from "../features/sisyphus-swarm/task-pool/pool"
-import { getWorker, getCoordinator } from "../features/sisyphus-swarm/runtime/registry"
+import type { SwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
 import { getRuntimeSnapshot, resolveParallelRuntimeConfig } from "../features/parallel-runtime"
 import { log } from "../shared/logger"
 
 interface SwarmToolContext {
   directory: string
   config: Partial<OhMyOpenCodeConfig>
-  sessionId?: string
+  runtime: SwarmRuntimeService
+  getSessionId?: () => string | undefined
 }
-
-// Track active orchestrators per project
-const orchestrators = new Map<string, SwarmOrchestrator>()
-
-// Track current team per session
-const sessionTeams = new Map<string, string>()
 
 /**
  * Parse swarm command arguments
@@ -137,6 +137,85 @@ async function formatTeamStatus(
   return lines.join("\n")
 }
 
+function formatTeamDiagnostics(
+  diagnostics: TeamDiagnosticsSnapshot
+): string {
+  return diagnostics.lines.join("\n")
+}
+
+interface TeamDiagnosticsSnapshot {
+  lines: string[]
+  runtimeOrchestratorPresent: boolean
+  tmuxSession: string | null
+  tmuxMatched: number
+  tmuxMatchedByOption: number
+  tmuxMatchedByPane: number
+  driftDetected: boolean
+}
+
+function collectTeamDiagnostics(
+  teamName: string,
+  directory: string,
+  sessionId: string | undefined,
+  runtime: SwarmRuntimeService,
+  orchestrator: SwarmOrchestrator | undefined
+): TeamDiagnosticsSnapshot {
+  const lines: string[] = ["Swarm Diagnostics:"]
+
+  if (!sessionId) {
+    lines.push("  Session binding: unavailable")
+  } else {
+    const binding = runtime.getSessionTeam(sessionId)
+    if (!binding) {
+      lines.push("  Session binding: none")
+    } else if (binding.directory === directory && binding.teamName === teamName) {
+      lines.push(`  Session binding: ${binding.teamName} (active)`)
+    } else {
+      lines.push(`  Session binding: ${binding.teamName} @ ${binding.directory} (different target)`)
+    }
+  }
+
+  const runtimeOrchestratorPresent = !!orchestrator
+  lines.push(`  Runtime orchestrator: ${runtimeOrchestratorPresent ? "present" : "missing"}`)
+
+  const tmuxSessionName = getCurrentSession()
+  if (!tmuxSessionName) {
+    lines.push("  Tmux session: unavailable")
+    return {
+      lines,
+      runtimeOrchestratorPresent,
+      tmuxSession: null,
+      tmuxMatched: 0,
+      tmuxMatchedByOption: 0,
+      tmuxMatchedByPane: 0,
+      driftDetected: false,
+    }
+  }
+
+  const inspection = inspectSwarmWindowsByTeam(tmuxSessionName, teamName)
+  lines.push(`  Tmux session: ${tmuxSessionName}`)
+  lines.push(
+    `  Tmux windows for team: ${inspection.matched} (option=${inspection.matchedByOption}, pane=${inspection.matchedByPane})`
+  )
+
+  const driftDetected = !runtimeOrchestratorPresent && inspection.matched > 0
+  if (driftDetected) {
+    lines.push(
+      "  Drift detected: runtime handle missing while tmux team windows exist; run /swarm stop to recover."
+    )
+  }
+
+  return {
+    lines,
+    runtimeOrchestratorPresent,
+    tmuxSession: tmuxSessionName,
+    tmuxMatched: inspection.matched,
+    tmuxMatchedByOption: inspection.matchedByOption,
+    tmuxMatchedByPane: inspection.matchedByPane,
+    driftDetected,
+  }
+}
+
 /**
  * Execute swarm command
  */
@@ -144,7 +223,8 @@ async function executeSwarmCommand(
   commandString: string,
   ctx: SwarmToolContext
 ): Promise<string> {
-  const { directory, config, sessionId } = ctx
+  const { directory, config, runtime } = ctx
+  const sessionId = ctx.getSessionId?.()
   const { command, args: cmdArgs, flags } = parseSwarmCommand(commandString)
 
   log("[swarm] Executing command", { command, args: cmdArgs, flags })
@@ -178,20 +258,15 @@ async function executeSwarmCommand(
 
       // Track team for this session
       if (sessionId) {
-        sessionTeams.set(sessionId, teamName)
+        runtime.bindSessionToTeam(sessionId, directory, teamName)
       }
 
       // Auto-spawn coordinator window if tmux is available
       let coordinatorSpawned = false
       if (SwarmOrchestrator.isAvailable()) {
-        let orchestrator = orchestrators.get(directory)
-        if (!orchestrator) {
-          const newOrchestrator = createSwarmOrchestrator(directory, config)
-          if (newOrchestrator) {
-            orchestrator = newOrchestrator
-            orchestrators.set(directory, newOrchestrator)
-          }
-        }
+        const orchestrator = runtime.ensureOrchestrator(directory, teamName, () =>
+          createSwarmOrchestrator(directory, config)
+        )
 
         if (orchestrator) {
           const coordWindow = orchestrator.createAgentWindow({
@@ -227,7 +302,7 @@ async function executeSwarmCommand(
       }
 
       // Get current team
-      const teamName = sessionId ? sessionTeams.get(sessionId) : undefined
+      const teamName = sessionId ? runtime.getSessionTeam(sessionId)?.teamName : undefined
       if (!teamName) {
         return "No active team. Run '/swarm create <team>' first."
       }
@@ -246,14 +321,11 @@ async function executeSwarmCommand(
       }
 
       // Get or create orchestrator
-      let orchestrator = orchestrators.get(directory)
+      const orchestrator = runtime.ensureOrchestrator(directory, teamName, () =>
+        createSwarmOrchestrator(directory, config)
+      )
       if (!orchestrator) {
-        const newOrchestrator = createSwarmOrchestrator(directory, config)
-        if (!newOrchestrator) {
-          return "Failed to create orchestrator. Check tmux environment."
-        }
-        orchestrator = newOrchestrator
-        orchestrators.set(directory, newOrchestrator)
+        return "Failed to create orchestrator. Check tmux environment."
       }
 
       // Spawn workers
@@ -288,7 +360,9 @@ async function executeSwarmCommand(
 
     case "status": {
       // Get current team
-      const teamName = sessionId ? sessionTeams.get(sessionId) : cmdArgs[0]
+      const explicitTeamName = cmdArgs[0]
+      const boundTeamName = sessionId ? runtime.getSessionTeam(sessionId)?.teamName : undefined
+      const teamName = explicitTeamName || boundTeamName
       if (!teamName) {
         // List all teams if no active team
         return [
@@ -300,38 +374,124 @@ async function executeSwarmCommand(
         ].join("\n")
       }
 
-      const orchestrator = orchestrators.get(directory)
-      return await formatTeamStatus(teamName, config, orchestrator ?? undefined)
+      const orchestrator = runtime.getOrchestrator(directory, teamName)
+      const statusText = await formatTeamStatus(teamName, config, orchestrator ?? undefined)
+      if (statusText === `Team "${teamName}" not found.`) {
+        return statusText
+      }
+
+      const diagnostics = collectTeamDiagnostics(
+        teamName,
+        directory,
+        sessionId,
+        runtime,
+        orchestrator ?? undefined
+      )
+      const diagnosticsText = formatTeamDiagnostics(diagnostics)
+      const teamKey = runtime.toTeamKey(directory, teamName)
+      const statusTimestamp = Date.now()
+
+      log("[swarm.observability] status", {
+        teamKey,
+        sessionId: sessionId ?? null,
+        timestamp: statusTimestamp,
+        runtimeOrchestratorPresent: diagnostics.runtimeOrchestratorPresent,
+        tmuxSession: diagnostics.tmuxSession,
+        tmuxMatched: diagnostics.tmuxMatched,
+        tmuxMatchedByOption: diagnostics.tmuxMatchedByOption,
+        tmuxMatchedByPane: diagnostics.tmuxMatchedByPane,
+        driftDetected: diagnostics.driftDetected,
+      })
+
+      if (diagnostics.driftDetected) {
+        log("[swarm.observability] drift-detected", {
+          teamKey,
+          sessionId: sessionId ?? null,
+          timestamp: statusTimestamp,
+          runtimeOrchestratorPresent: diagnostics.runtimeOrchestratorPresent,
+          tmuxSession: diagnostics.tmuxSession,
+          tmuxMatched: diagnostics.tmuxMatched,
+          tmuxMatchedByOption: diagnostics.tmuxMatchedByOption,
+          tmuxMatchedByPane: diagnostics.tmuxMatchedByPane,
+        })
+      }
+
+      return `${statusText}\n\n${diagnosticsText}`
     }
 
     case "stop": {
       const cleanup = flags.cleanup === true
 
       // Get current team
-      const teamName = sessionId ? sessionTeams.get(sessionId) : undefined
+      const teamName = sessionId ? runtime.getSessionTeam(sessionId)?.teamName : undefined
       if (!teamName) {
         return "No active team to stop."
       }
 
-      const orchestrator = orchestrators.get(directory)
-      if (!orchestrator) {
-        return "No orchestrator found. Workers may not have been spawned from this session."
+      const orchestrator = runtime.getOrchestrator(directory, teamName)
+      const coordinator = sessionId ? runtime.getCoordinator(sessionId) : undefined
+      const hasOrchestratorHandle = !!orchestrator
+      let recoveredTmuxSummary: ReturnType<typeof closeSwarmWindowsByTeam> | undefined
+      let tmuxRecoverySkippedReason: string | undefined
+      const teamKey = runtime.toTeamKey(directory, teamName)
+      const stopTimestamp = Date.now()
+
+      if (!hasOrchestratorHandle && coordinator) {
+        try {
+          await coordinator.stop()
+        } catch (err) {
+          log("[swarm] Failed to stop coordinator during stop fallback", {
+            sessionId,
+            teamName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
       }
 
-      // Cleanup orchestrator
-      orchestrator.cleanup(cleanup)
-      orchestrators.delete(directory)
+      if (!hasOrchestratorHandle) {
+        const sessionName = getCurrentSession()
+        if (sessionName) {
+          recoveredTmuxSummary = closeSwarmWindowsByTeam(sessionName, teamName)
+        } else {
+          tmuxRecoverySkippedReason = "not running inside tmux"
+        }
+      }
 
-      // Clear session team
-      if (sessionId) {
-        sessionTeams.delete(sessionId)
+      const stopped = runtime.stopTeam(directory, teamName, cleanup)
+      if (!stopped) {
+        return `Team "${teamName}" is not active in runtime.`
       }
 
       const cleanupMsg = cleanup
         ? "\nWorktrees and branches have been removed."
         : "\nWorktrees preserved for manual merge."
 
-      return `✓ Stopped all workers for team "${teamName}".${cleanupMsg}`
+      const fallbackMsg = hasOrchestratorHandle
+        ? ""
+        : [
+            "\nNo in-memory orchestrator handle was found; cleared runtime bindings and attempted coordinator shutdown.",
+            recoveredTmuxSummary
+              ? `\nRecovered tmux windows: ${recoveredTmuxSummary.closed}/${recoveredTmuxSummary.attempted} (option=${recoveredTmuxSummary.matchedByOption}, pane=${recoveredTmuxSummary.matchedByPane}).`
+              : "",
+            !recoveredTmuxSummary && tmuxRecoverySkippedReason
+              ? `\nSkipped tmux recovery: ${tmuxRecoverySkippedReason}.`
+              : "",
+          ].filter(Boolean).join("")
+
+      log("[swarm.observability] stop-recovery", {
+        teamKey,
+        sessionId: sessionId ?? null,
+        timestamp: stopTimestamp,
+        cleanup,
+        hasRuntimeOrchestrator: hasOrchestratorHandle,
+        tmuxRecoveryAttempted: recoveredTmuxSummary?.attempted ?? 0,
+        tmuxRecoveryClosed: recoveredTmuxSummary?.closed ?? 0,
+        tmuxRecoveryMatchedByOption: recoveredTmuxSummary?.matchedByOption ?? 0,
+        tmuxRecoveryMatchedByPane: recoveredTmuxSummary?.matchedByPane ?? 0,
+        tmuxRecoverySkippedReason: tmuxRecoverySkippedReason ?? null,
+      })
+
+      return `✓ Stopped all workers for team "${teamName}".${cleanupMsg}${fallbackMsg}`
     }
 
     case "task": {
@@ -347,7 +507,7 @@ async function executeSwarmCommand(
         }
 
         // Get current team
-        const teamName = sessionId ? sessionTeams.get(sessionId) : undefined
+        const teamName = sessionId ? runtime.getSessionTeam(sessionId)?.teamName : undefined
         if (!teamName) {
           return "No active team. Run '/swarm create <team>' first."
         }
@@ -395,7 +555,7 @@ async function executeSwarmCommand(
         if (!sessionId) {
           return "Plan submit requires a session context."
         }
-        const worker = getWorker(sessionId)
+        const worker = runtime.getWorker(sessionId)
         if (!worker) {
           return "No active Swarm worker found in this session."
         }
@@ -425,7 +585,7 @@ async function executeSwarmCommand(
       if (!sessionId) {
         return "Plan management requires a session context."
       }
-      const coordinator = getCoordinator(sessionId)
+      const coordinator = runtime.getCoordinator(sessionId)
       if (!coordinator) {
         return "No active Swarm coordinator found in this session."
       }
@@ -497,7 +657,7 @@ async function executeSwarmCommand(
         "  /swarm plan submit <plan> - Submit plan for approval (worker)",
         "  /swarm plan list|approve|reject|revise - Manage plan approvals (coordinator)",
         "  /swarm status [team]  - Show team status",
-        "  /swarm stop [--cleanup] - Stop all workers",
+        "  /swarm stop [--cleanup] - Stop workers for active team",
         "",
         "Workflow:",
         "  1. /swarm create my-feature",
@@ -523,56 +683,19 @@ export function createSwarmTool(ctx: SwarmToolContext): ToolDefinition {
       "Multi-agent coordination via Sisyphus Swarm. " +
       "Commands: 'create <team>' to create a team and become coordinator, " +
       "'spawn <count>' to spawn N workers in tmux windows, " +
+      "'task add <subject> [description]' to add a task to the pool, " +
+      "'plan submit|list|approve|reject|revise' to manage plan approvals, " +
       "'status' to show team status, " +
-      "'stop [--cleanup]' to stop all workers.",
+      "'stop [--cleanup]' to stop workers for active team.",
     args: {
       command: tool.schema
         .string()
         .describe(
-          "Swarm command: 'create <team>' | 'spawn <count>' | 'status' | 'stop [--cleanup]'"
+          "Swarm command: 'create <team>' | 'spawn <count>' | 'task ...' | 'plan ...' | 'status [team]' | 'stop [--cleanup]'"
         ),
     },
     execute: async (args) => {
       return executeSwarmCommand(args.command, ctx)
     },
   })
-}
-
-/**
- * Get orchestrator for a directory (for external access)
- */
-export function getSwarmOrchestrator(directory: string): SwarmOrchestrator | undefined {
-  return orchestrators.get(directory)
-}
-
-/**
- * Set orchestrator for a directory (internal integration hook).
- */
-export function setSwarmOrchestrator(directory: string, orchestrator: SwarmOrchestrator): void {
-  orchestrators.set(directory, orchestrator)
-}
-
-/**
- * Get team for a session (for external access)
- */
-export function getSessionTeam(sessionId: string): string | undefined {
-  return sessionTeams.get(sessionId)
-}
-
-/**
- * Set team for a session (internal integration hook).
- */
-export function setSessionTeam(sessionId: string, teamName: string): void {
-  sessionTeams.set(sessionId, teamName)
-}
-
-/**
- * Cleanup all orchestrators (for shutdown)
- */
-export function cleanupAllOrchestrators(): void {
-  for (const orchestrator of orchestrators.values()) {
-    orchestrator.cleanup(false)
-  }
-  orchestrators.clear()
-  sessionTeams.clear()
 }

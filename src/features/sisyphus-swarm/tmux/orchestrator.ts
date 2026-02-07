@@ -197,6 +197,11 @@ export class SwarmOrchestrator {
 
     // Set initial status icon
     this.updateWindowStatus(info, "joining")
+    // Persist team metadata on window for crash-recovery stop fallback.
+    const windowTarget = `${this.sessionName}:${info.windowIndex}`
+    setWindowOption(windowTarget, "@swarm_team", teamName)
+    setWindowOption(windowTarget, "@swarm_role", role)
+    setWindowOption(windowTarget, "@swarm_agent_id", agentId)
 
     // Track window
     this.windows.set(agentId, info)

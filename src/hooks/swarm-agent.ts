@@ -24,16 +24,12 @@ import {
   createCoordinator,
   type TaskInfo,
 } from "../features/sisyphus-swarm/agent"
-import {
-  registerWorker,
-  unregisterWorker,
-  registerCoordinator,
-  unregisterCoordinator,
-} from "../features/sisyphus-swarm/runtime/registry"
+import type { SwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
 import { log } from "../shared/logger"
 
 export interface SwarmAgentHookOptions {
   config: Partial<OhMyOpenCodeConfig>
+  runtime: SwarmRuntimeService
 }
 
 export interface SwarmAgentHook {
@@ -66,7 +62,7 @@ export function createSwarmAgentHook(
   ctx: PluginInput,
   options: SwarmAgentHookOptions
 ): SwarmAgentHook {
-  const { config } = options
+  const { config, runtime } = options
 
   let worker: WorkerAgent | null = null
   let coordinator: CoordinatorAgent | null = null
@@ -304,7 +300,7 @@ export function createSwarmAgentHook(
       )
 
       if (worker) {
-        registerWorker(sessionId, worker)
+        runtime.registerWorker(sessionId, worker)
         log("[swarm-agent] Worker started successfully", {
           agentId: worker.getIdentity().id,
         })
@@ -364,7 +360,7 @@ export function createSwarmAgentHook(
       )
 
       if (coordinator) {
-        registerCoordinator(sessionId, coordinator)
+        runtime.registerCoordinator(sessionId, coordinator)
         log("[swarm-agent] Coordinator started successfully", {
           agentId: coordinator.getIdentity().id,
         })
@@ -395,7 +391,7 @@ export function createSwarmAgentHook(
       })
     }
     if (currentSessionId) {
-      unregisterWorker(currentSessionId)
+      runtime.unregisterWorker(currentSessionId)
     }
     worker = null
     currentSessionId = null
@@ -416,7 +412,7 @@ export function createSwarmAgentHook(
       })
     }
     if (currentSessionId) {
-      unregisterCoordinator(currentSessionId)
+      runtime.unregisterCoordinator(currentSessionId)
     }
     coordinator = null
     currentSessionId = null
