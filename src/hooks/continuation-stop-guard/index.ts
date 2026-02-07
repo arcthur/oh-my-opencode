@@ -1,9 +1,9 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { log } from "../../shared/logger"
 
-const HOOK_NAME = "stop-continuation-guard"
+const HOOK_NAME = "continuation-stop-guard"
 
-export interface StopContinuationGuard {
+export interface ContinuationStopGuard {
   event: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
   "chat.message": (input: { sessionID?: string }) => Promise<void>
   stop: (sessionID: string) => void
@@ -11,9 +11,9 @@ export interface StopContinuationGuard {
   clear: (sessionID: string) => void
 }
 
-export function createStopContinuationGuardHook(
+export function createContinuationStopGuardHook(
   _ctx: PluginInput
-): StopContinuationGuard {
+): ContinuationStopGuard {
   const stoppedSessions = new Set<string>()
 
   const stop = (sessionID: string): void => {

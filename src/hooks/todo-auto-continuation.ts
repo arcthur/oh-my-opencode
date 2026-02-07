@@ -9,17 +9,17 @@ import { log } from "../shared/logger"
 import { getMessageDir } from "../shared/session-utils"
 import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
 
-const HOOK_NAME = "todo-continuation-enforcer"
+const HOOK_NAME = "todo-auto-continuation"
 
 const DEFAULT_SKIP_AGENTS = ["prometheus", "compaction"]
 
-export interface TodoContinuationEnforcerOptions {
+export interface TodoAutoContinuationHookOptions {
   backgroundManager?: BackgroundManager
   skipAgents?: string[]
   isContinuationStopped?: (sessionID: string) => boolean
 }
 
-export interface TodoContinuationEnforcer {
+export interface TodoAutoContinuationHook {
   handler: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
   markRecovering: (sessionID: string) => void
   markRecoveryComplete: (sessionID: string) => void
@@ -77,10 +77,10 @@ function isLastAssistantMessageAborted(messages: Array<{ info?: MessageInfo }>):
   return errorName === "MessageAbortedError" || errorName === "AbortError"
 }
 
-export function createTodoContinuationEnforcer(
+export function createTodoAutoContinuationHook(
   ctx: PluginInput,
-  options: TodoContinuationEnforcerOptions = {}
-): TodoContinuationEnforcer {
+  options: TodoAutoContinuationHookOptions = {}
+): TodoAutoContinuationHook {
   const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS, isContinuationStopped } = options
   const sessions = new Map<string, SessionState>()
 

@@ -19,10 +19,10 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 | Session handoff / session reference | `docs/journeys/session-handoff-and-reference.md` | `docs/reference/artifacts-and-paths.md`, `docs/reference/hooks.md` | `src/features/session-handoff/` |
 | Conditional rules | `docs/journeys/conditional-rules.md` | `docs/reference/hooks.md` | `src/features/conditional-rules/`, `src/features/hook-message-injector/` |
 | Context and memory | `docs/journeys/context-and-memory.md` | `docs/reference/user-memory.md`, `docs/reference/artifacts-and-paths.md`, `docs/reference/hooks.md` | `src/features/context-injector/`, `src/features/user-memory/`, `src/features/org-memory/` |
-| Delegation safety | `docs/journeys/delegation-safety.md` | `docs/reference/hooks.md`, `docs/reference/agents.md`, `docs/reference/configuration.md` | `src/hooks/delegation-validator/`, `src/delegation/` |
+| Delegation safety | `docs/journeys/delegation-safety.md` | `docs/reference/hooks.md`, `docs/reference/agents.md`, `docs/reference/configuration.md` | `src/hooks/delegation-validate-decision/`, `src/delegation/` |
 | Engineering discipline | `docs/journeys/engineering-discipline.md` | `docs/reference/hooks.md`, `docs/reference/skills.md` | `src/hooks/anti-slop-enforcer.ts`, `src/hooks/pre-completion-verification.ts`, `src/features/builtin-skills/` |
 | Output shaping (truncate/silent) | `docs/journeys/operations-and-debugging.md` | `docs/reference/hooks.md` | `src/hooks/tool-output-truncator.ts`, `src/hooks/silent-tool-output/` |
-| Token limit recovery | `docs/journeys/operations-and-debugging.md` | `docs/reference/hooks.md` | `src/hooks/context-window-governor/`, `src/hooks/session-recovery/` |
+| Token limit recovery | `docs/journeys/operations-and-debugging.md` | `docs/reference/hooks.md` | `src/hooks/context-window-governor/`, `src/hooks/session-state-repair/` |
 | Governance | `docs/journeys/governance.md` | `docs/reference/governance.md`, `docs/reference/configuration.md`, `docs/reference/artifacts-and-paths.md` | `src/features/governance/` |
 | Browser automation | `docs/journeys/browser-automation.md` | `docs/reference/skills.md`, `docs/reference/mcps.md` | `src/features/builtin-skills/skills/playwright.ts`, `src/tools/skill-mcp/` |
 | Extending the plugin | `docs/journeys/extensibility.md` | `docs/reference/hooks.md`, `docs/reference/tools.md`, `docs/reference/skills.md`, `docs/reference/mcps.md` | `src/index.ts`, `src/hooks/`, `src/tools/`, `src/features/` |

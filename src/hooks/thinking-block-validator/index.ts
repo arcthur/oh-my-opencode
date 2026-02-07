@@ -8,7 +8,7 @@
  * which is called before messages are converted to ModelMessage format and
  * sent to the API.
  *
- * Key differences from session-recovery hook:
+ * Key differences from session-state-repair hook:
  * - PROACTIVE (prevents error) vs REACTIVE (fixes after error)
  * - Runs BEFORE API call vs AFTER API error
  * - User never sees the error vs User sees error then recovery

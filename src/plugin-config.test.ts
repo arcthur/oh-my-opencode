@@ -105,14 +105,14 @@ describe("mergeConfigs", () => {
       };
 
       const override: OhMyOpenCodeConfig = {
-        disabled_hooks: ["think-mode", "session-recovery"],
+        disabled_hooks: ["think-mode", "session-state-repair"],
       };
 
       const result = mergeConfigs(base, override);
 
       expect(result.disabled_hooks).toContain("comment-checker");
       expect(result.disabled_hooks).toContain("think-mode");
-      expect(result.disabled_hooks).toContain("session-recovery");
+      expect(result.disabled_hooks).toContain("session-state-repair");
       expect(result.disabled_hooks?.length).toBe(3);
     });
   });

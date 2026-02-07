@@ -88,7 +88,7 @@ interface SessionState {
   toolCallCount: number
 }
 
-export function createCategorySkillReminderHook(
+export function createDelegationNudgeCategorySkillHook(
   _ctx: PluginInput,
   availableSkills: AvailableSkill[] = []
 ) {
@@ -131,7 +131,7 @@ export function createCategorySkillReminderHook(
 
     if (DELEGATION_TOOLS.has(toolLower)) {
       state.delegationUsed = true
-      log("[category-skill-reminder] Delegation tool used", { sessionID, tool })
+      log("[delegation-nudge-category-skill] Delegation tool used", { sessionID, tool })
       return
     }
 
@@ -144,7 +144,7 @@ export function createCategorySkillReminderHook(
     if (state.toolCallCount >= 3 && !state.delegationUsed && !state.reminderShown) {
       const decision = contextBudgetArbiter.decide({
         sessionID,
-        source: "category-skill-reminder",
+        source: "delegation-nudge-category-skill",
         channel: "tool-output",
         id: "delegation-reminder",
         priority: "low",
@@ -153,7 +153,7 @@ export function createCategorySkillReminderHook(
       if (!decision.accepted) return
       output.output += decision.finalContent
       state.reminderShown = true
-      log("[category-skill-reminder] Reminder injected", {
+      log("[delegation-nudge-category-skill] Reminder injected", {
         sessionID,
         toolCallCount: state.toolCallCount,
       })

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { createStopContinuationGuardHook } from "./index"
+import { createContinuationStopGuardHook } from "./index"
 
-describe("stop-continuation-guard", () => {
+describe("continuation-stop-guard", () => {
   function createMockPluginInput() {
     return {
       client: {
@@ -15,7 +15,7 @@ describe("stop-continuation-guard", () => {
 
   test("should mark session as stopped", () => {
     // given - a guard hook with no stopped sessions
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     const sessionID = "test-session-1"
 
     // when - we stop continuation for the session
@@ -27,7 +27,7 @@ describe("stop-continuation-guard", () => {
 
   test("should return false for non-stopped sessions", () => {
     // given - a guard hook with no stopped sessions
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
 
     // when - we check a session that was never stopped
 
@@ -37,7 +37,7 @@ describe("stop-continuation-guard", () => {
 
   test("should clear stopped state for a session", () => {
     // given - a session that was stopped
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     const sessionID = "test-session-2"
     guard.stop(sessionID)
 
@@ -50,7 +50,7 @@ describe("stop-continuation-guard", () => {
 
   test("should handle multiple sessions independently", () => {
     // given - multiple sessions with different stop states
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     const session1 = "session-1"
     const session2 = "session-2"
     const session3 = "session-3"
@@ -67,7 +67,7 @@ describe("stop-continuation-guard", () => {
 
   test("should clear session on session.deleted event", async () => {
     // given - a session that was stopped
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     const sessionID = "test-session-3"
     guard.stop(sessionID)
 
@@ -85,7 +85,7 @@ describe("stop-continuation-guard", () => {
 
   test("should not affect other sessions on session.deleted", async () => {
     // given - multiple stopped sessions
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     const session1 = "session-keep"
     const session2 = "session-delete"
     guard.stop(session1)
@@ -106,7 +106,7 @@ describe("stop-continuation-guard", () => {
 
   test("should clear stopped state on new user message (chat.message)", async () => {
     // given - a session that was stopped
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     const sessionID = "test-session-4"
     guard.stop(sessionID)
     expect(guard.isStopped(sessionID)).toBe(true)
@@ -120,7 +120,7 @@ describe("stop-continuation-guard", () => {
 
   test("should not affect non-stopped sessions on chat.message", async () => {
     // given - a session that was never stopped
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     const sessionID = "test-session-5"
 
     // when - user sends a message (session was never stopped)
@@ -132,7 +132,7 @@ describe("stop-continuation-guard", () => {
 
   test("should handle undefined sessionID in chat.message", async () => {
     // given - a guard with a stopped session
-    const guard = createStopContinuationGuardHook(createMockPluginInput())
+    const guard = createContinuationStopGuardHook(createMockPluginInput())
     guard.stop("some-session")
 
     // when - chat.message is called without sessionID

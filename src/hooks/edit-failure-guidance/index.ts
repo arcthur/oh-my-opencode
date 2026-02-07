@@ -36,7 +36,7 @@ DO NOT attempt another edit until you've read and verified the file state.
  *
  * @see https://github.com/sst/opencode/issues/4718
  */
-export function createEditErrorRecoveryHook(_ctx: PluginInput) {
+export function createEditFailureGuidanceHook(_ctx: PluginInput) {
   return {
     "tool.execute.after": async (
       input: { tool: string; sessionID: string; callID: string },

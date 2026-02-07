@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import type { PluginInput } from "@opencode-ai/plugin"
-import { createDelegationValidatorHook } from "./index"
+import { createDelegationValidateDecisionHook } from "./index"
 
 function createMockCtx(payload: unknown): PluginInput {
   return {
@@ -13,14 +13,14 @@ function createMockCtx(payload: unknown): PluginInput {
   } as unknown as PluginInput
 }
 
-describe("delegation-validator hook", () => {
+describe("delegation-validate-decision hook", () => {
   test("injects missing decision warning when session.messages returns an array", async () => {
     // #given
     const ctx = createMockCtx([
       { info: { role: "user" }, parts: [{ type: "text", text: "do it" }] },
       { info: { role: "assistant" }, parts: [{ type: "text", text: "no decision here" }] },
     ])
-    const hook = createDelegationValidatorHook(ctx)
+    const hook = createDelegationValidateDecisionHook(ctx)
     const output = { args: {} as Record<string, unknown> }
 
     // #when
@@ -55,7 +55,7 @@ describe("delegation-validator hook", () => {
         },
       ],
     })
-    const hook = createDelegationValidatorHook(ctx)
+    const hook = createDelegationValidateDecisionHook(ctx)
     const output = { args: {} as Record<string, unknown> }
 
     // #when

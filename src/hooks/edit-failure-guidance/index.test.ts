@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from "bun:test"
-import { createEditErrorRecoveryHook, EDIT_ERROR_REMINDER, EDIT_ERROR_PATTERNS } from "./index"
+import { createEditFailureGuidanceHook, EDIT_ERROR_REMINDER, EDIT_ERROR_PATTERNS } from "./index"
 
-describe("createEditErrorRecoveryHook", () => {
-  let hook: ReturnType<typeof createEditErrorRecoveryHook>
+describe("createEditFailureGuidanceHook", () => {
+  let hook: ReturnType<typeof createEditFailureGuidanceHook>
 
   beforeEach(() => {
-    hook = createEditErrorRecoveryHook({} as any)
+    hook = createEditFailureGuidanceHook({} as any)
   })
 
   describe("tool.execute.after", () => {

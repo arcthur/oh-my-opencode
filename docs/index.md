@@ -30,7 +30,7 @@ Journeys are “how to accomplish X” guides that connect multiple subsystems a
 - Parallel agents (worktrees / tmux / swarm): `docs/journeys/parallel-agents.md`
 - Swarm coordination (Sisyphus Swarm): `docs/journeys/swarm-coordination.md`
 - Browser automation: `docs/journeys/browser-automation.md`
-- Delegation safety (delegation-validator): `docs/journeys/delegation-safety.md`
+- Delegation safety (delegation-validate-decision): `docs/journeys/delegation-safety.md`
 - Extensibility (add hooks/tools/skills): `docs/journeys/extensibility.md`
 - Operations & debugging: `docs/journeys/operations-and-debugging.md`
 - Engineering discipline: `docs/journeys/engineering-discipline.md`

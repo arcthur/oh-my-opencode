@@ -2,7 +2,7 @@ import type { Hooks } from "@opencode-ai/plugin"
 import { isSubagentSession } from "../../features/claude-code-session-state"
 import { log } from "../../shared"
 
-export function createSubagentQuestionBlockerHook(): Hooks {
+export function createDelegationBlockSubagentQuestionHook(): Hooks {
   return {
     "tool.execute.before": async (input) => {
       const toolName = input.tool?.toLowerCase()
@@ -14,7 +14,7 @@ export function createSubagentQuestionBlockerHook(): Hooks {
         return
       }
 
-      log("[subagent-question-blocker] Blocking question tool call from subagent session", {
+      log("[delegation-block-subagent-question] Blocking question tool call from subagent session", {
         sessionID: input.sessionID,
         tool: input.tool,
       })

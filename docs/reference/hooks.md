@@ -84,7 +84,7 @@ Execution order (simplified to plugin-relevant steps):
 11. Multi-plan trigger (if enabled)
 12. Planning-with-files (if enabled)
 13. Pre-completion verification (if enabled)
-14. Stop continuation guard (if enabled)
+14. `continuation-stop-guard` (if enabled)
 15. Ralph loop template detection (if enabled)
 
 ### `user.prompt.submit`
@@ -100,7 +100,7 @@ Execution order:
 Execution order (high-level):
 
 1. Question label truncator
-2. Subagent question blocker
+2. `delegation-block-subagent-question`
 3. Write existing file guard (if enabled)
 4. User memory
 5. Org memory
@@ -113,7 +113,7 @@ Execution order (high-level):
 12. Rules injector (if enabled)
 13. Prometheus MD-only (if enabled)
 14. Planning-with-files (if enabled)
-15. Delegation validator (if enabled)
+15. `delegation-validate-decision` (if enabled)
 16. Sisyphus-junior notepad (if enabled)
 17. execution-orchestrator hook (if enabled)
 18. Tmux parallel agents (if enabled)
@@ -151,11 +151,11 @@ Execution order (high-level):
 15. Directory README injector (if enabled)
 16. Rules injector (if enabled)
 17. Empty-task response detector (if enabled)
-18. Agent usage reminder (if enabled)
-19. Category skill reminder (if enabled)
+18. `delegation-nudge-agent-usage` (if enabled)
+19. `delegation-nudge-category-skill` (if enabled)
 20. Interactive bash session (if enabled)
-21. Edit error recovery (if enabled)
-22. Delegate-task retry (if enabled)
+21. `edit-failure-guidance` (if enabled)
+22. `delegation-failure-guidance` (if enabled)
 23. execution-orchestrator hook (if enabled)
 24. Task resume info (always wired)
 25. Session handoff (if enabled)
@@ -164,7 +164,7 @@ Execution order (high-level):
 ### `event`
 
 The generic OpenCode `event` stream is used to drive “Stop-like” behavior and background lifecycle management.
-Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes: stop continuation guard, update checker, Claude Code bridge, notifications, planning/lifecycle hooks, orchestrators, plus internal core session-state and session-recovery nodes.
+Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes: continuation stop guard, update checker, Claude Code bridge, notifications, planning/lifecycle hooks, orchestrators, plus internal core session-state and session-state-repair nodes.
 
 ### `experimental.chat.messages.transform`
 

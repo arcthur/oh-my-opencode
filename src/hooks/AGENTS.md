@@ -14,7 +14,7 @@ hooks/
 ├── planning-with-files/        # Manus-style planning (uses work-state)
 ├── start-work/                 # Session initialization (uses work-state)
 ├── context-window-governor/    # Unified context window governance (warn/preemptive/recovery/inject)
-├── todo-continuation-enforcer.ts # Force TODO completion
+├── todo-auto-continuation.ts   # Force TODO completion
 ├── ralph-loop/                 # Self-referential dev loop until done
 ├── claude-code-hooks/          # settings.json hook compat layer (13 files)
 ├── comment-checker/            # Prevents AI slop/excessive comments
@@ -22,19 +22,20 @@ hooks/
 ├── rules-injector/             # Conditional rules from .claude/rules/
 ├── directory-agents-injector/  # Auto-injects AGENTS.md files
 ├── directory-readme-injector/  # Auto-injects README.md files
-├── edit-error-recovery/        # Recovers from tool failures
-├── delegate-task-retry/        # Retries failed delegations
+├── edit-failure-guidance/       # Recovers from Edit tool failures
+├── delegation-failure-guidance/ # Retries failed delegations
 ├── thinking-block-validator/   # Ensures valid <thinking> format
-├── session-recovery/           # Auto-recovers from crashes
+├── session-state-repair/        # Auto-recovers from crashes
 ├── think-mode/                 # Dynamic thinking budget
 ├── keyword-detector/           # ultrawork/search/analyze modes
 ├── question-label-truncator/   # Truncates question option labels
-├── subagent-question-blocker/  # Blocks question tool for subagent sessions
+├── delegation-block-subagent-question/ # Blocks question tool for subagent sessions
 ├── write-existing-file-guard/  # Blocks write tool for existing files
 ├── prometheus-md-only/         # Planner read-only mode
 ├── sisyphus-junior-notepad/    # Injects notepad context for Junior tasks
-├── agent-usage-reminder/       # Nudges to use specialized agents/tools
-├── category-skill-reminder/    # Reminds orchestrators of category+skills
+├── delegation-nudge-agent-usage/ # Nudges to use specialized agents/tools
+├── delegation-nudge-category-skill/ # Reminds orchestrators of category+skills
+├── continuation-stop-guard/    # Stops auto-continuation per session
 ├── non-interactive-env/        # Non-TTY environment handling
 ├── interactive-bash-session/   # Interactive bash session management
 ├── background-notification/    # OS notification on task completion
@@ -55,15 +56,16 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 
 ## EXECUTION ORDER
 
-**chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → swarmFromPlan → multiPlanTrigger → planningWithFiles → preCompletionVerification → stopContinuationGuard → (ralphLoop start/cancel)
+**chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → swarmFromPlan → multiPlanTrigger → planningWithFiles → preCompletionVerification → continuationStopGuard → (ralphLoop start/cancel)
 
-**tool.execute.before** (high-level): questionLabelTruncator → subagentQuestionBlocker → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidator → sisyphusJuniorNotepad → executionOrchestratorHook → tmuxParallelAgents → swarmAgent → silentToolOutput
+**tool.execute.before** (high-level): questionLabelTruncator → delegationBlockSubagentQuestion → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → planningWithFiles → delegationValidateDecision → sisyphusJuniorNotepad → executionOrchestratorHook → tmuxParallelAgents → swarmAgent → silentToolOutput
 
-**tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → contextWindowGovernor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → agentUsageReminder → categorySkillReminder → interactiveBashSession → editErrorRecovery → delegateTaskRetry → executionOrchestratorHook → taskResumeInfo → sessionHandoffHook → swarmAgent
+**tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → contextWindowGovernor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → delegationNudgeAgentUsage → delegationNudgeCategorySkill → interactiveBashSession → editFailureGuidance → delegationFailureGuidance → executionOrchestratorHook → taskResumeInfo → sessionHandoffHook → swarmAgent
 
 Notes:
 - Conditional rules and governance add additional per-tool logic inside these handlers (see `src/index.ts`).
 - Order is intentionally tuned to avoid context bloat and ensure safety checks run before mutating tool args.
+- Delegation chain uses explicit progression: `block -> validate -> nudge`.
 
 ## HOW TO ADD
 

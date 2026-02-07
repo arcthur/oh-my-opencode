@@ -3,18 +3,18 @@ import { HookNameSchema, type HookName } from "../../config"
 import { buildHookEnablementMap, isClaudeCodeBridgeEnabled } from "./enablement"
 
 describe("enablement consistency", () => {
-  test("disabled_hooks disables question-label-truncator and subagent-question-blocker", () => {
+  test("disabled_hooks disables question-label-truncator and delegation-block-subagent-question", () => {
     const hookEnablementMap = buildHookEnablementMap({
       hookNames: [...HookNameSchema.options] as HookName[],
       disabledHooks: new Set([
         "question-label-truncator",
-        "subagent-question-blocker",
+        "delegation-block-subagent-question",
       ]),
       claudeCodeHooksEnabled: true,
     })
 
     expect(hookEnablementMap.get("question-label-truncator")).toBe(false)
-    expect(hookEnablementMap.get("subagent-question-blocker")).toBe(false)
+    expect(hookEnablementMap.get("delegation-block-subagent-question")).toBe(false)
   })
 
   test("disabled_hooks wins over claude_code.hooks for claude-code-hooks", () => {

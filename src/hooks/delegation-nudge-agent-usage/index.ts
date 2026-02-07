@@ -26,7 +26,7 @@ interface EventInput {
   };
 }
 
-export function createAgentUsageReminderHook(_ctx: PluginInput) {
+export function createDelegationNudgeAgentUsageHook(_ctx: PluginInput) {
   const sessionStates = new Map<string, AgentUsageState>();
 
   function getOrCreateState(sessionID: string): AgentUsageState {

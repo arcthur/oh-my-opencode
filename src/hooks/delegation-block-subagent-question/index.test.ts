@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeEach } from "bun:test"
-import { createSubagentQuestionBlockerHook } from "./index"
+import { createDelegationBlockSubagentQuestionHook } from "./index"
 import { _resetForTesting, markSubagentSession } from "../../features/claude-code-session-state"
 
-describe("createSubagentQuestionBlockerHook", () => {
-  const hook = createSubagentQuestionBlockerHook()
+describe("createDelegationBlockSubagentQuestionHook", () => {
+  const hook = createDelegationBlockSubagentQuestionHook()
 
   beforeEach(() => {
     _resetForTesting()

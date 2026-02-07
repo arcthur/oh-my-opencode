@@ -350,13 +350,13 @@ Compaction-time injection (`PreCompact`) is registered on `experimental.session.
 |------|-------|-------------|
 | **comment-checker** | PostToolUse | Reminds agents to reduce excessive comments. Smartly ignores BDD, directives, docstrings. |
 | **thinking-block-validator** | PreToolUse | Validates thinking blocks to prevent API errors. |
-| **edit-error-recovery** | PostToolUse | Recovers from edit tool failures. |
+| **edit-failure-guidance** | PostToolUse | Recovers from edit tool failures. |
 
 #### Recovery & Stability
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **session-recovery** | Stop | Recovers from session errors - missing tool results, thinking block issues, empty messages. |
+| **session-state-repair** | Stop | Recovers from session errors - missing tool results, thinking block issues, empty messages. |
 
 #### Truncation & Context Management
 
@@ -371,14 +371,14 @@ Compaction-time injection (`PreCompact`) is registered on `experimental.session.
 | **auto-update-checker** | UserPromptSubmit | Checks for new versions, shows startup toast with version and Sisyphus status. |
 | **background-notification** | Stop | Notifies when background agent tasks complete. |
 | **session-notification** | Stop | OS notifications when agents go idle. Works on macOS, Linux, Windows. |
-| **agent-usage-reminder** | PostToolUse | Reminds you to leverage specialized agents for better results. |
+| **delegation-nudge-agent-usage** | PostToolUse | Reminds you to leverage specialized agents for better results. |
 
 #### Task Management
 
 | Hook | Event | Description |
 |------|-------|-------------|
 | **task-resume-info** | PostToolUse | Provides task resume information for continuity. |
-| **delegate-task-retry** | PostToolUse | Retries failed delegate_task calls. |
+| **delegation-failure-guidance** | PostToolUse | Retries failed delegate_task calls. |
 
 #### Integration
 

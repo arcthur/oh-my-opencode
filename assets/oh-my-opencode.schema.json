@@ -66,9 +66,9 @@
       "items": {
         "type": "string",
         "enum": [
-          "todo-continuation-enforcer",
+          "todo-auto-continuation",
           "context-window-governor",
-          "session-recovery",
+          "session-state-repair",
           "session-notification",
           "comment-checker",
           "tool-output-truncator",
@@ -81,15 +81,15 @@
           "auto-update-checker",
           "startup-toast",
           "keyword-detector",
-          "agent-usage-reminder",
+          "delegation-nudge-agent-usage",
           "non-interactive-env",
           "interactive-bash-session",
           "thinking-block-validator",
           "ralph-loop",
           "claude-code-hooks",
           "auto-slash-command",
-          "edit-error-recovery",
-          "delegate-task-retry",
+          "edit-failure-guidance",
+          "delegation-failure-guidance",
           "prometheus-md-only",
           "start-work",
           "swarm-from-plan",
@@ -102,14 +102,14 @@
           "runtime-tracker",
           "anti-slop-enforcer",
           "pre-completion-verification",
-          "delegation-validator",
+          "delegation-validate-decision",
           "conditional-rules",
           "session-handoff",
           "question-label-truncator",
-          "subagent-question-blocker",
+          "delegation-block-subagent-question",
           "write-existing-file-guard",
-          "stop-continuation-guard",
-          "category-skill-reminder",
+          "continuation-stop-guard",
+          "delegation-nudge-category-skill",
           "sisyphus-junior-notepad",
           "tmux-parallel-agents",
           "swarm-agent",
@@ -1755,23 +1755,6 @@
         },
         "truncate_all_tool_outputs": {
           "type": "boolean"
-        },
-        "hook_runtime_v2": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "default": false,
-              "type": "boolean"
-            },
-            "mode": {
-              "default": "shadow",
-              "type": "string",
-              "enum": [
-                "shadow",
-                "enforce"
-              ]
-            }
-          }
         }
       }
     },
@@ -3037,9 +3020,6 @@
           }
         }
       }
-    },
-    "session_reference": {
-      "not": {}
     },
     "tmux_parallel_agents": {
       "type": "object",

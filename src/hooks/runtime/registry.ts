@@ -1,10 +1,11 @@
 import type { HookName } from "../../config"
 import type { HookEventType, HookNodeId, RuntimeRegistryEntry } from "./types"
+import { validateSemanticGroups } from "./semantic-groups"
 
 const REGISTRY: RuntimeRegistryEntry[] = [
-  { name: "todo-continuation-enforcer", events: ["event"] },
+  { name: "todo-auto-continuation", events: ["event"] },
   { name: "context-window-governor", events: ["event", "tool.execute.after", "experimental.session.compacting"] },
-  { name: "session-recovery", events: [] },
+  { name: "session-state-repair", events: [] },
   { name: "session-notification", events: ["event"] },
   { name: "comment-checker", events: ["tool.execute.before", "tool.execute.after"] },
   { name: "tool-output-truncator", events: ["tool.execute.after"] },
@@ -17,15 +18,15 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "auto-update-checker", events: ["event"] },
   { name: "startup-toast", events: [] },
   { name: "keyword-detector", events: ["chat.message"] },
-  { name: "agent-usage-reminder", events: ["event", "tool.execute.after"] },
+  { name: "delegation-nudge-agent-usage", events: ["event", "tool.execute.after"] },
   { name: "non-interactive-env", events: ["tool.execute.before"] },
   { name: "interactive-bash-session", events: ["event", "tool.execute.after"] },
   { name: "thinking-block-validator", events: ["experimental.chat.messages.transform"] },
   { name: "ralph-loop", events: ["event"] },
   { name: "claude-code-hooks", events: ["chat.message", "tool.execute.before", "tool.execute.after", "event", "experimental.session.compacting"] },
   { name: "auto-slash-command", events: ["chat.message"] },
-  { name: "edit-error-recovery", events: ["tool.execute.after"] },
-  { name: "delegate-task-retry", events: ["tool.execute.after"] },
+  { name: "edit-failure-guidance", events: ["tool.execute.after"] },
+  { name: "delegation-failure-guidance", events: ["tool.execute.after"] },
   { name: "prometheus-md-only", events: ["tool.execute.before"] },
   { name: "start-work", events: ["chat.message"] },
   { name: "swarm-from-plan", events: ["chat.message"] },
@@ -38,14 +39,14 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "runtime-tracker", events: ["tool.execute.before", "tool.execute.after", "event"] },
   { name: "anti-slop-enforcer", events: ["tool.execute.after"] },
   { name: "pre-completion-verification", events: ["chat.message", "event"] },
-  { name: "delegation-validator", events: ["tool.execute.before"] },
+  { name: "delegation-validate-decision", events: ["tool.execute.before"] },
   { name: "conditional-rules", events: ["tool.execute.before", "event"] },
   { name: "session-handoff", events: ["chat.message", "user.prompt.submit", "tool.execute.after", "event"] },
   { name: "question-label-truncator", events: ["tool.execute.before"] },
-  { name: "subagent-question-blocker", events: ["tool.execute.before"] },
+  { name: "delegation-block-subagent-question", events: ["tool.execute.before"] },
   { name: "write-existing-file-guard", events: ["tool.execute.before"] },
-  { name: "stop-continuation-guard", events: ["chat.message", "event"] },
-  { name: "category-skill-reminder", events: ["event", "tool.execute.after"] },
+  { name: "continuation-stop-guard", events: ["chat.message", "event"] },
+  { name: "delegation-nudge-category-skill", events: ["event", "tool.execute.after"] },
   { name: "sisyphus-junior-notepad", events: ["tool.execute.before"] },
   { name: "tmux-parallel-agents", events: ["event", "tool.execute.before"] },
   { name: "swarm-agent", events: ["event", "tool.execute.before", "tool.execute.after"] },
@@ -120,4 +121,6 @@ export function validateRuntimeRegistry(params: {
       }
     }
   }
+
+  validateSemanticGroups({ order })
 }

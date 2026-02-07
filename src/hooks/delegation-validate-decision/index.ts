@@ -6,7 +6,7 @@ import {
 } from "../../delegation/validator"
 import { log } from "../../shared/logger"
 
-export const HOOK_NAME = "delegation-validator"
+export const HOOK_NAME = "delegation-validate-decision"
 
 interface OpenCodeSessionMessage {
   id?: string
@@ -62,7 +62,7 @@ This helps validate your delegation choice and provides traceability.
  * 2. Validating the decision against agent capabilities
  * 3. Injecting warnings if decision seems suboptimal
  */
-export function createDelegationValidatorHook(ctx: PluginInput) {
+export function createDelegationValidateDecisionHook(ctx: PluginInput) {
 
   /**
    * Get the last assistant message text from a session

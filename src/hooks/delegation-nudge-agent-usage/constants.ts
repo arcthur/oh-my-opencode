@@ -4,7 +4,7 @@ import { getOpenCodeStorageDir } from "../../shared/data-path";
 export const OPENCODE_STORAGE = getOpenCodeStorageDir();
 export const AGENT_USAGE_REMINDER_STORAGE = join(
   OPENCODE_STORAGE,
-  "agent-usage-reminder",
+  "delegation-nudge-agent-usage",
 );
 
 // All tool names normalized to lowercase for case-insensitive matching

@@ -1,9 +1,9 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import type { Message, Part } from "@opencode-ai/sdk";
 import {
-  createTodoContinuationEnforcer,
+  createTodoAutoContinuationHook,
   createContextWindowGovernorHook,
-  createSessionRecoveryHook,
+  createSessionStateRepairHook,
   createSessionNotification,
   createCommentCheckerHooks,
   createToolOutputTruncatorHook,
@@ -16,19 +16,19 @@ import {
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
   createKeywordDetectorHook,
-  createAgentUsageReminderHook,
+  createDelegationNudgeAgentUsageHook,
   createNonInteractiveEnvHook,
   createInteractiveBashSessionHook,
 
   createThinkingBlockValidatorHook,
   createRalphLoopHook,
   createAutoSlashCommandHook,
-  createEditErrorRecoveryHook,
-  createDelegateTaskRetryHook,
+  createEditFailureGuidanceHook,
+  createDelegationFailureGuidanceHook,
   createQuestionLabelTruncatorHook,
-  createSubagentQuestionBlockerHook,
+  createDelegationBlockSubagentQuestionHook,
   createWriteExistingFileGuardHook,
-  createStopContinuationGuardHook,
+  createContinuationStopGuardHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
   createExecutionOrchestratorHook,
@@ -42,8 +42,8 @@ import {
   createSwarmFromPlanHook,
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
-  createDelegationValidatorHook,
-  createCategorySkillReminderHook,
+  createDelegationValidateDecisionHook,
+  createDelegationNudgeCategorySkillHook,
   createSisyphusJuniorNotepadHook,
   createTmuxParallelAgentsHook,
   createConditionalRulesHooks,
@@ -161,8 +161,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           : undefined,
       })
     : null;
-  const sessionRecovery = isHookEnabled("session-recovery")
-    ? createSessionRecoveryHook(ctx, { experimental: pluginConfig.experimental })
+  const sessionStateRepair = isHookEnabled("session-state-repair")
+    ? createSessionStateRepairHook(ctx, { experimental: pluginConfig.experimental })
     : null;
   
   // Check for conflicting notification plugins before creating session-notification
@@ -323,8 +323,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const orgMemory = createOrgMemoryHook(ctx, pluginConfig.org_memory, {
     collector: contextCollector,
   });
-  const agentUsageReminder = isHookEnabled("agent-usage-reminder")
-    ? createAgentUsageReminderHook(ctx)
+  const delegationNudgeAgentUsage = isHookEnabled("delegation-nudge-agent-usage")
+    ? createDelegationNudgeAgentUsageHook(ctx)
     : null;
   const nonInteractiveEnv = isHookEnabled("non-interactive-env")
     ? createNonInteractiveEnvHook(ctx)
@@ -344,12 +344,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
-  const editErrorRecovery = isHookEnabled("edit-error-recovery")
-    ? createEditErrorRecoveryHook(ctx)
+  const editFailureGuidance = isHookEnabled("edit-failure-guidance")
+    ? createEditFailureGuidanceHook(ctx)
     : null;
 
-  const delegateTaskRetry = isHookEnabled("delegate-task-retry")
-    ? createDelegateTaskRetryHook(ctx)
+  const delegationFailureGuidance = isHookEnabled("delegation-failure-guidance")
+    ? createDelegationFailureGuidanceHook(ctx)
     : null;
 
   const startWork = isHookEnabled("start-work")
@@ -376,15 +376,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   initTaskToastManager(ctx.client);
 
-  const stopContinuationGuard = isHookEnabled("stop-continuation-guard")
-    ? createStopContinuationGuardHook(ctx)
+  const continuationStopGuard = isHookEnabled("continuation-stop-guard")
+    ? createContinuationStopGuardHook(ctx)
     : null;
 
   const questionLabelTruncator = isHookEnabled("question-label-truncator")
     ? createQuestionLabelTruncatorHook()
     : null;
-  const subagentQuestionBlocker = isHookEnabled("subagent-question-blocker")
-    ? createSubagentQuestionBlockerHook()
+  const delegationBlockSubagentQuestion = isHookEnabled("delegation-block-subagent-question")
+    ? createDelegationBlockSubagentQuestionHook()
     : null;
   const writeExistingFileGuard = isHookEnabled("write-existing-file-guard")
     ? createWriteExistingFileGuardHook(ctx)
@@ -400,13 +400,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
-  const todoContinuationEnabled = isHookEnabled("todo-continuation-enforcer");
+  const todoAutoContinuationEnabled = isHookEnabled("todo-auto-continuation");
 
   const planningWithFiles = isHookEnabled("planning-with-files") && pluginConfig.planning_with_files?.enabled
     ? createPlanningWithFilesHook(ctx, {
         config: pluginConfig.planning_with_files,
         collector: contextCollector,
-        todoContinuationEnabled,
+        todoContinuationEnabled: todoAutoContinuationEnabled,
       })
     : null;
 
@@ -414,10 +414,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createContextManifestInjectorHook(ctx)
     : null;
 
-  const todoContinuationEnforcer = todoContinuationEnabled
-    ? createTodoContinuationEnforcer(ctx, {
+  const todoAutoContinuation = todoAutoContinuationEnabled
+    ? createTodoAutoContinuationHook(ctx, {
         backgroundManager,
-        isContinuationStopped: stopContinuationGuard?.isStopped,
+        isContinuationStopped: continuationStopGuard?.isStopped,
       })
     : null;
 
@@ -429,13 +429,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createPreCompletionVerificationHook(ctx)
     : null;
 
-  const delegationValidator = isHookEnabled("delegation-validator")
-    ? createDelegationValidatorHook(ctx)
+  const delegationValidateDecision = isHookEnabled("delegation-validate-decision")
+    ? createDelegationValidateDecisionHook(ctx)
     : null;
 
-  // Category-skill reminder: pre-decision nudge for orchestrators
-  // Complements delegation-validator (post-decision validation)
-  let categorySkillReminder: ReturnType<typeof createCategorySkillReminderHook> | null = null;
+  // Category-skill reminder: post-action nudge for orchestrators
+  // Complements delegation-validate-decision (pre-tool validation)
+  let delegationNudgeCategorySkill: ReturnType<typeof createDelegationNudgeCategorySkillHook> | null = null;
 
   // Sisyphus-junior notepad: dynamic injection of notepad context
   // Saves tokens by only injecting when delegating to sisyphus-junior
@@ -533,10 +533,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
-  if (sessionRecovery && todoContinuationEnforcer) {
-    sessionRecovery.setOnAbortCallback(todoContinuationEnforcer.markRecovering);
-    sessionRecovery.setOnRecoveryCompleteCallback(
-      todoContinuationEnforcer.markRecoveryComplete
+  if (sessionStateRepair && todoAutoContinuation) {
+    sessionStateRepair.setOnAbortCallback(todoAutoContinuation.markRecovering);
+    sessionStateRepair.setOnRecoveryCompleteCallback(
+      todoAutoContinuation.markRecoveryComplete
     );
   }
 
@@ -609,8 +609,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     availableSkills,
   });
 
-  categorySkillReminder = isHookEnabled("category-skill-reminder")
-    ? createCategorySkillReminderHook(ctx, availableSkills)
+  delegationNudgeCategorySkill = isHookEnabled("delegation-nudge-category-skill")
+    ? createDelegationNudgeCategorySkillHook(ctx, availableSkills)
     : null;
 
   const multiPlanTool = createMultiPlanTool({
@@ -923,11 +923,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         });
       }
 
-      if (stopContinuationGuard?.["chat.message"]) {
+      if (continuationStopGuard?.["chat.message"]) {
         nodes.push({
-          id: "stop-continuation-guard:chat.message",
+          id: "continuation-stop-guard:chat.message",
           invoke: async () => {
-            await stopContinuationGuard["chat.message"]?.({ sessionID: input.sessionID });
+            await continuationStopGuard["chat.message"]?.({ sessionID: input.sessionID });
           },
         });
       }
@@ -1065,11 +1065,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     event: async (input) => {
       const nodes: RuntimeExecutionNode[] = [];
 
-      if (stopContinuationGuard?.event) {
+      if (continuationStopGuard?.event) {
         nodes.push({
-          id: "stop-continuation-guard:event",
+          id: "continuation-stop-guard:event",
           invoke: async () => {
-            await stopContinuationGuard.event(input as { event: { type: string; properties?: unknown } });
+            await continuationStopGuard.event(input as { event: { type: string; properties?: unknown } });
           },
         });
       }
@@ -1105,11 +1105,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (todoContinuationEnforcer?.handler) {
+      if (todoAutoContinuation?.handler) {
         nodes.push({
-          id: "todo-continuation-enforcer:event",
+          id: "todo-auto-continuation:event",
           invoke: async () => {
-            await todoContinuationEnforcer.handler(input);
+            await todoAutoContinuation.handler(input);
           },
         });
       }
@@ -1201,19 +1201,19 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (agentUsageReminder?.event) {
+      if (delegationNudgeAgentUsage?.event) {
         nodes.push({
-          id: "agent-usage-reminder:event",
+          id: "delegation-nudge-agent-usage:event",
           invoke: async () => {
-            await agentUsageReminder.event(input);
+            await delegationNudgeAgentUsage.event(input);
           },
         });
       }
-      if (categorySkillReminder?.event) {
+      if (delegationNudgeCategorySkill?.event) {
         nodes.push({
-          id: "category-skill-reminder:event",
+          id: "delegation-nudge-category-skill:event",
           invoke: async () => {
-            await categorySkillReminder.event?.(input);
+            await delegationNudgeCategorySkill.event?.(input);
           },
         });
       }
@@ -1325,9 +1325,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         },
       });
 
-      if (sessionRecovery) {
+      if (sessionStateRepair) {
         nodes.push({
-          id: "internal:session-recovery:event",
+          id: "internal:session-state-repair:event",
           invoke: async () => {
             const { event } = input;
             const props = event.properties as Record<string, unknown> | undefined;
@@ -1338,7 +1338,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
             const sessionID = props?.sessionID as string | undefined;
             const error = props?.error;
 
-            if (!sessionRecovery.isRecoverableError(error)) {
+            if (!sessionStateRepair.isRecoverableError(error)) {
               return;
             }
 
@@ -1349,7 +1349,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               error,
             };
             const recovered =
-              await sessionRecovery.handleSessionRecovery(messageInfo);
+              await sessionStateRepair.handleSessionRecovery(messageInfo);
 
             if (recovered && sessionID && sessionID === getMainSessionID()) {
               await ctx.client.session
@@ -1378,11 +1378,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (subagentQuestionBlocker?.["tool.execute.before"]) {
+      if (delegationBlockSubagentQuestion?.["tool.execute.before"]) {
         nodes.push({
-          id: "subagent-question-blocker:tool.execute.before",
+          id: "delegation-block-subagent-question:tool.execute.before",
           invoke: async () => {
-            await subagentQuestionBlocker["tool.execute.before"]?.(input, output);
+            await delegationBlockSubagentQuestion["tool.execute.before"]?.(input, output);
           },
         });
       }
@@ -1482,11 +1482,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (delegationValidator?.["tool.execute.before"]) {
+      if (delegationValidateDecision?.["tool.execute.before"]) {
         nodes.push({
-          id: "delegation-validator:tool.execute.before",
+          id: "delegation-validate-decision:tool.execute.before",
           invoke: async () => {
-            await delegationValidator["tool.execute.before"]?.(input, output);
+            await delegationValidateDecision["tool.execute.before"]?.(input, output);
           },
         });
       }
@@ -1642,8 +1642,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           const sessionID = input.sessionID || getMainSessionID();
 
           if (command === "stop-continuation" && sessionID) {
-            stopContinuationGuard?.stop(sessionID);
-            todoContinuationEnforcer?.cancelAllCountdowns();
+            continuationStopGuard?.stop(sessionID);
+            todoAutoContinuation?.cancelAllCountdowns();
             ralphLoop?.cancelLoop(sessionID);
             createWorkStateManager(ctx.directory).clear();
             log("[stop-continuation] All continuation mechanisms stopped", {
@@ -1909,19 +1909,19 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (agentUsageReminder?.["tool.execute.after"]) {
+      if (delegationNudgeAgentUsage?.["tool.execute.after"]) {
         nodes.push({
-          id: "agent-usage-reminder:tool.execute.after",
+          id: "delegation-nudge-agent-usage:tool.execute.after",
           invoke: async () => {
-            await agentUsageReminder["tool.execute.after"]?.(input, output);
+            await delegationNudgeAgentUsage["tool.execute.after"]?.(input, output);
           },
         });
       }
-      if (categorySkillReminder?.["tool.execute.after"]) {
+      if (delegationNudgeCategorySkill?.["tool.execute.after"]) {
         nodes.push({
-          id: "category-skill-reminder:tool.execute.after",
+          id: "delegation-nudge-category-skill:tool.execute.after",
           invoke: async () => {
-            await categorySkillReminder["tool.execute.after"]?.(input, output);
+            await delegationNudgeCategorySkill["tool.execute.after"]?.(input, output);
           },
         });
       }
@@ -1933,19 +1933,19 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           },
         });
       }
-      if (editErrorRecovery?.["tool.execute.after"]) {
+      if (editFailureGuidance?.["tool.execute.after"]) {
         nodes.push({
-          id: "edit-error-recovery:tool.execute.after",
+          id: "edit-failure-guidance:tool.execute.after",
           invoke: async () => {
-            await editErrorRecovery["tool.execute.after"]?.(input, output);
+            await editFailureGuidance["tool.execute.after"]?.(input, output);
           },
         });
       }
-      if (delegateTaskRetry?.["tool.execute.after"]) {
+      if (delegationFailureGuidance?.["tool.execute.after"]) {
         nodes.push({
-          id: "delegate-task-retry:tool.execute.after",
+          id: "delegation-failure-guidance:tool.execute.after",
           invoke: async () => {
-            await delegateTaskRetry["tool.execute.after"]?.(input, output);
+            await delegationFailureGuidance["tool.execute.after"]?.(input, output);
           },
         });
       }

@@ -675,7 +675,7 @@ All context injection hooks share a unified token budget governed by a single `C
 **Injection channels** route through the arbiter via two paths:
 
 1. **`ContextCollector.register()`** → `arbiter.decide()` — used by `planning-with-files`, `claude-code-hooks`
-2. **Direct `arbiter.decide()`** — used by `rules-injector`, `directory-agents/readme`, `repo-overview`, `codemap-injector`, `keyword-detector`, `context-manifest-injector`, `conditional-rules`, `hook-message-injector`, `category-skill-reminder`
+2. **Direct `arbiter.decide()`** — used by `rules-injector`, `directory-agents/readme`, `repo-overview`, `codemap-injector`, `keyword-detector`, `context-manifest-injector`, `conditional-rules`, `hook-message-injector`, `delegation-nudge-category-skill`
 
 Budget counters reset at the start of each user turn via `beginTurn()`.
 
@@ -685,7 +685,7 @@ Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-m
 
 ```json
 {
-  "disabled_hooks": ["comment-checker", "agent-usage-reminder"]
+  "disabled_hooks": ["comment-checker", "delegation-nudge-agent-usage"]
 }
 ```
 

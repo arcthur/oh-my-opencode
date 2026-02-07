@@ -118,7 +118,7 @@ delegate_task(
   return guidance
 }
 
-export function createDelegateTaskRetryHook(_ctx: PluginInput) {
+export function createDelegationFailureGuidanceHook(_ctx: PluginInput) {
   return {
     "tool.execute.after": async (
       input: { tool: string; sessionID: string; callID: string },

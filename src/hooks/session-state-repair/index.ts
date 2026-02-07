@@ -18,7 +18,7 @@ import {
 import type { MessageData, ResumeConfig } from "./types"
 import { log } from "../../shared/logger"
 
-export interface SessionRecoveryOptions {
+export interface SessionStateRepairOptions {
   experimental?: ExperimentalConfig
 }
 
@@ -159,6 +159,7 @@ function extractToolUseIds(parts: MessagePart[]): string[] {
 async function recoverToolResultMissing(
   client: Client,
   sessionID: string,
+  directory: string,
   failedAssistantMsg: MessageData
 ): Promise<boolean> {
   // Try API parts first, fallback to filesystem if empty
@@ -185,15 +186,48 @@ async function recoverToolResultMissing(
   }))
 
   try {
-    await client.session.prompt({
+    // NOTE: OpenCode SDK types for session.prompt parts don't include tool_result,
+    // but the server accepts tool_result parts for recovery flows.
+    const options = {
       path: { id: sessionID },
-      // @ts-expect-error - SDK types may not include tool_result parts
       body: { parts: toolResultParts },
-    })
+    } as unknown as Parameters<Client["session"]["prompt"]>[0]
+
+    await client.session.prompt(options)
 
     return true
-  } catch {
-    return false
+  } catch (error) {
+    // Fallback: If the server rejects tool_result parts, revert the corrupted assistant message.
+    // This is safer than leaving the session stuck in an invalid tool_use/tool_result state.
+    const messageID = failedAssistantMsg.info?.id
+    if (!messageID) {
+      log("[session-state-repair] Missing message id for revert fallback", {
+        sessionID,
+      })
+      return false
+    }
+
+    log("[session-state-repair] tool_result injection failed; falling back to revert", {
+      sessionID,
+      messageID,
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    try {
+      await client.session.revert({
+        path: { id: sessionID },
+        query: { directory },
+        body: { messageID },
+      })
+      return true
+    } catch (revertError) {
+      log("[session-state-repair] Revert fallback failed", {
+        sessionID,
+        messageID,
+        error: revertError instanceof Error ? revertError.message : String(revertError),
+      })
+      return false
+    }
   }
 }
 
@@ -315,14 +349,14 @@ async function recoverEmptyContentMessage(
 // All error types have dedicated recovery functions (recoverToolResultMissing,
 // recoverThinkingBlockOrder, recoverThinkingDisabledViolation, recoverEmptyContentMessage).
 
-export interface SessionRecoveryHook {
+export interface SessionStateRepairHook {
   handleSessionRecovery: (info: MessageInfo) => Promise<boolean>
   isRecoverableError: (error: unknown) => boolean
   setOnAbortCallback: (callback: (sessionID: string) => void) => void
   setOnRecoveryCompleteCallback: (callback: (sessionID: string) => void) => void
 }
 
-export function createSessionRecoveryHook(ctx: PluginInput, options?: SessionRecoveryOptions): SessionRecoveryHook {
+export function createSessionStateRepairHook(ctx: PluginInput, options?: SessionStateRepairOptions): SessionStateRepairHook {
   const processingErrors = new Set<string>()
   const experimental = options?.experimental
   let onAbortCallback: ((sessionID: string) => void) | null = null
@@ -396,7 +430,7 @@ export function createSessionRecoveryHook(ctx: PluginInput, options?: SessionRec
       let success = false
 
       if (errorType === "tool_result_missing") {
-        success = await recoverToolResultMissing(ctx.client, sessionID, failedMsg)
+        success = await recoverToolResultMissing(ctx.client, sessionID, ctx.directory, failedMsg)
       } else if (errorType === "thinking_block_order") {
         success = await recoverThinkingBlockOrder(ctx.client, sessionID, failedMsg, ctx.directory, info.error)
         if (success && experimental?.auto_resume) {
@@ -415,7 +449,7 @@ export function createSessionRecoveryHook(ctx: PluginInput, options?: SessionRec
 
       return success
   } catch (err) {
-    log("[session-recovery] Recovery failed:", err)
+    log("[session-state-repair] Recovery failed:", err)
     return false
   } finally {
     processingErrors.delete(assistantMsgID)

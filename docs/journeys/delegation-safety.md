@@ -1,9 +1,9 @@
-# Journey: Delegation Safety (Delegation Validator)
+# Journey: Delegation Safety (delegation-validate-decision)
 
 ## User Perspective
 
 You want delegation to be explainable and debuggable, especially when Sisyphus delegates work to other agents in parallel.
-The Delegation Validator adds lightweight guardrails: it requires a structured delegation decision before each `delegate_task` call and injects warnings when the choice looks suspicious—without blocking execution.
+The `delegation-validate-decision` hook adds lightweight guardrails: it requires a structured delegation decision before each `delegate_task` call and injects warnings when the choice looks suspicious—without blocking execution.
 
 ## End-to-End Flow
 
@@ -13,7 +13,7 @@ flowchart TD
   S --> D["Assistant emits <delegation-decision> JSON"]
   D --> T["delegate_task tool call"]
 
-  subgraph H["delegation-validator (tool.execute.before)"]
+  subgraph H["delegation-validate-decision (tool.execute.before)"]
     M["Fetch last assistant message\n(session API)"]
     E["Extract <delegation-decision> JSON"]
     V["Validate decision\n(rules matrix + heuristics)"]
@@ -82,26 +82,26 @@ Not currently checked (despite the fields existing in the decision schema):
 
 ## Enabling / Disabling
 
-This feature is a hook named `delegation-validator`. Disable it with:
+This feature is a hook named `delegation-validate-decision`. Disable it with:
 
 ```json
 {
-  "disabled_hooks": ["delegation-validator"]
+  "disabled_hooks": ["delegation-validate-decision"]
 }
 ```
 
 ## Where to Look in Code
 
-- Hook: `src/hooks/delegation-validator/index.ts`
+- Hook: `src/hooks/delegation-validate-decision/index.ts`
 - Decision schema: `src/delegation/types.ts`
 - Extraction + validation logic: `src/delegation/validator.ts`
 - Orchestrator prompt responsibilities: `src/agents/sisyphus/index.ts`
 
 ## Debug Checklist
 
-- Confirm `delegation-validator` is enabled (not in `disabled_hooks`).
+- Confirm `delegation-validate-decision` is enabled (not in `disabled_hooks`).
 - Confirm the decision block exists in the assistant message immediately before `delegate_task`.
-- Check logs for `[delegation-validator]` (missing decision, warnings, validated).
+- Check logs for `[delegation-validate-decision]` (missing decision, warnings, validated).
 - If no warnings appear, confirm the chosen agent is covered by the rules matrix (only `explore|librarian|oracle` are validated today).
 
 ## Further Reading

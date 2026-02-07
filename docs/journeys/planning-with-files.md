@@ -285,7 +285,7 @@ Incomplete phases:
 
 **Operational Notes**:
 - Stop verification is advisory (prompt-based) and throttled per session to avoid repeated injections.
-- If `todo-continuation-enforcer` is enabled and pending TODOs exist, stop verification defers to it to avoid duplicate continuation prompts.
+- If `todo-auto-continuation` is enabled and pending TODOs exist, stop verification defers to it to avoid duplicate continuation prompts.
 
 ### 7. State Persistence
 
