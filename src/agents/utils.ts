@@ -9,7 +9,7 @@ import { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "
 import { createPlanSynthesizerAgent, planSynthesizerPromptMetadata } from "./plan-synthesizer"
 import { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
 import type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynamic-agent-prompt-builder"
-import { deepMerge, fetchAvailableModels, resolveModelPipeline, AGENT_MODEL_REQUIREMENTS, readConnectedProvidersCache, isModelAvailable, isAnyFallbackModelAvailable } from "../shared"
+import { deepMerge, fetchAvailableModels, resolveModelPipeline, AGENT_MODEL_REQUIREMENTS, readConnectedProvidersCache, isModelAvailable, isAnyFallbackModelAvailable, isAnyProviderConnected } from "../shared"
 import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "../tools/delegate-task/constants"
 import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-content"
 import { createBuiltinSkills } from "../features/builtin-skills"
@@ -378,13 +378,13 @@ export async function createBuiltinAgents(
     const hephaestusRequirement = AGENT_MODEL_REQUIREMENTS["hephaestus"]
     const hasHephaestusExplicitConfig = typedHephaestusOverride !== undefined
 
-    const hasRequiredModel =
-      !hephaestusRequirement?.requiresModel ||
+    const hasRequiredProvider =
+      !hephaestusRequirement?.requiresProvider ||
       hasHephaestusExplicitConfig ||
       isFirstRunNoCache ||
-      (availableModels.size > 0 && isModelAvailable(hephaestusRequirement.requiresModel, availableModels))
+      isAnyProviderConnected(hephaestusRequirement.requiresProvider, availableModels)
 
-    if (hasRequiredModel) {
+    if (hasRequiredProvider) {
       let hephaestusResolution = applyModelResolution({
         userModel: typedHephaestusOverride?.model ? extractSingleModel(typedHephaestusOverride.model) : undefined,
         categoryDefaultModel: typedHephaestusOverride?.category ? mergedCategories[typedHephaestusOverride.category]?.model : undefined,

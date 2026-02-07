@@ -4,7 +4,7 @@ import type { AgentConfig } from "@opencode-ai/sdk"
 import * as connectedProvidersCache from "../shared/connected-providers-cache"
 import * as shared from "../shared"
 
-const TEST_DEFAULT_MODEL = "anthropic/claude-opus-4-5"
+const TEST_DEFAULT_MODEL = "anthropic/claude-opus-4-6"
 
 async function withModelStubs<T>(
   stubs: { connectedProviders: string[] | null; availableModels: Set<string> },
@@ -27,7 +27,7 @@ describe("createBuiltinAgents with model overrides", () => {
   test("Sisyphus with default model has thinking config when all models available", async () => {
     // #given
     const availableModels = new Set([
-      "anthropic/claude-opus-4-5",
+      "anthropic/claude-opus-4-6",
       "kimi-for-coding/k2p5",
       "opencode/kimi-k2.5-free",
       "zai-coding-plan/glm-4.7",
@@ -41,7 +41,7 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-5")
+    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
     expect(agents.sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
     expect(agents.sisyphus.reasoningEffort).toBeUndefined()
   })
@@ -103,7 +103,7 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-5")
+    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
     expect(agents.sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
     expect(agents.sisyphus.reasoningEffort).toBeUndefined()
   })
@@ -247,7 +247,7 @@ describe("createBuiltinAgents without systemDefaultModel", () => {
     // #given
     const connectedProviders = ["anthropic", "kimi-for-coding", "opencode", "zai-coding-plan"]
     const availableModels = new Set([
-      "anthropic/claude-opus-4-5",
+      "anthropic/claude-opus-4-6",
       "kimi-for-coding/k2p5",
       "opencode/kimi-k2.5-free",
       "zai-coding-plan/glm-4.7",
@@ -262,14 +262,28 @@ describe("createBuiltinAgents without systemDefaultModel", () => {
 
     // #then
     expect(agents.sisyphus).toBeDefined()
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-5")
+    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
   })
 })
 
-describe("createBuiltinAgents with requiresModel gating", () => {
-  test("hephaestus is not created when gpt-5.2-codex is unavailable", async () => {
+describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => {
+  test("hephaestus is not created when no required provider is connected", async () => {
+    // #given - only anthropic is connected (not in hephaestus required providers)
+    const availableModels = new Set(["anthropic/claude-opus-4-6"])
+
+    // #when
+    const agents = await withModelStubs(
+      { connectedProviders: ["anthropic"], availableModels },
+      async () => createBuiltinAgents([], {}, undefined, TEST_DEFAULT_MODEL)
+    )
+
+    // #then
+    expect(agents.hephaestus).toBeUndefined()
+  })
+
+  test("hephaestus is created when openai provider is connected", async () => {
     // #given
-    const availableModels = new Set(["anthropic/claude-opus-4-5"])
+    const availableModels = new Set(["openai/gpt-5.3-codex"])
 
     // #when
     const agents = await withModelStubs(
@@ -278,12 +292,26 @@ describe("createBuiltinAgents with requiresModel gating", () => {
     )
 
     // #then
-    expect(agents.hephaestus).toBeUndefined()
+    expect(agents.hephaestus).toBeDefined()
   })
 
-  test("hephaestus is created when gpt-5.2-codex is available", async () => {
+  test("hephaestus is created when github-copilot provider is connected", async () => {
     // #given
-    const availableModels = new Set(["openai/gpt-5.2-codex"])
+    const availableModels = new Set(["github-copilot/gpt-5.3-codex"])
+
+    // #when
+    const agents = await withModelStubs(
+      { connectedProviders: null, availableModels },
+      async () => createBuiltinAgents([], {}, undefined, TEST_DEFAULT_MODEL)
+    )
+
+    // #then
+    expect(agents.hephaestus).toBeDefined()
+  })
+
+  test("hephaestus is created when opencode provider is connected", async () => {
+    // #given
+    const availableModels = new Set(["opencode/gpt-5.3-codex"])
 
     // #when
     const agents = await withModelStubs(
@@ -307,14 +335,14 @@ describe("createBuiltinAgents with requiresModel gating", () => {
 
     // #then
     expect(agents.hephaestus).toBeDefined()
-    expect(agents.hephaestus.model).toBe("openai/gpt-5.2-codex")
+    expect(agents.hephaestus.model).toBe("openai/gpt-5.3-codex")
   })
 
-  test("hephaestus is created when explicit config provided even if model unavailable", async () => {
+  test("hephaestus is created when explicit config provided even if provider unavailable", async () => {
     // #given
-    const availableModels = new Set(["anthropic/claude-opus-4-5"])
+    const availableModels = new Set(["anthropic/claude-opus-4-6"])
     const overrides = {
-      hephaestus: { model: "anthropic/claude-opus-4-5" },
+      hephaestus: { model: "anthropic/claude-opus-4-6" },
     }
 
     // #when
@@ -331,7 +359,7 @@ describe("createBuiltinAgents with requiresModel gating", () => {
 describe("createBuiltinAgents with requiresAnyModel gating (sisyphus)", () => {
   test("sisyphus is created when at least one fallback model is available", async () => {
     // #given
-    const availableModels = new Set(["anthropic/claude-opus-4-5"])
+    const availableModels = new Set(["anthropic/claude-opus-4-6"])
 
     // #when
     const agents = await withModelStubs(
@@ -355,14 +383,14 @@ describe("createBuiltinAgents with requiresAnyModel gating (sisyphus)", () => {
 
     // #then
     expect(agents.sisyphus).toBeDefined()
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-5")
+    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
   })
 
   test("sisyphus is created when explicit config provided even if no models available", async () => {
     // #given
     const availableModels = new Set<string>()
     const overrides = {
-      sisyphus: { model: "anthropic/claude-opus-4-5" },
+      sisyphus: { model: "anthropic/claude-opus-4-6" },
     }
 
     // #when
@@ -405,7 +433,7 @@ describe("override.category expansion in createBuiltinAgents", () => {
 
     // #then
     expect(agents.oracle).toBeDefined()
-    expect(agents.oracle.model).toBe("openai/gpt-5.2-codex")
+    expect(agents.oracle.model).toBe("openai/gpt-5.3-codex")
     expect(agents.oracle.variant).toBe("xhigh")
   })
 
@@ -486,7 +514,7 @@ describe("override.category expansion in createBuiltinAgents", () => {
 
     // #then
     expect(agents.sisyphus).toBeDefined()
-    expect(agents.sisyphus.model).toBe("openai/gpt-5.2-codex")
+    expect(agents.sisyphus.model).toBe("openai/gpt-5.3-codex")
     expect(agents.sisyphus.variant).toBe("xhigh")
   })
 
@@ -541,7 +569,7 @@ describe("Deadlock prevention - fetchAvailableModels must not receive client", (
 
 describe("buildAgent with category and skills", () => {
   const { buildAgent } = require("./utils")
-  const TEST_MODEL = "anthropic/claude-opus-4-5"
+  const TEST_MODEL = "anthropic/claude-opus-4-6"
 
   test("agent with category but no model inherits the category's default model", () => {
     // #given
@@ -679,7 +707,7 @@ describe("buildAgent with category and skills", () => {
     const agent = buildAgent(source["test-agent"], TEST_MODEL)
 
     // #then
-    expect(agent.model).toBe("openai/gpt-5.2-codex")
+    expect(agent.model).toBe("openai/gpt-5.3-codex")
     expect(agent.variant).toBe("xhigh")
     expect(agent.prompt).toContain("Role: Designer-Turned-Developer")
     expect(agent.prompt).toContain("Task description")

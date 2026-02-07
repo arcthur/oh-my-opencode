@@ -5,6 +5,7 @@ import {
   clearSessionAgent,
   _resetForTesting,
 } from "../../features/claude-code-session-state"
+import type { AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
 import * as sharedModule from "../../shared"
 
 describe("category-skill-reminder hook", () => {
@@ -33,10 +34,14 @@ describe("category-skill-reminder hook", () => {
     } as any
   }
 
+  function createHook(availableSkills: AvailableSkill[] = []) {
+    return createCategorySkillReminderHook(createMockPluginInput(), availableSkills)
+  }
+
   describe("target agent detection", () => {
     test("should inject reminder for sisyphus agent after 3 tool calls", async () => {
       // given - sisyphus agent session with multiple tool calls
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "sisyphus-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -56,7 +61,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should NOT inject reminder for prometheus agent", async () => {
       // given - prometheus agent session
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "prometheus-session"
       updateSessionAgent(sessionID, "Prometheus")
 
@@ -75,7 +80,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should inject reminder for sisyphus-junior agent", async () => {
       // given - sisyphus-junior agent session
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "junior-session"
       updateSessionAgent(sessionID, "sisyphus-junior")
 
@@ -94,7 +99,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should NOT inject reminder for non-target agents", async () => {
       // given - librarian agent session (not a target)
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "librarian-session"
       updateSessionAgent(sessionID, "librarian")
 
@@ -113,7 +118,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should detect agent from input.agent when session state is empty", async () => {
       // given - no session state, agent provided in input
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "input-agent-session"
 
       const output = { title: "", output: "result", metadata: {} }
@@ -131,7 +136,7 @@ describe("category-skill-reminder hook", () => {
   describe("delegation tool tracking", () => {
     test("should NOT inject reminder if delegate_task is used", async () => {
       // given - sisyphus agent that uses delegate_task
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "delegation-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -151,7 +156,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should NOT inject reminder if delegate_task is used for research", async () => {
       // given - sisyphus agent that uses delegate_task for research
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "omo-agent-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -171,7 +176,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should NOT inject reminder if task tool is used", async () => {
       // given - sisyphus agent that uses task tool
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "task-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -193,7 +198,7 @@ describe("category-skill-reminder hook", () => {
   describe("tool call counting", () => {
     test("should NOT inject reminder before 3 tool calls", async () => {
       // given - sisyphus agent with only 2 tool calls
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "few-calls-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -211,7 +216,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should only inject reminder once per session", async () => {
       // given - sisyphus agent session
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "once-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -235,7 +240,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should only count delegatable work tools", async () => {
       // given - sisyphus agent with mixed tool calls
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "mixed-tools-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -256,7 +261,7 @@ describe("category-skill-reminder hook", () => {
   describe("event handling", () => {
     test("should reset state on session.deleted event", async () => {
       // given - sisyphus agent with reminder already shown
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "delete-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -282,7 +287,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should reset state on session.compacted event", async () => {
       // given - sisyphus agent with reminder already shown
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "compact-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -310,7 +315,7 @@ describe("category-skill-reminder hook", () => {
   describe("case insensitivity", () => {
     test("should handle tool names case-insensitively", async () => {
       // given - sisyphus agent with mixed case tool names
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "case-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -329,7 +334,7 @@ describe("category-skill-reminder hook", () => {
 
     test("should handle delegation tool names case-insensitively", async () => {
       // given - sisyphus agent using DELEGATE_TASK in uppercase
-      const hook = createCategorySkillReminderHook(createMockPluginInput())
+      const hook = createHook()
       const sessionID = "case-delegate-session"
       updateSessionAgent(sessionID, "Sisyphus")
 
@@ -345,6 +350,73 @@ describe("category-skill-reminder hook", () => {
       expect(output.output).not.toContain("[Category+Skill Reminder]")
 
       clearSessionAgent(sessionID)
+    })
+  })
+
+  describe("dynamic skills reminder message", () => {
+    test("shows built-in skills when only built-in skills are available", async () => {
+      // #given
+      const availableSkills: AvailableSkill[] = [
+        { name: "frontend-ui-ux", description: "Frontend UI/UX work", location: "plugin" },
+        { name: "git-master", description: "Git operations", location: "plugin" },
+        { name: "playwright", description: "Browser automation", location: "plugin" },
+      ]
+      const hook = createHook(availableSkills)
+      const sessionID = "builtins-only"
+      updateSessionAgent(sessionID, "Sisyphus")
+      const output = { title: "", output: "result", metadata: {} }
+
+      // #when
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "1" }, output)
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "2" }, output)
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "3" }, output)
+
+      // #then
+      expect(output.output).toContain("**Built-in**:")
+      expect(output.output).toContain("frontend-ui-ux")
+      expect(output.output).toContain("**⚡ YOUR SKILLS (PRIORITY)**")
+      expect(output.output).toContain("load_skills=[\"frontend-ui-ux\"")
+    })
+
+    test("emphasizes user skills with priority and uses first user skill in example", async () => {
+      // #given
+      const availableSkills: AvailableSkill[] = [
+        { name: "frontend-ui-ux", description: "Frontend UI/UX work", location: "plugin" },
+        { name: "react-19", description: "React 19 expertise", location: "user" },
+        { name: "web-designer", description: "Visual design", location: "user" },
+      ]
+      const hook = createHook(availableSkills)
+      const sessionID = "user-skills"
+      updateSessionAgent(sessionID, "Sisyphus")
+      const output = { title: "", output: "result", metadata: {} }
+
+      // #when
+      await hook["tool.execute.after"]({ tool: "bash", sessionID, callID: "1" }, output)
+      await hook["tool.execute.after"]({ tool: "bash", sessionID, callID: "2" }, output)
+      await hook["tool.execute.after"]({ tool: "bash", sessionID, callID: "3" }, output)
+
+      // #then
+      expect(output.output).toContain("**⚡ YOUR SKILLS (PRIORITY)**")
+      expect(output.output).toContain("react-19")
+      expect(output.output).toContain("User-installed skills OVERRIDE")
+      expect(output.output).toContain("load_skills=[\"react-19\"")
+    })
+
+    test("still injects a generic reminder when no skills are provided", async () => {
+      // #given
+      const hook = createHook([])
+      const sessionID = "no-skills"
+      updateSessionAgent(sessionID, "Sisyphus")
+      const output = { title: "", output: "result", metadata: {} }
+
+      // #when
+      await hook["tool.execute.after"]({ tool: "read", sessionID, callID: "1" }, output)
+      await hook["tool.execute.after"]({ tool: "read", sessionID, callID: "2" }, output)
+      await hook["tool.execute.after"]({ tool: "read", sessionID, callID: "3" }, output)
+
+      // #then
+      expect(output.output).toContain("[Category+Skill Reminder]")
+      expect(output.output).toContain("load_skills=[]")
     })
   })
 })

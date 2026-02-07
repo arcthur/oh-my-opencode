@@ -1,10 +1,10 @@
 # Upstream Sync Notes (Fork Policy + Sync Anchors)
 
-> Last updated: 2026-02-05  
-> Fork branch: `dev` @ `0f1098c9` *(worktree contains uncommitted sync work)*  
-> Upstream baseline: `dev` @ `617d7f4f` *(local clone: `../oh-my-opencode-upstream`)*  
+> Last updated: 2026-02-06  
+> Fork branch: `dev` @ `9fcee7f5` *(worktree contains uncommitted sync work)*  
+> Upstream baseline: `dev` @ `368ac310` *(local clone: `../oh-my-opencode-upstream`)*  
 > merge-base: `66fd761a`  
-> Divergence (`upstream/dev...dev`): behind **528** / ahead **125** commits
+> Divergence (`upstream/dev...dev`): behind **584** / ahead **143** commits
 
 This document is the **authoritative policy record** for syncing this fork with `upstream/dev`.
 
@@ -120,6 +120,7 @@ bun run build:schema
 | 2026-02-04 | `1e587c55` | `66fd761a` | Wire compaction context injection (`experimental.session.compacting` + `compaction-context-injector`) and Claude Code PreCompact; align context-window compaction hooks; add hook-name migration for renamed upstream recovery hook; complete Atlas `tool.execute.before` enforcement wiring and harden `tool.execute.after`. |
 | 2026-02-05 | `1e587c55` | `66fd761a` | Align tool-layer robustness: restore builtin slashcommand discovery (respecting `disabled_commands`), re-add look-at model-suggestion retry path with fork-compatible agent matching, and restore LSP binary lookup via OpenCode data-dir `bin/` path. |
 | 2026-02-05 | `617d7f4f` | `66fd761a` | Sync upstream/dev follow-ups: tolerate mixed provider-models cache formats (string[] vs object[] metadata), port Windows-safe LSP spawning (Node child_process) + open-file didChange behavior, and suppress background-agent parent notification retries when parent session is aborted. |
+| 2026-02-06 | `368ac310` | `66fd761a` | Reviewed **all 56 commits** in `617d7f4f..368ac310`; ported fork-safe fixes (`81a2317`, `b7f7cb4`, `b8f15af`, `bc782ca`, `3be722b`, `3c32ae0`, `6b560eb`, `53537a9` partial, `aec5624` adapted to `execution-orchestrator`, `3a0d7e8`, `60bbeb7`, `d8b29da`); applied the model upgrade wave (Opus 4.6 + GPT-5.3-Codex + config migration + `anthropic-effort`); still skipped fork-boundary task-tool migration chain. |
 
 ### 2026-02-03 Addendum (File-by-File Review + Link Validation)
 
@@ -333,3 +334,186 @@ Audit metrics (fork vs local upstream clone, excluding `docs/`, `dist/`, `node_m
 - `src/shared/connected-providers-cache.ts` + `src/shared/model-availability.ts` (+ tests): Hardened provider-models cache parsing to accept both `string[]` and metadata object arrays (e.g. Ollama-style `{ id, context, output }`). Improved `fuzzyMatchModel` with exact model-ID matching and made fallback-availability permissive when providers are connected but model cache is incomplete.
 - `src/tools/lsp/client.ts` (+ `src/tools/lsp/client.test.ts`): Ported upstream Windows-safe spawn strategy (Node `child_process`) and added cwd validation to avoid Bun segfaults. Synced `openFile` to emit `didChange`/`didSave` when file content changes on disk.
 - `src/features/background-agent/result-handler.ts` (+ `src/features/background-agent/result-handler.test.ts`): Swallowed “aborted session” errors during parent-session lookup/notification, preventing log spam + repeated retries when the parent session has been aborted.
+
+### 2026-02-06 Addendum (Full Commit Ledger: `617d7f4f..368ac310`)
+
+Review guarantee:
+- Reviewed commit list via `git log --reverse 617d7f4f..368ac310`.
+- Total commits in range: **56**.
+- This table is exhaustive (no omissions).
+
+Decision tags:
+- `PORTED`: merged as-is or equivalent behavior already in fork.
+- `PORTED_PARTIAL`: merged with fork-specific adaptation.
+- `SKIPPED_POLICY`: blocked by fork boundary/policy.
+- `SKIPPED_SCOPE`: deferred to dedicated model-upgrade/feature window.
+- `SKIPPED_DIVERGENCE`: intentional fork divergence or low-value/noise for this fork.
+- `SKIPPED_META`: merge/CLA/docs/release-only commit (no runtime merge required).
+
+| Commit | Decision | Rationale |
+|--------|----------|-----------|
+| `81a2317` | `PORTED` | Doctor now shows user-configured `variant` in model resolution output. |
+| `d8137c0` | `SKIPPED_POLICY` | `boulder-state` lifecycle tracking; fork canonical state is `work-state`/`execution-orchestrator`. |
+| `169ccb6` | `SKIPPED_POLICY` | Atlas continuation bound to `boulder-state`; fork uses `work-state` continuation semantics. |
+| `38b40bc` | `SKIPPED_POLICY` | `prometheus-md-only` boulder-priority logic does not apply to fork state model. |
+| `f08d4ec` | `SKIPPED_DIVERGENCE` | Upstream refactor target (`atlas/utils`) does not map cleanly to fork structure; no behavior delta. |
+| `02e1043` | `SKIPPED_META` | CLA signature only. |
+| `77e99d8` | `SKIPPED_META` | PR merge commit only. |
+| `6cfaac9` | `SKIPPED_META` | PR merge commit only. |
+| `b2e8eec` | `SKIPPED_META` | PR merge commit only. |
+| `b7f7cb4` | `PORTED` | Model-requirements variant normalization for `gemini-3-pro` fallback path. |
+| `b3864d6` | `SKIPPED_META` | PR merge commit only. |
+| `b8d7723` | `SKIPPED_DIVERGENCE` | Hephaestus autonomy prompt strategy intentionally diverges in fork; mixed commit not split. |
+| `f468eff` | `SKIPPED_META` | PR merge commit only. |
+| `2224183` | `SKIPPED_DIVERGENCE` | Dead-code deletion conflicts with fork usage (`getModelLimit` still referenced). |
+| `11d0005` | `PORTED_PARTIAL` | Model upgrade wave applied in fork runtime (Opus 4.6 priority); fork topology preserved (Plan-Synthesizer, no Metis/Momus). |
+| `e450e4f` | `SKIPPED_META` | PR merge commit only. |
+| `04576c3` | `SKIPPED_META` | CLA signature only. |
+| `b8f15af` | `PORTED` | Hephaestus gating switched to provider-connectivity semantics (not single-model presence). |
+| `d3999d7` | `SKIPPED_META` | PR merge commit only. |
+| `4c72154` | `PORTED_PARTIAL` | Model upgrade wave applied in fork runtime (`gpt-5.2-codex -> gpt-5.3-codex`) with fork-safe surface-area updates + tests/snapshots. |
+| `1f64920` | `PORTED_PARTIAL` | Model upgrade wave applied in fork runtime (`claude-opus-4-5 -> claude-opus-4-6`) while preserving fork-owned agent topology. |
+| `25e436a` | `PORTED_PARTIAL` | Think-mode switcher + snapshots updated as part of the model upgrade wave (no duplicate keys; fork test suite adapted). |
+| `f63bf52` | `SKIPPED_META` | PR merge commit only. |
+| `93d3acc` | `SKIPPED_META` | CLA signature only. |
+| `161a864` | `PORTED` | No redundant Opus 4.6 fallback entries remain after the model upgrade wave; upstream dedup not needed as a standalone cherry-pick. |
+| `bda44a5` | `SKIPPED_META` | PR merge commit only. |
+| `7e5a657` | `PORTED_PARTIAL` | Model-version migration (`MODEL_VERSION_MAP` + `migrateModelVersions`) landed with the runtime upgrade wave and fork-specific config migration wiring + tests. |
+| `917bba9` | `SKIPPED_META` | PR merge commit only. |
+| `bc782ca` | `PORTED` | Regex special-char escaping fix in tool matcher. |
+| `3c32ae0` | `PORTED_PARTIAL` | `disabled_tools` filtering enforced via fork helper (`filterDisabledTools`) + tests. |
+| `3166cff` | `SKIPPED_META` | PR merge commit only. |
+| `d779a48` | `SKIPPED_META` | PR merge commit only. |
+| `3be722b` | `PORTED` | Added literal-match regression assertions for pattern matcher special chars. |
+| `ca8ec49` | `SKIPPED_META` | Docs-only AGENTS.md reference cleanup. |
+| `6b560eb` | `PORTED_PARTIAL` | Dynamic categories/skills wired for plan-agent prompts with fork prompt-policy retention. |
+| `53537a9` | `PORTED_PARTIAL` | Zod/runtime sync adapted to fork: builtin commands parity + schema guard tests. |
+| `aec5624` | `PORTED_PARTIAL` | Continuation failure loop guard ported to fork `execution-orchestrator` (not upstream atlas path). |
+| `3a0d7e8` | `PORTED` | Sisyphus-Junior no longer inherits UI-selected system model. |
+| `9271f82` | `SKIPPED_META` | PR merge commit only. |
+| `728eaae` | `SKIPPED_META` | PR merge commit only. |
+| `c6c149e` | `SKIPPED_META` | Docs-only AGENTS.md merge commit. |
+| `e9a3d57` | `SKIPPED_META` | PR merge commit only. |
+| `f1b2f6f` | `SKIPPED_META` | PR merge commit only. |
+| `60bbeb7` | `PORTED_PARTIAL` | Compaction model hardcode removal ported to fork compaction pipeline + static regression check. |
+| `2b2160b` | `SKIPPED_META` | PR merge commit only. |
+| `d8b29da` | `PORTED_PARTIAL` | Category-skill reminder now dynamic; fork-specific reminder wording preserved. |
+| `8961026` | `SKIPPED_META` | PR merge commit only. |
+| `4692809` | `SKIPPED_META` | AGENTS.md regeneration only. |
+| `f1c794e` | `SKIPPED_META` | Release/version bump only (`v3.2.4`). |
+| `a691a3a` | `SKIPPED_POLICY` | `delegate_task -> task` migration crosses fork boundary (`sisyphus-tasks`/`work-state` ownership). |
+| `d209f3c` | `SKIPPED_META` | PR merge commit only. |
+| `98f4adb` | `SKIPPED_DIVERGENCE` | Strict modular-rule injection not adopted (high-noise, incompatible with current fork architecture). |
+| `6febebc` | `PORTED_PARTIAL` | `anthropic-effort` hook landed as part of the Opus 4.6 upgrade wave (fork keeps runtime chain order and compatibility). |
+| `ec520e6` | `PORTED_PARTIAL` | `anthropic-effort` hook exported/registered in fork (`src/hooks/index.ts`, `src/config/schema.ts`, `src/index.ts`). |
+| `cb2169f` | `PORTED_PARTIAL` | `anthropic-effort` hardened for null/undefined model IDs (defensive guard retained). |
+| `368ac31` | `SKIPPED_META` | PR merge commit only. |
+
+Net result for this cycle:
+- Functional commits in range: **29**
+- Ported (full/partial): **21**
+- Deferred/skipped by policy/scope/divergence: **8**
+- Meta commits (merge/CLA/docs/release): **27**
+
+
+### 2026-02-06 Addendum (Skipped Commits Re-Validation, One-by-One)
+
+Validation method:
+- Re-opened every explicitly skipped functional commit with `git show --name-only`.
+- Matched touched paths against fork-owned/deprecated boundaries.
+- Confirmed current fork worktree does NOT reintroduce deprecated upstream modules.
+
+Deprecated upstream modules checked (must remain absent in fork):
+- `src/features/boulder-state`
+- `src/features/claude-tasks`
+- `src/tools/task`
+- `src/hooks/task-reminder`
+- `src/hooks/unstable-agent-babysitter`
+- `src/features/tmux-subagent`
+- `src/shared/tmux`
+
+Result: all above paths are absent in this fork, and none are introduced by current sync changes.
+
+| Commit | Touched area(s) | Re-validation result |
+|--------|------------------|----------------------|
+| `d8137c0` | `src/features/boulder-state/*`, `src/hooks/atlas/*`, `src/hooks/start-work/*` | Hard conflict with fork-owned `work-state`; keep skipped. |
+| `169ccb6` | `src/hooks/atlas/*` (boulder-agent continuation) | Depends on boulder semantics; keep skipped. |
+| `38b40bc` | `src/hooks/prometheus-md-only/*` (boulder-priority) | Fork uses non-boulder source of truth; keep skipped. |
+| `f08d4ec` | `src/agents/atlas/utils.ts`, dynamic prompt builder refactor | Upstream file layout differs; no behavior necessity for fork; keep skipped. |
+| `b8d7723` | `src/agents/hephaestus.ts` prompt strategy + unrelated test file | Intentional fork prompt-policy divergence; keep skipped. |
+| `2224183` | `src/plugin-state.ts`, `src/shared/ollama-ndjson-parser.ts`, `src/types/*.d.ts` deletions | Fork still references/uses these paths; unsafe to import blindly; keep skipped. |
+| `a691a3a` | massive `delegate_task -> task` refactor, `src/tools/task/*`, metis/momus files | Violates fork boundary (`sisyphus-tasks`/`work-state`); keep skipped. |
+| `98f4adb` | `.sisyphus/rules/modular-code-enforcement.md`, `.gitignore` unignore | Not adopted in fork workflow; high-noise policy injection; keep skipped. |
+
+- Guardrail added in fork: `src/fork-boundary.deprecated-paths.static.test.ts` asserts deprecated upstream subsystem paths remain absent, preventing accidental reintroduction during future syncs.
+
+### 2026-02-06 Addendum (Model Upgrade Chain Deep-Dive, Commit-by-Commit)
+
+Focused chain reviewed one-by-one:
+- `11d0005`, `4c72154`, `1f64920`, `25e436a`, `161a864`, `7e5a657`, `6febebc`, `ec520e6`, `cb2169f`
+
+Current fork runtime status (before this wave):
+- Still primarily on `claude-opus-4-5` + `gpt-5.2-codex` in:
+  - `src/shared/model-requirements.ts`
+  - `src/tools/delegate-task/constants.ts`
+  - `src/hooks/think-mode/switcher.ts`
+  - `src/cli/model-fallback.ts`
+  - `src/shared/migration.ts`
+- Therefore, this chain is **not safe for isolated cherry-picks**; it must be merged as an atomic migration wave.
+
+| Commit | Decision | Fork-fit rationale |
+|--------|----------|--------------------|
+| `11d0005` | `ADAPTABLE_DEFERRED` | Introduces Opus 4.6 priority entry. In this fork, if adopted, keep `4-5` as compatibility fallback until provider coverage is confirmed (do not force hard cutover via single commit). |
+| `4c72154` | `ADOPT_IN_BATCH` | `gpt-5.2-codex -> gpt-5.3-codex` is valuable for hephaestus/ultrabrain/deep paths, but high blast radius (runtime + tests + docs). Merge only with full test/snapshot update. |
+| `1f64920` | `ADAPT_REQUIRED` | Broad `4-5 -> 4-6` replacement; upstream includes metis/momus/atlas-facing churn not directly applicable to this fork. Must port selectively to fork runtime surfaces only. |
+| `25e436a` | `FOLLOWUP_IF_ADOPTED` | Fixes duplicate switcher key introduced in prior update. Required only if adopting upstream-style switcher change; otherwise derive equivalent fix in fork switcher map. |
+| `161a864` | `ADAPT_REQUIRED` | Removes duplicate 4.6 fallback entries after broad replacement. If fork intentionally keeps dual-entry compatibility (`4-6` then `4-5`), do not apply mechanically. |
+| `7e5a657` | `ADOPT_IN_BATCH` | Model string migration (`5.2-codex -> 5.3-codex`, `opus-4-5 -> 4-6`) is high value, but only when runtime defaults/fallbacks are upgraded in the same wave. |
+| `6febebc` | `OPTIONAL_AFTER_4_6` | New `anthropic-effort` hook is meaningful after Opus 4.6 adoption. |
+| `ec520e6` | `OPTIONAL_AFTER_4_6` | Schema/index registration for `anthropic-effort`; depends on previous hook. |
+| `cb2169f` | `REQUIRED_IF_HOOK_ADOPTED` | Null-guard hardening for `anthropic-effort`; mandatory with the hook to avoid runtime edge-case crashes. |
+
+Recommended migration sequence for this fork (model chain only):
+1. **Phase A (atomic runtime migration)**  
+   Update model IDs in fork-owned runtime surfaces:  
+   `src/shared/model-requirements.ts`, `src/tools/delegate-task/constants.ts`, `src/hooks/think-mode/switcher.ts`, `src/cli/model-fallback.ts`, `src/shared/migration.ts`  
+   + update corresponding tests/snapshots together.
+2. **Phase B (optional optimization)**  
+   Add `anthropic-effort` (`6febebc/ec520e6/cb2169f`) only after Phase A is stable.
+3. **Phase C (docs-only sync)**  
+   Refresh docs/AGENTS references after runtime behavior is confirmed.
+
+Fork boundary reminders for this chain:
+- Do **not** reintroduce upstream-only deprecated systems while applying model upgrades (`boulder-state`, `claude-tasks`, `task` tool chain, `tmux-subagent`, etc.).
+- Preserve fork agent topology (`plan-synthesizer` instead of metis/momus) when porting tests or prompt text.
+
+### 2026-02-06 Addendum (Model Upgrade Chain Applied in Fork Runtime)
+
+Applied as one migration wave (runtime + tests/snapshots + schema):
+
+- Runtime model defaults/fallbacks upgraded:
+  - `claude-opus-4-5 -> claude-opus-4-6`
+  - `gpt-5.2-codex -> gpt-5.3-codex`
+  - files: `src/shared/model-requirements.ts`, `src/tools/delegate-task/constants.ts`, `src/cli/model-fallback.ts`
+- Think-mode high-variant mapping extended for Opus 4.6 while keeping 4.5 compatibility alias:
+  - file: `src/hooks/think-mode/switcher.ts`
+- Config migration upgraded to auto-migrate legacy model strings in both `agents` and `categories`:
+  - file: `src/shared/migration.ts`
+- Added optional Opus 4.6 optimization hook `anthropic-effort`:
+  - new files: `src/hooks/anthropic-effort/index.ts`, `src/hooks/anthropic-effort/index.test.ts`
+  - wired via `src/hooks/index.ts`, `src/config/schema.ts`, `src/index.ts` (`chat.params`)
+- Synced schema artifact:
+  - `assets/oh-my-opencode.schema.json`
+- Updated affected test suites/snapshots to match fork-adapted runtime behavior (including `plan-synthesizer` topology and no deprecated subsystem reintroduction).
+
+### 2026-02-06 Addendum (Commit Coverage Machine Check)
+
+Verification script:
+- Extract all commits from upstream range: `git -C ../oh-my-opencode-upstream log --reverse --oneline 617d7f4f..368ac310`
+- Extract all short SHAs referenced in this notes file.
+- Compute set difference (`upstream_commits - noted_commits`).
+
+Result:
+- Upstream commits in range: **56**
+- Missing commits in notes: **0**
+- Conclusion: full one-by-one coverage is recorded for `617d7f4f..368ac310`.

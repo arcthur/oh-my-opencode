@@ -112,11 +112,17 @@ export const HookNameSchema = z.enum([
   "sisyphus-junior-notepad",
   "tmux-parallel-agents",
   "swarm-agent",
+  "anthropic-effort",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
   "init-deep",
+  "ralph-loop",
+  "ulw-loop",
+  "cancel-ralph",
+  "refactor",
   "start-work",
+  "stop-continuation",
 ])
 
 export const AgentOverrideConfigSchema = z.object({
@@ -977,6 +983,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
   disabled_agents: z.array(BuiltinAgentNameSchema).optional(),
   disabled_skills: z.array(BuiltinSkillNameSchema).optional(),
+  /** Tool names to hide from runtime tool registry (exact-match). */
+  disabled_tools: z.array(z.string()).optional(),
   disabled_hooks: z.array(HookNameSchema).optional(),
   disabled_commands: z.array(BuiltinCommandNameSchema).optional(),
   agents: AgentOverridesSchema.optional(),

@@ -4,7 +4,8 @@
  * Automatically triggers session compaction when token usage exceeds the configured threshold.
  * This prevents hitting the context window limit by proactively summarizing the session.
  *
- * Only applies to Anthropic provider sessions.
+ * Applies to all providers. Anthropic uses its dynamic configured context limit,
+ * while non-Anthropic providers use a conservative default limit.
  *
  * Configuration via experimental settings:
  * - experimental.preemptive_compaction: boolean (default: true since v2.9.0)
@@ -14,6 +15,7 @@
 import { getDefaultAnthropicContextLimit } from "../shared/context-limits"
 
 const DEFAULT_THRESHOLD = 0.78
+const DEFAULT_ACTUAL_LIMIT = 200_000
 
 export interface PreemptiveCompactionOptions {
   /** Threshold percentage to trigger compaction (default: 0.78) */
@@ -51,7 +53,7 @@ type PluginInput = {
 
 export function createPreemptiveCompactionHook(ctx: PluginInput, options?: PreemptiveCompactionOptions) {
   const threshold = options?.threshold ?? DEFAULT_THRESHOLD
-  const contextLimit = getDefaultAnthropicContextLimit()
+  const anthropicContextLimit = getDefaultAnthropicContextLimit()
   const compactionInProgress = new Set<string>()
   const compactedSessions = new Set<string>()
 
@@ -75,11 +77,14 @@ export function createPreemptiveCompactionHook(ctx: PluginInput, options?: Preem
       if (assistantMessages.length === 0) return
 
       const lastAssistant = assistantMessages[assistantMessages.length - 1]
-      if (lastAssistant.providerID !== "anthropic") return
+      const actualLimit =
+        lastAssistant.providerID === "anthropic"
+          ? anthropicContextLimit
+          : DEFAULT_ACTUAL_LIMIT
 
       const lastTokens = lastAssistant.tokens
       const totalInputTokens = (lastTokens?.input ?? 0) + (lastTokens?.cache?.read ?? 0)
-      const usageRatio = totalInputTokens / contextLimit
+      const usageRatio = totalInputTokens / actualLimit
 
       if (usageRatio < threshold) return
 

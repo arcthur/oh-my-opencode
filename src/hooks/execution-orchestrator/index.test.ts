@@ -81,6 +81,11 @@ describe("execution-orchestrator hook", () => {
     }
   }
 
+  async function flushMicrotasks(): Promise<void> {
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+
   function setupMessageStorage(sessionID: string, agent: string): void {
     const messageDir = join(MESSAGE_STORAGE, sessionID)
     if (!existsSync(messageDir)) {
@@ -152,6 +157,94 @@ describe("execution-orchestrator hook", () => {
     expect(args.body.parts[0].text).toContain("WORK CONTINUATION")
 
     cleanupMessageStorage(sessionID)
+  })
+
+  test("stops continuation after 2 consecutive prompt failures", async () => {
+    // #given
+    const sessionID = "main-session-prompt-failure"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "sisyphus")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const promptMock = mock(() => Promise.reject(new Error("Bad Request")))
+    const mockInput = createMockPluginInput({ promptMock })
+    const hook = createExecutionOrchestratorHook(mockInput)
+
+    const originalDateNow = Date.now
+    let now = 0
+    Date.now = () => now
+
+    try {
+      // #when - idle fires repeatedly, each after cooldown
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+      now += 6000
+
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+      now += 6000
+
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+
+      // #then - only 2 attempts, then disabled
+      expect(promptMock).toHaveBeenCalledTimes(2)
+    } finally {
+      Date.now = originalDateNow
+      cleanupMessageStorage(sessionID)
+    }
+  })
+
+  test("resets prompt-failure continuation lock on session.compacted", async () => {
+    // #given
+    const sessionID = "main-session-compacted-reset"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "sisyphus")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const promptMock = mock(() => Promise.reject(new Error("Bad Request")))
+    const mockInput = createMockPluginInput({ promptMock })
+    const hook = createExecutionOrchestratorHook(mockInput)
+
+    const originalDateNow = Date.now
+    let now = 0
+    Date.now = () => now
+
+    try {
+      // #when - fail twice, hit lock, compact, then retry
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+      now += 6000
+
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+      now += 6000
+
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+
+      await hook.handler({ event: { type: "session.compacted", properties: { sessionID } } })
+      now += 6000
+
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+
+      // #then - 2 failures + 1 post-compaction attempt
+      expect(promptMock).toHaveBeenCalledTimes(3)
+    } finally {
+      Date.now = originalDateNow
+      cleanupMessageStorage(sessionID)
+    }
   })
 
   test("blocks direct task tool in execution mode", async () => {

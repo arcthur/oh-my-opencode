@@ -468,6 +468,7 @@ interface ToolExecuteAfterOutput {
 interface SessionState {
   lastEventWasAbortError?: boolean
   lastContinuationInjectedAt?: number
+  promptFailureCount: number
 }
 
 const CONTINUATION_COOLDOWN_MS = 5000
@@ -522,7 +523,7 @@ export function createExecutionOrchestratorHook(
   function getState(sessionID: string): SessionState {
     let state = sessions.get(sessionID)
     if (!state) {
-      state = {}
+      state = { promptFailureCount: 0 }
       sessions.set(sessionID, state)
     }
     return state
@@ -549,6 +550,7 @@ export function createExecutionOrchestratorHook(
     remaining: number,
     total: number
   ): Promise<void> {
+    const state = getState(sessionID)
     const hasRunningBgTasks = backgroundManager
       ? backgroundManager.getTasksByParentSession(sessionID).some(t => t.status === "running")
       : false
@@ -602,9 +604,15 @@ export function createExecutionOrchestratorHook(
          query: { directory: ctx.directory },
       })
 
+      state.promptFailureCount = 0
       log(`[${HOOK_NAME}] Work continuation injected`, { sessionID })
     } catch (err) {
-      log(`[${HOOK_NAME}] Work continuation failed`, { sessionID, error: String(err) })
+      state.promptFailureCount += 1
+      log(`[${HOOK_NAME}] Work continuation failed`, {
+        sessionID,
+        error: String(err),
+        promptFailureCount: state.promptFailureCount,
+      })
     }
   }
 
@@ -649,6 +657,14 @@ export function createExecutionOrchestratorHook(
         if (state.lastEventWasAbortError) {
           state.lastEventWasAbortError = false
           log(`[${HOOK_NAME}] Skipped: abort error immediately before idle`, { sessionID })
+          return
+        }
+
+        if (state.promptFailureCount >= 2) {
+          log(`[${HOOK_NAME}] Skipped: continuation disabled after repeated prompt failures`, {
+            sessionID,
+            promptFailureCount: state.promptFailureCount,
+          })
           return
         }
 
@@ -733,6 +749,16 @@ export function createExecutionOrchestratorHook(
         if (sessionInfo?.id) {
           sessions.delete(sessionInfo.id)
           log(`[${HOOK_NAME}] Session deleted: cleaned up`, { sessionID: sessionInfo.id })
+        }
+        return
+      }
+
+      if (event.type === "session.compacted") {
+        const sessionID = (props?.sessionID ??
+          (props?.info as { id?: string } | undefined)?.id) as string | undefined
+        if (sessionID) {
+          sessions.delete(sessionID)
+          log(`[${HOOK_NAME}] Session compacted: cleaned up`, { sessionID })
         }
         return
       }

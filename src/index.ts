@@ -14,6 +14,7 @@ import {
   createClaudeCodeHooksHook,
   createContextWindowLimitRecoveryHook,
   createCompactionContextInjector,
+  getCompactionContextPrompt,
   createRulesInjectorHook,
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
@@ -52,6 +53,7 @@ import {
   createSessionHandoffHook,
   createSwarmAgentHook,
   createPreemptiveCompactionHook,
+  createAnthropicEffortHook,
 } from "./hooks";
 import {
   EVENT_TOTAL_ORDER,
@@ -80,8 +82,10 @@ import {
   discoverOpencodeProjectSkills,
   mergeSkills,
 } from "./features/opencode-skill-loader";
+import type { SkillScope } from "./features/opencode-skill-loader/types";
 import { createBuiltinSkills } from "./features/builtin-skills";
 import { getSystemMcpServerNames } from "./features/claude-code-mcp-loader";
+import type { AvailableSkill } from "./agents/dynamic-agent-prompt-builder";
 import {
   setMainSession,
   getMainSessionID,
@@ -111,6 +115,7 @@ import { initTaskToastManager } from "./features/task-toast-manager";
 import { createWorkStateManager } from "./features/work-state";
 import { HookNameSchema, type HookName } from "./config";
 import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
+import { filterDisabledTools } from "./shared/disabled-tools";
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
 import { DEFAULT_HANDOFF_CONFIG } from "./features/session-handoff";
 import { loadPluginConfig } from "./plugin-config";
@@ -125,6 +130,7 @@ import {
   cleanupGovernanceSession,
   hasGovernanceSession,
 } from "./features/governance";
+import { CATEGORY_DESCRIPTIONS, DEFAULT_CATEGORIES } from "./tools/delegate-task/constants";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[oh-my-opencode] Plugin loading", { directory: ctx.directory });
@@ -219,6 +225,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createEmptyTaskResponseDetectorHook(ctx)
     : null;
   const thinkMode = isHookEnabled("think-mode") ? createThinkModeHook() : null;
+  const anthropicEffort = isHookEnabled("anthropic-effort")
+    ? createAnthropicEffortHook()
+    : null;
   const claudeCodeBridgeEnabled = isClaudeCodeBridgeEnabled({
     disabledHooks,
     claudeCodeHooksEnabled: pluginConfig.claude_code?.hooks,
@@ -431,9 +440,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   // Category-skill reminder: pre-decision nudge for orchestrators
   // Complements delegation-validator (post-decision validation)
-  const categorySkillReminder = isHookEnabled("category-skill-reminder")
-    ? createCategorySkillReminderHook(ctx)
-    : null;
+  let categorySkillReminder: ReturnType<typeof createCategorySkillReminderHook> | null = null;
 
   // Sisyphus-junior notepad: dynamic injection of notepad context
   // Saves tokens by only injecting when delegating to sisyphus-junior
@@ -560,25 +567,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const lookAt = createLookAt(ctx);
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
-  const delegateTask = createDelegateTask({
-    manager: backgroundManager,
-    client: ctx.client,
-    directory: ctx.directory,
-    userCategories: pluginConfig.categories,
-    gitMasterConfig: pluginConfig.git_master,
-    disabledSkills,
-  });
-  const multiPlanTool = createMultiPlanTool({
-    ctx,
-    backgroundManager,
-    model: prometheusModel,
-    pipelineConfig: pluginConfig.multi_plan_pipeline,
-  });
-  const swarmTool = createSwarmTool({
-    directory: ctx.directory,
-    config: pluginConfig,
-    sessionId: getMainSessionID(),
-  });
   const systemMcpNames = getSystemMcpServerNames();
   const builtinSkills = createBuiltinSkills().filter((skill) => {
     if (disabledSkills.has(skill.name as never)) return false;
@@ -604,6 +592,59 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     projectSkills,
     opencodeProjectSkills
   );
+
+  function mapScopeToLocation(scope: SkillScope): AvailableSkill["location"] {
+    if (scope === "user" || scope === "opencode") return "user";
+    if (scope === "project" || scope === "opencode-project") return "project";
+    return "plugin";
+  }
+
+  const availableSkills: AvailableSkill[] = mergedSkills.map((skill) => ({
+    name: skill.name,
+    description: skill.definition.description ?? "",
+    location: mapScopeToLocation(skill.scope),
+  }));
+
+  const mergedCategories = pluginConfig.categories
+    ? { ...DEFAULT_CATEGORIES, ...pluginConfig.categories }
+    : DEFAULT_CATEGORIES;
+
+  const availableCategories = Object.entries(mergedCategories).map(([name, categoryConfig]) => ({
+    name,
+    description:
+      pluginConfig.categories?.[name]?.description
+      ?? CATEGORY_DESCRIPTIONS[name]
+      ?? "General tasks",
+    model: categoryConfig.model,
+  }));
+
+  const delegateTask = createDelegateTask({
+    manager: backgroundManager,
+    client: ctx.client,
+    directory: ctx.directory,
+    userCategories: pluginConfig.categories,
+    gitMasterConfig: pluginConfig.git_master,
+    disabledSkills,
+    availableCategories,
+    availableSkills,
+  });
+
+  categorySkillReminder = isHookEnabled("category-skill-reminder")
+    ? createCategorySkillReminderHook(ctx, availableSkills)
+    : null;
+
+  const multiPlanTool = createMultiPlanTool({
+    ctx,
+    backgroundManager,
+    model: prometheusModel,
+    pipelineConfig: pluginConfig.multi_plan_pipeline,
+  });
+  const swarmTool = createSwarmTool({
+    directory: ctx.directory,
+    config: pluginConfig,
+    sessionId: getMainSessionID(),
+  });
+
   const skillMcpManager = new SkillMcpManager();
   const getSessionIDForMcp = () => getMainSessionID() || "";
   const skillTool = createSkillTool({
@@ -707,18 +748,51 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     await hookRuntimeDispatcher.dispatch(event, orderedNodes);
   };
 
+  const allTools = {
+    ...builtinTools,
+    ...backgroundTools,
+    look_at: lookAt,
+    delegate_task: delegateTask,
+    multi_plan: multiPlanTool,
+    swarm: swarmTool,
+    skill: skillTool,
+    skill_mcp: skillMcpTool,
+    slashcommand: slashcommandTool,
+    interactive_bash,
+  };
+
+  const filteredTools = filterDisabledTools(allTools, pluginConfig.disabled_tools);
+
   return {
-    tool: {
-      ...builtinTools,
-      ...backgroundTools,
-      look_at: lookAt,
-      delegate_task: delegateTask,
-      multi_plan: multiPlanTool,
-      swarm: swarmTool,
-      skill: skillTool,
-      skill_mcp: skillMcpTool,
-      slashcommand: slashcommandTool,
-      interactive_bash,
+    tool: filteredTools,
+
+    "chat.params": async (
+      input: {
+        sessionID: string
+        agent: string
+        model: Record<string, unknown>
+        provider: Record<string, unknown>
+        message: Record<string, unknown>
+      },
+      output: {
+        temperature: number
+        topP: number
+        topK: number
+        options: Record<string, unknown>
+      },
+    ) => {
+      const model = input.model as { providerID?: string; modelID?: string }
+      const message = input.message as { variant?: string }
+      await anthropicEffort?.["chat.params"]?.(
+        {
+          ...input,
+          agent: { name: input.agent },
+          model,
+          provider: input.provider as { id: string },
+          message,
+        },
+        output,
+      )
     },
 
     "chat.message": async (input, output) => {
@@ -2009,8 +2083,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         nodes.push({
           id: "internal:compaction-context-injector:experimental.session.compacting",
           invoke: async () => {
-            let providerID = "anthropic";
-            let modelID = "claude-opus-4-5";
+            let providerID: string | undefined;
+            let modelID: string | undefined;
             try {
               const messagesResp = await ctx.client.session.messages({
                 path: { id: input.sessionID },
@@ -2039,12 +2113,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               // Best-effort only; compaction should proceed even if metadata is unavailable
             }
 
-            await compactionContextInjector({
+            if (providerID && modelID) {
+              await compactionContextInjector({
+                sessionID: input.sessionID,
+                providerID,
+                modelID,
+                usageRatio: 0.8,
+                directory: ctx.directory,
+              });
+              return;
+            }
+
+            if (output && Array.isArray(output.context)) {
+              output.context.push(getCompactionContextPrompt());
+              return;
+            }
+
+            log("[compaction-context-injector] skipped: unable to resolve model metadata", {
               sessionID: input.sessionID,
-              providerID,
-              modelID,
-              usageRatio: 0.8,
-              directory: ctx.directory,
             });
           },
         });

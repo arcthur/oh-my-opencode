@@ -70,7 +70,7 @@ beforeEach(() => {
   track(spyOn(mcpModule, "createBuiltinMcps")).mockReturnValue({})
 
   track(spyOn(shared, "log")).mockImplementation(() => {})
-  track(spyOn(shared, "fetchAvailableModels")).mockResolvedValue(new Set(["anthropic/claude-opus-4-5"]))
+  track(spyOn(shared, "fetchAvailableModels")).mockResolvedValue(new Set(["anthropic/claude-opus-4-6"]))
   track(spyOn(shared, "readConnectedProvidersCache")).mockReturnValue(null)
 
   track(spyOn(permissionCompat, "migrateAgentConfig")).mockImplementation(
@@ -83,6 +83,66 @@ afterEach(() => {
     spy.mockRestore()
   }
   spies.splice(0, spies.length)
+})
+
+describe("Sisyphus-Junior model inheritance", () => {
+  test("does not pass UI-selected system model into sisyphus-junior defaults", async () => {
+    // #given
+    const pluginConfig: OhMyOpenCodeConfig = {}
+    const config: Record<string, unknown> = {
+      model: "opencode/kimi-k2.5-free",
+      agent: {},
+    }
+    const handler = createConfigHandler({
+      ctx: { directory: "/tmp" },
+      pluginConfig,
+      modelCacheState: {
+        anthropicContext1MEnabled: false,
+        modelContextLimitsCache: new Map(),
+      },
+    })
+
+    // #when
+    await handler(config)
+
+    // #then
+    expect(sisyphusJunior.createSisyphusJuniorAgentWithOverrides).toHaveBeenCalledWith(
+      undefined,
+      undefined
+    )
+  })
+
+  test("passes explicit sisyphus-junior override while keeping system model undefined", async () => {
+    // #given
+    const pluginConfig: OhMyOpenCodeConfig = {
+      agents: {
+        "sisyphus-junior": {
+          model: "openai/gpt-5.3-codex",
+        },
+      },
+    }
+    const config: Record<string, unknown> = {
+      model: "opencode/kimi-k2.5-free",
+      agent: {},
+    }
+    const handler = createConfigHandler({
+      ctx: { directory: "/tmp" },
+      pluginConfig,
+      modelCacheState: {
+        anthropicContext1MEnabled: false,
+        modelContextLimitsCache: new Map(),
+      },
+    })
+
+    // #when
+    await handler(config)
+
+    // #then
+    expect(sisyphusJunior.createSisyphusJuniorAgentWithOverrides).toHaveBeenCalledWith(
+      { model: "openai/gpt-5.3-codex" },
+      undefined
+    )
+  })
 })
 
 describe("Plan agent demote behavior", () => {
@@ -100,7 +160,7 @@ describe("Plan agent demote behavior", () => {
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -131,7 +191,7 @@ describe("Plan agent demote behavior", () => {
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {
         plan: {
           name: "plan",
@@ -167,7 +227,7 @@ describe("Plan agent demote behavior", () => {
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -199,7 +259,7 @@ describe("Agent permission defaults", () => {
     })
     const pluginConfig: OhMyOpenCodeConfig = {}
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -231,7 +291,7 @@ describe("Agent permission defaults", () => {
 
     const pluginConfig: OhMyOpenCodeConfig = {}
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -265,7 +325,7 @@ describe("Prometheus category config resolution", () => {
 
     // #then
     expect(config).toBeDefined()
-    expect(config?.model).toBe("openai/gpt-5.2-codex")
+    expect(config?.model).toBe("openai/gpt-5.3-codex")
     expect(config?.variant).toBe("xhigh")
   })
 
@@ -325,7 +385,7 @@ describe("Prometheus category config resolution", () => {
 
     // #then
     expect(config).toBeDefined()
-    expect(config?.model).toBe("openai/gpt-5.2-codex")
+    expect(config?.model).toBe("openai/gpt-5.3-codex")
     expect(config?.variant).toBe("xhigh")
   })
 
@@ -376,7 +436,7 @@ describe("Prometheus direct override priority over category", () => {
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -416,7 +476,7 @@ describe("Prometheus direct override priority over category", () => {
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -457,7 +517,7 @@ describe("Prometheus direct override priority over category", () => {
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -492,7 +552,7 @@ describe("Prometheus direct override priority over category", () => {
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -523,12 +583,12 @@ describe("Fork-only behavior", () => {
       sisyphus_agent: { planner_enabled: true },
       agents: {
         prometheus: {
-          model: ["openai/gpt-5.2", "anthropic/claude-opus-4-5"],
+          model: ["openai/gpt-5.2", "anthropic/claude-opus-4-6"],
         },
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const handler = createConfigHandler({
@@ -558,7 +618,7 @@ describe("Fork-only behavior", () => {
 
     const pluginConfig: OhMyOpenCodeConfig = {}
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {
         oracle: { name: "oracle", prompt: "config oracle", mode: "subagent" },
       },
@@ -594,7 +654,7 @@ describe("Fork-only behavior", () => {
 
     const pluginConfig: OhMyOpenCodeConfig = {}
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
       mcp: {
         websearch: {
@@ -634,7 +694,7 @@ describe("Deadlock prevention - fetchAvailableModels must not receive client", (
       },
     }
     const config: Record<string, unknown> = {
-      model: "anthropic/claude-opus-4-5",
+      model: "anthropic/claude-opus-4-6",
       agent: {},
     }
     const mockClient = {

@@ -130,6 +130,22 @@ describe("think-mode switcher", () => {
 
   describe("Model ID normalization", () => {
     describe("getHighVariant with dots vs hyphens", () => {
+      it("should handle dots in Claude 4.6 version numbers", () => {
+        // given a Claude 4.6 model ID with dot format
+        const variant = getHighVariant("claude-opus-4.6")
+
+        // then should return high variant with hyphen format
+        expect(variant).toBe("claude-opus-4-6-high")
+      })
+
+      it("should handle hyphens in Claude 4.6 version numbers", () => {
+        // given a Claude 4.6 model ID with hyphen format
+        const variant = getHighVariant("claude-opus-4-6")
+
+        // then should return high variant
+        expect(variant).toBe("claude-opus-4-6-high")
+      })
+
       it("should handle dots in Claude version numbers", () => {
         // given a Claude model ID with dot format
         const variant = getHighVariant("claude-opus-4.5")

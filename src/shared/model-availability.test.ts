@@ -216,6 +216,19 @@ describe("fuzzyMatchModel", () => {
 		expect(result).toBe("anthropic/claude-opus-4-5")
 	})
 
+	// given Copilot uses dots for Claude versions (e.g., 4.6)
+	// when searching with hyphen-based IDs (4-6)
+	// then return the dotted Copilot model
+	it("should match claude-opus-4-6 to claude-opus-4.6 (Copilot dot versioning)", () => {
+		const available = new Set(["github-copilot/claude-opus-4.6"])
+		const result = fuzzyMatchModel(
+			"github-copilot/claude-opus-4-6",
+			available,
+			["github-copilot"],
+		)
+		expect(result).toBe("github-copilot/claude-opus-4.6")
+	})
+
 	// given available models with similar model IDs (e.g., glm-4.7 and glm-4.7-free)
 	// when searching for the longer variant (glm-4.7-free)
 	// then return exact model ID match, not the shorter one

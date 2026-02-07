@@ -55,6 +55,12 @@
         ]
       }
     },
+    "disabled_tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "disabled_hooks": {
       "type": "array",
       "items": {
@@ -109,7 +115,8 @@
           "category-skill-reminder",
           "sisyphus-junior-notepad",
           "tmux-parallel-agents",
-          "swarm-agent"
+          "swarm-agent",
+          "anthropic-effort"
         ]
       }
     },
@@ -119,7 +126,12 @@
         "type": "string",
         "enum": [
           "init-deep",
-          "start-work"
+          "ralph-loop",
+          "ulw-loop",
+          "cancel-ralph",
+          "refactor",
+          "start-work",
+          "stop-continuation"
         ]
       }
     },

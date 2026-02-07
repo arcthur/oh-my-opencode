@@ -4,6 +4,7 @@ import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "./constants"
 import { log } from "../../shared"
 import { RESEARCH_SCOPED_AGENTS, RESEARCH_ALLOWED_AGENTS } from "../../shared/agent-tool-restrictions"
 import { buildSystemContent } from "./prompt-builder"
+import type { AvailableCategory, AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
 import {
   resolveSkillContent,
   resolveContinuationContext,
@@ -27,6 +28,20 @@ export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefini
   const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
   const categoryNames = Object.keys(allCategories)
   const categoryExamples = categoryNames.map(k => `'${k}'`).join(", ")
+
+  const availableCategories: AvailableCategory[] = options.availableCategories
+    ?? Object.entries(allCategories).map(([name, categoryConfig]) => {
+      const userDesc = userCategories?.[name]?.description
+      const builtinDesc = CATEGORY_DESCRIPTIONS[name]
+      const description = userDesc || builtinDesc || "General tasks"
+      return {
+        name,
+        description,
+        model: categoryConfig.model,
+      }
+    })
+
+  const availableSkills: AvailableSkill[] = options.availableSkills ?? []
 
   const categoryList = categoryNames.map(name => {
     const userDesc = userCategories?.[name]?.description
@@ -220,6 +235,8 @@ Prompts MUST be in English.`
             skillContent,
             categoryPromptAppend,
             agentName: agentToUse,
+            availableCategories,
+            availableSkills,
           })
           return executeUnstableAgentTask(
             args,
@@ -250,6 +267,8 @@ Prompts MUST be in English.`
         skillContent,
         categoryPromptAppend,
         agentName: agentToUse,
+        availableCategories,
+        availableSkills,
       })
 
       if (runInBackground) {

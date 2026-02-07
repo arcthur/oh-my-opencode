@@ -65,7 +65,17 @@ export const MODEL_TO_CATEGORY_MAP: Record<string, string> = {
   "openai/gpt-5.2": "ultrabrain",
   "anthropic/claude-haiku-4-5": "quick",
   "anthropic/claude-opus-4-5": "unspecified-high",
+  "anthropic/claude-opus-4-6": "unspecified-high",
   "anthropic/claude-sonnet-4-5": "unspecified-low",
+}
+
+/**
+ * Model version migration map: old full model strings → new full model strings.
+ * Used to auto-upgrade hardcoded model versions in user configs when defaults move.
+ */
+export const MODEL_VERSION_MAP: Record<string, string> = {
+  "openai/gpt-5.2-codex": "openai/gpt-5.3-codex",
+  "anthropic/claude-opus-4-5": "anthropic/claude-opus-4-6",
 }
 
 export function migrateAgentNames(agents: Record<string, unknown>): { migrated: Record<string, unknown>; changed: boolean } {
@@ -78,6 +88,25 @@ export function migrateAgentNames(agents: Record<string, unknown>): { migrated: 
       changed = true
     }
     migrated[newKey] = value
+  }
+
+  return { migrated, changed }
+}
+
+export function migrateModelVersions(configs: Record<string, unknown>): { migrated: Record<string, unknown>; changed: boolean } {
+  const migrated: Record<string, unknown> = {}
+  let changed = false
+
+  for (const [key, value] of Object.entries(configs)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const config = value as Record<string, unknown>
+      if (typeof config.model === "string" && MODEL_VERSION_MAP[config.model]) {
+        migrated[key] = { ...config, model: MODEL_VERSION_MAP[config.model] }
+        changed = true
+        continue
+      }
+    }
+    migrated[key] = value
   }
 
   return { migrated, changed }
@@ -172,7 +201,25 @@ export function migrateConfigFile(configPath: string, rawConfig: Record<string, 
     }
   }
 
+  // Migrate model versions in agents
+  if (rawConfig.agents && typeof rawConfig.agents === "object") {
+    const { migrated, changed } = migrateModelVersions(rawConfig.agents as Record<string, unknown>)
+    if (changed) {
+      rawConfig.agents = migrated
+      needsWrite = true
+      log("Migrated model versions in agents config")
+    }
+  }
 
+  // Migrate model versions in categories
+  if (rawConfig.categories && typeof rawConfig.categories === "object") {
+    const { migrated, changed } = migrateModelVersions(rawConfig.categories as Record<string, unknown>)
+    if (changed) {
+      rawConfig.categories = migrated
+      needsWrite = true
+      log("Migrated model versions in categories config")
+    }
+  }
 
   if (rawConfig.omo_agent) {
     rawConfig.sisyphus_agent = rawConfig.omo_agent

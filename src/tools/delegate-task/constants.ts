@@ -1,4 +1,5 @@
 import type { CategoryConfig } from "../../config/schema"
+import type { AvailableCategory, AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
 
 export const VISUAL_CATEGORY_PROMPT_APPEND = `<Category_Context>
 You are working on VISUAL/UI tasks.
@@ -192,12 +193,12 @@ You are NOT an interactive assistant. You are an autonomous problem-solver.
 
 export const DEFAULT_CATEGORIES: Record<string, CategoryConfig> = {
   "visual-engineering": { model: "google/gemini-3-pro" },
-  ultrabrain: { model: "openai/gpt-5.2-codex", variant: "xhigh" },
-  deep: { model: "openai/gpt-5.2-codex", variant: "medium" },
+  ultrabrain: { model: "openai/gpt-5.3-codex", variant: "xhigh" },
+  deep: { model: "openai/gpt-5.3-codex", variant: "medium" },
   artistry: { model: "google/gemini-3-pro", variant: "high" },
   quick: { model: "anthropic/claude-haiku-4-5" },
   "unspecified-low": { model: "anthropic/claude-sonnet-4-5" },
-  "unspecified-high": { model: "anthropic/claude-opus-4-5", variant: "max" },
+  "unspecified-high": { model: "anthropic/claude-opus-4-6", variant: "max" },
   writing: { model: "google/gemini-3-flash" },
 }
 
@@ -257,6 +258,59 @@ MANDATORY CONTEXT GATHERING PROTOCOL:
 REMEMBER: Vague requirements lead to failed implementations. Take the time to understand thoroughly, but do not stall on non-blocking unknowns.
 </system>
 `
+
+function renderPlanAgentCategoryRows(categories: AvailableCategory[]): string[] {
+  const sorted = [...categories].sort((a, b) => a.name.localeCompare(b.name))
+  return sorted.map((category) => {
+    const bestFor = category.description || category.name
+    const model = category.model || ""
+    return `| \`${category.name}\` | ${bestFor} | ${model} |`
+  })
+}
+
+function renderPlanAgentSkillRows(skills: AvailableSkill[]): string[] {
+  const sorted = [...skills].sort((a, b) => a.name.localeCompare(b.name))
+  return sorted.map((skill) => {
+    const firstSentence = skill.description.split(".")[0] || skill.description
+    const domain = firstSentence.trim() || skill.name
+    return `| \`${skill.name}\` | ${domain} |`
+  })
+}
+
+export function buildPlanAgentSkillsSection(
+  categories: AvailableCategory[] = [],
+  skills: AvailableSkill[] = []
+): string {
+  const categoryRows = renderPlanAgentCategoryRows(categories)
+  const skillRows = renderPlanAgentSkillRows(skills)
+
+  return `### AVAILABLE CATEGORIES
+
+| Category | Best For | Model |
+|----------|----------|-------|
+${categoryRows.join("\n")}
+
+### AVAILABLE SKILLS (ALWAYS EVALUATE ALL)
+
+Skills inject specialized expertise into the delegated agent.
+YOU MUST evaluate EVERY skill and justify inclusions/omissions.
+
+| Skill | Domain |
+|-------|--------|
+${skillRows.join("\n")}`
+}
+
+export function buildPlanAgentSystemPrepend(
+  categories: AvailableCategory[] = [],
+  skills: AvailableSkill[] = []
+): string {
+  if (categories.length === 0 && skills.length === 0) {
+    return PLAN_AGENT_SYSTEM_PREPEND
+  }
+
+  const skillsSection = buildPlanAgentSkillsSection(categories, skills)
+  return PLAN_AGENT_SYSTEM_PREPEND.replace("</system>", `${skillsSection}\n\n</system>`)
+}
 
 /**
  * List of agent names that should be treated as plan agents.

@@ -80,6 +80,10 @@ This structured context is CRITICAL for maintaining continuity after compaction.
 Preserving this information prevents the gradual information loss that occurs with freeform summarization.
 `
 
+export function getCompactionContextPrompt(): string {
+  return SUMMARIZE_CONTEXT_PROMPT
+}
+
 export function createCompactionContextInjector() {
   return async (ctx: SummarizeContext): Promise<void> => {
     log("[compaction-context-injector] injecting context", { sessionID: ctx.sessionID })
