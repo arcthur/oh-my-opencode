@@ -52,6 +52,8 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "sisyphus-junior-notepad", events: ["tool.execute.before"] },
   { name: "tmux-parallel-agents", events: ["event", "tool.execute.before"] },
   { name: "swarm-agent", events: ["event", "tool.execute.before", "tool.execute.after"] },
+  // chat.params-only hook (executed outside runtime dispatcher)
+  { name: "anthropic-effort", events: [] },
 ]
 
 export function getRuntimeRegistryEntries(): RuntimeRegistryEntry[] {

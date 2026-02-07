@@ -8,6 +8,7 @@ import {
 } from "./storage";
 import { README_FILENAME } from "./constants";
 import { createDynamicTruncator } from "../../shared/dynamic-truncator";
+import { contextBudgetArbiter } from "../../features/context-budget";
 
 interface ToolExecuteInput {
   tool: string;
@@ -91,7 +92,17 @@ export function createDirectoryReadmeInjectorHook(ctx: PluginInput) {
         const truncationNotice = truncated
           ? `\n\n[Note: Content was truncated to save context window space. For full context, please read the file directly: ${readmePath}]`
           : "";
-        output.output += `\n\n[Project README: ${readmePath}]\n${result}${truncationNotice}`;
+        const injection = `\n\n[Project README: ${readmePath}]\n${result}${truncationNotice}`;
+        const decision = contextBudgetArbiter.decide({
+          sessionID,
+          source: "directory-readme",
+          channel: "tool-output",
+          id: readmePath,
+          priority: "normal",
+          content: injection,
+        });
+        if (!decision.accepted) continue;
+        output.output += decision.finalContent;
         cache.add(readmeDir);
       } catch {}
     }

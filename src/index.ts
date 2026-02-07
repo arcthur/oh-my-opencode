@@ -282,7 +282,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   if (pluginConfig.context_budget) {
     contextCollector.setBudgetConfig({
       total_budget: pluginConfig.context_budget.total_budget ?? 2000,
+      reserved_budget: pluginConfig.context_budget.reserved_budget,
       source_limits: pluginConfig.context_budget.source_limits,
+      channel_limits: pluginConfig.context_budget.channel_limits,
       overflow_strategy: pluginConfig.context_budget.overflow_strategy ?? "drop-low-priority",
     })
   }
@@ -800,6 +802,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         {
           id: "internal:session-agent-tracking:chat.message",
           invoke: async () => {
+            contextCollector.beginTurn(input.sessionID);
             if (input.agent) {
               updateSessionAgent(input.sessionID, input.agent);
             }

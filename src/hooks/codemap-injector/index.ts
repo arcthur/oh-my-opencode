@@ -14,18 +14,24 @@ import {
   shouldSuggestCartography,
   getCartographySuggestion,
 } from "../../features/codemap-injector"
-import type { SessionInjectionState } from "../../features/codemap-injector/types"
 import type { CodemapInjectorConfig } from "../../features/cartography/types"
 import { DEFAULT_CODEMAP_INJECTOR_CONFIG } from "../../features/cartography/types"
 import { extractCodemapSummary } from "../../features/cartography/generator"
 import type { EventInput, MessageInput, ToolExecuteInput, ToolExecuteOutput } from "../../shared/hook-types"
 import { log } from "../../shared"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 // ============================================================================
 // Types
 // ============================================================================
 
-interface CodemapInjectorSessionState extends SessionInjectionState {
+interface CodemapInjectorSessionState {
+  /** Directories already injected in this session */
+  injectedDirs: Set<string>
+
+  /** Whether root project map was injected */
+  rootProjectMapInjected: boolean
+
   /** Whether root project map should be injected on next relevant read */
   pendingRootProjectMap: boolean
 
@@ -45,9 +51,11 @@ export function createCodemapInjectorHook(
   const sessionStates = new Map<string, CodemapInjectorSessionState>()
   const config: CodemapInjectorConfig = { ...DEFAULT_CODEMAP_INJECTOR_CONFIG, ...userConfig }
 
-  function estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4)
-  }
+  // Register the codemap-injector source limit so the arbiter respects the
+  // user-configured per-hook budget (default 600 tokens).
+  contextBudgetArbiter.setBudgetConfig({
+    source_limits: { "codemap-injector": config.budget },
+  })
 
   /**
    * Get or create session state
@@ -57,8 +65,6 @@ export function createCodemapInjectorHook(
       sessionStates.set(sessionID, {
         injectedDirs: new Set(),
         rootProjectMapInjected: false,
-        tokensInjected: 0,
-        lastInjection: 0,
         pendingRootProjectMap: false,
         suggestedDirs: new Set(),
       })
@@ -115,22 +121,21 @@ export function createCodemapInjectorHook(
     const dir = dirname(resolvedPath)
     const state = getSessionState(input.sessionID)
 
-    // Check budget
-    if (state.tokensInjected >= config.budget) {
-      return
-    }
-
     // Inject root project map once for architecture/refactoring queries
     if (state.pendingRootProjectMap && !state.rootProjectMapInjected) {
       const projectMap = cache.getRootProjectMap()
       if (projectMap) {
         const projectMapContext = formatRootProjectMapContext(projectMap)
-        const projectMapTokens = estimateTokens(projectMapContext)
-
-        if (state.tokensInjected + projectMapTokens <= config.budget) {
-          output.output += projectMapContext
-          state.tokensInjected += projectMapTokens
-          state.lastInjection = Date.now()
+        const decision = contextBudgetArbiter.decide({
+          sessionID: input.sessionID,
+          source: "codemap-injector",
+          channel: "tool-output",
+          id: "root-project-map",
+          priority: "normal",
+          content: projectMapContext,
+        })
+        if (decision.accepted) {
+          output.output += decision.finalContent
         }
       }
 
@@ -149,12 +154,17 @@ export function createCodemapInjectorHook(
 
       const context = formatCodemapContext(entry)
       if (context) {
-        const tokens = estimateTokens(context)
-        if (state.tokensInjected + tokens <= config.budget) {
-          output.output += context
+        const decision = contextBudgetArbiter.decide({
+          sessionID: input.sessionID,
+          source: "codemap-injector",
+          channel: "tool-output",
+          id: `codemap:${injectedDir}`,
+          priority: "normal",
+          content: context,
+        })
+        if (decision.accepted) {
+          output.output += decision.finalContent
           state.injectedDirs.add(injectedDir)
-          state.tokensInjected += tokens
-          state.lastInjection = Date.now()
           log(`[codemap-injector] Injected context for: ${injectedDir}`)
         }
       }
@@ -170,7 +180,18 @@ export function createCodemapInjectorHook(
         shouldSuggestCartography(hasDirectoryCodemap, accessCount, config.suggest_cartography) &&
         !state.suggestedDirs.has(relativeDir)
       ) {
-        output.output += `\n\n${getCartographySuggestion(relativeDir)}`
+        const suggestion = `\n\n${getCartographySuggestion(relativeDir)}`
+        const decision = contextBudgetArbiter.decide({
+          sessionID: input.sessionID,
+          source: "codemap-injector",
+          channel: "tool-output",
+          id: `suggest:${relativeDir}`,
+          priority: "low",
+          content: suggestion,
+        })
+        if (decision.accepted) {
+          output.output += decision.finalContent
+        }
         state.suggestedDirs.add(relativeDir)
       }
     }

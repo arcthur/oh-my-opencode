@@ -5,6 +5,7 @@ import { log } from "../../shared"
 import { isSystemDirective, removeSystemReminders } from "../../shared/system-directive"
 import { getMainSessionID, getSessionAgent, isSubagentSession } from "../../features/claude-code-session-state"
 import type { ContextCollector } from "../../features/context-injector"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 export * from "./detector"
 export * from "./constants"
@@ -97,8 +98,20 @@ export function createKeywordDetectorHook(ctx: PluginInput, collector?: ContextC
 
       const allMessages = detectedKeywords.map((k) => k.message).join("\n\n")
       const originalText = output.parts[textPartIndex].text ?? ""
+      const injectionPrefix = `${allMessages}\n\n---\n\n`
+      const decision = contextBudgetArbiter.decide({
+        sessionID: input.sessionID,
+        source: "keyword-detector",
+        channel: "chat-message",
+        id: detectedKeywords.map((k) => k.type).join("+"),
+        priority: "high",
+        content: injectionPrefix,
+      })
+      if (!decision.accepted) {
+        return
+      }
 
-      output.parts[textPartIndex].text = `${allMessages}\n\n---\n\n${originalText}`
+      output.parts[textPartIndex].text = `${decision.finalContent}${originalText}`
 
       log(`[keyword-detector] Detected ${detectedKeywords.length} keywords`, {
         sessionID: input.sessionID,

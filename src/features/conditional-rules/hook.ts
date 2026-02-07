@@ -13,6 +13,7 @@ import { RuleMatcher, formatRulesForInjection, formatRulesForDelegation } from "
 import { loadAllRules, extractFileMentions, shouldReloadRules } from "./loader"
 import type { ConditionalRulesConfig, RuleMatchContext } from "./types"
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./types"
+import { contextBudgetArbiter } from "../context-budget"
 
 // ============================================================================
 // Hook State
@@ -138,6 +139,11 @@ function createFileToolsHookImpl(
 
       injectHookMessage(sessionId, injection, {
         agent: context.agent || "general",
+      }, {
+        source: "conditional-rules",
+        channel: "synthetic-message",
+        id: `file:${relativePath}:${newMatches.map((m) => m.rule.id).join(",")}`,
+        priority: "high",
       })
 
       log("[conditional-rules] injected file rules", {
@@ -206,6 +212,16 @@ export function createDelegateTaskHook(config: ConditionalRulesConfig = DEFAULT_
 
       // Format rules for delegation
       const rulesContent = formatRulesForDelegation(matched)
+      const appendBlock = `\n\n---\n\n## Applicable Rules\n\n${rulesContent}`
+      const decision = contextBudgetArbiter.decide({
+        sessionID: params.sessionId,
+        source: "conditional-rules",
+        channel: "delegate-prompt",
+        id: `delegate:${category ?? "none"}:${matched.map((m) => m.rule.id).join(",")}`,
+        priority: "high",
+        content: appendBlock,
+      })
+      if (!decision.accepted) return
 
       log("[conditional-rules] appending rules to delegate_task", {
         category,
@@ -217,7 +233,7 @@ export function createDelegateTaskHook(config: ConditionalRulesConfig = DEFAULT_
       return {
         args: {
           ...args,
-          prompt: `${prompt}\n\n---\n\n## Applicable Rules\n\n${rulesContent}`,
+          prompt: `${prompt}${decision.finalContent}`,
         },
       }
     } catch (error) {

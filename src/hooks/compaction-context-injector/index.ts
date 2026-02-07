@@ -92,6 +92,11 @@ export function createCompactionContextInjector() {
       agent: "general",
       model: { providerID: ctx.providerID, modelID: ctx.modelID },
       path: { cwd: ctx.directory },
+    }, {
+      source: "compaction-context-injector",
+      channel: "synthetic-message",
+      id: "summarize-context-prompt",
+      priority: "high",
     })
 
     if (success) {

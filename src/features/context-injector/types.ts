@@ -1,8 +1,14 @@
+import type {
+  BudgetPriority,
+  ContextBudgetConfig as SharedContextBudgetConfig,
+  ContextChannel,
+} from "../context-budget"
+
 /**
  * Source identifier for context injection
  * Each source registers context that will be merged and injected together
  */
-export type ContextSourceType =
+export type KnownContextSourceType =
   | "keyword-detector"
   | "planning-with-files"
   | "rules-injector"
@@ -11,14 +17,21 @@ export type ContextSourceType =
   | "user-memory"
   | "org-memory"
   | "session-handoff"
+  | "repo-overview-injector"
+  | "context-manifest-injector"
+  | "hook-message-injector"
+  | "claude-code-hooks"
+  | "governance"
   | "conditional-rules"
   | "custom"
+
+export type ContextSourceType = KnownContextSourceType | (string & {})
 
 /**
  * Priority levels for context ordering
  * Higher priority contexts appear first in the merged output
  */
-export type ContextPriority = "critical" | "high" | "normal" | "low"
+export type ContextPriority = BudgetPriority
 
 /**
  * A single context entry registered by a source
@@ -52,6 +65,8 @@ export interface RegisterContextOptions {
   priority?: ContextPriority
   /** Optional metadata */
   metadata?: Record<string, unknown>
+  /** Injection channel for budget tracking (default: messages-transform) */
+  channel?: ContextChannel
   /** Estimated token count for budget tracking */
   estimatedTokens?: number
   /** Whether this context should only be injected once per session */
@@ -103,11 +118,4 @@ export type InjectionStrategy = "prepend-parts" | "storage" | "auto"
  * Budget configuration for context injection
  * Controls total token allocation across all context sources
  */
-export interface ContextBudgetConfig {
-  /** Total token budget for all injected context (default: 2000) */
-  total_budget: number
-  /** Per-source token limits */
-  source_limits?: Partial<Record<ContextSourceType, number>>
-  /** Overflow strategy: 'truncate' cuts content, 'drop-low-priority' removes low priority entries */
-  overflow_strategy: "truncate" | "drop-low-priority"
-}
+export type ContextBudgetConfig = SharedContextBudgetConfig

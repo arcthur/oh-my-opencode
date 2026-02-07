@@ -8,6 +8,7 @@ import {
 } from "./storage";
 import { AGENTS_FILENAME } from "./constants";
 import { createDynamicTruncator } from "../../shared/dynamic-truncator";
+import { contextBudgetArbiter } from "../../features/context-budget";
 
 interface ToolExecuteInput {
   tool: string;
@@ -96,7 +97,17 @@ export function createDirectoryAgentsInjectorHook(ctx: PluginInput) {
         const truncationNotice = truncated
           ? `\n\n[Note: Content was truncated to save context window space. For full context, please read the file directly: ${agentsPath}]`
           : "";
-        output.output += `\n\n[Directory Context: ${agentsPath}]\n${result}${truncationNotice}`;
+        const injection = `\n\n[Directory Context: ${agentsPath}]\n${result}${truncationNotice}`;
+        const decision = contextBudgetArbiter.decide({
+          sessionID,
+          source: "directory-agents",
+          channel: "tool-output",
+          id: agentsPath,
+          priority: "normal",
+          content: injection,
+        });
+        if (!decision.accepted) continue;
+        output.output += decision.finalContent;
         cache.add(agentsDir);
       } catch {}
     }

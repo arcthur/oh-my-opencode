@@ -47,23 +47,6 @@ export interface InjectedContext {
 }
 
 /**
- * Session injection state
- */
-export interface SessionInjectionState {
-  /** Directories already injected in this session */
-  injectedDirs: Set<string>
-
-  /** Whether root project map was injected */
-  rootProjectMapInjected: boolean
-
-  /** Total tokens injected */
-  tokensInjected: number
-
-  /** Last injection timestamp */
-  lastInjection: number
-}
-
-/**
  * Staleness check result
  */
 export interface StalenessCheck {

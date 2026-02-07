@@ -8,6 +8,7 @@ import {
   getContextManifestPath,
 } from "../../features/context-manifests"
 import { log } from "../../shared/logger"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 export const HOOK_NAME = "context-manifest-injector"
 
@@ -150,7 +151,18 @@ export function createContextManifestInjectorHook(
       })
       if (!snippet.trim()) return
 
-      output.args.prompt = `${prompt.trimEnd()}\n\n${snippet}\n`
+      const appendBlock = `\n\n${snippet}\n`
+      const decision = contextBudgetArbiter.decide({
+        sessionID: input.sessionID ?? "unknown-session",
+        source: "context-manifest-injector",
+        channel: "delegate-prompt",
+        id: `${planId}:${requestedPackIds.join(",")}`,
+        priority: "high",
+        content: appendBlock,
+      })
+      if (!decision.accepted) return
+
+      output.args.prompt = `${prompt.trimEnd()}${decision.finalContent}`
       log(`[${HOOK_NAME}] Injected context packs`, {
         planId,
         manifestPath,

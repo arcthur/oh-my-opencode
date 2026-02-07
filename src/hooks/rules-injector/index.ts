@@ -17,6 +17,7 @@ import {
 } from "./storage";
 import { createDynamicTruncator } from "../../shared/dynamic-truncator";
 import { getRuleInjectionFilePath } from "./output-path";
+import { contextBudgetArbiter } from "../../features/context-budget";
 
 interface ToolExecuteInput {
   tool: string;
@@ -133,7 +134,17 @@ export function createRulesInjectorHook(ctx: PluginInput) {
       const truncationNotice = truncated
         ? `\n\n[Note: Content was truncated to save context window space. For full context, please read the file directly: ${rule.relativePath}]`
         : "";
-      output.output += `\n\n[Rule: ${rule.relativePath}]\n[Match: ${rule.matchReason}]\n${result}${truncationNotice}`;
+      const injection = `\n\n[Rule: ${rule.relativePath}]\n[Match: ${rule.matchReason}]\n${result}${truncationNotice}`;
+      const decision = contextBudgetArbiter.decide({
+        sessionID,
+        source: "rules-injector",
+        channel: "tool-output",
+        id: rule.relativePath,
+        priority: "high",
+        content: injection,
+      });
+      if (!decision.accepted) continue;
+      output.output += decision.finalContent;
     }
 
     saveInjectedRules(sessionID, cache);

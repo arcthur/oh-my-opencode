@@ -6,6 +6,7 @@ import type { RepoOverviewConfig } from "./types"
 import { DEFAULT_CONFIG } from "./types"
 import { generateRepoOverview, formatRepoOverview } from "./generator"
 import { log } from "../../shared/logger"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 interface ToolExecuteInput {
   tool: string
@@ -109,8 +110,21 @@ export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Pa
       log("[repo-overview] using cached overview", { projectDir })
     }
 
+    const injection = `\n\n[Repository Overview - Bootstrapped Context]\n${overviewText}\n[End Repository Overview]`
+    const decision = contextBudgetArbiter.decide({
+      sessionID,
+      source: "repo-overview-injector",
+      channel: "tool-output",
+      id: "repo-overview",
+      priority: "normal",
+      content: injection,
+    })
+    if (!decision.accepted) {
+      return
+    }
+
     // Inject as context
-    output.output += `\n\n[Repository Overview - Bootstrapped Context]\n${overviewText}\n[End Repository Overview]`
+    output.output += decision.finalContent
     injectedSessions.add(sessionID)
 
     log("[repo-overview] injected overview for session", { sessionID })

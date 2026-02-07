@@ -2,6 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import type { AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
 import { getSessionAgent } from "../../features/claude-code-session-state"
 import { log } from "../../shared"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 /**
  * Target agents that should receive category+skill reminders.
@@ -141,7 +142,16 @@ export function createCategorySkillReminderHook(
     state.toolCallCount++
 
     if (state.toolCallCount >= 3 && !state.delegationUsed && !state.reminderShown) {
-      output.output += reminderMessage
+      const decision = contextBudgetArbiter.decide({
+        sessionID,
+        source: "category-skill-reminder",
+        channel: "tool-output",
+        id: "delegation-reminder",
+        priority: "low",
+        content: reminderMessage,
+      })
+      if (!decision.accepted) return
+      output.output += decision.finalContent
       state.reminderShown = true
       log("[category-skill-reminder] Reminder injected", {
         sessionID,

@@ -668,17 +668,18 @@ export const OrgMemoryConfigSchema = z.object({
 export const ContextBudgetConfigSchema = z.object({
   /** Total token budget for all injected context (default: 2000) */
   total_budget: z.number().min(500).max(10000).default(2000),
+  /** Reserved token budget for high/critical injections (default: 400) */
+  reserved_budget: z.number().min(0).max(10000).default(400),
   /** Per-source token limits */
-  source_limits: z.object({
-    "user-memory": z.number().optional(),
-    "org-memory": z.number().optional(),
-    "planning-with-files": z.number().optional(),
-    "keyword-detector": z.number().optional(),
-    "rules-injector": z.number().optional(),
-    "directory-agents": z.number().optional(),
-    "directory-readme": z.number().optional(),
-    "session-handoff": z.number().optional(),
-    "conditional-rules": z.number().optional(),
+  source_limits: z.record(z.string(), z.number().min(1)).optional(),
+  /** Per-channel token limits */
+  channel_limits: z.object({
+    "messages-transform": z.number().optional(),
+    "tool-output": z.number().optional(),
+    "chat-message": z.number().optional(),
+    "delegate-prompt": z.number().optional(),
+    "synthetic-message": z.number().optional(),
+    "session-prompt": z.number().optional(),
   }).partial().optional(),
   /** Overflow strategy (default: drop-low-priority) */
   overflow_strategy: z.enum(["truncate", "drop-low-priority"]).default("drop-low-priority"),

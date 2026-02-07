@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { MESSAGE_STORAGE, PART_STORAGE } from "./constants"
 import type { MessageMeta, OriginalMessageContext, TextPart, ToolPermission } from "./types"
 import { log } from "../../shared/logger"
+import { contextBudgetArbiter } from "../context-budget"
+import type { BudgetPriority, ContextChannel } from "../context-budget"
 
 export interface StoredMessage {
   agent?: string
@@ -90,6 +93,10 @@ function generatePartId(): string {
   return `prt_${timestamp}${random}`
 }
 
+function generateContentFingerprint(content: string): string {
+  return createHash("sha1").update(content).digest("hex").slice(0, 16)
+}
+
 function getOrCreateMessageDir(sessionID: string): string {
   if (!existsSync(MESSAGE_STORAGE)) {
     mkdirSync(MESSAGE_STORAGE, { recursive: true })
@@ -114,7 +121,15 @@ function getOrCreateMessageDir(sessionID: string): string {
 export function injectHookMessage(
   sessionID: string,
   hookContent: string,
-  originalMessage: OriginalMessageContext
+  originalMessage: OriginalMessageContext,
+  budget?: {
+    source?: string
+    channel?: ContextChannel
+    id?: string
+    priority?: BudgetPriority
+    oncePerSession?: boolean
+    estimatedTokens?: number
+  }
 ): boolean {
   // Validate hook content to prevent empty message injection
   if (!hookContent || hookContent.trim().length === 0) {
@@ -125,6 +140,21 @@ export function injectHookMessage(
     })
     return false
   }
+
+  const budgetDecision = contextBudgetArbiter.decide({
+    sessionID,
+    source: budget?.source ?? "hook-message-injector",
+    channel: budget?.channel ?? "synthetic-message",
+    id: budget?.id ?? generateContentFingerprint(hookContent),
+    priority: budget?.priority ?? "normal",
+    content: hookContent,
+    oncePerSession: budget?.oncePerSession,
+    estimatedTokens: budget?.estimatedTokens,
+  })
+  if (!budgetDecision.accepted) {
+    return false
+  }
+  hookContent = budgetDecision.finalContent
 
   const messageDir = getOrCreateMessageDir(sessionID)
 

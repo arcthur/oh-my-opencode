@@ -2500,34 +2500,41 @@
           "minimum": 500,
           "maximum": 10000
         },
+        "reserved_budget": {
+          "default": 400,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
         "source_limits": {
           "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "channel_limits": {
+          "type": "object",
           "properties": {
-            "user-memory": {
+            "messages-transform": {
               "type": "number"
             },
-            "org-memory": {
+            "tool-output": {
               "type": "number"
             },
-            "planning-with-files": {
+            "chat-message": {
               "type": "number"
             },
-            "keyword-detector": {
+            "delegate-prompt": {
               "type": "number"
             },
-            "rules-injector": {
+            "synthetic-message": {
               "type": "number"
             },
-            "directory-agents": {
-              "type": "number"
-            },
-            "directory-readme": {
-              "type": "number"
-            },
-            "session-handoff": {
-              "type": "number"
-            },
-            "conditional-rules": {
+            "session-prompt": {
               "type": "number"
             }
           }
