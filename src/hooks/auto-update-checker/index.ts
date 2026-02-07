@@ -301,4 +301,4 @@ async function showLocalDevToast(ctx: PluginInput, version: string | null, isSis
 
 export type { UpdateCheckResult, AutoUpdateCheckerOptions } from "./types"
 export { checkForUpdate } from "./checker"
-export { invalidatePackage, invalidateCache } from "./cache"
+export { invalidatePackage } from "./cache"

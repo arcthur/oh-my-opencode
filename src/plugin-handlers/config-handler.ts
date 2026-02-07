@@ -27,7 +27,6 @@ import { createBuiltinMcps } from "../mcp";
 import type { OhMyOpenCodeConfig } from "../config";
 import { log, fetchAvailableModels, readConnectedProvidersCache, resolveModelPipeline } from "../shared";
 import { migrateAgentConfig } from "../shared/permission-compat";
-import { AGENT_NAME_MAP } from "../shared/migration";
 import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
 import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus";
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
@@ -127,11 +126,6 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       log(`Plugin load errors`, { errors: pluginComponents.errors });
     }
 
-    // Migrate disabled_agents from old names to new names
-    const migratedDisabledAgents = (pluginConfig.disabled_agents ?? []).map((agent) => {
-      return AGENT_NAME_MAP[agent.toLowerCase()] ?? AGENT_NAME_MAP[agent] ?? agent
-    }) as typeof pluginConfig.disabled_agents
-
     const includeClaudeSkillsForAwareness = pluginConfig.claude_code?.skills ?? true;
     const [
       discoveredUserSkills,
@@ -153,7 +147,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     ];
 
     const builtinAgents = await createBuiltinAgents(
-      migratedDisabledAgents,
+      pluginConfig.disabled_agents ?? [],
       pluginConfig.agents,
       ctx.directory,
       undefined,

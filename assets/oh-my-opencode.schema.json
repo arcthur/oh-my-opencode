@@ -2615,6 +2615,9 @@
               "minimum": 0.5,
               "maximum": 0.95
             },
+            "gc_threshold": {
+              "not": {}
+            },
             "hard_limit": {
               "default": 0.95,
               "type": "number",
@@ -3036,53 +3039,7 @@
       }
     },
     "session_reference": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "default": true,
-          "type": "boolean"
-        },
-        "strip_from_prompt": {
-          "default": false,
-          "type": "boolean"
-        },
-        "resolve_options": {
-          "default": {
-            "prefer_handoff": true,
-            "allow_session_fallback": true,
-            "create_handoff_if_missing": false,
-            "max_results": 5,
-            "min_relevance": 0.3
-          },
-          "type": "object",
-          "properties": {
-            "prefer_handoff": {
-              "default": true,
-              "type": "boolean"
-            },
-            "allow_session_fallback": {
-              "default": true,
-              "type": "boolean"
-            },
-            "create_handoff_if_missing": {
-              "default": false,
-              "type": "boolean"
-            },
-            "max_results": {
-              "default": 5,
-              "type": "number",
-              "minimum": 1,
-              "maximum": 20
-            },
-            "min_relevance": {
-              "default": 0.3,
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            }
-          }
-        }
-      }
+      "not": {}
     },
     "tmux_parallel_agents": {
       "type": "object",
@@ -3189,8 +3146,7 @@
               "type": "string"
             },
             "claude_code_compat": {
-              "default": false,
-              "type": "boolean"
+              "not": {}
             }
           }
         },

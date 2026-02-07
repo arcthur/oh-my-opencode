@@ -237,22 +237,11 @@ export const CommentCheckerConfigSchema = z.object({
   custom_prompt: z.string().optional(),
 })
 
-export const HookRuntimeV2ModeSchema = z.enum(["shadow", "enforce"])
-
-export const HookRuntimeV2ConfigSchema = z.object({
-  /** Enable hook runtime v2 dispatcher (default: false) */
-  enabled: z.boolean().default(false),
-  /** shadow: validate/compare without changing execution path, enforce: runtime dispatcher is authoritative */
-  mode: HookRuntimeV2ModeSchema.default("shadow"),
-})
-
 export const ExperimentalConfigSchema = z.object({
   aggressive_truncation: z.boolean().optional(),
   auto_resume: z.boolean().optional(),
   /** Truncate all tool outputs, not just whitelisted tools (default: false). Tool output truncator is enabled by default - disable via disabled_hooks. */
   truncate_all_tool_outputs: z.boolean().optional(),
-  /** Hook runtime v2 configuration */
-  hook_runtime_v2: HookRuntimeV2ConfigSchema.optional(),
 })
 
 export const ContextWindowGovernorRecoveryConfigSchema = z.object({
@@ -368,8 +357,8 @@ export const SisyphusTasksConfigSchema = z.object({
   enabled: z.boolean().default(false),
   /** Storage path for tasks (default: .sisyphus/tasks) */
   storage_path: z.string().default(".sisyphus/tasks"),
-  /** Enable Claude Code path compatibility mode */
-  claude_code_compat: z.boolean().default(false),
+  /** Removed in latest-only mode: use storage_path only */
+  claude_code_compat: z.never().optional(),
 })
 
 export const SisyphusSwarmConfigSchema = z.object({
@@ -699,28 +688,20 @@ export const GovernanceConfigSchema = z.object({
   }).partial().optional(),
 
   /** Budget Monitor Configuration */
-  budget_monitor: z.preprocess(
-    (value) => {
-      // Backward compatibility: "gc_threshold" was renamed to "refactor_threshold".
-      if (!value || typeof value !== "object") return value
-      const obj = value as Record<string, unknown>
-      if (obj.refactor_threshold !== undefined) return value
-      if (obj.gc_threshold === undefined) return value
-      return { ...obj, refactor_threshold: obj.gc_threshold }
-    },
-    z.object({
-      /** Enable budget monitoring (default: true when governance enabled) */
-      enabled: z.boolean().default(true),
-      /** Warn threshold - triggers GC/convergence hints (default: 0.7) */
-      warn_threshold: z.number().min(0.3).max(0.95).default(0.7),
-      /** Refactor threshold - triggers fork suggestion (default: 0.85) */
-      refactor_threshold: z.number().min(0.5).max(0.95).default(0.85),
-      /** Hard limit threshold - triggers budget exhausted guardrail (default: 0.95) */
-      hard_limit: z.number().min(0.7).max(0.99).default(0.95),
-      /** Context window size estimate (default: 200000) */
-      context_window_size: z.number().min(50000).max(1000000).default(200000),
-    }).partial()
-  ).optional(),
+  budget_monitor: z.object({
+    /** Enable budget monitoring (default: true when governance enabled) */
+    enabled: z.boolean().default(true),
+    /** Warn threshold - triggers GC/convergence hints (default: 0.7) */
+    warn_threshold: z.number().min(0.3).max(0.95).default(0.7),
+    /** Refactor threshold - triggers fork suggestion (default: 0.85) */
+    refactor_threshold: z.number().min(0.5).max(0.95).default(0.85),
+    /** Removed in latest-only mode: use refactor_threshold */
+    gc_threshold: z.never().optional(),
+    /** Hard limit threshold - triggers budget exhausted guardrail (default: 0.95) */
+    hard_limit: z.number().min(0.7).max(0.99).default(0.95),
+    /** Context window size estimate (default: 200000) */
+    context_window_size: z.number().min(50000).max(1000000).default(200000),
+  }).partial().optional(),
 
   /** Semantic Checkpoint Configuration */
   checkpoint: z.object({
@@ -931,11 +912,7 @@ export const SessionHandoffConfigSchema = z.object({
     max_artifacts: 20,
     generate_embeddings: true,
   }),
-  /**
-   * Session reference configuration (@session:id syntax).
-   * Preferred over top-level `session_reference` config.
-   * If both are specified, this takes precedence.
-   */
+  /** Session reference configuration (@session:id syntax). */
   reference: SessionReferenceConfigSchema.optional(),
 })
 
@@ -985,8 +962,6 @@ export const OhMyOpenCodeConfigSchema = z.object({
   conditional_rules: ConditionalRulesConfigSchema.optional(),
   /** Session handoff configuration for cross-session knowledge transfer */
   session_handoff: SessionHandoffConfigSchema.optional(),
-  /** Session reference configuration for @session:id syntax */
-  session_reference: SessionReferenceConfigSchema.optional(),
   /** Tmux parallel agents configuration for auto-creating tmux windows */
   tmux_parallel_agents: TmuxParallelAgentsConfigSchema.optional(),
   /** Sisyphus Tasks & Swarm configuration */
@@ -1009,8 +984,6 @@ export type SisyphusAgentConfig = z.infer<typeof SisyphusAgentConfigSchema>
 export type CommentCheckerConfig = z.infer<typeof CommentCheckerConfigSchema>
 export type ExperimentalConfig = z.infer<typeof ExperimentalConfigSchema>
 export type ContextWindowGovernorConfig = z.infer<typeof ContextWindowGovernorConfigSchema>
-export type HookRuntimeV2Mode = z.infer<typeof HookRuntimeV2ModeSchema>
-export type HookRuntimeV2Config = z.infer<typeof HookRuntimeV2ConfigSchema>
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>
 export type RalphLoopConfig = z.infer<typeof RalphLoopConfigSchema>

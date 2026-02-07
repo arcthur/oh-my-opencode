@@ -1,6 +1,5 @@
 import { join, dirname, isAbsolute } from "path"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "fs"
-import { homedir } from "os"
 import type { z } from "zod"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 
@@ -27,10 +26,6 @@ export function getProjectRoot(): string {
 export function getTaskDir(listId: string, config: Partial<OhMyOpenCodeConfig>): string {
   const tasksConfig = config.sisyphus?.tasks
 
-  if (tasksConfig?.claude_code_compat) {
-    return join(homedir(), ".cache", "claude-code", "tasks", listId)
-  }
-
   const storagePath = tasksConfig?.storage_path ?? ".sisyphus/tasks"
 
   // Support both absolute and relative paths
@@ -46,10 +41,6 @@ export function getTaskPath(listId: string, taskId: string, config: Partial<OhMy
 
 export function getTeamDir(teamName: string, config: Partial<OhMyOpenCodeConfig>): string {
   const swarmConfig = config.sisyphus?.swarm
-
-  if (swarmConfig?.storage_path?.includes("claude")) {
-    return join(homedir(), ".claude", "teams", teamName)
-  }
 
   const storagePath = swarmConfig?.storage_path ?? ".sisyphus/teams"
 

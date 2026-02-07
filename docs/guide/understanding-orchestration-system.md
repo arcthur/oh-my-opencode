@@ -23,19 +23,19 @@ The orchestration system solves these problems through **specialization and dele
 flowchart TB
     subgraph Planning["Planning Layer (Human + Prometheus)"]
         User[("User")]
-        Prometheus["Prometheus<br/>(Planner)<br/>Claude Opus 4.5"]
+        Prometheus["Prometheus<br/>(Planner)<br/>Claude Opus 4.6"]
         MultiPlan["multi_plan<br/>(Multi-Model Planning)<br/>Tool"]
         Synth["Plan Synthesizer<br/>(plan-synthesizer)<br/>Opus-class"]
     end
     
     subgraph Execution["Execution Layer (Orchestrator)"]
-        Orchestrator["Sisyphus Execution Mode<br/>(Conductor)<br/>Claude Opus 4.5"]
+        Orchestrator["Sisyphus Execution Mode<br/>(Conductor)<br/>Claude Opus 4.6"]
     end
     
     subgraph Workers["Worker Layer (Specialized Agents)"]
         Junior["Sisyphus-Junior<br/>(Task Executor)<br/>Claude Sonnet 4.5"]
         Oracle["Oracle<br/>(Architecture)<br/>GPT-5.2"]
-        Explore["Explore<br/>(Codebase Grep)<br/>Grok Code"]
+        Explore["Explore<br/>(Codebase Grep)<br/>Grok Code Fast-1"]
         Librarian["Librarian<br/>(Docs/OSS)<br/>GLM-4.7"]
         Frontend["Frontend<br/>(UI/UX)<br/>Gemini 3 Pro"]
     end
@@ -316,11 +316,12 @@ delegate_task(
 | Category | Model | When to Use |
 |----------|-------|-------------|
 | `visual-engineering` | Gemini 3 Pro | Frontend, UI/UX, design, styling, animation |
-| `ultrabrain` | GPT-5.2 Codex (xhigh) | Deep logical reasoning, complex architecture decisions |
+| `ultrabrain` | GPT-5.3 Codex (xhigh) | Deep logical reasoning, complex architecture decisions |
+| `deep` | GPT-5.3 Codex (medium) | Goal-oriented autonomous problem-solving for hairy tasks |
 | `artistry` | Gemini 3 Pro (max) | Highly creative/artistic tasks, novel ideas |
 | `quick` | Claude Haiku 4.5 | Trivial tasks - single file changes, typo fixes |
 | `unspecified-low` | Claude Sonnet 4.5 | Tasks that don't fit other categories, low effort |
-| `unspecified-high` | Claude Opus 4.5 (max) | Tasks that don't fit other categories, high effort |
+| `unspecified-high` | Claude Opus 4.6 (max) | Tasks that don't fit other categories, high effort |
 | `writing` | Gemini 3 Flash | Documentation, prose, technical writing |
 
 ### Custom Categories

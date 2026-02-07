@@ -62,7 +62,7 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
       "model": "openai/gpt-5.2"  // GPT for strategic reasoning
     },
     "explore": {
-      "model": "opencode/grok-code"  // Free & fast for exploration
+      "model": "github-copilot/grok-code-fast-1"  // Fast exploration with low cost
     },
   },
 }
@@ -225,7 +225,7 @@ Configure git-master skill behavior:
 
 When enabled (default), Sisyphus provides a powerful orchestrator with optional specialized agents:
 
-- **Sisyphus**: Primary orchestrator agent (Claude Opus 4.5)
+- **Sisyphus**: Primary orchestrator agent (Claude Opus 4.6)
 - **OpenCode-Builder**: OpenCode's default build agent, renamed due to SDK limitations (disabled by default)
 - **Prometheus**: OpenCode's default plan agent with work-planner methodology (enabled by default)
 - **plan-synthesizer**: Multi-model plan arbiter that critiques and synthesizes competing plans
@@ -282,7 +282,7 @@ You can also customize Sisyphus agents like other agents:
       "model": "openai/gpt-5.2"
     },
     "plan-synthesizer": {
-      "model": "anthropic/claude-opus-4-5"
+      "model": "anthropic/claude-opus-4-6"
     },
     "sisyphus-junior": {
       "model": "anthropic/claude-sonnet-4-5"
@@ -300,7 +300,7 @@ For **multi-model planning**, you can set `agents.prometheus.model` to a `string
   "agents": {
     "prometheus": {
       "model": [
-        "anthropic/claude-opus-4-5",
+        "anthropic/claude-opus-4-6",
         "openai/gpt-5.2"
       ]
     }
@@ -329,7 +329,7 @@ Configure concurrency limits for background agent tasks. This controls how many 
       "google": 10
     },
     "modelConcurrency": {
-      "anthropic/claude-opus-4-5": 2,
+      "anthropic/claude-opus-4-6": 2,
       "google/gemini-3-flash": 10
     }
   }
@@ -340,7 +340,7 @@ Configure concurrency limits for background agent tasks. This controls how many 
 | --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `defaultConcurrency`  | -       | Default maximum concurrent background tasks for all providers/models                                                    |
 | `providerConcurrency` | -       | Per-provider concurrency limits. Keys are provider names (e.g., `anthropic`, `openai`, `google`)                        |
-| `modelConcurrency`    | -       | Per-model concurrency limits. Keys are full model names (e.g., `anthropic/claude-opus-4-5`). Overrides provider limits. |
+| `modelConcurrency`    | -       | Per-model concurrency limits. Keys are full model names (e.g., `anthropic/claude-opus-4-6`). Overrides provider limits. |
 
 **Priority Order**: `modelConcurrency` > `providerConcurrency` > `defaultConcurrency`
 
@@ -391,12 +391,12 @@ Categories enable domain-specific task delegation via the `delegate_task` tool. 
 | Category | Model | Description |
 |---|---|---|
 | `visual-engineering` | `google/gemini-3-pro` | Frontend, UI/UX, design, styling, animation |
-| `ultrabrain` | `openai/gpt-5.2-codex` (xhigh) | Deep logical reasoning and complex architecture |
-| `deep` | `openai/gpt-5.2-codex` (medium) | Goal-oriented autonomous problem-solving |
+| `ultrabrain` | `openai/gpt-5.3-codex` (xhigh) | Deep logical reasoning and complex architecture |
+| `deep` | `openai/gpt-5.3-codex` (medium) | Goal-oriented autonomous problem-solving |
 | `artistry` | `google/gemini-3-pro` (max) | Highly creative/artistic tasks |
 | `quick` | `anthropic/claude-haiku-4-5` | Trivial tasks (small changes) |
 | `unspecified-low` | `anthropic/claude-sonnet-4-5` | Moderate-effort tasks that don't fit other categories |
-| `unspecified-high` | `anthropic/claude-opus-4-5` (max) | High-effort tasks that don't fit other categories |
+| `unspecified-high` | `anthropic/claude-opus-4-6` (max) | High-effort tasks that don't fit other categories |
 | `writing` | `google/gemini-3-flash` | Documentation, prose, technical writing |
 
 **Usage:**
@@ -480,7 +480,7 @@ Within the Native tier, models fall back based on capability requirements:
 | **High-tier tasks** (Sisyphus, Sisyphus Execution Mode) | Claude Opus | OpenAI GPT-5.2 | Gemini 3 Pro |
 | **Standard tasks** | Claude Sonnet | OpenAI GPT-5.2 | Gemini 3 Flash |
 | **Quick tasks** | Claude Haiku | OpenAI GPT-5.1-mini | Gemini 3 Flash |
-| **Deep reasoning** (Oracle) | OpenAI GPT-5.2-Codex | Claude Opus | Gemini 3 Pro |
+| **Deep reasoning** (Oracle) | OpenAI GPT-5.2 | Claude Opus | Gemini 3 Pro |
 | **Visual/UI tasks** | Gemini 3 Pro | OpenAI GPT-5.2 | Claude Sonnet |
 | **Writing tasks** | Gemini 3 Flash | OpenAI GPT-5.2 | Claude Sonnet |
 
@@ -490,8 +490,8 @@ Within the Native tier, models fall back based on capability requirements:
 
 | Agent | Capability | Example (Claude + OpenAI + Gemini) |
 |-------|------------|-------------------------------------|
-| **Sisyphus** | High-tier (isMax20) or Standard | `anthropic/claude-opus-4-5` or `anthropic/claude-sonnet-4-5` |
-| **Oracle** | Deep reasoning | `openai/gpt-5.2-codex` |
+| **Sisyphus** | High-tier (isMax20) or Standard | `anthropic/claude-opus-4-6` or `anthropic/claude-sonnet-4-5` |
+| **Oracle** | Deep reasoning | `openai/gpt-5.2` |
 | **Prometheus** | High-tier/Standard | Same as Sisyphus |
 | **Sisyphus Execution Mode** | High-tier/Standard | Same as Sisyphus |
 | **plan-synthesizer** | High-tier/Standard | Typically Opus-class or same as Sisyphus |
@@ -505,7 +505,7 @@ The `explore` agent has unique logic for cost optimization:
 flowchart TD
   Q{"Has Claude + isMax20?"}
   Q -->|Yes| H["anthropic/claude-haiku-4-5\n(use Claude quota)"]
-  Q -->|No| GK["opencode/grok-code\n(free & fast)"]
+  Q -->|No| GK["github-copilot/grok-code-fast-1\n(preferred)"]
 ```
 
 #### Special Case: librarian Agent
@@ -542,8 +542,8 @@ Categories follow the same fallback logic as agents:
 {
   "agents": {
     "sisyphus": { "model": "anthropic/claude-sonnet-4-5" },
-    "oracle": { "model": "anthropic/claude-opus-4-5" },
-    "explore": { "model": "opencode/grok-code" },
+    "oracle": { "model": "anthropic/claude-opus-4-6" },
+    "explore": { "model": "anthropic/claude-haiku-4-5" },
     "librarian": { "model": "opencode/glm-4.7-free" }
   }
 }
@@ -555,8 +555,8 @@ Categories follow the same fallback logic as agents:
 // User has: Claude Max (max20 mode)
 {
   "agents": {
-    "sisyphus": { "model": "anthropic/claude-opus-4-5" },
-    "oracle": { "model": "anthropic/claude-opus-4-5" },
+    "sisyphus": { "model": "anthropic/claude-opus-4-6" },
+    "oracle": { "model": "anthropic/claude-opus-4-6" },
     "explore": { "model": "anthropic/claude-haiku-4-5" },
     "librarian": { "model": "opencode/glm-4.7-free" }
   }
@@ -570,8 +570,8 @@ Categories follow the same fallback logic as agents:
 {
   "agents": {
     "sisyphus": { "model": "openai/gpt-5.2" },
-    "oracle": { "model": "openai/gpt-5.2-codex" },
-    "explore": { "model": "opencode/grok-code" },
+    "oracle": { "model": "openai/gpt-5.2" },
+    "explore": { "model": "opencode/gpt-5-nano" },
     "multimodal-looker": { "model": "openai/gpt-5.2" },
     "librarian": { "model": "opencode/glm-4.7-free" }
   }
@@ -584,8 +584,8 @@ Categories follow the same fallback logic as agents:
 // User has: All native providers
 {
   "agents": {
-    "sisyphus": { "model": "anthropic/claude-opus-4-5" },
-    "oracle": { "model": "openai/gpt-5.2-codex" },
+    "sisyphus": { "model": "anthropic/claude-opus-4-6" },
+    "oracle": { "model": "openai/gpt-5.2" },
     "explore": { "model": "anthropic/claude-haiku-4-5" },
     "multimodal-looker": { "model": "google/gemini-3-pro-preview" },
     "librarian": { "model": "opencode/glm-4.7-free" }
@@ -600,8 +600,8 @@ Categories follow the same fallback logic as agents:
 {
   "agents": {
     "sisyphus": { "model": "github-copilot/claude-sonnet-4.5" },
-    "oracle": { "model": "github-copilot/gpt-5.2-codex" },
-    "explore": { "model": "opencode/grok-code" },
+    "oracle": { "model": "github-copilot/gpt-5.2" },
+    "explore": { "model": "github-copilot/grok-code-fast-1" },
     "librarian": { "model": "github-copilot/gpt-5.2" }
   }
 }
@@ -636,7 +636,7 @@ You can always override automatic selection in `oh-my-opencode.json`:
   },
   "categories": {
     "visual-engineering": {
-      "model": "anthropic/claude-opus-4-5"  // Override category default
+      "model": "anthropic/claude-opus-4-6"  // Override category default
     }
   }
 }
@@ -921,17 +921,11 @@ Use `/handoff <goal>` to create a focused handoff and start a new session:
 
 Goal-oriented handoff filters the extracted context based on the specified goal, transferring only relevant decisions, anti-patterns, and domain knowledge to the new session.
 
-### Migration Note
+### Session Reference Config
 
-The top-level `session_reference` config is deprecated. Use `session_handoff.reference` instead:
+Use `session_handoff.reference` for `@session:` behavior:
 
 ```jsonc
-// Deprecated
-{
-  "session_reference": { "enabled": true }
-}
-
-// Preferred
 {
   "session_handoff": {
     "reference": { "enabled": true }
@@ -939,7 +933,7 @@ The top-level `session_reference` config is deprecated. Use `session_handoff.ref
 }
 ```
 
-Both are supported for backward compatibility, with `session_handoff.reference` taking precedence.
+Top-level `session_reference` is not supported in latest-only mode.
 
 ## Environment Variables
 

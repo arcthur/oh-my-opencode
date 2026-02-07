@@ -104,11 +104,9 @@ export function selectHandoffsForInjection(
     return []
   }
 
-  // Use new scoring system if enabled and we have a prompt
-  const useNewScoring = scoringConfig?.enabled !== false
   const query = initialPrompt || ""
 
-  if (useNewScoring && query) {
+  if (query) {
     const builtConfig = buildScoringConfig(scoringConfig)
     const scored = scoreAndRankHandoffs(candidates, query, builtConfig)
     const filtered = filterByMinScore(scored, builtConfig.minScore)
@@ -130,12 +128,7 @@ export function selectHandoffsForInjection(
     return filtered.slice(0, config.max_inject_count).map((s) => s.handoff)
   }
 
-  // Fallback to simple relevance ranking
-  if (initialPrompt && candidates.length > config.max_inject_count) {
-    return rankByRelevanceLegacy(candidates, initialPrompt, config.max_inject_count)
-  }
-
-  // Otherwise, return most recent
+  // No prompt — return most recent
   return candidates.slice(0, config.max_inject_count)
 }
 
@@ -167,57 +160,6 @@ export function selectHandoffsWithScores(
 
   const builtConfig = buildScoringConfig(scoringConfig)
   return scoreAndRankHandoffs(candidates, initialPrompt, builtConfig)
-}
-
-/**
- * Legacy relevance ranking based on keyword overlap
- * @deprecated Use selectHandoffsForInjection with scoringConfig instead
- */
-function rankByRelevanceLegacy(
-  packages: HandoffPackage[],
-  prompt: string,
-  limit: number
-): HandoffPackage[] {
-  const promptTokens = new Set(
-    prompt.toLowerCase().split(/\s+/).filter((t) => t.length > 3)
-  )
-
-  const scored = packages.map((pkg) => {
-    let score = 0
-
-    // Score based on goal match
-    const goalTokens = pkg.metadata.originalGoal.toLowerCase().split(/\s+/)
-    for (const token of goalTokens) {
-      if (promptTokens.has(token)) score += 3
-    }
-
-    // Score based on decision content
-    for (const decision of pkg.payload.decisions) {
-      const decisionText = `${decision.what} ${decision.chosen}`.toLowerCase()
-      for (const token of promptTokens) {
-        if (decisionText.includes(token)) score += 2
-      }
-    }
-
-    // Score based on file overlap
-    for (const file of pkg.metadata.keyFiles) {
-      const fileName = file.split("/").pop()?.toLowerCase() || ""
-      for (const token of promptTokens) {
-        if (fileName.includes(token)) score += 5
-      }
-    }
-
-    // Recency bonus (newer is slightly better)
-    const ageHours = (Date.now() - pkg.createdAt) / (1000 * 60 * 60)
-    score += Math.max(0, 10 - ageHours / 24)
-
-    return { pkg, score }
-  })
-
-  // Sort by score descending
-  scored.sort((a, b) => b.score - a.score)
-
-  return scored.slice(0, limit).map((s) => s.pkg)
 }
 
 // ============================================================================

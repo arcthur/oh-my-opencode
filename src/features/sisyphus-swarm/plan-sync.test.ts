@@ -18,7 +18,6 @@ describe("sisyphus-swarm/plan-sync", () => {
         tasks: {
           enabled: true,
           storage_path: testDir,
-          claude_code_compat: false,
         },
       },
     }

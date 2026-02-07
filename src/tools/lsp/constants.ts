@@ -62,13 +62,11 @@ export const LSP_INSTALL_HINTS: Record<string, string> = {
   clangd: "See https://clangd.llvm.org/installation",
   svelte: "npm install -g svelte-language-server",
   astro: "npm install -g @astrojs/language-server",
-  "bash-ls": "npm install -g bash-language-server",
   jdtls: "See https://github.com/eclipse-jdtls/eclipse.jdt.ls",
   "yaml-ls": "npm install -g yaml-language-server",
   "lua-ls": "See https://github.com/LuaLS/lua-language-server",
   php: "npm install -g intelephense",
   dart: "Included with Dart SDK",
-  "terraform-ls": "See https://github.com/hashicorp/terraform-ls",
   terraform: "See https://github.com/hashicorp/terraform-ls",
   prisma: "npm install -g prisma",
   "ocaml-lsp": "opam install ocaml-lsp-server",
@@ -177,11 +175,6 @@ export const BUILTIN_SERVERS: Record<string, Omit<LSPServerConfig, "id">> = {
     command: ["bash-language-server", "start"],
     extensions: [".sh", ".bash", ".zsh", ".ksh"],
   },
-  // Keep legacy alias for backward compatibility
-  "bash-ls": {
-    command: ["bash-language-server", "start"],
-    extensions: [".sh", ".bash", ".zsh", ".ksh"],
-  },
   jdtls: {
     command: ["jdtls"],
     extensions: [".java"],
@@ -203,11 +196,6 @@ export const BUILTIN_SERVERS: Record<string, Omit<LSPServerConfig, "id">> = {
     extensions: [".dart"],
   },
   terraform: {
-    command: ["terraform-ls", "serve"],
-    extensions: [".tf", ".tfvars"],
-  },
-  // Legacy alias for backward compatibility
-  "terraform-ls": {
     command: ["terraform-ls", "serve"],
     extensions: [".tf", ".tfvars"],
   },

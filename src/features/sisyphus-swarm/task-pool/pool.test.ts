@@ -27,7 +27,6 @@ describe("task-pool/pool", () => {
         tasks: {
           enabled: true,
           storage_path: testDir,
-          claude_code_compat: false,
         },
       },
     }
@@ -204,4 +203,3 @@ describe("task-pool/pool", () => {
     })
   })
 })
-

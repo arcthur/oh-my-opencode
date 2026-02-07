@@ -72,7 +72,7 @@ describe("swarm-from-plan hook", () => {
 
     config = {
       sisyphus: {
-        tasks: { enabled: true, storage_path: tasksDir, claude_code_compat: false },
+        tasks: { enabled: true, storage_path: tasksDir },
         swarm: { enabled: true, storage_path: join(projectDir, ".sisyphus", "teams"), ui_mode: "toast", swarm_first: true, worker_count: 0 },
       },
       tmux_parallel_agents: { enabled: false },

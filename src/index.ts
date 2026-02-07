@@ -118,7 +118,7 @@ import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
-import { DEFAULT_SESSION_REFERENCE_CONFIG, type SessionReferenceConfig } from "./config/schema"
+import { DEFAULT_SESSION_REFERENCE_CONFIG } from "./config/schema"
 import {
   executePreToolGovernance,
   executePostToolGovernance,
@@ -472,25 +472,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     pluginConfig.session_handoff ?? {}
   ) as import("./features/session-handoff").SessionHandoffConfig
 
-  // Session reference config: prefer session_handoff.reference over top-level session_reference
-  // If only session_reference is used, log deprecation warning
-  const hasNestedReference = pluginConfig.session_handoff?.reference !== undefined
-  const hasTopLevelReference = pluginConfig.session_reference !== undefined
-
-  if (hasTopLevelReference && !hasNestedReference) {
-    log("[session-handoff] DEPRECATED: 'session_reference' is deprecated. Use 'session_handoff.reference' instead.", {
-      level: "warn",
-    })
-  }
-
   const sessionReferenceConfig = deepMerge(
     DEFAULT_SESSION_REFERENCE_CONFIG,
-    // First apply top-level (deprecated), then nested (preferred) for override
-    deepMerge(
-      (pluginConfig.session_reference ?? {}) as Partial<SessionReferenceConfig>,
-      (pluginConfig.session_handoff?.reference ?? {}) as Partial<SessionReferenceConfig>
-    )
-  ) as SessionReferenceConfig
+    pluginConfig.session_handoff?.reference ?? {}
+  )
 
   // Lazy embedding provider (reuses user-memory embedding provider selection)
   const embedForHandoff = (() => {
@@ -670,10 +655,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     modelCacheState,
   });
 
-  const hookRuntimeV2Config = pluginConfig.experimental?.hook_runtime_v2;
-  const hookRuntimeV2Enabled = hookRuntimeV2Config?.enabled ?? false;
-  const hookRuntimeV2Mode = hookRuntimeV2Config?.mode ?? "shadow";
-
   const runtimeRegistryEntries = getRuntimeRegistryEntries();
   validateRuntimeRegistry({
     schemaHooks: [...HookNameSchema.options],
@@ -684,7 +665,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const hookRuntimeDispatcher = new HookRuntimeDispatcher({
     order: EVENT_TOTAL_ORDER,
     onError: ({ event, nodeId, error, policy }) => {
-      log("[hook-runtime-v2] node failure", {
+      log("[hook-runtime] node failure", {
         event,
         nodeId,
         policy,
@@ -701,37 +682,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       return;
     }
 
-    if (!hookRuntimeV2Enabled) {
-      for (const node of nodes) {
-        await node.invoke();
-      }
-      return;
-    }
-
     const runtimeOrder = hookRuntimeDispatcher.resolveNodeOrder(
       event,
       nodes.map((node) => node.id)
     );
-
-    if (hookRuntimeV2Mode === "shadow") {
-      const legacyOrder = nodes.map((node) => node.id);
-      const orderDiff =
-        legacyOrder.length !== runtimeOrder.length ||
-        legacyOrder.some((nodeId, index) => nodeId !== runtimeOrder[index]);
-
-      if (orderDiff) {
-        log("[hook-runtime-v2] shadow order mismatch", {
-          event,
-          legacyOrder,
-          runtimeOrder,
-        });
-      }
-
-      for (const node of nodes) {
-        await node.invoke();
-      }
-      return;
-    }
 
     const nodeById = new Map<HookNodeId, RuntimeExecutionNode>();
     for (const node of nodes) {

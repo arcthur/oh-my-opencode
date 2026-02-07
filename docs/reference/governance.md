@@ -94,7 +94,7 @@ The schema contains additional knobs; not all are currently enforced in runtime 
 |---|---:|---|
 | `governance.enabled` | Implemented | Master toggle. |
 | `governance.tracer.*` | Implemented | Controls tracing and sanitization behavior. |
-| `governance.budget_monitor.*` | Implemented | Controls thresholds and allocation size. Back-compat: `gc_threshold` → `refactor_threshold`. |
+| `governance.budget_monitor.*` | Implemented | Controls thresholds and allocation size. |
 | `governance.ledger.*` | Implemented | Controls base dir and retention. |
 | `governance.checkpoint.enabled` | Implemented | Enables checkpoint manager and auto-checkpoint creation. |
 | `governance.checkpoint.auto_checkpoint_interval` | Implemented | Interval (in tool calls) for auto-checkpoint creation. |

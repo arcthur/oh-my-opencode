@@ -8,7 +8,6 @@ import {
   addConfigLoadError,
   parseJsonc,
   detectConfigFile,
-  migrateConfigFile,
 } from "./shared";
 
 export function loadConfigFromPath(
@@ -19,8 +18,6 @@ export function loadConfigFromPath(
     if (fs.existsSync(configPath)) {
       const content = fs.readFileSync(configPath, "utf-8");
       const rawConfig = parseJsonc<Record<string, unknown>>(content);
-
-      migrateConfigFile(configPath, rawConfig);
 
       const result = OhMyOpenCodeConfigSchema.safeParse(rawConfig);
 

@@ -71,9 +71,6 @@ export interface ISessionStateCoordinator {
   /** Check if session is currently marked as subagent */
   isSubagentSession(sessionID: string): boolean
 
-  /** Backward-compatible alias for subagent checks */
-  isBackgroundSession(sessionID: string): boolean
-
   /** Mark a session as subagent/background task */
   markSubagentSession(sessionID: string, parentID?: string): void
 

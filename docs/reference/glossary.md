@@ -59,7 +59,7 @@ Implementation: `src/features/session-handoff/`.
 ## Session Reference
 
 A prompt syntax feature (e.g., `@session:<id>`) used to reference prior sessions and optionally materialize a handoff from them.
-Configuration lives under `session_handoff.reference` and/or top-level `session_reference` in `src/config/schema.ts`.
+Configuration lives under `session_handoff.reference` in `src/config/schema.ts`.
 
 ## Swarm (Sisyphus Swarm)
 

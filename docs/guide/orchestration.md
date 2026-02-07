@@ -96,7 +96,7 @@ task_snapshot:
 ## 3. Key Components
 
 ### Prometheus (Planner)
-- **Model**: `anthropic/claude-opus-4-5`
+- **Model**: `anthropic/claude-opus-4-6`
 - **Role**: Strategic planning, requirements interviews, work plan creation
 - **Constraint**: **READ-ONLY**. Can only create/modify markdown files within `.sisyphus/` directory.
 - **Characteristic**: Never writes code directly, focuses solely on "how to do it".
@@ -107,7 +107,7 @@ task_snapshot:
 - **Mechanism**: Multiple models generate plans → Plan Synthesizer compares/conflict-resolves → unified final plan
 
 ### Sisyphus (Orchestrator)
-- **Model**: `anthropic/claude-opus-4-5` (Extended Thinking 32k)
+- **Model**: `anthropic/claude-opus-4-6` (Extended Thinking 32k)
 - **Role**: Execution and delegation
 - **Characteristic**: Doesn't do everything directly, actively delegates to specialized agents (Frontend, Librarian, etc.).
 

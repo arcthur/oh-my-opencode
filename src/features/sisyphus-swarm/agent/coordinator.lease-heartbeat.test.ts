@@ -35,7 +35,6 @@ describe("coordinator lease heartbeat", () => {
         tasks: {
           enabled: true,
           storage_path: join(projectRoot, "tasks"),
-          claude_code_compat: false,
         },
         swarm: {
           enabled: true,

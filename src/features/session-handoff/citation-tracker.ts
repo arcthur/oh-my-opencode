@@ -392,14 +392,6 @@ export class CitationTracker {
   }
 
   /**
-   * Legacy method for backward compatibility
-   * @deprecated Use onSessionSettled instead
-   */
-  async onSessionCompleted(sessionId: string, outcome: SessionOutcome): Promise<void> {
-    return this.onSessionSettled(sessionId, outcome)
-  }
-
-  /**
    * Get pending citation for a session
    */
   getPendingCitation(sessionId: string): PendingCitation | undefined {

@@ -703,3 +703,51 @@ describe("SessionReferenceConfigSchema", () => {
     })
   })
 })
+
+describe("latest-only removed config keys", () => {
+  test("rejects sisyphus.tasks.claude_code_compat", () => {
+    // given
+    const config = {
+      sisyphus: {
+        tasks: {
+          enabled: true,
+          claude_code_compat: true,
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) => issue.path.join(".") === "sisyphus.tasks.claude_code_compat")
+      ).toBe(true)
+    }
+  })
+
+  test("rejects governance.budget_monitor.gc_threshold", () => {
+    // given
+    const config = {
+      governance: {
+        budget_monitor: {
+          enabled: true,
+          gc_threshold: 0.8,
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) => issue.path.join(".") === "governance.budget_monitor.gc_threshold")
+      ).toBe(true)
+    }
+  })
+})

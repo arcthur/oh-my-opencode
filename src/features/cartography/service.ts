@@ -25,8 +25,6 @@ import { getCodemapPath, CODEMAP_FILE_NAME, getProjectMapPath } from "./constant
 import { hashDirectory } from "./hash-utils"
 import { log } from "../../shared"
 
-const LEGACY_ROOT_MAP_FILE_NAME = `a${"tlas.md"}`
-
 /**
  * Cartography service options
  */
@@ -57,20 +55,6 @@ export class CartographyService {
     this.stateManager = createStateManager(projectRoot)
     this.ctx = options.ctx
     this.onProgress = options.onProgress
-  }
-
-  private cleanupLegacyRootMapFile(): void {
-    const legacyPath = join(this.projectRoot, LEGACY_ROOT_MAP_FILE_NAME)
-    if (!existsSync(legacyPath)) {
-      return
-    }
-
-    try {
-      unlinkSync(legacyPath)
-      this.progress("project-map", "Removed legacy root map filename")
-    } catch {
-      // best-effort cleanup
-    }
   }
 
   private async computeChangeReport(config: CartographyConfig): Promise<{
@@ -252,7 +236,6 @@ export class CartographyService {
         const projectMapContent = generateProjectMap(this.projectRoot, codemaps)
         const projectMapPath = getProjectMapPath(this.projectRoot)
         require("node:fs").writeFileSync(projectMapPath, projectMapContent, "utf8")
-        this.cleanupLegacyRootMapFile()
         this.progress("project-map", "Project map generated")
       }
 
@@ -383,7 +366,6 @@ export class CartographyService {
         const projectMapContent = generateProjectMap(this.projectRoot, codemaps)
         const projectMapPath = getProjectMapPath(this.projectRoot)
         require("node:fs").writeFileSync(projectMapPath, projectMapContent, "utf8")
-        this.cleanupLegacyRootMapFile()
       }
 
       // Save state

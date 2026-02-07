@@ -7,8 +7,8 @@
 import { createHash } from "node:crypto"
 import { readFileSync, statSync, readdirSync } from "node:fs"
 import { join, extname, sep } from "node:path"
-import picomatch from "picomatch"
 import { CODE_EXTENSIONS } from "./constants"
+import { getGlobMatcher } from "./pattern-matcher"
 
 /**
  * Calculate MD5 hash of a string
@@ -138,23 +138,6 @@ function normalizeGlob(pattern: string): string {
   return pattern.split(sep).join("/")
 }
 
-const globMatcherCache = new Map<string, (path: string) => boolean>()
-
-function getGlobMatcher(pattern: string): (path: string) => boolean {
-  const cached = globMatcherCache.get(pattern)
-  if (cached) return cached
-
-  const matcher = picomatch(pattern, {
-    dot: true,
-    matchBase: !pattern.includes("/"),
-  })
-  globMatcherCache.set(pattern, matcher)
-  return matcher
-}
-
-/**
- * Glob pattern matching using picomatch (consistent with pattern-matcher.ts).
- */
 function matchPattern(path: string, pattern: string): boolean {
   const normalizedPattern = normalizeGlob(pattern)
   return getGlobMatcher(normalizedPattern)(path)

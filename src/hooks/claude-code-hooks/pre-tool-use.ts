@@ -8,6 +8,9 @@ import { findMatchingHooks, executeHookCommand, objectToSnakeCase, transformTool
 import { DEFAULT_CONFIG } from "./plugin-config"
 import { isHookCommandDisabled, type PluginExtendedConfig } from "./config-loader"
 
+const warnedLegacyPreToolUseOutputs = new Set<string>()
+const warnedInvalidPreToolUseJson = new Set<string>()
+
 export interface PreToolUseContext {
   sessionId: string
   toolName: string
@@ -117,9 +120,26 @@ export async function executePreToolUseHooks(
 
       if (result.stdout) {
         try {
-          const output = JSON.parse(result.stdout || "{}") as PreToolUseOutput
+          const parsed = JSON.parse(result.stdout || "{}") as unknown
 
-          // Handle deprecated decision/reason fields (Claude Code backward compat)
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            const record = parsed as Record<string, unknown>
+            const legacyDecision = record["decision"]
+            const legacyReason = record["reason"]
+            if (legacyDecision !== undefined || legacyReason !== undefined) {
+              const key = hook.command
+              if (!warnedLegacyPreToolUseOutputs.has(key)) {
+                warnedLegacyPreToolUseOutputs.add(key)
+                log(
+                  "PreToolUse hook returned legacy fields (decision/reason). Ignoring in latest-only mode; use hookSpecificOutput.permissionDecision.",
+                  { command: hook.command, hookName: firstHookName, toolName: transformedToolName, legacyDecision }
+                )
+              }
+            }
+          }
+
+          const output = parsed as PreToolUseOutput
+
           let decision: PermissionDecision | undefined
           let reason: string | undefined
           let modifiedInput: Record<string, unknown> | undefined
@@ -128,23 +148,13 @@ export async function executePreToolUseHooks(
             decision = output.hookSpecificOutput.permissionDecision
             reason = output.hookSpecificOutput.permissionDecisionReason
             modifiedInput = output.hookSpecificOutput.updatedInput
-          } else if (output.decision) {
-            // Map deprecated values: approve->allow, block->deny, ask->ask
-            const legacyDecision = output.decision
-            if (legacyDecision === "approve" || legacyDecision === "allow") {
-              decision = "allow"
-            } else if (legacyDecision === "block" || legacyDecision === "deny") {
-              decision = "deny"
-            } else if (legacyDecision === "ask") {
-              decision = "ask"
-            }
-            reason = output.reason
           }
 
           // Return if decision is set OR if any common fields are set (fallback to allow)
-          const hasCommonFields = output.continue !== undefined || 
-            output.stopReason !== undefined || 
-            output.suppressOutput !== undefined || 
+          const hasCommonFields =
+            output.continue !== undefined ||
+            output.stopReason !== undefined ||
+            output.suppressOutput !== undefined ||
             output.systemMessage !== undefined
 
           if (decision || hasCommonFields) {
@@ -162,7 +172,20 @@ export async function executePreToolUseHooks(
               systemMessage: output.systemMessage,
             }
           }
-        } catch {
+        } catch (error) {
+          const key = hook.command
+          if (!warnedInvalidPreToolUseJson.has(key)) {
+            warnedInvalidPreToolUseJson.add(key)
+            const message = error instanceof Error ? error.message : String(error)
+            const stdoutPreview = (result.stdout ?? "").slice(0, 300)
+            log("PreToolUse hook returned invalid JSON; ignoring hook output", {
+              command: hook.command,
+              hookName: firstHookName,
+              toolName: transformedToolName,
+              message,
+              stdoutPreview,
+            })
+          }
         }
       }
     }

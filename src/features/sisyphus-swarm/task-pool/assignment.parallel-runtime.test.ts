@@ -35,7 +35,6 @@ describe("task-pool/assignment parallel-runtime integration", () => {
         tasks: {
           enabled: true,
           storage_path: tasksDir,
-          claude_code_compat: false,
         },
         swarm: {
           enabled: true,

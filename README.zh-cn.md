@@ -186,16 +186,16 @@
 我的生活也没有什么不同。回顾过去，我们与这些智能体并没有太大不同。
 **是的！LLM 智能体和我们没有区别。如果你给它们优秀的工具和可靠的队友，它们可以写出和我们一样出色的代码，工作得同样优秀。**
 
-认识我们的主智能体：Sisyphus (Opus 4.5 High)。以下是 Sisyphus 用来继续推动巨石的工具。
+认识我们的主智能体：Sisyphus (Opus 4.6 High)。以下是 Sisyphus 用来继续推动巨石的工具。
 
 *以下所有内容都是可配置的。按需选取。所有功能默认启用。你不需要做任何事情。开箱即用，电池已包含。*
 
 - Sisyphus 的队友（精选智能体）
-  - Hephaestus：自主深度工作者，目标导向执行（GPT 5.2 Codex Medium）— *合法的工匠*
+  - Hephaestus：自主深度工作者，目标导向执行（GPT 5.3 Codex Medium）— *合法的工匠*
   - Oracle：设计、调试 (GPT 5.2 Medium)
   - Frontend UI/UX Engineer：前端开发 (Gemini 3 Pro)
   - Librarian：官方文档、开源实现、代码库探索 (Claude Sonnet 4.5)
-   - Explore：极速代码库探索（上下文感知 Grep）(Claude Haiku 4.5)
+  - Explore：极速代码库探索（上下文感知 Grep）(Grok Code Fast / Claude Haiku 回退)
 - 完整 LSP / AstGrep 支持：果断重构。
 - Todo 继续执行器：如果智能体中途退出，强制它继续。**这就是让 Sisyphus 继续推动巨石的关键。**
 - 注释检查器：防止 AI 添加过多注释。Sisyphus 生成的代码应该与人类编写的代码无法区分。
@@ -213,7 +213,7 @@
 ![Meet Hephaestus](.github/assets/hephaestus.png)
 
 在希腊神话中，赫菲斯托斯是锻造、火焰、金属加工和工艺之神——他是神圣的铁匠，以无与伦比的精准和奉献为众神打造武器。
-**介绍我们的自主深度工作者：赫菲斯托斯（GPT 5.2 Codex Medium）。合法的工匠代理。**
+**介绍我们的自主深度工作者：赫菲斯托斯（GPT 5.3 Codex Medium）。合法的工匠代理。**
 
 *为什么是"合法的"？当Anthropic以违反服务条款为由封锁第三方访问时，社区开始调侃"合法"使用。赫菲斯托斯拥抱这种讽刺——他是那种用正确的方式、有条不紊、彻底地构建事物的工匠，绝不走捷径。*
 
@@ -308,7 +308,7 @@ curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads
 ## 功能特性
 
 我们拥有众多功能，你会觉得这些功能理所当然应该存在，一旦体验过，就再也回不去了。
-详细信息请参阅 [Features Documentation](docs/features.md)。
+详细信息请参阅 [Features Documentation](docs/guide/features.md)。
 
 **概览：**
 - **智能体**：Sisyphus（主智能体）、Prometheus（规划器）、Oracle（架构/调试）、Librarian（文档/代码搜索）、Explore（快速代码库 grep）、Multimodal Looker
@@ -323,14 +323,14 @@ curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads
 ## 配置
 
 个性鲜明，但可以根据个人喜好调整。
-详细信息请参阅 [Configuration Documentation](docs/configurations.md)。
+详细信息请参阅 [Configuration Documentation](docs/reference/configuration.md)。
 
 **概览：**
 - **配置文件位置**: `.opencode/oh-my-opencode.json` (项目级) 或 `~/.config/opencode/oh-my-opencode.json` (用户级)
 - **JSONC 支持**: 支持注释和尾随逗号
 - **智能体**: 覆盖任何智能体的模型、温度、提示和权限
 - **内置技能**: `playwright` (浏览器自动化), `git-master` (原子提交)
-- **Sisyphus 智能体**: 带有 Prometheus 和 Metis 的主编排器
+- **Sisyphus 智能体**: 带有 Prometheus 和 Plan Synthesizer 的主编排器
 - **后台任务**: 按提供商/模型配置并发限制
 - **类别**: 领域特定的任务委派 (`visual`, `business-logic`, 自定义)
 - **钩子**: 25+ 内置钩子，均可通过 `disabled_hooks` 配置
@@ -341,7 +341,7 @@ curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads
 
 ## 作者札记
 
-**想了解更多关于这个项目背后的理念吗？** 请阅读 [Ultrawork Manifesto](docs/ultrawork-manifesto.md)。
+**想了解更多关于这个项目背后的理念吗？** 请阅读 [Documentation Index](docs/index.md)。
 
 安装 Oh My OpenCode。
 

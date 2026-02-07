@@ -97,11 +97,8 @@ Important: current implementation resolves references **only from stored handoff
 Key knobs:
 
 - `session_handoff.*`: enable/disable, extraction thresholds, expiry, max injected count, extractor model, and embedding generation.
-- `session_handoff.reference` (preferred) or `session_reference` (deprecated): enable/disable `@session:` parsing and semantic query thresholds.
-
-Precedence:
-
-- `session_handoff.reference` overrides top-level `session_reference` if both are present.
+- `session_handoff.reference`: enable/disable `@session:` parsing and semantic query thresholds.
+- Top-level `session_reference` is not supported in latest-only mode.
 
 Implementation note (precision over intent): the schema includes `resolve_options.allow_session_fallback` and `resolve_options.create_handoff_if_missing`, but current resolver logic does not implement session-message fallback or on-demand handoff creation.
 

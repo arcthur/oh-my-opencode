@@ -172,13 +172,6 @@ export class SessionStateCoordinator implements ISessionStateCoordinator {
   }
 
   /**
-   * Backward-compatible alias for previous naming.
-   */
-  isBackgroundSession(sessionID: string): boolean {
-    return this.isSubagentSession(sessionID)
-  }
-
-  /**
    * Mark a session as subagent/background.
    */
   markSubagentSession(sessionID: string, parentID?: string): void {

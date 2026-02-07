@@ -28,7 +28,7 @@ agents/
 ├── multimodal-looker.ts        # Media analyzer (Gemini 3 Flash)
 ├── prometheus/                 # Prometheus system prompt (brainstorm/interview/plan/QA)
 ├── plan-synthesizer.ts         # Multi-plan synthesis (Metis+Momus consolidated in this fork)
-├── hephaestus.ts               # Autonomous deep worker (GPT 5.2 Codex)
+├── hephaestus.ts               # Autonomous deep worker (GPT 5.3 Codex)
 ├── types.ts                    # AgentOverrideConfig, AgentPromptMetadata, AgentFactory
 ├── utils.ts                    # createBuiltinAgents(), model resolution, category/skill expansion
 └── index.ts                    # builtinAgents export
@@ -40,14 +40,14 @@ The exact fallback chains are defined in `src/shared/model-requirements.ts`.
 
 | Agent | Default / Preferred Model | Temp | Notes |
 |-------|---------------------------|------|-------|
-| Sisyphus | `anthropic/claude-opus-4-5` | 0.1 | `requiresAnyModel` gate; fallback chain prefers Claude → Kimi → GLM. |
-| Prometheus | `anthropic/claude-opus-4-5` | 0.1 | Planner prompt is exported as constants under `src/agents/prometheus/*`. |
-| Hephaestus | `openai/gpt-5.2-codex` | 0.1 | `requiresModel: gpt-5.2-codex`. |
+| Sisyphus | `anthropic/claude-opus-4-6` | 0.1 | `requiresAnyModel` gate; fallback chain prefers Claude → Kimi → GLM. |
+| Prometheus | `anthropic/claude-opus-4-6` | 0.1 | Planner prompt is exported as constants under `src/agents/prometheus/*`. |
+| Hephaestus | `openai/gpt-5.3-codex` | 0.1 | `requiresModel: gpt-5.3-codex`. |
 | oracle | `openai/gpt-5.2` | 0.1 | GPT models use `reasoningEffort`; Claude models use `thinking`. |
 | librarian | `zai-coding-plan/glm-4.7` | 0.1 | Fallback: `opencode/glm-4.7-free`. |
 | explore | `github-copilot/grok-code-fast-1` | 0.1 | Fast contextual grep; fallback chain prefers cheap models. |
 | multimodal-looker | `google/gemini-3-flash` | 0.1 | Read-only / media analysis. |
-| plan-synthesizer | `anthropic/claude-opus-4-5` | 0.1 | Replaces Metis+Momus in this fork. |
+| plan-synthesizer | `anthropic/claude-opus-4-6` | 0.1 | Replaces Metis+Momus in this fork. |
 | Sisyphus-Junior | `anthropic/claude-sonnet-4-5` | 0.1 | Category-spawned executor; denies `task`, `delegate_task` is research-scoped (explore/librarian only). |
 
 ## HOW TO ADD

@@ -108,10 +108,6 @@ export interface HookCommonOutput {
 }
 
 export interface PreToolUseOutput extends HookCommonOutput {
-  /** Deprecated: use hookSpecificOutput.permissionDecision instead */
-  decision?: "allow" | "deny" | "approve" | "block" | "ask"
-  /** Deprecated: use hookSpecificOutput.permissionDecisionReason instead */
-  reason?: string
   hookSpecificOutput?: {
     hookEventName: "PreToolUse"
     permissionDecision: PermissionDecision

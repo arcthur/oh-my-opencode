@@ -74,7 +74,7 @@ function normalizePathForMatching(path: string): string {
 
 const globMatcherCache = new Map<string, (path: string) => boolean>()
 
-function getGlobMatcher(pattern: string): (path: string) => boolean {
+export function getGlobMatcher(pattern: string): (path: string) => boolean {
   const normalizedPattern = normalizePathForMatching(pattern)
   const cached = globMatcherCache.get(normalizedPattern)
   if (cached) return cached

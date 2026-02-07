@@ -25,29 +25,13 @@ describe("Storage Utilities", () => {
   })
 
   describe("getTaskDir", () => {
-    // given default config (no claude_code_compat)
+    // given default config
     // when getting task directory
     // then it should return .sisyphus/tasks/{listId}
     it("returns sisyphus path by default", () => {
       const config = { sisyphus: { tasks: { storage_path: ".sisyphus/tasks" } } }
       const result = getTaskDir("list-123", config as any)
       expect(result).toContain(".sisyphus/tasks/list-123")
-    })
-
-    // given claude_code_compat enabled
-    // when getting task directory
-    // then it should return Claude Code path
-    it("returns claude code path when compat enabled", () => {
-      const config = {
-        sisyphus: {
-          tasks: {
-            storage_path: ".sisyphus/tasks",
-            claude_code_compat: true,
-          },
-        },
-      }
-      const result = getTaskDir("list-123", config as any)
-      expect(result).toContain(".cache/claude-code/tasks/list-123")
     })
   })
 
