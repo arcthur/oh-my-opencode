@@ -179,6 +179,40 @@ describe("fuzzyMatchModel", () => {
 		expect(result).toBe("google/gemini-3-flash-preview")
 	})
 
+	// given Google Gemini 3 base and tier-suffixed IDs
+	// when searching for base gemini-3-pro
+	// then prefer non-tier preview model over high/medium/low aliases
+	it("should prefer non-tier Google model over tier-suffixed aliases", () => {
+		const available = new Set([
+			"google/gemini-3-pro-high",
+			"google/gemini-3-pro-medium",
+			"google/gemini-3-pro-low",
+			"google/gemini-3-pro-preview",
+		])
+		const result = fuzzyMatchModel(
+			"google/gemini-3-pro",
+			available,
+			["google"],
+		)
+		expect(result).toBe("google/gemini-3-pro-preview")
+	})
+
+	// given mixed legacy and antigravity Gemini model IDs
+	// when searching for a google/gemini base model
+	// then prefer antigravity-prefixed model for oauth plugin compatibility
+	it("should prefer antigravity Gemini model over legacy tier-suffixed model", () => {
+		const available = new Set([
+			"google/gemini-3-pro-high",
+			"google/antigravity-gemini-3-pro",
+		])
+		const result = fuzzyMatchModel(
+			"google/gemini-3-pro",
+			available,
+			["google"],
+		)
+		expect(result).toBe("google/antigravity-gemini-3-pro")
+	})
+
 	// given available models with partial matches
 	// when searching for a substring
 	// then return exact match if it exists

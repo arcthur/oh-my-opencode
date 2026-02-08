@@ -54,6 +54,28 @@ function normalizeModelName(name: string): string {
     .replace(/claude-(opus|sonnet|haiku)-4\.5/g, "claude-$1-4.5")
 }
 
+function stripAntigravityPrefix(name: string): string {
+  return name
+    .replace("google/antigravity-", "google/")
+    .replace(/^antigravity-/, "")
+}
+
+function isGoogleTierAliasModel(name: string): boolean {
+  const comparable = stripAntigravityPrefix(normalizeModelName(name))
+  if (!comparable.startsWith("google/gemini-3-")) {
+    return false
+  }
+  return /-(high|medium|low)$/.test(comparable)
+}
+
+function shouldPreferNonTierGoogleModel(targetNormalized: string): boolean {
+  const comparable = stripAntigravityPrefix(targetNormalized)
+  if (!comparable.startsWith("google/gemini-3-")) {
+    return false
+  }
+  return !/-(high|medium|low)$/.test(comparable)
+}
+
 export function fuzzyMatchModel(target: string, available: Set<string>, providers?: string[]): string | null {
   log("[fuzzyMatchModel] called", { target, availableCount: available.size, providers })
 
@@ -83,8 +105,14 @@ export function fuzzyMatchModel(target: string, available: Set<string>, provider
     return null
   }
 
-  // Find all matches (case-insensitive substring match with normalization)
-  const matches = candidates.filter((model) => normalizeModelName(model).includes(targetNormalized))
+  // Find all matches (case-insensitive substring match with normalization).
+  // Antigravity-prefixed Google models should also match non-prefixed Gemini targets.
+  const targetComparable = stripAntigravityPrefix(targetNormalized)
+  const matches = candidates.filter((model) => {
+    const normalizedModel = normalizeModelName(model)
+    const comparableModel = stripAntigravityPrefix(normalizedModel)
+    return normalizedModel.includes(targetNormalized) || comparableModel.includes(targetComparable)
+  })
 
   log("[fuzzyMatchModel] substring matches", { targetNormalized, matchCount: matches.length, matches })
 
@@ -92,8 +120,21 @@ export function fuzzyMatchModel(target: string, available: Set<string>, provider
     return null
   }
 
+  let prioritizedMatches = matches
+  if (shouldPreferNonTierGoogleModel(targetNormalized)) {
+    const nonTierMatches = matches.filter((model) => !isGoogleTierAliasModel(model))
+    if (nonTierMatches.length > 0) {
+      prioritizedMatches = nonTierMatches
+      log("[fuzzyMatchModel] preferred non-tier google matches", {
+        targetNormalized,
+        originalMatchCount: matches.length,
+        filteredMatchCount: nonTierMatches.length,
+      })
+    }
+  }
+
   // Priority 1: Exact match (normalized)
-  const exactMatch = matches.find((model) => normalizeModelName(model) === targetNormalized)
+  const exactMatch = prioritizedMatches.find((model) => normalizeModelName(model) === targetNormalized)
   if (exactMatch) {
     log("[fuzzyMatchModel] exact match found", { exactMatch })
     return exactMatch
@@ -101,7 +142,7 @@ export function fuzzyMatchModel(target: string, available: Set<string>, provider
 
   // Priority 2: Exact model ID match (part after provider/)
   // This ensures "glm-4.7-free" matches "zai-coding-plan/glm-4.7-free" over "zai-coding-plan/glm-4.7"
-  const exactModelIdMatches = matches.filter((model) => {
+  const exactModelIdMatches = prioritizedMatches.filter((model) => {
     const modelId = model.split("/").slice(1).join("/")
     return normalizeModelName(modelId) === targetNormalized
   })
@@ -113,8 +154,30 @@ export function fuzzyMatchModel(target: string, available: Set<string>, provider
     return result
   }
 
+  // Prefer Antigravity models for Google Gemini/Claude targets to avoid
+  // selecting legacy tier-suffixed IDs when both are present.
+  if (targetNormalized.startsWith("google/")) {
+    const targetModelId = targetNormalized.slice("google/".length)
+    const isGoogleAntigravityPreferredTarget =
+      targetModelId.startsWith("gemini-3-") || targetModelId.includes("claude-")
+
+    if (isGoogleAntigravityPreferredTarget) {
+      const antigravityMatches = prioritizedMatches.filter((model) =>
+        normalizeModelName(model).startsWith("google/antigravity-")
+      )
+
+      if (antigravityMatches.length > 0) {
+        const result = antigravityMatches.reduce((shortest, current) =>
+          current.length < shortest.length ? current : shortest
+        )
+        log("[fuzzyMatchModel] preferred antigravity match", { result, target })
+        return result
+      }
+    }
+  }
+
   // Priority 3: Shorter model name (more specific)
-  const result = matches.reduce((shortest, current) => (current.length < shortest.length ? current : shortest))
+  const result = prioritizedMatches.reduce((shortest, current) => (current.length < shortest.length ? current : shortest))
   log("[fuzzyMatchModel] shortest match", { result })
   return result
 }

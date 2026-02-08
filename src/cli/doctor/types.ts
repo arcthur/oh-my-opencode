@@ -70,13 +70,15 @@ export interface ConfigInfo {
   errors: string[]
 }
 
-export type AuthProviderId = "anthropic" | "openai" | "google"
+export type AuthProviderId = "anthropic" | "openai" | "google" | "github-copilot"
 
 export interface AuthProviderInfo {
   id: AuthProviderId
   name: string
   pluginInstalled: boolean
   configured: boolean
+  configuredVia?: "plugin" | "oauth" | "environment"
+  configuredEnvVar?: string
   error?: string
 }
 

@@ -89,6 +89,7 @@ import {
   getMainSessionID,
   updateSessionAgent,
   getSessionAgent,
+  isSubagentSession,
 } from "./features/claude-code-session-state";
 import { sessionStateCoordinator } from "./features/session-state-coordinator";
 import {
@@ -113,7 +114,20 @@ import { initTaskToastManager } from "./features/task-toast-manager";
 import { createWorkStateManager } from "./features/work-state";
 import { createSwarmRuntimeService } from "./features/sisyphus-swarm/runtime";
 import { HookNameSchema, type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, deepMerge, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
+import {
+  log,
+  detectExternalNotificationPlugin,
+  getNotificationConflictWarning,
+  resetMessageCursor,
+  deepMerge,
+  getOpenCodeVersion,
+  isOpenCodeVersionAtLeast,
+  OPENCODE_NATIVE_AGENTS_INJECTION_VERSION,
+  OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION,
+  OPENCODE_CHAT_HEADERS_HOOK_VERSION,
+  OPENCODE_SHELL_ENV_HOOK_VERSION,
+  applyProviderEnvCompat,
+} from "./shared";
 import { filterDisabledTools } from "./shared/disabled-tools";
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
 import { DEFAULT_HANDOFF_CONFIG } from "./features/session-handoff";
@@ -133,9 +147,72 @@ import {
   hasGovernanceSession,
 } from "./features/governance";
 import { CATEGORY_DESCRIPTIONS, DEFAULT_CATEGORIES } from "./tools/delegate-task/constants";
+import { NON_INTERACTIVE_ENV } from "./hooks/non-interactive-env/constants";
+
+type PluginHooks = Awaited<ReturnType<Plugin>>
+
+interface CommandExecuteBeforeInput {
+  command: string
+  sessionID: string
+  arguments: string
+}
+
+interface CommandExecuteBeforeOutput {
+  parts: Part[]
+}
+
+interface ChatHeadersInput {
+  sessionID: string
+  agent: string
+  model: Record<string, unknown>
+  provider: Record<string, unknown>
+  message: Record<string, unknown>
+}
+
+interface ChatHeadersOutput {
+  headers: Record<string, string>
+}
+
+interface ShellEnvInput {
+  cwd: string
+}
+
+interface ShellEnvOutput {
+  env: Record<string, string>
+}
+
+type ExtendedPluginHooks = PluginHooks &
+  Record<string, unknown> & {
+  "command.execute.before"?: (
+    input: CommandExecuteBeforeInput,
+    output: CommandExecuteBeforeOutput
+  ) => Promise<void>
+  "chat.headers"?: (input: ChatHeadersInput, output: ChatHeadersOutput) => Promise<void>
+  "shell.env"?: (input: ShellEnvInput, output: ShellEnvOutput) => Promise<void>
+}
+
+const COPILOT_INTERLEAVED_THINKING_HEADER = "interleaved-thinking-2025-05-14"
+
+function appendHeaderToken(existingValue: string | undefined, token: string): string {
+  if (!existingValue) {
+    return token
+  }
+
+  const normalized = existingValue
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  if (normalized.includes(token)) {
+    return normalized.join(", ")
+  }
+
+  return [...normalized, token].join(", ")
+}
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[oh-my-opencode] Plugin loading", { directory: ctx.directory });
+  applyProviderEnvCompat(process.env)
   // Start background tmux check immediately
   startTmuxCheck();
 
@@ -148,6 +225,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     DEFAULT_CONTINUATION_CONTROL_CONFIG,
     pluginConfig.continuation_control ?? {}
   ) as typeof DEFAULT_CONTINUATION_CONTROL_CONFIG;
+  const supportsCommandExecuteBefore = isOpenCodeVersionAtLeast(
+    OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION
+  )
+  const supportsChatHeaders = isOpenCodeVersionAtLeast(OPENCODE_CHAT_HEADERS_HOOK_VERSION)
+  const supportsShellEnv = isOpenCodeVersionAtLeast(OPENCODE_SHELL_ENV_HOOK_VERSION)
 
   const modelCacheState = createModelCacheState();
   let continuationStopGuard: ReturnType<typeof createContinuationStopGuardHook> | null = null;
@@ -752,7 +834,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const filteredTools = filterDisabledTools(allTools, pluginConfig.disabled_tools);
 
-  return {
+  const pluginHooks: ExtendedPluginHooks = {
     tool: filteredTools,
 
     "chat.params": async (
@@ -2067,6 +2149,87 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await executeRuntimePipeline("experimental.session.compacting", nodes);
     },
   };
+
+  if (supportsCommandExecuteBefore) {
+    pluginHooks["command.execute.before"] = async (input, output) => {
+      const nodes: RuntimeExecutionNode[] = []
+
+      if (autoSlashCommand?.["command.execute.before"]) {
+        nodes.push({
+          id: "auto-slash-command:command.execute.before",
+          invoke: async () => {
+            await autoSlashCommand["command.execute.before"]?.(
+              {
+                command: input.command,
+                sessionID: input.sessionID,
+                arguments: input.arguments ?? "",
+              },
+              output as CommandExecuteBeforeOutput
+            )
+          },
+        })
+      }
+
+      await executeRuntimePipeline("command.execute.before", nodes)
+    }
+  }
+
+  if (supportsChatHeaders) {
+    pluginHooks["chat.headers"] = async (input, output) => {
+      const nodes: RuntimeExecutionNode[] = []
+      const model = input.model as { providerID?: string; modelID?: string; id?: string; api?: { npm?: string } }
+      const providerID = (model.providerID ?? "").toLowerCase()
+      const modelID = (model.modelID ?? model.id ?? "").toLowerCase()
+      const apiNpm = (model.api?.npm ?? "").toLowerCase()
+      const isCopilotProvider = providerID.includes("github-copilot")
+      const isAnthropicCopilotModel =
+        apiNpm === "@ai-sdk/anthropic" ||
+        (apiNpm === "@ai-sdk/github-copilot" && modelID.includes("claude"))
+
+      if (isCopilotProvider && isAnthropicCopilotModel) {
+        nodes.push({
+          id: "internal:copilot-anthropic-beta:chat.headers",
+          invoke: async () => {
+            const key = "anthropic-beta"
+            output.headers[key] = appendHeaderToken(
+              output.headers[key],
+              COPILOT_INTERLEAVED_THINKING_HEADER
+            )
+          },
+        })
+      }
+
+      if (isCopilotProvider && isSubagentSession(input.sessionID)) {
+        nodes.push({
+          id: "internal:copilot-subagent-initiator:chat.headers",
+          invoke: async () => {
+            output.headers["x-initiator"] = "agent"
+          },
+        })
+      }
+
+      await executeRuntimePipeline("chat.headers", nodes)
+    }
+  }
+
+  if (supportsShellEnv) {
+    pluginHooks["shell.env"] = async (_input, output) => {
+      const nodes: RuntimeExecutionNode[] = []
+
+      if (nonInteractiveEnv) {
+        nodes.push({
+          id: "internal:non-interactive-env:shell.env",
+          invoke: async () => {
+            Object.assign(output.env, NON_INTERACTIVE_ENV)
+          },
+        })
+      }
+
+      await executeRuntimePipeline("shell.env", nodes)
+    }
+  }
+
+  return pluginHooks;
 };
 
 export default OhMyOpenCodePlugin;
