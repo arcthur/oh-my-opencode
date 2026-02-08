@@ -43,10 +43,6 @@
     "explore": {
       "model": "openai/gpt-5.1-codex-mini"
     },
-    "atlas": {
-      "model": "openai/gpt-5.1-codex-max",
-      "variant": "high"
-    },
     "multimodal-looker": {
       "model": "openai/gpt-5.1-codex"
     },
