@@ -3,11 +3,13 @@ export const STOP_CONTINUATION_TEMPLATE = `Stop all continuation mechanisms for 
 This command will:
 1. Stop the todo-auto-continuation from automatically continuing incomplete tasks
 2. Cancel any active Ralph Loop
-3. Clear the work state for the current project
+3. Stop planning-with-files stop verification continuation prompts
+4. Stop execution-orchestrator work continuation prompts
+5. Clear the work state for the current project
 
 After running this command:
 - The session will not auto-continue when idle
 - You can manually continue work when ready
-- The stop state is per-session and clears when the session ends
+- The stop state is per-session and clears on your next user message (or when the session ends)
 
 Use this when you need to pause automated continuation and take manual control.`

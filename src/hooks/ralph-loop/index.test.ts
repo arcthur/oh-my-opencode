@@ -2,7 +2,8 @@ import { describe, expect, test, beforeEach, afterEach } from "bun:test"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { createRalphLoopHook } from "./index"
+import { createDirectContinuationReporterForTesting } from "../continuation-control"
+import { createRalphLoopHook as createRalphLoopHookBase, type RalphLoopOptions } from "./index"
 import { readState, writeState, clearState } from "./storage"
 import type { RalphLoopState } from "./types"
 
@@ -12,6 +13,10 @@ describe("ralph-loop", () => {
   let toastCalls: Array<{ title: string; message: string; variant: string }>
   let messagesCalls: Array<{ sessionID: string }>
   let mockSessionMessages: Array<{ info?: { role?: string }; parts?: Array<{ type: string; text?: string }> }>
+
+  type TestRalphLoopOptions = Omit<RalphLoopOptions, "reportContinuationIntent"> & {
+    reportContinuationIntent?: RalphLoopOptions["reportContinuationIntent"]
+  }
 
   function createMockPluginInput() {
     return {
@@ -42,6 +47,17 @@ describe("ralph-loop", () => {
       },
       directory: TEST_DIR,
     } as unknown as Parameters<typeof createRalphLoopHook>[0]
+  }
+
+  function createRalphLoopHook(
+    input: ReturnType<typeof createMockPluginInput>,
+    options: TestRalphLoopOptions = {}
+  ) {
+    return createRalphLoopHookBase(input, {
+      ...options,
+      reportContinuationIntent:
+        options.reportContinuationIntent ?? createDirectContinuationReporterForTesting(input),
+    })
   }
 
   beforeEach(() => {
@@ -887,6 +903,51 @@ Original task: Build something`
       // then - prompt should NOT start with "ultrawork "
       expect(promptCalls.length).toBe(1)
       expect(promptCalls[0].text).not.toMatch(/^ultrawork /)
+    })
+
+    test("should report continuation intent instead of prompting when reporter is configured", async () => {
+      // given - continuation reporter enabled
+      const intents: Array<{ source: string; round?: number; text: string }> = []
+      const hook = createRalphLoopHook(createMockPluginInput(), {
+        getContinuationRound: () => 9,
+        reportContinuationIntent: async (intent) => {
+          intents.push({
+            source: intent.source,
+            round: intent.round,
+            text: intent.prompt.text,
+          })
+        },
+      })
+      hook.startLoop("session-123", "Build API")
+
+      // when - session goes idle
+      await hook.event({
+        event: { type: "session.idle", properties: { sessionID: "session-123" } },
+      })
+
+      // then - direct prompt is suppressed and continuation intent is reported
+      expect(promptCalls).toHaveLength(0)
+      expect(intents).toHaveLength(1)
+      expect(intents[0].source).toBe("ralph-loop")
+      expect(intents[0].round).toBe(9)
+      expect(intents[0].text).toContain("RALPH LOOP")
+    })
+
+    test("should skip continuation when stop guard is active", async () => {
+      // given - active loop but continuation is stopped
+      const hook = createRalphLoopHook(createMockPluginInput(), {
+        isContinuationStopped: (id) => id === "session-123",
+      })
+      hook.startLoop("session-123", "Build API")
+
+      // when - session goes idle
+      await hook.event({
+        event: { type: "session.idle", properties: { sessionID: "session-123" } },
+      })
+
+      // then - no prompt injected and iteration does not advance
+      expect(promptCalls).toHaveLength(0)
+      expect(hook.getState()?.iteration).toBe(1)
     })
   })
 

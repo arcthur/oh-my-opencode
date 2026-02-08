@@ -10,6 +10,9 @@ export {
   ExperimentalConfigSchema,
   ContextWindowGovernorConfigSchema,
   RalphLoopConfigSchema,
+  ContinuationControlConfigSchema,
+  ContinuationControlPrioritySchema,
+  DEFAULT_CONTINUATION_CONTROL_CONFIG,
   GovernanceConfigSchema,
   GovernanceToolCriticalitySchema,
 } from "./schema"
@@ -26,6 +29,8 @@ export type {
   ExperimentalConfig,
   ContextWindowGovernorConfig,
   RalphLoopConfig,
+  ContinuationControlConfig,
+  ContinuationControlPriority,
   GovernanceConfig,
   GovernanceToolCriticality,
 } from "./schema"

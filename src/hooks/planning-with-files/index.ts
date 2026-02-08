@@ -22,12 +22,19 @@ import {
 } from "../../features/planning-with-files/blocker-detection"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 import { createWorkStateManager } from "../../features/work-state"
+import { log } from "../../shared/logger"
+import type { ContinuationIntent } from "../continuation-control"
 
 export interface PlanningWithFilesHookOptions {
   config?: Partial<PlanningWithFilesConfig>
   collector?: ContextCollector
   todoContinuationEnabled?: boolean
+  isContinuationStopped?: (sessionID: string) => boolean
+  getContinuationRound?: (sessionID: string) => number | undefined
+  reportContinuationIntent: (intent: ContinuationIntent) => Promise<void>
 }
+
+const HOOK_NAME = "planning-with-files"
 
 function buildPlanContext(content: string): string {
   return `<plan-context>
@@ -143,7 +150,7 @@ function isPlanFilePath(filePath: string): boolean {
 
 export function createPlanningWithFilesHook(
   ctx: PluginInput,
-  options: PlanningWithFilesHookOptions = {}
+  options: PlanningWithFilesHookOptions
 ): Hooks {
   const collector = options.collector ?? defaultCollector
   const config: PlanningWithFilesConfig = {
@@ -171,6 +178,9 @@ export function createPlanningWithFilesHook(
   const STOP_VERIFICATION_COOLDOWN_MS = 60_000
   const rereadTriggerTools = new Set(config.reread_trigger_tools.map((t) => t.toLowerCase()))
   const actionCountTools = new Set(config.action_count_tools.map((t) => t.toLowerCase()))
+  const isContinuationStopped = options.isContinuationStopped
+  const getContinuationRound = options.getContinuationRound
+  const reportContinuationIntent = options.reportContinuationIntent
 
   const ensureActiveWorkState = (planId: string, sessionID: string): boolean => {
     const planPath = getExecutionPlanPath(ctx.directory, planId, config)
@@ -456,9 +466,11 @@ Counter auto-resets when you modify findings.md.
     const sessionID = props?.sessionID as string | undefined
     if (!sessionID) return
 
+    if (isContinuationStopped?.(sessionID)) return
+
     const lastPromptAt = stopVerificationLastPromptAt.get(sessionID) ?? 0
-    const now = Date.now()
-    if (now - lastPromptAt < STOP_VERIFICATION_COOLDOWN_MS) return
+    const attemptAt = Date.now()
+    if (attemptAt - lastPromptAt < STOP_VERIFICATION_COOLDOWN_MS) return
 
     if (options.todoContinuationEnabled) {
       try {
@@ -486,12 +498,41 @@ Counter auto-resets when you modify findings.md.
       .map((todo) => `- ${todo}`)
       .join("\n")}\n\n**Options**:\n1. Complete remaining TODOs\n2. Mark blocked TODOs in \`plan.md\` and record blocker in \`ledger.yaml\`\n3. Use \`/stop --force\` to override`
 
-    stopVerificationLastPromptAt.set(sessionID, now)
-    await ctx.client.session.prompt({
-      path: { id: sessionID },
-      body: { parts: [{ type: "text", text: reason }] },
-      query: { directory: ctx.directory },
-    }).catch(() => {})
+    try {
+      await reportContinuationIntent({
+        sessionID,
+        round: getContinuationRound?.(sessionID),
+        source: "planning-with-files",
+        reason: `stop_verification:${incompleteTodos.length}`,
+        prompt: { text: reason },
+        onResult: (result) => {
+          if (result.status === "accepted") {
+            stopVerificationLastPromptAt.set(sessionID, attemptAt)
+            return
+          }
+
+          if (
+            result.rejectReason === "lower_priority" ||
+            result.rejectReason === "round_already_written"
+          ) {
+            stopVerificationLastPromptAt.set(sessionID, attemptAt)
+            return
+          }
+
+          if (result.rejectReason) {
+            log(`[${HOOK_NAME}] stop verification continuation rejected`, {
+              sessionID,
+              reason: result.rejectReason,
+            })
+          }
+        },
+      })
+    } catch (err) {
+      log(`[${HOOK_NAME}] stop verification continuation failed to report intent`, {
+        sessionID,
+        error: String(err),
+      })
+    }
   }
 
   return {

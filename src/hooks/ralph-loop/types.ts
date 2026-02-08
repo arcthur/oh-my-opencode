@@ -1,4 +1,5 @@
 import type { RalphLoopConfig } from "../../config"
+import type { ContinuationIntent } from "../continuation-control"
 
 export interface RalphLoopState {
   active: boolean
@@ -16,4 +17,7 @@ export interface RalphLoopOptions {
   getTranscriptPath?: (sessionId: string) => string
   apiTimeout?: number
   checkSessionExists?: (sessionId: string) => Promise<boolean>
+  isContinuationStopped?: (sessionID: string) => boolean
+  getContinuationRound?: (sessionID: string) => number | undefined
+  reportContinuationIntent: (intent: ContinuationIntent) => Promise<void>
 }

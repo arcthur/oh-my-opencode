@@ -6,7 +6,11 @@ import {
   markSubagentSession,
   setMainSession,
 } from "../features/claude-code-session-state"
-import { createTodoAutoContinuationHook } from "./todo-auto-continuation"
+import { createDirectContinuationReporterForTesting } from "./continuation-control"
+import {
+  createTodoAutoContinuationHook as createTodoAutoContinuationHookBase,
+  type TodoAutoContinuationHookOptions,
+} from "./todo-auto-continuation"
 
 type TimerCallback = (...args: any[]) => void
 
@@ -138,6 +142,13 @@ describe("todo-auto-continuation", () => {
 
   let mockMessages: MockMessage[] = []
 
+  type TestTodoAutoContinuationHookOptions = Omit<
+    TodoAutoContinuationHookOptions,
+    "reportContinuationIntent"
+  > & {
+    reportContinuationIntent?: TodoAutoContinuationHookOptions["reportContinuationIntent"]
+  }
+
   function createMockPluginInput() {
     return {
       client: {
@@ -169,6 +180,17 @@ describe("todo-auto-continuation", () => {
       },
       directory: "/tmp/test",
     } as any
+  }
+
+  function createTodoAutoContinuationHook(
+    input: ReturnType<typeof createMockPluginInput>,
+    options: TestTodoAutoContinuationHookOptions = {}
+  ) {
+    return createTodoAutoContinuationHookBase(input, {
+      ...options,
+      reportContinuationIntent:
+        options.reportContinuationIntent ?? createDirectContinuationReporterForTesting(input),
+    })
   }
 
   function createMockBackgroundManager(runningTasks: boolean = false): BackgroundManager {
@@ -1239,6 +1261,40 @@ describe("todo-auto-continuation", () => {
     // then - continuation injected (stopped flag is false)
     expect(promptCalls.length).toBe(1)
   }, { timeout: 15000 })
+
+  test("should report continuation intent instead of prompting when reporter is configured", async () => {
+    // given - single-writer continuation reporter is enabled
+    const sessionID = "main-reporter"
+    setMainSession(sessionID)
+    const intents: Array<{ sessionID: string; source: string; round?: number; text: string }> = []
+
+    const hook = createTodoAutoContinuationHook(createMockPluginInput(), {
+      getContinuationRound: () => 7,
+      reportContinuationIntent: async (intent) => {
+        intents.push({
+          sessionID: intent.sessionID,
+          source: intent.source,
+          round: intent.round,
+          text: intent.prompt.text,
+        })
+      },
+    })
+
+    // when - session goes idle and countdown elapses
+    await hook.handler({
+      event: { type: "session.idle", properties: { sessionID } },
+    })
+
+    await fakeTimers.advanceBy(3000)
+
+    // then - no direct prompt call, continuation intent is reported
+    expect(promptCalls).toHaveLength(0)
+    expect(intents).toHaveLength(1)
+    expect(intents[0].sessionID).toBe(sessionID)
+    expect(intents[0].source).toBe("todo-auto-continuation")
+    expect(intents[0].round).toBe(7)
+    expect(intents[0].text).toContain("TODO CONTINUATION")
+  })
 
   test("should cancel all countdowns via cancelAllCountdowns", async () => {
     // given - multiple sessions with running countdowns

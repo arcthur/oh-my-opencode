@@ -1,4 +1,15 @@
 export { createTodoAutoContinuationHook, type TodoAutoContinuationHook } from "./todo-auto-continuation";
+export {
+  createContinuationControl,
+  type ContinuationControlConfig,
+  type ContinuationControlPriority,
+  type ContinuationIntent,
+  type ContinuationIntentOutcome,
+  type ContinuationPromptModel,
+  type ContinuationPromptPayload,
+  type ContinuationRejectReason,
+  type ContinuationSource,
+} from "./continuation-control";
 export { createContextWindowGovernorHook, getCompactionContextPrompt } from "./context-window-governor";
 export { createSessionNotification } from "./session-notification";
 export { createSessionStateRepairHook, type SessionStateRepairHook, type SessionStateRepairOptions } from "./session-state-repair";

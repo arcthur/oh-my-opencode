@@ -704,6 +704,58 @@ describe("SessionReferenceConfigSchema", () => {
   })
 })
 
+describe("continuation_control schema", () => {
+  test("applies defaults for continuation control", () => {
+    // given
+    const config = {
+      continuation_control: {},
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.continuation_control).toEqual({
+        post_compaction_grace_ms: 1500,
+        priority: {
+          "execution-orchestrator": 400,
+          "ralph-loop": 300,
+          "todo-auto-continuation": 200,
+          "planning-with-files": 100,
+        },
+      })
+    }
+  })
+
+  test("accepts partial priority overrides", () => {
+    // given
+    const config = {
+      continuation_control: {
+        priority: {
+          "execution-orchestrator": 500,
+          "ralph-loop": 250,
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.continuation_control?.priority).toEqual({
+        "execution-orchestrator": 500,
+        "ralph-loop": 250,
+        "todo-auto-continuation": 200,
+        "planning-with-files": 100,
+      })
+    }
+  })
+})
+
 describe("latest-only removed config keys", () => {
   test("rejects sisyphus.tasks.claude_code_compat", () => {
     // given

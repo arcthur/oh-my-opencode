@@ -445,6 +445,33 @@ export const PlanningWithFilesConfigSchema = z.object({
   auto_from_multi_plan: z.boolean().default(true),
 })
 
+/** Continuation control configuration - single-writer arbitration for idle continuation prompts */
+export const ContinuationControlPrioritySchema = z.object({
+  /** Highest priority: execution orchestrator continuation */
+  "execution-orchestrator": z.number().min(0).max(1000).default(400),
+  /** Ralph loop continuation */
+  "ralph-loop": z.number().min(0).max(1000).default(300),
+  /** Todo continuation */
+  "todo-auto-continuation": z.number().min(0).max(1000).default(200),
+  /** Planning stop-verification continuation */
+  "planning-with-files": z.number().min(0).max(1000).default(100),
+})
+
+export const ContinuationControlConfigSchema = z.object({
+  /** Grace period after session compaction before allowing continuation (default: 1500ms) */
+  post_compaction_grace_ms: z.number().min(0).max(60_000).default(1500),
+  /** Per-source priority for single-writer arbitration */
+  priority: ContinuationControlPrioritySchema.default({
+    "execution-orchestrator": 400,
+    "ralph-loop": 300,
+    "todo-auto-continuation": 200,
+    "planning-with-files": 100,
+  }),
+})
+
+/** Default continuation-control configuration */
+export const DEFAULT_CONTINUATION_CONTROL_CONFIG = ContinuationControlConfigSchema.parse({})
+
 /** Silent Tool Output Configuration - reduces context by optimizing tool outputs */
 export const SilentToolOutputConfigSchema = z.object({
   /** Enable silent write output - returns metadata only (default: true) */
@@ -947,6 +974,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   ralph_loop: RalphLoopConfigSchema.optional(),
   background_task: BackgroundTaskConfigSchema.optional(),
   parallel_runtime: ParallelRuntimeConfigSchema.optional(),
+  continuation_control: ContinuationControlConfigSchema.optional(),
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
   planning_with_files: PlanningWithFilesConfigSchema.optional(),
@@ -974,6 +1002,8 @@ export type AgentOverrides = z.infer<typeof AgentOverridesSchema>
 export type BackgroundTaskConfig = z.infer<typeof BackgroundTaskConfigSchema>
 export type ParallelRuntimeMode = z.infer<typeof ParallelRuntimeModeSchema>
 export type ParallelRuntimeConfig = z.infer<typeof ParallelRuntimeConfigSchema>
+export type ContinuationControlPriority = z.infer<typeof ContinuationControlPrioritySchema>
+export type ContinuationControlConfig = z.infer<typeof ContinuationControlConfigSchema>
 export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>
 export type TmuxParallelAgentsConfig = z.infer<typeof TmuxParallelAgentsConfigSchema>
 export type AgentName = z.infer<typeof AgentNameSchema>

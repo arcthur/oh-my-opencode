@@ -7,7 +7,11 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { ContextCollector, createContextInjectorMessagesTransformHook } from "../../features/context-injector"
 import { initializePlan } from "../../features/planning-with-files/manager"
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
-import { createPlanningWithFilesHook } from "./index"
+import { createDirectContinuationReporterForTesting } from "../continuation-control"
+import {
+  createPlanningWithFilesHook as createPlanningWithFilesHookBase,
+  type PlanningWithFilesHookOptions,
+} from "./index"
 
 function createTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "planning-with-files-hook-"))
@@ -42,6 +46,24 @@ function createMockPluginInput(
       },
     },
   } as any
+}
+
+type TestPlanningWithFilesHookOptions = Omit<
+  PlanningWithFilesHookOptions,
+  "reportContinuationIntent"
+> & {
+  reportContinuationIntent?: PlanningWithFilesHookOptions["reportContinuationIntent"]
+}
+
+function createPlanningWithFilesHook(
+  input: PluginInput,
+  options: TestPlanningWithFilesHookOptions
+) {
+  return createPlanningWithFilesHookBase(input, {
+    ...options,
+    reportContinuationIntent:
+      options.reportContinuationIntent ?? createDirectContinuationReporterForTesting(input),
+  })
 }
 
 describe("planning-with-files (plugin-native hook)", () => {
@@ -253,6 +275,60 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(promptCalls[0].text).toContain("/stop --force")
   })
 
+  test("stop verification reports continuation intent when reporter is configured", async () => {
+    // given
+    await initializePlan(tmpDir, "stop-plan-reporter", "Goal")
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const intents: Array<{ sessionID: string; source: string; round?: number; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, stop_verification: true },
+      collector,
+      getContinuationRound: () => 11,
+      reportContinuationIntent: async (intent) => {
+        intents.push({
+          sessionID: intent.sessionID,
+          source: intent.source,
+          round: intent.round,
+          text: intent.prompt.text,
+        })
+      },
+    })
+
+    // when
+    await hook.event?.({
+      event: { type: "session.idle", properties: { sessionID: "session-stop-reporter" } },
+    })
+
+    // then
+    expect(promptCalls).toHaveLength(0)
+    expect(intents).toHaveLength(1)
+    expect(intents[0].sessionID).toBe("session-stop-reporter")
+    expect(intents[0].source).toBe("planning-with-files")
+    expect(intents[0].round).toBe(11)
+    expect(intents[0].text).toContain("Incomplete TODOs")
+  })
+
+  test("stop verification respects continuation stop guard", async () => {
+    // given
+    await initializePlan(tmpDir, "stop-plan-guard", "Goal")
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, stop_verification: true },
+      collector,
+      isContinuationStopped: (id) => id === "session-stop-guard",
+    })
+
+    // when
+    await hook.event?.({
+      event: { type: "session.idle", properties: { sessionID: "session-stop-guard" } },
+    })
+
+    // then
+    expect(promptCalls).toHaveLength(0)
+  })
+
   test("stop verification is throttled per session", async () => {
     // given
     await initializePlan(tmpDir, "stop-plan", "Goal")
@@ -273,6 +349,70 @@ describe("planning-with-files (plugin-native hook)", () => {
 
     // then
     expect(promptCalls).toHaveLength(1)
+  })
+
+  test("stop verification does not throttle when rejected due to post-compaction grace", async () => {
+    // given
+    await initializePlan(tmpDir, "stop-plan-grace", "Goal")
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const reported: Array<{ sessionID: string }> = []
+
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, stop_verification: true },
+      collector,
+      reportContinuationIntent: async (intent) => {
+        reported.push({ sessionID: intent.sessionID })
+        await intent.onResult?.({
+          status: "rejected",
+          rejectReason: "post_compaction_grace",
+        })
+      },
+    })
+
+    // when
+    await hook.event?.({
+      event: { type: "session.idle", properties: { sessionID: "session-stop-grace" } },
+    })
+    await hook.event?.({
+      event: { type: "session.idle", properties: { sessionID: "session-stop-grace" } },
+    })
+
+    // then
+    expect(promptCalls).toHaveLength(0)
+    expect(reported).toHaveLength(2)
+  })
+
+  test("stop verification throttles when rejected due to lower priority", async () => {
+    // given
+    await initializePlan(tmpDir, "stop-plan-priority", "Goal")
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const reported: Array<{ sessionID: string }> = []
+
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, stop_verification: true },
+      collector,
+      reportContinuationIntent: async (intent) => {
+        reported.push({ sessionID: intent.sessionID })
+        await intent.onResult?.({
+          status: "rejected",
+          rejectReason: "lower_priority",
+        })
+      },
+    })
+
+    // when
+    await hook.event?.({
+      event: { type: "session.idle", properties: { sessionID: "session-stop-priority" } },
+    })
+    await hook.event?.({
+      event: { type: "session.idle", properties: { sessionID: "session-stop-priority" } },
+    })
+
+    // then
+    expect(promptCalls).toHaveLength(0)
+    expect(reported).toHaveLength(1)
   })
 
   test("stop verification defers when incomplete todos exist and todo continuation is enabled", async () => {

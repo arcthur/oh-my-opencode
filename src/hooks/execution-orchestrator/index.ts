@@ -7,6 +7,7 @@ import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
 import { getMessageDir, isCallerSisyphus } from "../../shared/session-utils"
 import type { BackgroundManager } from "../../features/background-agent"
+import type { ContinuationIntent } from "../continuation-control"
 
 export const HOOK_NAME = "execution-orchestrator"
 
@@ -482,6 +483,9 @@ export interface ExecutionOrchestratorHookOptions {
   threeStrikeProtocol?: boolean
   /** Tools that count as research actions for 2-action rule */
   researchTools?: string[]
+  isContinuationStopped?: (sessionID: string) => boolean
+  getContinuationRound?: (sessionID: string) => number | undefined
+  reportContinuationIntent: (intent: ContinuationIntent) => Promise<void>
 }
 
 function isAbortError(error: unknown): boolean {
@@ -509,12 +513,15 @@ const DEFAULT_RESEARCH_TOOLS = ["Read", "Glob", "Grep", "WebFetch", "WebSearch",
 
 export function createExecutionOrchestratorHook(
   ctx: PluginInput,
-  options?: ExecutionOrchestratorHookOptions
+  options: ExecutionOrchestratorHookOptions
 ) {
-  const backgroundManager = options?.backgroundManager
-  const twoActionRule = options?.twoActionRule ?? false
-  const threeStrikeProtocol = options?.threeStrikeProtocol ?? false
-  const researchTools = new Set((options?.researchTools ?? DEFAULT_RESEARCH_TOOLS).map(t => t.toLowerCase()))
+  const backgroundManager = options.backgroundManager
+  const twoActionRule = options.twoActionRule ?? false
+  const threeStrikeProtocol = options.threeStrikeProtocol ?? false
+  const researchTools = new Set((options.researchTools ?? DEFAULT_RESEARCH_TOOLS).map(t => t.toLowerCase()))
+  const isContinuationStopped = options.isContinuationStopped
+  const getContinuationRound = options.getContinuationRound
+  const reportContinuationIntent = options.reportContinuationIntent
 
   const workStateManager = createWorkStateManager(ctx.directory)
   const sessions = new Map<string, SessionState>()
@@ -548,7 +555,8 @@ export function createExecutionOrchestratorHook(
     planId: string,
     planPath: string,
     remaining: number,
-    total: number
+    total: number,
+    round?: number
   ): Promise<void> {
     const state = getState(sessionID)
     const hasRunningBgTasks = backgroundManager
@@ -568,7 +576,9 @@ export function createExecutionOrchestratorHook(
     try {
       log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planId, remaining })
 
+      const attemptAt = Date.now()
       let model: { providerID: string; modelID: string } | undefined
+      let variant: string | undefined
       try {
         const messagesResp = await ctx.client.session.messages({ path: { id: sessionID } })
         const messages = (messagesResp.data ?? []) as Array<{
@@ -592,20 +602,50 @@ export function createExecutionOrchestratorHook(
         model = currentMessage?.model?.providerID && currentMessage?.model?.modelID
           ? { providerID: currentMessage.model.providerID, modelID: currentMessage.model.modelID }
           : undefined
+        variant = currentMessage?.model?.variant
       }
 
-      await ctx.client.session.prompt({
-         path: { id: sessionID },
-         body: {
-           agent: "sisyphus",
-           ...(model !== undefined ? { model } : {}),
-           parts: [{ type: "text", text: prompt }],
-         },
-         query: { directory: ctx.directory },
-      })
+      await reportContinuationIntent({
+        sessionID,
+        round,
+        source: "execution-orchestrator",
+        reason: `work_remaining:${remaining}/${total}`,
+        prompt: {
+          agent: "sisyphus",
+          ...(model !== undefined ? { model } : {}),
+          ...(variant !== undefined ? { variant } : {}),
+          text: prompt,
+        },
+        onResult: (result) => {
+          if (result.status === "accepted") {
+            state.lastContinuationInjectedAt = attemptAt
+          } else if (
+            result.rejectReason === "lower_priority" ||
+            result.rejectReason === "round_already_written"
+          ) {
+            state.lastContinuationInjectedAt = attemptAt
+          }
 
-      state.promptFailureCount = 0
-      log(`[${HOOK_NAME}] Work continuation injected`, { sessionID })
+          if (result.status !== "accepted") {
+            log(`[${HOOK_NAME}] Continuation intent rejected`, {
+              sessionID,
+              rejectReason: result.rejectReason,
+            })
+            return
+          }
+          if (result.error) {
+            state.promptFailureCount += 1
+            log(`[${HOOK_NAME}] Work continuation failed`, {
+              sessionID,
+              error: String(result.error),
+              promptFailureCount: state.promptFailureCount,
+            })
+            return
+          }
+          state.promptFailureCount = 0
+          log(`[${HOOK_NAME}] Work continuation injected`, { sessionID })
+        },
+      })
     } catch (err) {
       state.promptFailureCount += 1
       log(`[${HOOK_NAME}] Work continuation failed`, {
@@ -668,6 +708,11 @@ export function createExecutionOrchestratorHook(
           return
         }
 
+        if (isContinuationStopped?.(sessionID)) {
+          log(`[${HOOK_NAME}] Skipped: continuation stopped for session`, { sessionID })
+          return
+        }
+
         const hasRunningBgTasks = backgroundManager
           ? backgroundManager.getTasksByParentSession(sessionID).some(t => t.status === "running")
           : false
@@ -700,9 +745,15 @@ export function createExecutionOrchestratorHook(
           return
         }
 
-        state.lastContinuationInjectedAt = now
         const remaining = progress.total - progress.completed
-        injectContinuation(sessionID, workState.plan_id, workState.execution_plan_path, remaining, progress.total)
+        await injectContinuation(
+          sessionID,
+          workState.plan_id,
+          workState.execution_plan_path,
+          remaining,
+          progress.total,
+          getContinuationRound?.(sessionID)
+        )
         return
       }
 

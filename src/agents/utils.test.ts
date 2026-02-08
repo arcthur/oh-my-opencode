@@ -267,6 +267,21 @@ describe("createBuiltinAgents without systemDefaultModel", () => {
 })
 
 describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => {
+  test("hephaestus is registered as subagent for delegate_task compatibility", async () => {
+    // #given
+    const availableModels = new Set(["openai/gpt-5.3-codex"])
+
+    // #when
+    const agents = await withModelStubs(
+      { connectedProviders: null, availableModels },
+      async () => createBuiltinAgents([], {}, undefined, TEST_DEFAULT_MODEL)
+    )
+
+    // #then
+    expect(agents.hephaestus).toBeDefined()
+    expect(agents.hephaestus.mode).toBe("subagent")
+  })
+
   test("hephaestus is not created when no required provider is connected", async () => {
     // #given - only anthropic is connected (not in hephaestus required providers)
     const availableModels = new Set(["anthropic/claude-opus-4-6"])

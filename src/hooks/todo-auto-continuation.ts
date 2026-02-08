@@ -8,6 +8,7 @@ import {
 import { log } from "../shared/logger"
 import { getMessageDir } from "../shared/session-utils"
 import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
+import type { ContinuationIntent } from "./continuation-control"
 
 const HOOK_NAME = "todo-auto-continuation"
 
@@ -17,6 +18,8 @@ export interface TodoAutoContinuationHookOptions {
   backgroundManager?: BackgroundManager
   skipAgents?: string[]
   isContinuationStopped?: (sessionID: string) => boolean
+  getContinuationRound?: (sessionID: string) => number | undefined
+  reportContinuationIntent: (intent: ContinuationIntent) => Promise<void>
 }
 
 export interface TodoAutoContinuationHook {
@@ -39,6 +42,7 @@ interface SessionState {
   isRecovering?: boolean
   countdownStartedAt?: number
   abortDetectedAt?: number
+  idleRound?: number
 }
 
 const CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.TODO_CONTINUATION)}
@@ -79,9 +83,15 @@ function isLastAssistantMessageAborted(messages: Array<{ info?: MessageInfo }>):
 
 export function createTodoAutoContinuationHook(
   ctx: PluginInput,
-  options: TodoAutoContinuationHookOptions = {}
+  options: TodoAutoContinuationHookOptions
 ): TodoAutoContinuationHook {
-  const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS, isContinuationStopped } = options
+  const {
+    backgroundManager,
+    skipAgents = DEFAULT_SKIP_AGENTS,
+    isContinuationStopped,
+    getContinuationRound,
+    reportContinuationIntent,
+  } = options
   const sessions = new Map<string, SessionState>()
 
   function getState(sessionID: string): SessionState {
@@ -141,7 +151,8 @@ export function createTodoAutoContinuationHook(
 
   interface ResolvedMessageInfo {
     agent?: string
-    model?: { providerID: string; modelID: string; variant?: string }
+    model?: { providerID: string; modelID: string }
+    variant?: string
     tools?: Record<string, ToolPermission>
   }
 
@@ -149,7 +160,8 @@ export function createTodoAutoContinuationHook(
     sessionID: string,
     incompleteCount: number,
     total: number,
-    resolvedInfo?: ResolvedMessageInfo
+    resolvedInfo?: ResolvedMessageInfo,
+    round?: number
   ): Promise<void> {
     const state = sessions.get(sessionID)
 
@@ -184,9 +196,10 @@ export function createTodoAutoContinuationHook(
 
     let agentName = resolvedInfo?.agent
     let model = resolvedInfo?.model
+    let variant = resolvedInfo?.variant
     let tools = resolvedInfo?.tools
 
-    if (!agentName || !model) {
+    if (!agentName || !model || !tools || variant === undefined) {
       const messageDir = getMessageDir(sessionID)
       const prevMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
       agentName = agentName ?? prevMessage?.agent
@@ -194,9 +207,9 @@ export function createTodoAutoContinuationHook(
         ? { 
             providerID: prevMessage.model.providerID, 
             modelID: prevMessage.model.modelID,
-            ...(prevMessage.model.variant ? { variant: prevMessage.model.variant } : {})
           }
         : undefined)
+      variant = variant ?? prevMessage?.model?.variant
       tools = tools ?? prevMessage?.tools
     }
 
@@ -229,17 +242,39 @@ ${todoList}`
     try {
       log(`[${HOOK_NAME}] Injecting continuation`, { sessionID, agent: agentName, model, incompleteCount: freshIncompleteCount })
 
-      await ctx.client.session.prompt({
-        path: { id: sessionID },
-        body: {
-          agent: agentName,
+      await reportContinuationIntent({
+        sessionID,
+        round,
+        source: "todo-auto-continuation",
+        reason: `incomplete_todos:${freshIncompleteCount}/${todos.length}`,
+        prompt: {
+          ...(agentName !== undefined ? { agent: agentName } : {}),
           ...(model !== undefined ? { model } : {}),
-          parts: [{ type: "text", text: prompt }],
+          ...(variant !== undefined ? { variant } : {}),
+          text: prompt,
         },
-        query: { directory: ctx.directory },
+        onResult: (result) => {
+          if (result.status !== "accepted") {
+            log(`[${HOOK_NAME}] Continuation intent rejected`, {
+              sessionID,
+              rejectReason: result.rejectReason,
+            })
+            return
+          }
+
+          if (result.error) {
+            log(`[${HOOK_NAME}] Continuation injection failed`, {
+              sessionID,
+              error: String(result.error),
+            })
+            return
+          }
+
+          log(`[${HOOK_NAME}] Continuation injected`, { sessionID })
+        },
       })
 
-      log(`[${HOOK_NAME}] Injection successful`, { sessionID })
+      log(`[${HOOK_NAME}] Continuation intent reported`, { sessionID })
     } catch (err) {
       log(`[${HOOK_NAME}] Injection failed`, { sessionID, error: String(err) })
     }
@@ -249,7 +284,8 @@ ${todoList}`
     sessionID: string,
     incompleteCount: number,
     total: number,
-    resolvedInfo?: ResolvedMessageInfo
+    resolvedInfo?: ResolvedMessageInfo,
+    round?: number
   ): void {
     const state = getState(sessionID)
     cancelCountdown(sessionID)
@@ -267,7 +303,7 @@ ${todoList}`
 
     state.countdownTimer = setTimeout(() => {
       cancelCountdown(sessionID)
-      injectContinuation(sessionID, incompleteCount, total, resolvedInfo)
+      injectContinuation(sessionID, incompleteCount, total, resolvedInfo, round)
     }, COUNTDOWN_SECONDS * 1000)
 
     log(`[${HOOK_NAME}] Countdown started`, { sessionID, seconds: COUNTDOWN_SECONDS, incompleteCount })
@@ -308,6 +344,7 @@ ${todoList}`
       }
 
       const state = getState(sessionID)
+      state.idleRound = getContinuationRound?.(sessionID)
 
       if (state.isRecovering) {
         log(`[${HOOK_NAME}] Skipped: in recovery`, { sessionID })
@@ -420,7 +457,7 @@ ${todoList}`
         return
       }
 
-      startCountdown(sessionID, incompleteCount, todos.length, resolvedInfo)
+      startCountdown(sessionID, incompleteCount, todos.length, resolvedInfo, state.idleRound)
       return
     }
 

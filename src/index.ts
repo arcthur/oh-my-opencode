@@ -50,6 +50,8 @@ import {
   createSessionHandoffHook,
   createSwarmAgentHook,
   createAnthropicEffortHook,
+  createContinuationControl,
+  type ContinuationIntent,
 } from "./hooks";
 import {
   EVENT_TOTAL_ORDER,
@@ -119,7 +121,10 @@ import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
-import { DEFAULT_SESSION_REFERENCE_CONFIG } from "./config/schema"
+import {
+  DEFAULT_CONTINUATION_CONTROL_CONFIG,
+  DEFAULT_SESSION_REFERENCE_CONFIG,
+} from "./config/schema"
 import {
   executePreToolGovernance,
   executePostToolGovernance,
@@ -139,8 +144,25 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const firstMessageVariantGate = createFirstMessageVariantGate();
   const isHookEnabled = (hookName: HookName) =>
     isRuntimeHookEnabled(disabledHooks, hookName);
+  const continuationControlConfig = deepMerge(
+    DEFAULT_CONTINUATION_CONTROL_CONFIG,
+    pluginConfig.continuation_control ?? {}
+  ) as typeof DEFAULT_CONTINUATION_CONTROL_CONFIG;
 
   const modelCacheState = createModelCacheState();
+  let continuationStopGuard: ReturnType<typeof createContinuationStopGuardHook> | null = null;
+
+  const isContinuationStopped = (sessionID: string): boolean =>
+    continuationStopGuard?.isStopped(sessionID) ?? false;
+  const continuationControl = createContinuationControl(ctx, {
+    config: continuationControlConfig,
+    isContinuationStopped,
+  })
+  const getContinuationRound = (sessionID: string): number | undefined =>
+    continuationControl.getCurrentRound(sessionID)
+  const reportContinuationIntent = async (intent: ContinuationIntent): Promise<void> => {
+    await continuationControl.reportIntent(intent)
+  }
 
   const contextWindowGovernor = isHookEnabled("context-window-governor")
     ? createContextWindowGovernorHook(ctx, {
@@ -342,6 +364,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createRalphLoopHook(ctx, {
         config: pluginConfig.ralph_loop,
         checkSessionExists: async (sessionId) => sessionExists(sessionId),
+        isContinuationStopped,
+        getContinuationRound,
+        reportContinuationIntent,
       })
     : null;
 
@@ -374,12 +399,18 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   });
 
   const executionOrchestratorHook = isHookEnabled("execution-orchestrator")
-    ? createExecutionOrchestratorHook(ctx, { directory: ctx.directory, backgroundManager })
+    ? createExecutionOrchestratorHook(ctx, {
+        directory: ctx.directory,
+        backgroundManager,
+        isContinuationStopped,
+        getContinuationRound,
+        reportContinuationIntent,
+      })
     : null;
 
   initTaskToastManager(ctx.client);
 
-  const continuationStopGuard = isHookEnabled("continuation-stop-guard")
+  continuationStopGuard = isHookEnabled("continuation-stop-guard")
     ? createContinuationStopGuardHook(ctx)
     : null;
 
@@ -410,6 +441,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         config: pluginConfig.planning_with_files,
         collector: contextCollector,
         todoContinuationEnabled: todoAutoContinuationEnabled,
+        isContinuationStopped,
+        getContinuationRound,
+        reportContinuationIntent,
       })
     : null;
 
@@ -420,7 +454,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const todoAutoContinuation = todoAutoContinuationEnabled
     ? createTodoAutoContinuationHook(ctx, {
         backgroundManager,
-        isContinuationStopped: continuationStopGuard?.isStopped,
+        isContinuationStopped,
+        getContinuationRound,
+        reportContinuationIntent,
       })
     : null;
 
@@ -1067,6 +1103,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     config: configHandler,
 
     event: async (input) => {
+      continuationControl?.beginEvent(input as { event: { type: string; properties?: unknown } });
       const nodes: RuntimeExecutionNode[] = [];
 
       if (continuationStopGuard?.event) {
@@ -1371,7 +1408,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         });
       }
 
-      await executeRuntimePipeline("event", nodes);
+      try {
+        await executeRuntimePipeline("event", nodes);
+      } finally {
+        await continuationControl?.flushEvent(
+          input as { event: { type: string; properties?: unknown } }
+        );
+      }
     },
 
     "tool.execute.before": async (input, output) => {

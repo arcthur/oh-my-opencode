@@ -3,7 +3,11 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { isAbsolute, join } from "node:path"
 import * as yaml from "js-yaml"
-import { createExecutionOrchestratorHook } from "./index"
+import { createDirectContinuationReporterForTesting } from "../continuation-control"
+import {
+  createExecutionOrchestratorHook as createExecutionOrchestratorHookBase,
+  type ExecutionOrchestratorHookOptions,
+} from "./index"
 import type { WorkState } from "../../features/work-state"
 import { _resetForTesting, setMainSession } from "../../features/claude-code-session-state"
 import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
@@ -65,6 +69,14 @@ describe("execution-orchestrator hook", () => {
   const TEST_DIR = join(tmpdir(), "execution-orchestrator-test")
   const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-execution-orchestrator-test")
 
+  type TestExecutionOrchestratorHookOptions = Omit<
+    ExecutionOrchestratorHookOptions,
+    "directory" | "reportContinuationIntent"
+  > & {
+    directory?: string
+    reportContinuationIntent?: ExecutionOrchestratorHookOptions["reportContinuationIntent"]
+  }
+
   function createMockPluginInput(overrides?: { promptMock?: ReturnType<typeof mock> }) {
     const promptMock = overrides?.promptMock ?? mock(() => Promise.resolve())
     return {
@@ -79,6 +91,18 @@ describe("execution-orchestrator hook", () => {
     } as unknown as Parameters<typeof createExecutionOrchestratorHook>[0] & {
       _promptMock: ReturnType<typeof mock>
     }
+  }
+
+  function createExecutionOrchestratorHook(
+    input: ReturnType<typeof createMockPluginInput>,
+    options: TestExecutionOrchestratorHookOptions = {}
+  ) {
+    return createExecutionOrchestratorHookBase(input, {
+      ...options,
+      directory: options.directory ?? input.directory,
+      reportContinuationIntent:
+        options.reportContinuationIntent ?? createDirectContinuationReporterForTesting(input),
+    })
   }
 
   async function flushMicrotasks(): Promise<void> {
@@ -155,6 +179,166 @@ describe("execution-orchestrator hook", () => {
     const args = mockInput._promptMock.mock.calls[0][0]
     expect(args.body.agent).toBe("sisyphus")
     expect(args.body.parts[0].text).toContain("WORK CONTINUATION")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("reports continuation intent when reporter is configured", async () => {
+    // #given
+    const sessionID = "main-session-reporter"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "sisyphus")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const intents: Array<{ sessionID: string; source: string; round?: number; text: string }> = []
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput, {
+      getContinuationRound: () => 13,
+      reportContinuationIntent: async (intent) => {
+        intents.push({
+          sessionID: intent.sessionID,
+          source: intent.source,
+          round: intent.round,
+          text: intent.prompt.text,
+        })
+      },
+    })
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
+    expect(intents).toHaveLength(1)
+    expect(intents[0].sessionID).toBe(sessionID)
+    expect(intents[0].source).toBe("execution-orchestrator")
+    expect(intents[0].round).toBe(13)
+    expect(intents[0].text).toContain("WORK CONTINUATION")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("waits for continuation reporter completion in idle handling", async () => {
+    // #given
+    const sessionID = "main-session-reporter-await"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "sisyphus")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const mockInput = createMockPluginInput()
+    let reporterFinished = false
+    const hook = createExecutionOrchestratorHook(mockInput, {
+      reportContinuationIntent: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        reporterFinished = true
+      },
+    })
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+
+    // #then
+    expect(reporterFinished).toBe(true)
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("does not apply cooldown when continuation intent is rejected due to post-compaction grace", async () => {
+    // #given
+    const sessionID = "main-session-reject-grace"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "sisyphus")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const reported: Array<{ sessionID: string; round?: number }> = []
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput, {
+      reportContinuationIntent: async (intent) => {
+        reported.push({ sessionID: intent.sessionID, round: intent.round })
+        await intent.onResult?.({
+          status: "rejected",
+          rejectReason: "post_compaction_grace",
+        })
+      },
+    })
+
+    const originalNow = Date.now
+    Date.now = () => 1000
+
+    try {
+      // #when - idle fires twice within cooldown window
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+      await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+      await flushMicrotasks()
+
+      // #then
+      expect(reported).toHaveLength(2)
+    } finally {
+      Date.now = originalNow
+      cleanupMessageStorage(sessionID)
+    }
+  })
+
+  test("does not continue when stop guard is active", async () => {
+    // #given
+    const sessionID = "main-session-stop-guard"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "sisyphus")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput, {
+      isContinuationStopped: (id) => id === sessionID,
+    })
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
 
     cleanupMessageStorage(sessionID)
   })

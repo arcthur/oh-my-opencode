@@ -1974,6 +1974,52 @@
         }
       }
     },
+    "continuation_control": {
+      "type": "object",
+      "properties": {
+        "post_compaction_grace_ms": {
+          "default": 1500,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 60000
+        },
+        "priority": {
+          "default": {
+            "execution-orchestrator": 400,
+            "ralph-loop": 300,
+            "todo-auto-continuation": 200,
+            "planning-with-files": 100
+          },
+          "type": "object",
+          "properties": {
+            "execution-orchestrator": {
+              "default": 400,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "ralph-loop": {
+              "default": 300,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "todo-auto-continuation": {
+              "default": 200,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "planning-with-files": {
+              "default": 100,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          }
+        }
+      }
+    },
     "notification": {
       "type": "object",
       "properties": {

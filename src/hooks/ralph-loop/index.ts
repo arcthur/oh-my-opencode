@@ -71,14 +71,17 @@ const DEFAULT_API_TIMEOUT = 3000
 
 export function createRalphLoopHook(
   ctx: PluginInput,
-  options?: RalphLoopOptions
+  options: RalphLoopOptions
 ): RalphLoopHook {
   const sessions = new Map<string, SessionState>()
-  const config = options?.config
+  const config = options.config
   const stateDir = config?.state_dir
-  const getTranscriptPath = options?.getTranscriptPath ?? getDefaultTranscriptPath
-  const apiTimeout = options?.apiTimeout ?? DEFAULT_API_TIMEOUT
-  const checkSessionExists = options?.checkSessionExists
+  const getTranscriptPath = options.getTranscriptPath ?? getDefaultTranscriptPath
+  const apiTimeout = options.apiTimeout ?? DEFAULT_API_TIMEOUT
+  const checkSessionExists = options.checkSessionExists
+  const isContinuationStopped = options.isContinuationStopped
+  const getContinuationRound = options.getContinuationRound
+  const reportContinuationIntent = options.reportContinuationIntent
 
   function getSessionState(sessionID: string): SessionState {
     let state = sessions.get(sessionID)
@@ -225,6 +228,11 @@ export function createRalphLoopHook(
         return
       }
 
+      if (isContinuationStopped?.(sessionID)) {
+        log(`[${HOOK_NAME}] Skipped: continuation stopped for session`, { sessionID })
+        return
+      }
+
       if (state.session_id && state.session_id !== sessionID) {
         if (checkSessionExists) {
           try {
@@ -341,6 +349,7 @@ export function createRalphLoopHook(
       try {
         let agent: string | undefined
         let model: { providerID: string; modelID: string } | undefined
+        let variant: string | undefined
 
         try {
           const messagesResp = await ctx.client.session.messages({ path: { id: sessionID } })
@@ -362,16 +371,36 @@ export function createRalphLoopHook(
           model = currentMessage?.model?.providerID && currentMessage?.model?.modelID
             ? { providerID: currentMessage.model.providerID, modelID: currentMessage.model.modelID }
             : undefined
+          variant = currentMessage?.model?.variant
         }
 
-        await ctx.client.session.prompt({
-          path: { id: sessionID },
-          body: {
+        await reportContinuationIntent({
+          sessionID,
+          round: getContinuationRound?.(sessionID),
+          source: "ralph-loop",
+          reason: `iteration:${newState.iteration}/${newState.max_iterations}`,
+          prompt: {
             ...(agent !== undefined ? { agent } : {}),
             ...(model !== undefined ? { model } : {}),
-            parts: [{ type: "text", text: finalPrompt }],
+            ...(variant !== undefined ? { variant } : {}),
+            text: finalPrompt,
           },
-          query: { directory: ctx.directory },
+          onResult: (result) => {
+            if (result.status !== "accepted") {
+              log(`[${HOOK_NAME}] Continuation intent rejected`, {
+                sessionID,
+                rejectReason: result.rejectReason,
+              })
+              return
+            }
+
+            if (result.error) {
+              log(`[${HOOK_NAME}] Continuation injection failed`, {
+                sessionID,
+                error: String(result.error),
+              })
+            }
+          },
         })
       } catch (err) {
         log(`[${HOOK_NAME}] Failed to inject continuation`, {
