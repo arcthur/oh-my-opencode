@@ -41,7 +41,7 @@ describe("filterDisabledTools", () => {
   test("matches tool names exactly", () => {
     //#given
     const tools: Record<string, ToolDefinition> = {
-      call_omo_agent: DUMMY_TOOL,
+      call_delegate_agent: DUMMY_TOOL,
       call: DUMMY_TOOL,
     }
 
@@ -49,6 +49,6 @@ describe("filterDisabledTools", () => {
     const filtered = filterDisabledTools(tools, ["call"])
 
     //#then
-    expect(Object.keys(filtered).sort()).toEqual(["call_omo_agent"])
+    expect(Object.keys(filtered).sort()).toEqual(["call_delegate_agent"])
   })
 })

@@ -192,7 +192,7 @@ bun run build:schema
 - `src/agents/prometheus/behavioral-summary.ts` + `src/agents/prometheus-prompt.test.ts`: Removed stale `boulder-state` wording and now explicitly references fork `work-state` (`.sisyphus/work.yaml`). Added a regression assertion to prevent future reintroduction.
 - `src/agents/prometheus/interview-mode.ts`: Ported upstream prompt improvements (TRIVIAL example, richer research prompts, expanded Agent-Executed QA guidance, simplified “Test Strategy Decision” wording) while keeping fork invariants (Phase 0 Brainstorming routing + ONE QUESTION AT A TIME discipline + schema-correct `delegate_task(...)` examples).
 
-### 2026-02-05 Addendum (delegate_task + call_omo_agent Review)
+### 2026-02-05 Addendum (delegate_task Dispatch Review)
 
 - `src/tools/delegate-task/categories.ts`: Minor upstream parity refactor: always uses `resolveModel(...)` for model resolution (no local normalization helper), preserving the priority chain (user override → category default → system default).
 - `src/tools/delegate-task/constants.ts`: Reviewed upstream’s expanded “plan agent prepend” (dependency graph + parallel execution waves + full skills evaluation) and intentionally kept the fork’s lighter protocol (explicit assumptions + minimal back-and-forth + schema-correct tool examples) to match fork multi-plan philosophy and avoid forced interview loops.
@@ -315,7 +315,7 @@ Audit metrics (fork vs local upstream clone, excluding `docs/`, `dist/`, `node_m
 
 ### 2026-02-05 Addendum (Final Low-Blast Review)
 
-- ✅ `src/agents/sisyphus-junior.test.ts`: Fork-expanded coverage retained (system default model + disable semantics); confirms `call_omo_agent` remains allowed while `task`/`delegate_task` are blocked.
+- ✅ `src/agents/sisyphus-junior.test.ts`: Fork-expanded coverage retained (system default model + disable semantics); confirms delegation permission boundaries remain intact while `task` stays blocked and delegation remains scoped.
 - ✅ `src/agents/utils.test.ts`: Rewrote to be deterministic (spy-based stubbing for model availability + connected provider cache), porting upstream coverage (gating, category expansion, deadlock prevention) while keeping fork-specific assertions (`uiSelectedModel` priority, skill injection, agent-browser gating).
 - ✅ `src/agents/AGENTS.md`: Updated to reflect the fork’s agent set and layout (no Metis/Momus; Prometheus is `src/agents/prometheus/*`; includes Sisyphus-Junior + Plan-Synthesizer) and to document model resolution + tool restrictions accurately.
 - ✅ `src/hooks/delegation-validate-decision/index.ts`: Hardened `session.messages()` payload handling (`{ data }` vs array) and added regression coverage.
