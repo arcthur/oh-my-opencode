@@ -56,12 +56,25 @@ import {
 import {
   EVENT_TOTAL_ORDER,
   HookRuntimeDispatcher,
+  buildChatMessageNodes,
+  buildUserPromptSubmitNodes,
+  buildToolExecuteBeforeNodes,
+  buildToolExecuteAfterNodes,
+  buildEventNodes,
+  buildExperimentalChatTransformNodes,
+  buildExperimentalSessionCompactingNodes,
   getRuntimeRegistryEntries,
   isClaudeCodeBridgeEnabled,
   isHookEnabled as isRuntimeHookEnabled,
   validateRuntimeRegistry,
   type HookEventType,
   type HookNodeId,
+  type RuntimeAssemblyContext,
+  type ToolExecuteBeforeOutput,
+  type ToolExecuteAfterOutput,
+  type ExperimentalChatTransformOutput,
+  type ExperimentalSessionCompactingInput,
+  type ExperimentalSessionCompactingOutput,
   type RuntimeExecutionNode,
 } from "./hooks/runtime";
 import { createHandoffSummarizer } from "./features/session-handoff";
@@ -111,7 +124,6 @@ import {
 import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
-import { createWorkStateManager } from "./features/work-state";
 import { createSwarmRuntimeService } from "./features/sisyphus-swarm/runtime";
 import { HookNameSchema, type HookName } from "./config";
 import {
@@ -140,9 +152,6 @@ import {
   DEFAULT_SESSION_REFERENCE_CONFIG,
 } from "./config/schema"
 import {
-  executePreToolGovernance,
-  executePostToolGovernance,
-  executeUserPromptGovernance,
   cleanupGovernanceSession,
   hasGovernanceSession,
 } from "./features/governance";
@@ -819,6 +828,82 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     await hookRuntimeDispatcher.dispatch(event, orderedNodes);
   };
 
+  const optional = <T,>(value: T | null | undefined): T | undefined => value ?? undefined;
+
+  const runtimeAssemblyContext = {
+    pluginConfig,
+    directory: ctx.directory,
+    client: ctx.client,
+    claudeCodeBridgeEnabled,
+    governanceEnabled,
+    governanceConfig,
+    governanceBlockPrefix: GOVERNANCE_BLOCK_PREFIX,
+    firstMessageVariantGate,
+    resolveAgentVariant,
+    applyAgentVariant,
+    contextCollector,
+    setMainSession,
+    getMainSessionID,
+    updateSessionAgent,
+    getSessionAgent,
+    sessionStateCoordinator,
+    resetMessageCursor,
+    swarmRuntime,
+    skillMcpManager,
+    lspManager,
+    continuationControl,
+    thinkMode: optional(thinkMode),
+    keywordDetector: optional(keywordDetector),
+    claudeCodeHooks: optional(claudeCodeHooks),
+    sessionHandoffHook: optional(sessionHandoffHook),
+    autoSlashCommand: optional(autoSlashCommand),
+    startWork: optional(startWork),
+    swarmFromPlan: optional(swarmFromPlan),
+    multiPlanTrigger: optional(multiPlanTrigger),
+    planningWithFiles: optional(planningWithFiles),
+    preCompletionVerification: optional(preCompletionVerification),
+    continuationStopGuard: optional(continuationStopGuard),
+    ralphLoop: optional(ralphLoop),
+    userMemory: optional(userMemory),
+    orgMemory: optional(orgMemory),
+    contextInjectorMessagesTransform: optional(contextInjectorMessagesTransform),
+    thinkingBlockValidator: optional(thinkingBlockValidator),
+    autoUpdateChecker: optional(autoUpdateChecker),
+    backgroundNotificationHook: optional(backgroundNotificationHook),
+    sessionNotification: optional(sessionNotification),
+    todoAutoContinuation: optional(todoAutoContinuation),
+    runtimeTracker: optional(runtimeTracker),
+    repoOverviewInjector: optional(repoOverviewInjector),
+    contextWindowGovernor: optional(contextWindowGovernor),
+    directoryAgentsInjector: optional(directoryAgentsInjector),
+    directoryReadmeInjector: optional(directoryReadmeInjector),
+    rulesInjector: optional(rulesInjector),
+    delegationNudgeAgentUsage: optional(delegationNudgeAgentUsage),
+    delegationNudgeCategorySkill: optional(delegationNudgeCategorySkill),
+    interactiveBashSession: optional(interactiveBashSession),
+    executionOrchestratorHook: optional(executionOrchestratorHook),
+    conditionalRulesHooks: optional(conditionalRulesHooks),
+    tmuxParallelAgents: optional(tmuxParallelAgents),
+    swarmAgent: optional(swarmAgent),
+    sessionStateRepair: optional(sessionStateRepair),
+    questionLabelTruncator: optional(questionLabelTruncator),
+    delegationBlockSubagentQuestion: optional(delegationBlockSubagentQuestion),
+    writeExistingFileGuard: optional(writeExistingFileGuard),
+    nonInteractiveEnv: optional(nonInteractiveEnv),
+    commentChecker: optional(commentChecker),
+    prometheusMdOnly: optional(prometheusMdOnly),
+    delegationValidateDecision: optional(delegationValidateDecision),
+    sisyphusJuniorNotepad: optional(sisyphusJuniorNotepad),
+    contextManifestInjector: optional(contextManifestInjector),
+    silentToolOutput: optional(silentToolOutput),
+    antiSlopEnforcer: optional(antiSlopEnforcer),
+    toolOutputTruncator: optional(toolOutputTruncator),
+    emptyTaskResponseDetector: optional(emptyTaskResponseDetector),
+    editFailureGuidance: optional(editFailureGuidance),
+    delegationFailureGuidance: optional(delegationFailureGuidance),
+    taskResumeInfo: optional(taskResumeInfo),
+  } as RuntimeAssemblyContext;
+
   const allTools = {
     ...builtinTools,
     ...backgroundTools,
@@ -867,318 +952,21 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
 
     "chat.message": async (input, output) => {
-      const nodes: RuntimeExecutionNode[] = [
-        {
-          id: "internal:session-agent-tracking:chat.message",
-          invoke: async () => {
-            contextCollector.beginTurn(input.sessionID);
-            if (input.agent) {
-              updateSessionAgent(input.sessionID, input.agent);
-            }
-          },
-        },
-        {
-          id: "internal:first-message-variant:chat.message",
-          invoke: async () => {
-            const message = (output as { message: { variant?: string } }).message;
-            if (firstMessageVariantGate.shouldOverride(input.sessionID)) {
-              const variant = resolveAgentVariant(pluginConfig, input.agent);
-              if (variant !== undefined) {
-                message.variant = variant;
-              }
-              firstMessageVariantGate.markApplied(input.sessionID);
-            } else {
-              applyAgentVariant(pluginConfig, input.agent, message);
-            }
-          },
-        },
-      ];
-
-      if (thinkMode?.["chat.params"]) {
-        nodes.push({
-          id: "think-mode:chat.message",
-          invoke: async () => {
-            await thinkMode["chat.params"]?.(
-              output as {
-                parts: Array<{ type: string; text?: string }>;
-                message: { model?: { providerID: string; modelID: string } };
-              },
-              input.sessionID
-            );
-          },
-        });
-      }
-
-      if (keywordDetector?.["chat.message"]) {
-        nodes.push({
-          id: "keyword-detector:chat.message",
-          invoke: async () => {
-            await keywordDetector["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (claudeCodeBridgeEnabled && claudeCodeHooks["chat.message"]) {
-        nodes.push({
-          id: "bridge:claude-code-hooks:chat.message",
-          invoke: async () => {
-            await claudeCodeHooks["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (governanceEnabled) {
-        nodes.push({
-          id: "internal:governance-user-prompt:chat.message",
-          failurePolicy: "fail-closed",
-          invoke: async () => {
-            try {
-              const parts = (output as { parts?: Array<{ type: string; text?: string }> }).parts;
-              const prompt = parts
-                ?.filter((p) => p.type === "text" && p.text)
-                .map((p) => p.text)
-                .join("\n")
-                .trim() || "";
-
-              const estimatedTokens = Math.ceil(prompt.length / 4);
-
-              const govResult = executeUserPromptGovernance({
-                sessionId: input.sessionID,
-                prompt,
-                cwd: ctx.directory,
-                estimatedTokens,
-                config: governanceConfig,
-              });
-
-              if (govResult.block) {
-                throw new Error(
-                  `${GOVERNANCE_BLOCK_PREFIX} ${govResult.reason ?? "Prompt blocked"}`
-                );
-              }
-
-              if (govResult.messages.length > 0) {
-                const govContent = govResult.messages.join("\n\n");
-                contextCollector.register(input.sessionID, {
-                  id: "governance-budget-context",
-                  source: "custom",
-                  content: govContent,
-                  priority: "low",
-                });
-                log("[governance] Budget context injected", {
-                  sessionID: input.sessionID,
-                  phase: govResult.budgetStatus ? "active" : "normal",
-                });
-              }
-            } catch (err) {
-              if (err instanceof Error && err.message.startsWith(GOVERNANCE_BLOCK_PREFIX)) {
-                throw err;
-              }
-              log("[governance] User prompt error (non-fatal)", {
-                sessionID: input.sessionID,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-          },
-        });
-      }
-
-      if (sessionHandoffHook?.["chat.message"]) {
-        nodes.push({
-          id: "session-handoff:chat.message",
-          invoke: async () => {
-            await sessionHandoffHook["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (autoSlashCommand?.["chat.message"]) {
-        nodes.push({
-          id: "auto-slash-command:chat.message",
-          invoke: async () => {
-            await autoSlashCommand["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (startWork?.["chat.message"]) {
-        nodes.push({
-          id: "start-work:chat.message",
-          invoke: async () => {
-            await startWork["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (swarmFromPlan?.["chat.message"]) {
-        nodes.push({
-          id: "swarm-from-plan:chat.message",
-          invoke: async () => {
-            await swarmFromPlan["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (multiPlanTrigger?.["chat.message"]) {
-        nodes.push({
-          id: "multi-plan-trigger:chat.message",
-          invoke: async () => {
-            await multiPlanTrigger["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (planningWithFiles?.["chat.message"]) {
-        nodes.push({
-          id: "planning-with-files:chat.message",
-          invoke: async () => {
-            await planningWithFiles["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (preCompletionVerification?.["chat.message"]) {
-        nodes.push({
-          id: "pre-completion-verification:chat.message",
-          invoke: async () => {
-            await preCompletionVerification["chat.message"]?.(input, output);
-          },
-        });
-      }
-
-      if (continuationStopGuard?.["chat.message"]) {
-        nodes.push({
-          id: "continuation-stop-guard:chat.message",
-          invoke: async () => {
-            await continuationStopGuard["chat.message"]?.({ sessionID: input.sessionID });
-          },
-        });
-      }
-
-      if (ralphLoop) {
-        nodes.push({
-          id: "internal:ralph-loop-template:chat.message",
-          invoke: async () => {
-            const parts = (
-              output as { parts?: Array<{ type: string; text?: string }> }
-            ).parts;
-            const promptText =
-              parts
-                ?.filter((p) => p.type === "text" && p.text)
-                .map((p) => p.text)
-                .join("\n")
-                .trim() || "";
-
-            const isRalphLoopTemplate =
-              promptText.includes("You are starting a Ralph Loop") &&
-              promptText.includes("<user-task>");
-            const isCancelRalphTemplate = promptText.includes(
-              "Cancel the currently active Ralph Loop"
-            );
-
-            if (isRalphLoopTemplate) {
-              const taskMatch = promptText.match(
-                /<user-task>\s*([\s\S]*?)\s*<\/user-task>/i
-              );
-              const rawTask = taskMatch?.[1]?.trim() || "";
-
-              const quotedMatch = rawTask.match(/^["'](.+?)["']/);
-              const prompt =
-                quotedMatch?.[1] ||
-                rawTask.split(/\s+--/)[0]?.trim() ||
-                "Complete the task as instructed";
-
-              const maxIterMatch = rawTask.match(/--max-iterations=(\d+)/i);
-              const promiseMatch = rawTask.match(
-                /--completion-promise=["']?([^"'\s]+)["']?/i
-              );
-
-              log("[ralph-loop] Starting loop from chat.message", {
-                sessionID: input.sessionID,
-                prompt,
-              });
-              ralphLoop.startLoop(input.sessionID, prompt, {
-                maxIterations: maxIterMatch
-                  ? parseInt(maxIterMatch[1], 10)
-                  : undefined,
-                completionPromise: promiseMatch?.[1],
-              });
-            } else if (isCancelRalphTemplate) {
-              log("[ralph-loop] Cancelling loop from chat.message", {
-                sessionID: input.sessionID,
-              });
-              ralphLoop.cancelLoop(input.sessionID);
-            }
-          },
-        });
-      }
-
+      const nodes = buildChatMessageNodes(runtimeAssemblyContext, input, output);
       await executeRuntimePipeline("chat.message", nodes);
     },
 
     "user.prompt.submit": async (input: MessageInput) => {
-      const nodes: RuntimeExecutionNode[] = [];
-
-      if (userMemory["user.prompt.submit"]) {
-        nodes.push({
-          id: "internal:user-memory:user.prompt.submit",
-          invoke: async () => {
-            await userMemory["user.prompt.submit"]?.(input);
-          },
-        });
-      }
-
-      if (orgMemory["user.prompt.submit"]) {
-        nodes.push({
-          id: "internal:org-memory:user.prompt.submit",
-          invoke: async () => {
-            await orgMemory["user.prompt.submit"]?.(input);
-          },
-        });
-      }
-
-      if (sessionHandoffHook?.["user.prompt.submit"]) {
-        nodes.push({
-          id: "session-handoff:user.prompt.submit",
-          invoke: async () => {
-            await sessionHandoffHook["user.prompt.submit"]?.(input as {
-              sessionID: string;
-              parts?: Array<{ type: string; text?: string }>;
-            });
-          },
-        });
-      }
-
+      const nodes = buildUserPromptSubmitNodes(runtimeAssemblyContext, input);
       await executeRuntimePipeline("user.prompt.submit", nodes);
     },
 
-    "experimental.chat.messages.transform": async (
-      input: Record<string, never>,
-      output: { messages: Array<{ info: Message; parts: Part[] }> }
-    ) => {
-      const nodes: RuntimeExecutionNode[] = [];
-
-      if (contextInjectorMessagesTransform?.["experimental.chat.messages.transform"]) {
-        nodes.push({
-          id: "internal:context-injector:experimental.chat.messages.transform",
-          invoke: async () => {
-            await contextInjectorMessagesTransform[
-              "experimental.chat.messages.transform"
-            ]?.(input, output);
-          },
-        });
-      }
-
-      if (thinkingBlockValidator?.["experimental.chat.messages.transform"]) {
-        nodes.push({
-          id: "thinking-block-validator:experimental.chat.messages.transform",
-          invoke: async () => {
-            await thinkingBlockValidator[
-              "experimental.chat.messages.transform"
-            ]?.(input, output);
-          },
-        });
-      }
-
+    "experimental.chat.messages.transform": async (input, output) => {
+      const nodes = buildExperimentalChatTransformNodes(
+        runtimeAssemblyContext,
+        input,
+        output as ExperimentalChatTransformOutput
+      );
       await executeRuntimePipeline("experimental.chat.messages.transform", nodes);
     },
 
@@ -1186,309 +974,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
     event: async (input) => {
       continuationControl?.beginEvent(input as { event: { type: string; properties?: unknown } });
-      const nodes: RuntimeExecutionNode[] = [];
-
-      if (continuationStopGuard?.event) {
-        nodes.push({
-          id: "continuation-stop-guard:event",
-          invoke: async () => {
-            await continuationStopGuard.event(input as { event: { type: string; properties?: unknown } });
-          },
-        });
-      }
-      if (autoUpdateChecker?.event) {
-        nodes.push({
-          id: "auto-update-checker:event",
-          invoke: async () => {
-            await autoUpdateChecker.event(input);
-          },
-        });
-      }
-      if (claudeCodeBridgeEnabled) {
-        nodes.push({
-          id: "bridge:claude-code-hooks:event",
-          invoke: async () => {
-            await claudeCodeHooks.event(input);
-          },
-        });
-      }
-      if (backgroundNotificationHook?.event) {
-        nodes.push({
-          id: "background-notification:event",
-          invoke: async () => {
-            await backgroundNotificationHook.event(input);
-          },
-        });
-      }
-      if (sessionNotification) {
-        nodes.push({
-          id: "session-notification:event",
-          invoke: async () => {
-            await sessionNotification?.(input);
-          },
-        });
-      }
-      if (todoAutoContinuation?.handler) {
-        nodes.push({
-          id: "todo-auto-continuation:event",
-          invoke: async () => {
-            await todoAutoContinuation.handler(input);
-          },
-        });
-      }
-      if (preCompletionVerification?.event) {
-        nodes.push({
-          id: "pre-completion-verification:event",
-          invoke: async () => {
-            await preCompletionVerification.event?.(input);
-          },
-        });
-      }
-      if (planningWithFiles?.event) {
-        nodes.push({
-          id: "planning-with-files:event",
-          invoke: async () => {
-            await planningWithFiles.event?.(input);
-          },
-        });
-      }
-      if (userMemory?.event) {
-        nodes.push({
-          id: "internal:user-memory:event",
-          invoke: async () => {
-            await userMemory.event(input);
-          },
-        });
-      }
-      if (orgMemory?.event) {
-        nodes.push({
-          id: "internal:org-memory:event",
-          invoke: async () => {
-            await orgMemory.event(input);
-          },
-        });
-      }
-      if (runtimeTracker?.event) {
-        nodes.push({
-          id: "runtime-tracker:event",
-          invoke: async () => {
-            await runtimeTracker.event?.(input);
-          },
-        });
-      }
-      if (repoOverviewInjector?.event) {
-        nodes.push({
-          id: "repo-overview-injector:event",
-          invoke: async () => {
-            await repoOverviewInjector.event?.(input);
-          },
-        });
-      }
-      if (contextWindowGovernor?.event) {
-        nodes.push({
-          id: "context-window-governor:event",
-          invoke: async () => {
-            await contextWindowGovernor.event(input);
-          },
-        });
-      }
-      if (directoryAgentsInjector?.event) {
-        nodes.push({
-          id: "directory-agents-injector:event",
-          invoke: async () => {
-            await directoryAgentsInjector.event(input);
-          },
-        });
-      }
-      if (directoryReadmeInjector?.event) {
-        nodes.push({
-          id: "directory-readme-injector:event",
-          invoke: async () => {
-            await directoryReadmeInjector.event(input);
-          },
-        });
-      }
-      if (rulesInjector?.event) {
-        nodes.push({
-          id: "rules-injector:event",
-          invoke: async () => {
-            await rulesInjector.event(input);
-          },
-        });
-      }
-      if (thinkMode?.event) {
-        nodes.push({
-          id: "think-mode:event",
-          invoke: async () => {
-            await thinkMode.event(input);
-          },
-        });
-      }
-      if (delegationNudgeAgentUsage?.event) {
-        nodes.push({
-          id: "delegation-nudge-agent-usage:event",
-          invoke: async () => {
-            await delegationNudgeAgentUsage.event(input);
-          },
-        });
-      }
-      if (delegationNudgeCategorySkill?.event) {
-        nodes.push({
-          id: "delegation-nudge-category-skill:event",
-          invoke: async () => {
-            await delegationNudgeCategorySkill.event?.(input);
-          },
-        });
-      }
-      if (interactiveBashSession?.event) {
-        nodes.push({
-          id: "interactive-bash-session:event",
-          invoke: async () => {
-            await interactiveBashSession.event(input);
-          },
-        });
-      }
-      if (ralphLoop?.event) {
-        nodes.push({
-          id: "ralph-loop:event",
-          invoke: async () => {
-            await ralphLoop.event(input);
-          },
-        });
-      }
-      if (executionOrchestratorHook?.handler) {
-        nodes.push({
-          id: "execution-orchestrator:event",
-          invoke: async () => {
-            await executionOrchestratorHook.handler(input);
-          },
-        });
-      }
-      if (conditionalRulesHooks?.event) {
-        nodes.push({
-          id: "conditional-rules:event",
-          invoke: async () => {
-            await conditionalRulesHooks.event?.(input as { event: { type: string; properties?: unknown } });
-          },
-        });
-      }
-      if (sessionHandoffHook?.event) {
-        nodes.push({
-          id: "session-handoff:event",
-          invoke: async () => {
-            await sessionHandoffHook.event?.(input);
-          },
-        });
-      }
-      if (tmuxParallelAgents?.event) {
-        nodes.push({
-          id: "tmux-parallel-agents:event",
-          invoke: async () => {
-            await tmuxParallelAgents.event?.(input);
-          },
-        });
-      }
-      if (swarmAgent?.event) {
-        nodes.push({
-          id: "swarm-agent:event",
-          invoke: async () => {
-            await swarmAgent.event?.(input);
-          },
-        });
-      }
-
-      nodes.push({
-        id: "internal:core-session-state:event",
-        failurePolicy: "fail-closed",
-        invoke: async () => {
-          const { event } = input;
-          const props = event.properties as Record<string, unknown> | undefined;
-
-          if (event.type === "session.created") {
-            const sessionInfo = props?.info as
-              | { id?: string; title?: string; parentID?: string }
-              | undefined;
-            if (!sessionInfo?.parentID) {
-              setMainSession(sessionInfo?.id);
-            }
-            if (sessionInfo?.id) {
-              const agent = (props as Record<string, unknown>)?.agent as string | undefined;
-              sessionStateCoordinator.onSessionCreated(sessionInfo.id, sessionInfo.parentID, agent);
-            }
-            firstMessageVariantGate.markSessionCreated(sessionInfo);
-          }
-
-          if (event.type === "session.deleted") {
-            const sessionInfo = props?.info as { id?: string } | undefined;
-            if (sessionInfo?.id) {
-              sessionStateCoordinator.onSessionDeleted(sessionInfo.id);
-              resetMessageCursor(sessionInfo.id);
-              firstMessageVariantGate.clear(sessionInfo.id);
-              swarmRuntime.unbindSession(sessionInfo.id);
-              swarmRuntime.unregisterWorker(sessionInfo.id);
-              swarmRuntime.unregisterCoordinator(sessionInfo.id);
-              await skillMcpManager.disconnectSession(sessionInfo.id);
-              await lspManager.cleanupTempDirectoryClients();
-            }
-          }
-
-          if (event.type === "session.compacted") {
-            const sessionID = props?.sessionID as string | undefined;
-            if (sessionID) {
-              sessionStateCoordinator.onSessionCompacted(sessionID);
-            }
-          }
-
-          if (event.type === "message.updated") {
-            const info = props?.info as Record<string, unknown> | undefined;
-            const sessionID = info?.sessionID as string | undefined;
-            const agent = info?.agent as string | undefined;
-            const role = info?.role as string | undefined;
-            if (sessionID && agent && role === "user") {
-              updateSessionAgent(sessionID, agent);
-            }
-          }
-        },
-      });
-
-      if (sessionStateRepair) {
-        nodes.push({
-          id: "internal:session-state-repair:event",
-          invoke: async () => {
-            const { event } = input;
-            const props = event.properties as Record<string, unknown> | undefined;
-            if (event.type !== "session.error") {
-              return;
-            }
-
-            const sessionID = props?.sessionID as string | undefined;
-            const error = props?.error;
-
-            if (!sessionStateRepair.isRecoverableError(error)) {
-              return;
-            }
-
-            const messageInfo = {
-              id: props?.messageID as string | undefined,
-              role: "assistant" as const,
-              sessionID,
-              error,
-            };
-            const recovered =
-              await sessionStateRepair.handleSessionRecovery(messageInfo);
-
-            if (recovered && sessionID && sessionID === getMainSessionID()) {
-              await ctx.client.session
-                .prompt({
-                  path: { id: sessionID },
-                  body: { parts: [{ type: "text", text: "continue" }] },
-                  query: { directory: ctx.directory },
-                })
-                .catch(() => {});
-            }
-          },
-        });
-      }
+      const nodes = buildEventNodes(runtimeAssemblyContext, input);
 
       try {
         await executeRuntimePipeline("event", nodes);
@@ -1500,343 +986,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
 
     "tool.execute.before": async (input, output) => {
-      const nodes: RuntimeExecutionNode[] = [];
-
-      if (questionLabelTruncator?.["tool.execute.before"]) {
-        nodes.push({
-          id: "question-label-truncator:tool.execute.before",
-          invoke: async () => {
-            await questionLabelTruncator["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (delegationBlockSubagentQuestion?.["tool.execute.before"]) {
-        nodes.push({
-          id: "delegation-block-subagent-question:tool.execute.before",
-          invoke: async () => {
-            await delegationBlockSubagentQuestion["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (writeExistingFileGuard?.["tool.execute.before"]) {
-        nodes.push({
-          id: "write-existing-file-guard:tool.execute.before",
-          invoke: async () => {
-            await writeExistingFileGuard["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (userMemory?.["tool.execute.before"]) {
-        nodes.push({
-          id: "internal:user-memory:tool.execute.before",
-          invoke: async () => {
-            await userMemory["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (orgMemory?.["tool.execute.before"]) {
-        nodes.push({
-          id: "internal:org-memory:tool.execute.before",
-          invoke: async () => {
-            await orgMemory["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (runtimeTracker?.["tool.execute.before"]) {
-        nodes.push({
-          id: "runtime-tracker:tool.execute.before",
-          invoke: async () => {
-            await runtimeTracker["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (claudeCodeBridgeEnabled && claudeCodeHooks["tool.execute.before"]) {
-        nodes.push({
-          id: "bridge:claude-code-hooks:tool.execute.before",
-          invoke: async () => {
-            await claudeCodeHooks["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (nonInteractiveEnv?.["tool.execute.before"]) {
-        nodes.push({
-          id: "non-interactive-env:tool.execute.before",
-          invoke: async () => {
-            await nonInteractiveEnv["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (commentChecker?.["tool.execute.before"]) {
-        nodes.push({
-          id: "comment-checker:tool.execute.before",
-          invoke: async () => {
-            await commentChecker["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (directoryAgentsInjector?.["tool.execute.before"]) {
-        nodes.push({
-          id: "directory-agents-injector:tool.execute.before",
-          invoke: async () => {
-            await directoryAgentsInjector["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (directoryReadmeInjector?.["tool.execute.before"]) {
-        nodes.push({
-          id: "directory-readme-injector:tool.execute.before",
-          invoke: async () => {
-            await directoryReadmeInjector["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (rulesInjector?.["tool.execute.before"]) {
-        nodes.push({
-          id: "rules-injector:tool.execute.before",
-          invoke: async () => {
-            await rulesInjector["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (prometheusMdOnly?.["tool.execute.before"]) {
-        nodes.push({
-          id: "prometheus-md-only:tool.execute.before",
-          invoke: async () => {
-            await prometheusMdOnly["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (planningWithFiles?.["tool.execute.before"]) {
-        nodes.push({
-          id: "planning-with-files:tool.execute.before",
-          invoke: async () => {
-            await planningWithFiles["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (delegationValidateDecision?.["tool.execute.before"]) {
-        nodes.push({
-          id: "delegation-validate-decision:tool.execute.before",
-          invoke: async () => {
-            await delegationValidateDecision["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (sisyphusJuniorNotepad?.["tool.execute.before"]) {
-        nodes.push({
-          id: "sisyphus-junior-notepad:tool.execute.before",
-          invoke: async () => {
-            await sisyphusJuniorNotepad["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (executionOrchestratorHook?.["tool.execute.before"]) {
-        nodes.push({
-          id: "execution-orchestrator:tool.execute.before",
-          invoke: async () => {
-            await executionOrchestratorHook["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (tmuxParallelAgents?.["tool.execute.before"]) {
-        nodes.push({
-          id: "tmux-parallel-agents:tool.execute.before",
-          invoke: async () => {
-            await tmuxParallelAgents["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-      if (swarmAgent?.["tool.execute.before"]) {
-        nodes.push({
-          id: "swarm-agent:tool.execute.before",
-          invoke: async () => {
-            await swarmAgent["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-
-      if (conditionalRulesHooks) {
-        nodes.push({
-          id: "conditional-rules:tool.execute.before",
-          invoke: async () => {
-            const currentAgent = getSessionAgent(input.sessionID);
-            await conditionalRulesHooks["tool.execute.before"]?.({
-              tool: input.tool,
-              args: output.args as Record<string, unknown>,
-              sessionId: input.sessionID,
-              context: { cwd: ctx.directory, agent: currentAgent },
-            });
-
-            if (input.tool === "delegate_task") {
-              const delegateResult = await conditionalRulesHooks["tool.execute.before:delegate_task"]?.({
-                args: output.args as Record<string, unknown>,
-                sessionId: input.sessionID,
-                context: { cwd: ctx.directory, agent: currentAgent },
-              });
-              if (delegateResult?.args) {
-                Object.assign(output.args as Record<string, unknown>, delegateResult.args);
-              }
-            }
-          },
-        });
-      }
-
-      if (contextManifestInjector?.["tool.execute.before"]) {
-        nodes.push({
-          id: "context-manifest-injector:tool.execute.before",
-          invoke: async () => {
-            await contextManifestInjector["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-
-      nodes.push({
-        id: "internal:task-tools-sanitizer:tool.execute.before",
-        invoke: async () => {
-          if (input.tool === "task") {
-            const args = output.args as Record<string, unknown>;
-
-            args.tools = {
-              ...(args.tools as Record<string, boolean> | undefined),
-              delegate_task: false,
-            };
-          }
-        },
-      });
-
-      if (ralphLoop) {
-        nodes.push({
-          id: "internal:ralph-loop-slash:tool.execute.before",
-          invoke: async () => {
-            if (input.tool !== "slashcommand") {
-              return;
-            }
-            const args = output.args as { command?: string } | undefined;
-            const command = args?.command?.replace(/^\//, "").toLowerCase();
-            const sessionID = input.sessionID || getMainSessionID();
-
-            if (command === "ralph-loop" && sessionID) {
-              const rawArgs =
-                args?.command?.replace(/^\/?(ralph-loop)\s*/i, "") || "";
-              const taskMatch = rawArgs.match(/^["'](.+?)["']/);
-              const prompt =
-                taskMatch?.[1] ||
-                rawArgs.split(/\s+--/)[0]?.trim() ||
-                "Complete the task as instructed";
-
-              const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
-              const promiseMatch = rawArgs.match(
-                /--completion-promise=["']?([^"'\s]+)["']?/i,
-              );
-
-              ralphLoop.startLoop(sessionID, prompt, {
-                maxIterations: maxIterMatch
-                  ? parseInt(maxIterMatch[1], 10)
-                  : undefined,
-                completionPromise: promiseMatch?.[1],
-              });
-            } else if (command === "cancel-ralph" && sessionID) {
-              ralphLoop.cancelLoop(sessionID);
-            } else if (command === "ulw-loop" && sessionID) {
-              const rawArgs =
-                args?.command?.replace(/^\/?(ulw-loop)\s*/i, "") || "";
-              const taskMatch = rawArgs.match(/^["'](.+?)["']/);
-              const prompt =
-                taskMatch?.[1] ||
-                rawArgs.split(/\s+--/)[0]?.trim() ||
-                "Complete the task as instructed";
-
-              const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
-              const promiseMatch = rawArgs.match(
-                /--completion-promise=["']?([^"'\s]+)["']?/i,
-              );
-
-              ralphLoop.startLoop(sessionID, prompt, {
-                ultrawork: true,
-                maxIterations: maxIterMatch
-                  ? parseInt(maxIterMatch[1], 10)
-                  : undefined,
-                completionPromise: promiseMatch?.[1],
-              });
-            }
-          },
-        });
-      }
-
-      nodes.push({
-        id: "internal:stop-continuation-slash:tool.execute.before",
-        invoke: async () => {
-          if (input.tool !== "slashcommand") {
-            return;
-          }
-          const args = output.args as { command?: string } | undefined;
-          const command = args?.command?.replace(/^\//, "").toLowerCase();
-          const sessionID = input.sessionID || getMainSessionID();
-
-          if (command === "stop-continuation" && sessionID) {
-            continuationStopGuard?.stop(sessionID);
-            todoAutoContinuation?.cancelAllCountdowns();
-            ralphLoop?.cancelLoop(sessionID);
-            createWorkStateManager(ctx.directory).clear();
-            log("[stop-continuation] All continuation mechanisms stopped", {
-              sessionID,
-            });
-          }
-        },
-      });
-
-      if (governanceEnabled) {
-        nodes.push({
-          id: "internal:governance-pre-tool:tool.execute.before",
-          failurePolicy: "fail-closed",
-          invoke: async () => {
-            try {
-              const govResult = executePreToolGovernance({
-                sessionId: input.sessionID,
-                toolName: input.tool,
-                toolInput: output.args as Record<string, unknown>,
-                toolUseId: input.callID,
-                cwd: ctx.directory,
-                config: governanceConfig,
-              });
-
-              if (!govResult.proceed) {
-                throw new Error(
-                  `${GOVERNANCE_BLOCK_PREFIX} ${govResult.reason ?? "Operation blocked"}`
-                );
-              }
-
-              if (govResult.modifiedInput) {
-                Object.assign(output.args as Record<string, unknown>, govResult.modifiedInput);
-              }
-
-              if (govResult.message) {
-                const outputWithMessage = output as { args: unknown; message?: string };
-                outputWithMessage.message = (outputWithMessage.message ?? "") + "\n" + govResult.message;
-              }
-            } catch (err) {
-              if (err instanceof Error && err.message.startsWith(GOVERNANCE_BLOCK_PREFIX)) {
-                throw err;
-              }
-              log("[governance] Pre-tool error (non-fatal)", {
-                sessionID: input.sessionID,
-                tool: input.tool,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-          },
-        });
-      }
-
-      if (silentToolOutput?.["tool.execute.before"]) {
-        nodes.push({
-          id: "silent-tool-output:tool.execute.before",
-          invoke: async () => {
-            await silentToolOutput["tool.execute.before"]?.(input, output);
-          },
-        });
-      }
-
+      const nodes = buildToolExecuteBeforeNodes(
+        runtimeAssemblyContext,
+        input,
+        output as ToolExecuteBeforeOutput
+      );
       await executeRuntimePipeline("tool.execute.before", nodes);
     },
 
@@ -1845,317 +999,29 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       if (!output) {
         return;
       }
-      const nodes: RuntimeExecutionNode[] = [];
 
-      if (planningWithFiles?.["tool.execute.after"]) {
-        nodes.push({
-          id: "planning-with-files:tool.execute.after",
-          invoke: async () => {
-            await planningWithFiles["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (claudeCodeBridgeEnabled && claudeCodeHooks["tool.execute.after"]) {
-        nodes.push({
-          id: "bridge:claude-code-hooks:tool.execute.after",
-          invoke: async () => {
-            await claudeCodeHooks["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (antiSlopEnforcer?.["tool.execute.after"]) {
-        nodes.push({
-          id: "anti-slop-enforcer:tool.execute.after",
-          invoke: async () => {
-            await antiSlopEnforcer["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (silentToolOutput?.["tool.execute.after"]) {
-        nodes.push({
-          id: "silent-tool-output:tool.execute.after",
-          invoke: async () => {
-            await silentToolOutput["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (toolOutputTruncator?.["tool.execute.after"]) {
-        nodes.push({
-          id: "tool-output-truncator:tool.execute.after",
-          invoke: async () => {
-            await toolOutputTruncator["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (runtimeTracker?.["tool.execute.after"]) {
-        nodes.push({
-          id: "runtime-tracker:tool.execute.after",
-          invoke: async () => {
-            await runtimeTracker["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (repoOverviewInjector?.["tool.execute.after"]) {
-        nodes.push({
-          id: "repo-overview-injector:tool.execute.after",
-          invoke: async () => {
-            await repoOverviewInjector["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-
-      if (governanceEnabled) {
-        nodes.push({
-          id: "internal:governance-post-tool:tool.execute.after",
-          invoke: async () => {
-            try {
-              const metadata = output.metadata as Record<string, unknown> | undefined;
-              const outputStr = typeof output.output === "string" ? output.output : "";
-              const outputLower = outputStr.toLowerCase();
-              const exitCode = typeof metadata?.exitCode === "number" ? metadata.exitCode : undefined;
-              const explicitSuccess =
-                typeof metadata?.success === "boolean" ? metadata.success : undefined;
-              const inferredSuccess =
-                explicitSuccess ??
-                (exitCode !== undefined
-                  ? exitCode === 0
-                  : !outputLower.includes("error:") && !outputLower.includes("failed:"));
-              const estimatedTokensUsed = Math.ceil(outputStr.length / 4);
-
-              const rawArgs =
-                (metadata as { args?: unknown } | undefined)?.args ??
-                (output as { args?: unknown }).args;
-              const toolInput =
-                rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs)
-                  ? (rawArgs as Record<string, unknown>)
-                  : {};
-
-              const govResult = await executePostToolGovernance({
-                sessionId: input.sessionID,
-                toolName: input.tool,
-                toolInput,
-                toolOutput: output as Record<string, unknown>,
-                toolUseId: input.callID,
-                success: inferredSuccess,
-                tokensUsed: estimatedTokensUsed,
-                cwd: ctx.directory,
-                config: governanceConfig,
-              });
-
-              if (govResult.warnings.length > 0) {
-                output.output = `${output.output}\n\n${govResult.warnings.join("\n")}`;
-              }
-
-              if (govResult.systemMessage) {
-                output.output = `${output.output}\n\n${govResult.systemMessage}`;
-              }
-
-              if (govResult.checkpointCreated) {
-                log("[governance] Auto-checkpoint created", { sessionID: input.sessionID });
-              }
-
-              if (govResult.block) {
-                ctx.client.tui
-                  .showToast({
-                    body: {
-                      title: "Budget Exhausted",
-                      message: "Context budget limit reached. Consider wrapping up.",
-                      variant: "warning",
-                      duration: 5000,
-                    },
-                  })
-                  .catch(() => {});
-              }
-            } catch (err) {
-              log("[governance] Post-tool error (non-fatal)", {
-                sessionID: input.sessionID,
-                tool: input.tool,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-          },
-        });
-      }
-
-      if (userMemory?.["tool.execute.after"]) {
-        nodes.push({
-          id: "internal:user-memory:tool.execute.after",
-          invoke: async () => {
-            await userMemory["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (orgMemory?.["tool.execute.after"]) {
-        nodes.push({
-          id: "internal:org-memory:tool.execute.after",
-          invoke: async () => {
-            await orgMemory["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (contextWindowGovernor?.["tool.execute.after"]) {
-        nodes.push({
-          id: "context-window-governor:tool.execute.after",
-          invoke: async () => {
-            await contextWindowGovernor["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (commentChecker?.["tool.execute.after"]) {
-        nodes.push({
-          id: "comment-checker:tool.execute.after",
-          invoke: async () => {
-            await commentChecker["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (directoryAgentsInjector?.["tool.execute.after"]) {
-        nodes.push({
-          id: "directory-agents-injector:tool.execute.after",
-          invoke: async () => {
-            await directoryAgentsInjector["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (directoryReadmeInjector?.["tool.execute.after"]) {
-        nodes.push({
-          id: "directory-readme-injector:tool.execute.after",
-          invoke: async () => {
-            await directoryReadmeInjector["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (rulesInjector?.["tool.execute.after"]) {
-        nodes.push({
-          id: "rules-injector:tool.execute.after",
-          invoke: async () => {
-            await rulesInjector["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (emptyTaskResponseDetector?.["tool.execute.after"]) {
-        nodes.push({
-          id: "empty-task-response-detector:tool.execute.after",
-          invoke: async () => {
-            await emptyTaskResponseDetector["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (delegationNudgeAgentUsage?.["tool.execute.after"]) {
-        nodes.push({
-          id: "delegation-nudge-agent-usage:tool.execute.after",
-          invoke: async () => {
-            await delegationNudgeAgentUsage["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (delegationNudgeCategorySkill?.["tool.execute.after"]) {
-        nodes.push({
-          id: "delegation-nudge-category-skill:tool.execute.after",
-          invoke: async () => {
-            await delegationNudgeCategorySkill["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (interactiveBashSession?.["tool.execute.after"]) {
-        nodes.push({
-          id: "interactive-bash-session:tool.execute.after",
-          invoke: async () => {
-            await interactiveBashSession["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (editFailureGuidance?.["tool.execute.after"]) {
-        nodes.push({
-          id: "edit-failure-guidance:tool.execute.after",
-          invoke: async () => {
-            await editFailureGuidance["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (delegationFailureGuidance?.["tool.execute.after"]) {
-        nodes.push({
-          id: "delegation-failure-guidance:tool.execute.after",
-          invoke: async () => {
-            await delegationFailureGuidance["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (executionOrchestratorHook?.["tool.execute.after"]) {
-        nodes.push({
-          id: "execution-orchestrator:tool.execute.after",
-          invoke: async () => {
-            await executionOrchestratorHook["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (taskResumeInfo["tool.execute.after"]) {
-        nodes.push({
-          id: "internal:task-resume-info:tool.execute.after",
-          invoke: async () => {
-            await taskResumeInfo["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (sessionHandoffHook?.["tool.execute.after"]) {
-        nodes.push({
-          id: "session-handoff:tool.execute.after",
-          invoke: async () => {
-            await sessionHandoffHook["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-      if (swarmAgent?.["tool.execute.after"]) {
-        nodes.push({
-          id: "swarm-agent:tool.execute.after",
-          invoke: async () => {
-            await swarmAgent["tool.execute.after"]?.(input, output);
-          },
-        });
-      }
-
+      const nodes = buildToolExecuteAfterNodes(
+        runtimeAssemblyContext,
+        input,
+        output as ToolExecuteAfterOutput
+      );
       await executeRuntimePipeline("tool.execute.after", nodes);
     },
 
-    "experimental.session.compacting": async (
-      input: { sessionID: string },
-      output?: { context: string[] }
-    ) => {
-      const nodes: RuntimeExecutionNode[] = [];
-
-      if (
-        claudeCodeBridgeEnabled &&
-        output &&
-        Array.isArray(output.context) &&
-        claudeCodeHooks["experimental.session.compacting"]
-      ) {
-        nodes.push({
-          id: "bridge:claude-code-hooks:experimental.session.compacting",
-          invoke: async () => {
-            await claudeCodeHooks["experimental.session.compacting"]?.(input, output);
-          },
-        });
-      }
-
-      if (contextWindowGovernor?.["experimental.session.compacting"]) {
-        nodes.push({
-          id: "context-window-governor:experimental.session.compacting",
-          invoke: async () => {
-            await contextWindowGovernor["experimental.session.compacting"]?.(input, output);
-          },
-        });
-      }
-
+    "experimental.session.compacting": async (input, output) => {
+      const nodes = buildExperimentalSessionCompactingNodes(
+        runtimeAssemblyContext,
+        input as ExperimentalSessionCompactingInput,
+        output as ExperimentalSessionCompactingOutput | undefined
+      );
       await executeRuntimePipeline("experimental.session.compacting", nodes);
     },
   };
 
   if (supportsCommandExecuteBefore) {
     pluginHooks["command.execute.before"] = async (input, output) => {
-      const nodes: RuntimeExecutionNode[] = []
-
-      if (autoSlashCommand?.["command.execute.before"]) {
-        nodes.push({
+      const nodes: RuntimeExecutionNode[] = autoSlashCommand?.["command.execute.before"]
+        ? [{
           id: "auto-slash-command:command.execute.before",
           invoke: async () => {
             await autoSlashCommand["command.execute.before"]?.(
@@ -2167,8 +1033,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               output as CommandExecuteBeforeOutput
             )
           },
-        })
-      }
+        } as RuntimeExecutionNode]
+        : []
 
       await executeRuntimePipeline("command.execute.before", nodes)
     }
@@ -2176,7 +1042,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   if (supportsChatHeaders) {
     pluginHooks["chat.headers"] = async (input, output) => {
-      const nodes: RuntimeExecutionNode[] = []
       const model = input.model as { providerID?: string; modelID?: string; id?: string; api?: { npm?: string } }
       const providerID = (model.providerID ?? "").toLowerCase()
       const modelID = (model.modelID ?? model.id ?? "").toLowerCase()
@@ -2186,8 +1051,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         apiNpm === "@ai-sdk/anthropic" ||
         (apiNpm === "@ai-sdk/github-copilot" && modelID.includes("claude"))
 
-      if (isCopilotProvider && isAnthropicCopilotModel) {
-        nodes.push({
+      const nodes: RuntimeExecutionNode[] = [
+        ...(isCopilotProvider && isAnthropicCopilotModel ? [{
           id: "internal:copilot-anthropic-beta:chat.headers",
           invoke: async () => {
             const key = "anthropic-beta"
@@ -2196,17 +1061,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               COPILOT_INTERLEAVED_THINKING_HEADER
             )
           },
-        })
-      }
-
-      if (isCopilotProvider && isSubagentSession(input.sessionID)) {
-        nodes.push({
+        } as RuntimeExecutionNode] : []),
+        ...(isCopilotProvider && isSubagentSession(input.sessionID) ? [{
           id: "internal:copilot-subagent-initiator:chat.headers",
           invoke: async () => {
             output.headers["x-initiator"] = "agent"
           },
-        })
-      }
+        } as RuntimeExecutionNode] : []),
+      ]
 
       await executeRuntimePipeline("chat.headers", nodes)
     }
@@ -2214,16 +1076,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   if (supportsShellEnv) {
     pluginHooks["shell.env"] = async (_input, output) => {
-      const nodes: RuntimeExecutionNode[] = []
-
-      if (nonInteractiveEnv) {
-        nodes.push({
+      const nodes: RuntimeExecutionNode[] = nonInteractiveEnv
+        ? [{
           id: "internal:non-interactive-env:shell.env",
           invoke: async () => {
             Object.assign(output.env, NON_INTERACTIVE_ENV)
           },
-        })
-      }
+        } as RuntimeExecutionNode]
+        : []
 
       await executeRuntimePipeline("shell.env", nodes)
     }

@@ -4,7 +4,7 @@
 
 Hook collection intercepting/modifying agent behavior across multiple lifecycle events.
 
-**Source of truth**: `src/index.ts` (the call order in the plugin event handlers).
+**Source of truth**: `src/hooks/runtime/pipeline-order.ts` (order), `src/hooks/runtime/assembly/*.ts` (event node assembly), `src/index.ts` (lifecycle wrapper + dispatch).
 
 ## STRUCTURE
 
@@ -63,7 +63,7 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 **tool.execute.after** (high-level): planningWithFiles → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → contextWindowGovernor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → delegationNudgeAgentUsage → delegationNudgeCategorySkill → interactiveBashSession → editFailureGuidance → delegationFailureGuidance → executionOrchestratorHook → taskResumeInfo → sessionHandoffHook → swarmAgent
 
 Notes:
-- Conditional rules and governance add additional per-tool logic inside these handlers (see `src/index.ts`).
+- Conditional rules and governance add additional per-tool logic in runtime assembly builders and lifecycle wrappers (see `src/hooks/runtime/assembly/` and `src/index.ts`).
 - Order is intentionally tuned to avoid context bloat and ensure safety checks run before mutating tool args.
 - Delegation chain uses explicit progression: `block -> validate -> nudge`.
 
@@ -72,10 +72,11 @@ Notes:
 1. Create `src/hooks/name/` with `index.ts` exporting `createMyHook(ctx)`
 2. Implement event handlers: `"tool.execute.before"`, `"tool.execute.after"`, etc.
 3. Add hook name to `HookNameSchema` in `src/config/schema.ts`
-4. Register in `src/index.ts`:
+4. Register in runtime wiring:
    ```typescript
    const myHook = isHookEnabled("my-hook") ? createMyHook(ctx) : null
-   // Add to event handlers
+   // Add to RuntimeAssemblyContext in src/index.ts
+   // Add node assembly in src/hooks/runtime/assembly/<event>.ts
    ```
 
 ## PATTERNS

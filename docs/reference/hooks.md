@@ -20,7 +20,8 @@ This document does **not** define each hook’s internal prompt text or heuristi
 
 - Canonical runtime order tables: `src/hooks/runtime/pipeline-order.ts` (`EVENT_TOTAL_ORDER`)
 - Canonical dispatch behavior + failure policy: `src/hooks/runtime/dispatcher.ts`
-- Canonical event node registration: `src/index.ts`
+- Canonical event node assembly: `src/hooks/runtime/assembly/*.ts`
+- Canonical lifecycle dispatch entrypoints: `src/index.ts`
 - Hook name enum (configuration surface): `src/config/schema.ts` (`HookNameSchema`)
 - Hook implementations: `src/hooks/`
 - Claude Code compatibility layer: `src/hooks/claude-code-hooks/`

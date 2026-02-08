@@ -27,7 +27,7 @@ A lifecycle interceptor wired by the plugin for events such as:
 - `tool.execute.after`
 - `event`
 
-Canonical runtime order: `src/hooks/runtime/pipeline-order.ts`; canonical node wiring: `src/index.ts`.
+Canonical runtime order: `src/hooks/runtime/pipeline-order.ts`; canonical node assembly: `src/hooks/runtime/assembly/*.ts`; lifecycle dispatch entrypoints: `src/index.ts`.
 
 ## Skill
 
@@ -76,7 +76,7 @@ A session summarization step that reduces context window usage.
 
 Contract (current wiring):
 
-- `context-window-governor` is wired via `experimental.session.compacting` in `src/index.ts` (runs only if the OpenCode runtime emits this surface during compaction).
+- `context-window-governor` is assembled in `src/hooks/runtime/assembly/experimental-session-compacting.ts` and dispatched from `src/index.ts` on `experimental.session.compacting` (runs only if the OpenCode runtime emits this surface during compaction).
 - Claude Code `PreCompact` support exists under `src/hooks/claude-code-hooks/pre-compact.ts` and is invoked on the same `experimental.session.compacting` surface (best-effort; depends on runtime support).
 
 ## Preemptive Compaction

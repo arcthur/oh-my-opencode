@@ -28,7 +28,7 @@ flowchart TD
   COMPACT["experimental.session.compacting (best effort)"] --> GOV
 ```
 
-**Wiring matters**: Canonical event order lives in `src/hooks/runtime/pipeline-order.ts`, and canonical hook registration lives in `src/hooks/runtime/registry.ts` + `src/index.ts`.
+**Wiring matters**: Canonical event order lives in `src/hooks/runtime/pipeline-order.ts`; runtime node registration lives in `src/hooks/runtime/registry.ts`; event node assembly lives in `src/hooks/runtime/assembly/*.ts`; lifecycle dispatch entrypoints live in `src/index.ts`.
 
 ## Core Invariants (What This Repo Guarantees)
 
@@ -212,4 +212,3 @@ In this state the governor will retry a bounded number of times and then enter `
 - Lease manager: `src/hooks/context-window-governor/lease-manager.ts`
 - Config schema: `src/config/schema.ts`
 - Runtime wiring: `src/hooks/runtime/registry.ts`, `src/hooks/runtime/pipeline-order.ts`
-
