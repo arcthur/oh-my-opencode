@@ -388,6 +388,95 @@ Skill body.
     })
   })
 
+  describe(".agents skills compatibility", () => {
+    it("discovers project skills from both .claude/skills and .agents/skills", async () => {
+      // given
+      const originalCwd = process.cwd()
+      process.chdir(TEST_DIR)
+
+      const claudeSkillDir = join(TEST_DIR, ".claude", "skills", "claude-project-skill")
+      const agentsSkillDir = join(TEST_DIR, ".agents", "skills", "agents-project-skill")
+      mkdirSync(claudeSkillDir, { recursive: true })
+      mkdirSync(agentsSkillDir, { recursive: true })
+
+      writeFileSync(
+        join(claudeSkillDir, "SKILL.md"),
+        `---
+name: claude-project-skill
+description: Skill from .claude
+---
+Claude skill.
+`
+      )
+      writeFileSync(
+        join(agentsSkillDir, "SKILL.md"),
+        `---
+name: agents-project-skill
+description: Skill from .agents
+---
+Agents skill.
+`
+      )
+
+      // when
+      const { discoverProjectClaudeSkills } = await import("./loader")
+
+      try {
+        const skills = await discoverProjectClaudeSkills()
+
+        // then
+        expect(skills.find((s) => s.name === "claude-project-skill")).toBeDefined()
+        expect(skills.find((s) => s.name === "agents-project-skill")).toBeDefined()
+      } finally {
+        process.chdir(originalCwd)
+      }
+    })
+
+    it("prefers .agents project skill when name collides with .claude project skill", async () => {
+      // given
+      const originalCwd = process.cwd()
+      process.chdir(TEST_DIR)
+
+      const claudeSkillDir = join(TEST_DIR, ".claude", "skills", "shared-project-skill")
+      const agentsSkillDir = join(TEST_DIR, ".agents", "skills", "shared-project-skill")
+      mkdirSync(claudeSkillDir, { recursive: true })
+      mkdirSync(agentsSkillDir, { recursive: true })
+
+      writeFileSync(
+        join(claudeSkillDir, "SKILL.md"),
+        `---
+name: shared-project-skill
+description: Shared skill from .claude
+---
+Claude project body.
+`
+      )
+      writeFileSync(
+        join(agentsSkillDir, "SKILL.md"),
+        `---
+name: shared-project-skill
+description: Shared skill from .agents
+---
+Agents project body.
+`
+      )
+
+      // when
+      const { discoverProjectClaudeSkills } = await import("./loader")
+
+      try {
+        const skills = await discoverProjectClaudeSkills()
+        const duplicates = skills.filter((s) => s.name === "shared-project-skill")
+
+        // then
+        expect(duplicates).toHaveLength(1)
+        expect(duplicates[0]?.definition.description).toContain(".agents")
+      } finally {
+        process.chdir(originalCwd)
+      }
+    })
+  })
+
   describe("deduplication", () => {
     it("deduplicates skills by name across scopes, keeping higher priority (opencode-project > opencode > project > user)", async () => {
       // given: same skill name in multiple scopes

@@ -57,4 +57,12 @@ describe("runtime registry sync", () => {
       expect(enablementMap.has(hookName)).toBe(true)
     }
   })
+
+  test("auto-slash-command declares command.execute.before in runtime registry", () => {
+    const registryEntries = getRuntimeRegistryEntries()
+    const autoSlash = registryEntries.find((entry) => entry.name === "auto-slash-command")
+
+    expect(autoSlash).toBeDefined()
+    expect(autoSlash?.events).toContain("command.execute.before")
+  })
 })

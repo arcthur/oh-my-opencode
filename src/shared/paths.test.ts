@@ -79,12 +79,16 @@ describe("getSkillDirectories", () => {
     }
   })
 
-  it("returns all four skill directories", () => {
+  it("returns all six skill directories", () => {
     const dirs = getSkillDirectories()
 
     expect(dirs.user).toContain("skills")
     expect(dirs.project).toContain(".claude")
     expect(dirs.project).toContain("skills")
+    expect(dirs.agentsUser).toContain(".agents")
+    expect(dirs.agentsUser).toContain("skills")
+    expect(dirs.agentsProject).toContain(".agents")
+    expect(dirs.agentsProject).toContain("skills")
     expect(dirs.opencodeGlobal).toContain(".config")
     expect(dirs.opencodeGlobal).toContain("opencode")
     expect(dirs.opencodeGlobal).toContain("skill")
@@ -97,6 +101,7 @@ describe("getSkillDirectories", () => {
     const cwd = process.cwd()
 
     expect(dirs.project).toContain(cwd)
+    expect(dirs.agentsProject).toContain(cwd)
     expect(dirs.opencodeProject).toContain(cwd)
   })
 
@@ -105,6 +110,7 @@ describe("getSkillDirectories", () => {
     const home = homedir()
 
     expect(dirs.user).toContain(home)
+    expect(dirs.agentsUser).toContain(home)
   })
 
   it("user directory respects CLAUDE_CONFIG_DIR env", () => {
@@ -115,6 +121,7 @@ describe("getSkillDirectories", () => {
 
     expect(dirs.user).toBe(join(customDir, "skills"))
     expect(dirs.user).not.toContain(homedir())
+    expect(dirs.agentsUser).toBe(join(homedir(), ".agents", "skills"))
   })
 
   it("opencodeGlobal always uses homedir", () => {

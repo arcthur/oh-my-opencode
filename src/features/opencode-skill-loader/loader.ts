@@ -138,15 +138,29 @@ function deduplicateSkills(skills: LoadedSkill[]): LoadedSkill[] {
   return result
 }
 
+async function loadExternalSkillsByScope(
+  agentsDir: string,
+  claudeDir: string,
+  scope: Extract<SkillScope, "user" | "project">
+): Promise<LoadedSkill[]> {
+  const [agentSkills, claudeSkills] = await Promise.all([
+    loadSkillsFromDir(agentsDir, scope),
+    loadSkillsFromDir(claudeDir, scope),
+  ])
+
+  // Keep .agents before .claude so compatibility-first sources win on duplicate names.
+  return deduplicateSkills([...agentSkills, ...claudeSkills])
+}
+
 export async function loadUserSkills(): Promise<Record<string, CommandDefinition>> {
   const dirs = getSkillDirectories()
-  const skills = await loadSkillsFromDir(dirs.user, "user")
+  const skills = await loadExternalSkillsByScope(dirs.agentsUser, dirs.user, "user")
   return toDefinitionRecord(skills)
 }
 
 export async function loadProjectSkills(): Promise<Record<string, CommandDefinition>> {
   const dirs = getSkillDirectories()
-  const skills = await loadSkillsFromDir(dirs.project, "project")
+  const skills = await loadExternalSkillsByScope(dirs.agentsProject, dirs.project, "project")
   return toDefinitionRecord(skills)
 }
 
@@ -217,12 +231,12 @@ export async function getSkillByName(name: string, options: DiscoverSkillsOption
 
 export async function discoverUserClaudeSkills(): Promise<LoadedSkill[]> {
   const dirs = getSkillDirectories()
-  return loadSkillsFromDir(dirs.user, "user")
+  return loadExternalSkillsByScope(dirs.agentsUser, dirs.user, "user")
 }
 
 export async function discoverProjectClaudeSkills(): Promise<LoadedSkill[]> {
   const dirs = getSkillDirectories()
-  return loadSkillsFromDir(dirs.project, "project")
+  return loadExternalSkillsByScope(dirs.agentsProject, dirs.project, "project")
 }
 
 export async function discoverOpencodeGlobalSkills(): Promise<LoadedSkill[]> {

@@ -15,6 +15,30 @@ export const MINIMUM_OPENCODE_VERSION = "1.1.1"
  */
 export const OPENCODE_NATIVE_AGENTS_INJECTION_VERSION = "1.1.37"
 
+/**
+ * OpenCode version that introduced command.execute.before hook.
+ * This allows plugins to transform slash-command execution before prompt render.
+ */
+export const OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION = "1.1.26"
+
+/**
+ * OpenCode version that introduced chat.headers hook.
+ * This allows plugins to inject request headers for chat providers.
+ */
+export const OPENCODE_CHAT_HEADERS_HOOK_VERSION = "1.1.31"
+
+/**
+ * OpenCode version that introduced shell.env hook.
+ * This allows plugins to inject environment variables for shell execution.
+ */
+export const OPENCODE_SHELL_ENV_HOOK_VERSION = "1.1.50"
+
+/**
+ * OpenCode version that introduced .agents/skills compatibility.
+ * Skills from .agents/skills and ~/.agents/skills are treated as external skills.
+ */
+export const OPENCODE_AGENTS_SKILLS_COMPAT_VERSION = "1.1.50"
+
 const NOT_CACHED = Symbol("NOT_CACHED")
 let cachedVersion: string | null | typeof NOT_CACHED = NOT_CACHED
 

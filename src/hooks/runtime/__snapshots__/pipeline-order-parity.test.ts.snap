@@ -2,6 +2,10 @@
 
 exports[`EVENT_TOTAL_ORDER parity matches baseline event ordering snapshot 1`] = `
 {
+  "chat.headers": [
+    "internal:copilot-anthropic-beta:chat.headers",
+    "internal:copilot-subagent-initiator:chat.headers",
+  ],
   "chat.message": [
     "internal:session-agent-tracking:chat.message",
     "internal:first-message-variant:chat.message",
@@ -18,6 +22,9 @@ exports[`EVENT_TOTAL_ORDER parity matches baseline event ordering snapshot 1`] =
     "pre-completion-verification:chat.message",
     "continuation-stop-guard:chat.message",
     "internal:ralph-loop-template:chat.message",
+  ],
+  "command.execute.before": [
+    "auto-slash-command:command.execute.before",
   ],
   "event": [
     "continuation-stop-guard:event",
@@ -56,6 +63,9 @@ exports[`EVENT_TOTAL_ORDER parity matches baseline event ordering snapshot 1`] =
   "experimental.session.compacting": [
     "bridge:claude-code-hooks:experimental.session.compacting",
     "context-window-governor:experimental.session.compacting",
+  ],
+  "shell.env": [
+    "internal:non-interactive-env:shell.env",
   ],
   "tool.execute.after": [
     "planning-with-files:tool.execute.after",

@@ -24,7 +24,7 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "thinking-block-validator", events: ["experimental.chat.messages.transform"] },
   { name: "ralph-loop", events: ["event"] },
   { name: "claude-code-hooks", events: ["chat.message", "tool.execute.before", "tool.execute.after", "event", "experimental.session.compacting"] },
-  { name: "auto-slash-command", events: ["chat.message"] },
+  { name: "auto-slash-command", events: ["chat.message", "command.execute.before"] },
   { name: "edit-failure-guidance", events: ["tool.execute.after"] },
   { name: "delegation-failure-guidance", events: ["tool.execute.after"] },
   { name: "prometheus-md-only", events: ["tool.execute.before"] },

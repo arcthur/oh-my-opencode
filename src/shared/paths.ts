@@ -1,4 +1,5 @@
 import { join } from "path"
+import { homedir } from "os"
 import { getClaudeConfigDir } from "./claude-config-dir"
 import { getOpenCodeConfigDir } from "./opencode-config-dir"
 
@@ -26,6 +27,8 @@ export function getCommandDirectories(): CommandDirectories {
 export interface SkillDirectories {
   user: string
   project: string
+  agentsUser: string
+  agentsProject: string
   opencodeGlobal: string
   opencodeProject: string
 }
@@ -39,6 +42,8 @@ export function getSkillDirectories(): SkillDirectories {
   return {
     user: join(getClaudeConfigDir(), "skills"),
     project: join(process.cwd(), ".claude", "skills"),
+    agentsUser: join(homedir(), ".agents", "skills"),
+    agentsProject: join(process.cwd(), ".agents", "skills"),
     opencodeGlobal: join(opencodeConfigDir, "skills"),
     opencodeProject: join(process.cwd(), ".opencode", "skills"),
   }

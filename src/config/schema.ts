@@ -573,16 +573,56 @@ export const SemanticClusteringConfigOverrideSchema = z.object({
   use_stemming: z.boolean(),
 }).partial()
 
-/** Hybrid search weights configuration - weights must sum to 1.0 */
-export const HybridWeightsConfigSchema = z.object({
+/** Hybrid search weights configuration */
+const HybridWeightsObjectSchema = z.object({
   /** Weight for vector (semantic) similarity (default: 0.5) */
   vector: z.number().min(0).max(1).default(0.5),
   /** Weight for BM25 (keyword) similarity (default: 0.3) */
   bm25: z.number().min(0).max(1).default(0.3),
   /** Weight for Jaccard (n-gram/synonym) similarity (default: 0.2) */
   jaccard: z.number().min(0).max(1).default(0.2),
+})
+
+function hybridWeightsSumToOne(weights: {
+  vector: number
+  bm25: number
+  jaccard: number
+}): boolean {
+  return Math.abs(weights.vector + weights.bm25 + weights.jaccard - 1) < 0.01
+}
+
+function hasCompleteHybridWeights(weights: {
+  vector?: number
+  bm25?: number
+  jaccard?: number
+}): weights is {
+  vector: number
+  bm25: number
+  jaccard: number
+} {
+  return (
+    weights.vector !== undefined &&
+    weights.bm25 !== undefined &&
+    weights.jaccard !== undefined
+  )
+}
+
+/** Full hybrid weights config - requires weights to sum to 1.0 */
+export const HybridWeightsConfigSchema = HybridWeightsObjectSchema.refine(
+  (w) => hybridWeightsSumToOne(w),
+  { message: "Hybrid weights must sum to 1.0" }
+)
+
+/**
+ * Partial hybrid weights override.
+ * If all three weights are provided, enforce the sum constraint.
+ */
+export const HybridWeightsOverrideSchema = z.object({
+  vector: z.number().min(0).max(1).optional(),
+  bm25: z.number().min(0).max(1).optional(),
+  jaccard: z.number().min(0).max(1).optional(),
 }).refine(
-  (w) => Math.abs(w.vector + w.bm25 + w.jaccard - 1) < 0.01,
+  (w) => !hasCompleteHybridWeights(w) || hybridWeightsSumToOne(w),
   { message: "Hybrid weights must sum to 1.0" }
 )
 
@@ -601,7 +641,7 @@ export const EmbeddingConfigOverrideSchema = z.object({
   /** Local model name (default: 'Xenova/all-MiniLM-L6-v2') */
   local_model: z.string(),
   /** Three-way hybrid search weights */
-  hybrid_weights: HybridWeightsConfigSchema.partial(),
+  hybrid_weights: HybridWeightsOverrideSchema,
   /** Enable embedding cache (default: true) */
   cache_enabled: z.boolean(),
   /** Batch size for embedding API calls (default: 20) */

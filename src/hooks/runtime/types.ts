@@ -2,7 +2,10 @@ import type { HookName } from "../../config"
 
 export type HookEventType =
   | "chat.message"
+  | "chat.headers"
   | "user.prompt.submit"
+  | "command.execute.before"
+  | "shell.env"
   | "tool.execute.before"
   | "tool.execute.after"
   | "event"

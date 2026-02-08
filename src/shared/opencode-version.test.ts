@@ -8,6 +8,10 @@ import {
   setVersionCache,
   MINIMUM_OPENCODE_VERSION,
   OPENCODE_NATIVE_AGENTS_INJECTION_VERSION,
+  OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION,
+  OPENCODE_CHAT_HEADERS_HOOK_VERSION,
+  OPENCODE_SHELL_ENV_HOOK_VERSION,
+  OPENCODE_AGENTS_SKILLS_COMPAT_VERSION,
 } from "./opencode-version"
 
 describe("opencode-version", () => {
@@ -233,6 +237,24 @@ describe("opencode-version", () => {
 
       // then returns true (assume latest, enable native support)
       expect(result).toBe(true)
+    })
+  })
+
+  describe("lifecycle compatibility versions", () => {
+    test("defines command.execute.before compatibility version", () => {
+      expect(OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION).toBe("1.1.26")
+    })
+
+    test("defines chat.headers compatibility version", () => {
+      expect(OPENCODE_CHAT_HEADERS_HOOK_VERSION).toBe("1.1.31")
+    })
+
+    test("defines shell.env compatibility version", () => {
+      expect(OPENCODE_SHELL_ENV_HOOK_VERSION).toBe("1.1.50")
+    })
+
+    test("defines .agents/skills compatibility version", () => {
+      expect(OPENCODE_AGENTS_SKILLS_COMPAT_VERSION).toBe("1.1.50")
     })
   })
 })

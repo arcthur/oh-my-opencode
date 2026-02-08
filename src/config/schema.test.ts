@@ -206,6 +206,67 @@ describe("user_memory schema", () => {
       expect(result.data.user_memory?.disclosure_level).toBe("full")
     }
   })
+
+  test("should accept partial hybrid_weights override", () => {
+    // given
+    const config = {
+      user_memory: {
+        embeddings: {
+          hybrid_weights: {
+            vector: 0.7,
+          },
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+  })
+
+  test("should reject full hybrid_weights override when weights do not sum to 1.0", () => {
+    // given
+    const config = {
+      user_memory: {
+        embeddings: {
+          hybrid_weights: {
+            vector: 0.7,
+            bm25: 0.3,
+            jaccard: 0.3,
+          },
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+  })
+
+  test("should accept full hybrid_weights override when weights sum to 1.0", () => {
+    // given
+    const config = {
+      user_memory: {
+        embeddings: {
+          hybrid_weights: {
+            vector: 0.5,
+            bm25: 0.25,
+            jaccard: 0.25,
+          },
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+  })
 })
 
 describe("disabled_skills schema", () => {

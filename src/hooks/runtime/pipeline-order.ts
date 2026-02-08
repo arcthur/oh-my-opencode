@@ -18,10 +18,20 @@ export const EVENT_TOTAL_ORDER: Record<HookEventType, HookNodeId[]> = {
     "continuation-stop-guard:chat.message",
     "internal:ralph-loop-template:chat.message",
   ],
+  "chat.headers": [
+    "internal:copilot-anthropic-beta:chat.headers",
+    "internal:copilot-subagent-initiator:chat.headers",
+  ],
   "user.prompt.submit": [
     "internal:user-memory:user.prompt.submit",
     "internal:org-memory:user.prompt.submit",
     "session-handoff:user.prompt.submit",
+  ],
+  "command.execute.before": [
+    "auto-slash-command:command.execute.before",
+  ],
+  "shell.env": [
+    "internal:non-interactive-env:shell.env",
   ],
   "tool.execute.before": [
     "question-label-truncator:tool.execute.before",
