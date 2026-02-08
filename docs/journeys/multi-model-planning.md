@@ -36,9 +36,9 @@ graph TD
             Orchestrator --> ModelC[gemini-3-pro]
         end
 
-        ModelA --> PlanA[plan-claude-opus-4-5.md]
-        ModelB --> PlanB[plan-gpt-5.2.md]
-        ModelC --> PlanC[plan-gemini-3-pro.md]
+        ModelA --> PlanA[".sisyphus/plans/{planId}-claude-opus-4-5.md"]
+        ModelB --> PlanB[".sisyphus/plans/{planId}-gpt-5.2.md"]
+        ModelC --> PlanC[".sisyphus/plans/{planId}-gemini-3-pro.md"]
 
         PlanA --> Synthesizer[Plan Synthesizer<br>4-Criterion Evaluation<br>+ Assumption/Risk Analysis]
         PlanB --> Synthesizer
@@ -57,8 +57,8 @@ graph TD
         MayRevise --> FinalDecision
     end
 
-    FinalDecision --> Comparison[comparison.md]
-    FinalDecision --> FinalPlan[final-plan.md]
+    FinalDecision --> Comparison[".sisyphus/plan-reviews/{planId}-comparison.md"]
+    FinalDecision --> FinalPlan[".sisyphus/plans/{planId}.md"]
 ```
 
 ---
@@ -156,7 +156,7 @@ When the user requests plan generation, Prometheus calls:
 
 ```typescript
 multi_plan({
-  planName: "feature-name",
+  planId: "feature-name",
   context: "Complete interview context, decisions, research...",
   debate: true  // Optional: enable debate mode for high-stakes plans
 })
@@ -188,13 +188,13 @@ Context Packs: global, tooling
 
 Each model writes its plan to:
 ```
-.sisyphus/plans/{name}-{model}.md
+.sisyphus/plans/{planId}-{model}.md
 ```
 
 After synthesis completes, Prometheus should also produce a per-plan context manifest:
 
 ```
-.sisyphus/context-manifests/{name}.md
+.sisyphus/context-manifests/{planId}.md
 ```
 
 ### Step 3: Plan Synthesis (Phases 1-6)
@@ -239,10 +239,10 @@ The following files are generated:
 
 | File | Path | Description |
 |------|------|-------------|
-| Individual Plans | `.sisyphus/plans/{name}-{model}.md` | Each model's original plan |
-| Comparison Report | `.sisyphus/plan-reviews/{name}-comparison.md` | Evaluations, conflicts, rebuttals |
-| Final Plan | `.sisyphus/plans/{name}.md` | Synthesized unified plan |
-| Rebuttals (if debate) | `.sisyphus/rebuttals/{name}-{model}.md` | Rebuttal from each rejected model |
+| Individual Plans | `.sisyphus/plans/{planId}-{model}.md` | Each model's original plan |
+| Comparison Report | `.sisyphus/plan-reviews/{planId}-comparison.md` | Evaluations, conflicts, rebuttals |
+| Final Plan | `.sisyphus/plans/{planId}.md` | Synthesized unified plan |
+| Rebuttals (if debate) | `.sisyphus/rebuttals/{planId}-{model}.md` | Rebuttal from each rejected model |
 
 ---
 
@@ -505,7 +505,7 @@ For a 3-model setup where 2 were rejected, expect 3 additional model calls (2 re
 ### Individual Plans
 
 ```
-.sisyphus/plans/{name}-{model}.md
+.sisyphus/plans/{planId}-{model}.md
 ```
 
 Example: `.sisyphus/plans/auth-claude-opus-4-5.md`, `.sisyphus/plans/auth-gpt-5.2.md`
@@ -522,7 +522,7 @@ Each follows the standard plan format:
 ### Comparison Report
 
 ```
-.sisyphus/plan-reviews/{name}-comparison.md
+.sisyphus/plan-reviews/{planId}-comparison.md
 ```
 
 Contains:
@@ -537,10 +537,11 @@ Contains:
 ### Final Unified Plan
 
 ```
-.sisyphus/plans/{name}.md
+.sisyphus/plans/{planId}.md
 ```
 
 The synthesized plan combining the best elements from all models, ready for execution with `/start-work`.
+In execution mode, `/start-work` migrates it into `.sisyphus/plans/{planId}/plan.md` (task SSOT).
 
 ---
 
@@ -675,7 +676,7 @@ EOF
 
 # 4. Prometheus calls multi_plan tool
 # multi_plan({
-#   planName: "auth",
+#   planId: "auth",
 #   context: "...",
 #   debate: true  # Enable debate for maximum scrutiny
 # })

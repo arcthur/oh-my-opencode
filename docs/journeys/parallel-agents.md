@@ -23,9 +23,9 @@ flowchart TD
   A5 --> A6["Merge branches into main; keep worktrees until integration is verified"]
   A6 --> A7["Cleanup: kill tmux windows, remove worktrees, delete branches"]
 
-  B --> B1["Call delegate_task(run_in_background=true, ...)"]
+  B --> B1["Call delegate_task({ run_in_background: true, ... })"]
   B1 --> B2["BackgroundManager launches sub-sessions"]
-  B2 --> B3["Check results via background_output(task_id=...)"]
+  B2 --> B3["Check results via background_output({ task_id: ... })"]
   B2 --> BT["(Optional) tmux-parallel-agents hook creates monitoring windows / worktrees"]
   B3 --> I["Integrate results in main session"]
   BT --> I

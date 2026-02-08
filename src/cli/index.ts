@@ -68,7 +68,7 @@ program
   .description("Run opencode with todo/background task completion enforcement")
   .option("-a, --agent <name>", "Agent to use (default: from CLI/env/config, fallback: Sisyphus)")
   .option("-d, --directory <path>", "Working directory")
-  .option("-t, --timeout <ms>", "Timeout in milliseconds (default: 30 minutes)", parseInt)
+  .option("-t, --timeout <ms>", "Timeout in milliseconds (default: 0 = no timeout)", parseInt)
   .addHelpText("after", `
 Examples:
   $ bunx oh-my-opencode run "Fix the bug in index.ts"

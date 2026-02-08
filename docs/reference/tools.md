@@ -130,8 +130,8 @@ The caller still receives a synchronous, final output, but the underlying execut
 
 If you launch a background task, you SHOULD:
 
-- Poll with `background_output(task_id="...")` until completion, and/or
-- Cancel with `background_cancel(task_id="...")` if the task is stuck.
+- Poll with `background_output({ task_id: "..." })` until completion, and/or
+- Cancel with `background_cancel({ task_id: "..." })` if the task is stuck.
 
 ## Contract: `multi_plan`
 

@@ -4,15 +4,16 @@
 
 ## Agents: Your AI Team
 
-Oh-My-OpenCode provides 10 specialized AI agents. Each has distinct expertise, optimized models, and tool permissions.
+Oh-My-OpenCode provides multiple specialized AI agents (core, planning, and derived runtime agents). Each has distinct expertise, optimized models, and tool permissions.
 
 ### Core Agents
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
 | **Sisyphus** | `anthropic/claude-opus-4-6` | **The default orchestrator.** Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. Todo-driven workflow with extended thinking (32k budget). |
+| **hephaestus** | `openai/gpt-5.3-codex` | Autonomous deep worker for goal-oriented execution. Explores thoroughly, then drives end-to-end implementation with high autonomy. |
 | **oracle** | `openai/gpt-5.2` | Architecture decisions, code review, debugging. Read-only consultation - stellar logical reasoning and deep analysis. Inspired by AmpCode. |
-| **librarian** | `opencode/glm-4.7-free` | Multi-repo analysis, documentation lookup, OSS implementation examples. Deep codebase understanding with evidence-based answers. Inspired by AmpCode. |
+| **librarian** | `zai-coding-plan/glm-4.7` | Multi-repo analysis, documentation lookup, OSS implementation examples. Deep codebase understanding with evidence-based answers. Inspired by AmpCode. |
 | **explore** | `github-copilot/grok-code-fast-1` | Fast codebase exploration and contextual grep. Falls back to Claude Haiku / GPT-5 Nano when preferred provider is unavailable. Inspired by Claude Code. |
 | **multimodal-looker** | `google/gemini-3-flash` | Visual content specialist. Analyzes PDFs, images, diagrams to extract information. Saves tokens by having another agent process media. |
 
@@ -40,7 +41,7 @@ Ask @explore for the policy on this feature
 | oracle | Read-only: cannot write, edit, or delegate |
 | librarian | Cannot write, edit, or delegate |
 | explore | Cannot write, edit, or delegate |
-| multimodal-looker | Allowlist only: read, glob, grep |
+| multimodal-looker | Allowlist only: `read` |
 
 ### Background Agents
 
@@ -52,19 +53,19 @@ Run agents in the background and continue working:
 
 ```
 # Launch in background
-delegate_task(
-  subagent_type="explore",
-  load_skills=[],
-  description="auth inventory",
-  prompt="Find auth implementations in this repo. Return file paths + key patterns.",
-  run_in_background=true
-)
+delegate_task({
+  subagent_type: "explore",
+  load_skills: [],
+  description: "auth inventory",
+  prompt: "Find auth implementations in this repo. Return file paths + key patterns.",
+  run_in_background: true,
+})
 
 # Continue working...
 # System notifies on completion
 
 # Retrieve results when needed
-background_output(task_id="bg_abc123")
+background_output({ task_id: "bg_abc123" })
 ```
 
 Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](../reference/configuration.md#agents).
@@ -80,6 +81,7 @@ Skills provide specialized workflows with embedded MCP servers and detailed inst
 | Skill | Trigger | Description |
 |-------|---------|-------------|
 | **playwright** | Browser tasks, testing, screenshots | Browser automation via Playwright MCP. MUST USE for any browser-related tasks - verification, browsing, web scraping, testing, screenshots. |
+| **agent-browser** | Browser tasks (when selected) | Alternate browser automation provider used by some integrations. Included only when explicitly selected; `playwright` is the default. |
 | **frontend-ui-ux** | UI/UX tasks, styling | Designer-turned-developer persona. Crafts stunning UI/UX even without design mockups. Emphasizes bold aesthetic direction, distinctive typography, cohesive color palettes. |
 | **git-master** | commit, rebase, squash, blame | MUST USE for ANY git operations. Atomic commits with automatic splitting, rebase/squash workflows, history search (blame, bisect, log -S). |
 | **parallel-agents** | worktree, tmux, spawn, swarm, isolate | Git worktree + tmux orchestration for parallel agent workflows: spawn, monitor, rescue, merge, cleanup. |
@@ -222,6 +224,7 @@ Commands are slash-triggered workflows that execute predefined templates.
 | `/cancel-ralph` | Cancel active Ralph Loop |
 | `/refactor` | Intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification |
 | `/start-work` | Start Sisyphus work session from Prometheus plan |
+| `/stop-continuation` | Stop continuation mechanisms for the current session |
 
 ### Command: /init-deep
 
@@ -295,6 +298,15 @@ Everything runs at maximum intensity - parallel agents, background tasks, aggres
 
 Uses sisyphus agent to execute planned tasks systematically.
 
+### Command: /stop-continuation
+
+**Purpose**: Stop continuation loops for the current session (Ralph loop, todo auto-continuation, related continuation controls)
+
+**Usage**:
+```
+/stop-continuation
+```
+
 ### Custom Commands
 
 Load custom commands from:
@@ -311,17 +323,22 @@ Hooks intercept and modify behavior at key points in the agent lifecycle.
 
 ### Hook Events
 
-Note: This section uses **Claude Code-style hook names** (e.g., `PreToolUse`, `PostToolUse`, `Stop`, `PreCompact`) as a stable conceptual vocabulary.
-OpenCode runtime wiring uses OpenCode lifecycle events; for the source of truth see `src/hooks/runtime/pipeline-order.ts`, `src/index.ts`, and `docs/reference/hooks.md`.
-Compaction-time injection (`PreCompact`) is registered on `experimental.session.compacting` as a best-effort bridge (depends on runtime surface availability).
+OpenCode runtime wiring uses OpenCode lifecycle events. For source of truth, see:
+- `src/hooks/runtime/pipeline-order.ts`
+- `src/hooks/runtime/registry.ts`
+- `src/index.ts`
+- `docs/reference/hooks.md`
 
 | Event | When | Can |
 |-------|------|-----|
-| **PreToolUse** | Before tool execution | Block, modify input, inject context |
-| **PostToolUse** | After tool execution | Add warnings, modify output, inject messages |
-| **UserPromptSubmit** | When user submits prompt | Block, inject messages, transform prompt |
-| **PreCompact** | Before session compaction (if supported) | Inject compaction-time context |
-| **Stop** | When session goes idle | Inject follow-up prompts |
+| **`chat.message`** | User message is accepted into runtime | Transform message, trigger slash workflows, inject/route planning controls |
+| **`user.prompt.submit`** | Prompt submit boundary | Memory/session handoff injection |
+| **`tool.execute.before`** | Before tool execution | Validate/guard/modify tool input |
+| **`tool.execute.after`** | After tool execution | Truncate output, add guidance, inject context |
+| **`event`** | Session lifecycle stream (`session.*`, `message.*`, etc.) | Notifications, continuation, runtime state repair |
+| **`experimental.chat.messages.transform`** | Message transform phase | Thinking-block validation, transform-time context |
+| **`experimental.session.compacting`** | Compaction-time phase | Claude bridge `PreCompact`, compaction context injection |
+| **`chat.params`** | Model params phase | Provider/model parameter adjustment (e.g., effort tuning) |
 
 ### Built-in Hooks
 
@@ -329,71 +346,76 @@ Compaction-time injection (`PreCompact`) is registered on `experimental.session.
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **directory-agents-injector** | PostToolUse | Auto-injects AGENTS.md when reading files. Walks from file to project root, collecting all AGENTS.md files. **Deprecated for OpenCode 1.1.37+** - Auto-disabled when native AGENTS.md injection is available. |
-| **directory-readme-injector** | PostToolUse | Auto-injects README.md for directory context. |
-| **rules-injector** | PostToolUse | Injects rules from `.claude/rules/` when conditions match. Supports globs and alwaysApply. |
-| **context-window-governor** | PostToolUse / Stop / PreCompact | Unified context window governance: warnings, preemptive summarize, hard-limit recovery, and compaction-time context injection (best-effort via `experimental.session.compacting`). |
+| **directory-agents-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Auto-injects AGENTS.md when reading files. Walks from file to project root, collecting all AGENTS.md files. **Deprecated for OpenCode 1.1.37+** - Auto-disabled when native AGENTS.md injection is available. |
+| **directory-readme-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Auto-injects README.md for directory context. |
+| **rules-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Injects rules from `.claude/rules/` when conditions match. Supports globs and alwaysApply. |
+| **context-window-governor** | `event`, `tool.execute.after`, `experimental.session.compacting` | Unified context window governance: warnings, preemptive summarize, hard-limit recovery, and compaction-time context injection. |
 
 #### Productivity & Control
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **keyword-detector** | UserPromptSubmit | Detects keywords and activates modes: `ultrawork`/`ulw` (max performance), `search`/`find` (parallel exploration), `analyze`/`investigate` (deep analysis). |
-| **think-mode** | UserPromptSubmit | Auto-detects extended thinking needs. Catches "think deeply", "ultrathink" and adjusts model settings. |
-| **ralph-loop** | Stop | Manages self-referential loop continuation. |
-| **start-work** | PostToolUse | Handles /start-work command execution. |
-| **auto-slash-command** | UserPromptSubmit | Automatically executes slash commands from prompts. |
+| **keyword-detector** | `chat.message` | Detects keywords and activates modes: `ultrawork`/`ulw`, `search`/`find`, `analyze`/`investigate`. |
+| **think-mode** | `chat.message`, `event` | Auto-detects extended thinking needs and adjusts model behavior. |
+| **ralph-loop** | `event` | Manages self-referential loop continuation. |
+| **start-work** | `chat.message` | Handles `/start-work` command execution. |
+| **auto-slash-command** | `chat.message` | Automatically executes slash commands from prompts. |
 
 #### Quality & Safety
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **comment-checker** | PostToolUse | Reminds agents to reduce excessive comments. Smartly ignores BDD, directives, docstrings. |
-| **thinking-block-validator** | PreToolUse | Validates thinking blocks to prevent API errors. |
-| **edit-failure-guidance** | PostToolUse | Recovers from edit tool failures. |
+| **comment-checker** | `tool.execute.before`, `tool.execute.after` | Reminds agents to reduce excessive comments. Smartly ignores BDD, directives, docstrings. |
+| **thinking-block-validator** | `experimental.chat.messages.transform` | Validates thinking blocks to prevent API errors. |
+| **empty-task-response-detector** | `tool.execute.after` | Detects empty task responses and injects recovery guidance. |
+| **edit-failure-guidance** | `tool.execute.after` | Recovers from edit tool failures. |
+| **question-label-truncator** | `tool.execute.before` | Truncates overlong labels for `question` tool calls. |
+| **write-existing-file-guard** | `tool.execute.before` | Prevents accidental `Write` over existing files; nudges safer edit flows. |
 
 #### Recovery & Stability
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **session-state-repair** | Stop | Recovers from session errors - missing tool results, thinking block issues, empty messages. |
+| **session-state-repair** | `event` (internal `session.error` path) | Recovers from recoverable session errors (missing tool results, thinking-block issues, empty messages). |
 
 #### Truncation & Context Management
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **tool-output-truncator** | PostToolUse | Truncates output from Grep, Glob, LSP, AST-grep tools. |
+| **tool-output-truncator** | `tool.execute.after` | Truncates output from Grep, Glob, LSP, AST-grep tools. |
 
 #### Notifications & UX
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **auto-update-checker** | UserPromptSubmit | Checks for new versions, shows startup toast with version and Sisyphus status. |
-| **background-notification** | Stop | Notifies when background agent tasks complete. |
-| **session-notification** | Stop | OS notifications when agents go idle. Works on macOS, Linux, Windows. |
-| **delegation-nudge-agent-usage** | PostToolUse | Reminds you to leverage specialized agents for better results. |
+| **auto-update-checker** | `event` | Checks for new versions and controls startup toast behavior. |
+| **background-notification** | `event` | Notifies when background agent tasks complete. |
+| **session-notification** | `event` | OS notifications when agents go idle. Works on macOS, Linux, Windows. |
+| **delegation-nudge-agent-usage** | `event`, `tool.execute.after` | Reminds you to leverage specialized agents for better results. |
 
 #### Task Management
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **task-resume-info** | PostToolUse | Provides task resume information for continuity. |
-| **delegation-failure-guidance** | PostToolUse | Retries failed delegate_task calls. |
+| **delegation-failure-guidance** | `tool.execute.after` | Adds structured retry guidance when `delegate_task` input validation fails. |
+
+Note: `task-resume-info` is an internal runtime node (`internal:task-resume-info`) and is not a user-configurable hook name.
 
 #### Integration
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **claude-code-hooks** | All | Executes hooks from Claude Code's settings.json. |
-| **sisyphus** | All | Main orchestration logic (771 lines). |
-| **interactive-bash-session** | PreToolUse | Manages tmux sessions for interactive CLI. |
-| **non-interactive-env** | PreToolUse | Handles non-interactive environment constraints. |
+| **claude-code-hooks** | `chat.message`, `tool.execute.before`, `tool.execute.after`, `event`, `experimental.session.compacting` | Executes hooks from Claude Code's `settings.json`. |
+| **interactive-bash-session** | `event`, `tool.execute.after` | Manages tmux sessions for interactive CLI. |
+| **non-interactive-env** | `tool.execute.before` | Handles non-interactive environment constraints. |
 
 #### Specialized
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **prometheus-md-only** | PostToolUse | Enforces markdown-only output for Prometheus planner. |
+| **prometheus-md-only** | `tool.execute.before` | Enforces markdown-only output for Prometheus planner. |
+| **sisyphus-junior-notepad** | `tool.execute.before` | Injects notepad context only when delegating to `sisyphus-junior`. |
+| **anthropic-effort** | `chat.params` | Tunes Anthropic effort/variant params outside runtime dispatcher ordering. |
 
 ### Claude Code Hooks Integration
 

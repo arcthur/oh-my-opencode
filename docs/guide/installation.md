@@ -4,7 +4,7 @@ This guide explains how to install the Oh-My-OpenCode plugin for OpenCode and va
 
 ## Prerequisites
 
-- OpenCode version: **>= 1.0.150** (required by the CLI health checks and some hook integrations)
+- OpenCode version: **>= 1.1.1** (minimum supported by this plugin; relies on the OpenCode permission system)
 - Runtime for the installer:
   - Recommended: Bun (`bunx`)
   - Alternative: Node.js (`npx`)
@@ -41,7 +41,9 @@ bunx oh-my-opencode install --no-tui \
   --gemini=<yes|no> \
   --copilot=<yes|no> \
   [--opencode-zen=<yes|no>] \
-  [--zai-coding-plan=<yes|no>]
+  [--zai-coding-plan=<yes|no>] \
+  [--kimi-for-coding=<yes|no>] \
+  [--skip-auth]
 ```
 
 Examples:
@@ -56,20 +58,25 @@ bunx oh-my-opencode install --no-tui --claude=no --openai=no --gemini=no --copil
 
 ## Authenticate Providers
 
-### OpenCode providers (Anthropic / OpenAI / Copilot)
-
-Use OpenCode’s auth flow:
+Use OpenCode auth flow for provider login:
 
 ```bash
 opencode auth login
 ```
 
+Notes:
+- Oh-My-OpenCode CLI does **not** expose an `auth` subcommand.
+- MCP OAuth tokens (for OAuth-protected MCP endpoints) are managed separately via:
+  - `bunx oh-my-opencode mcp oauth login ...`
+  - `bunx oh-my-opencode mcp oauth logout ...`
+  - `bunx oh-my-opencode mcp oauth status ...`
+
 ### Google Gemini (Antigravity OAuth)
 
-If you use Gemini via Antigravity OAuth, use the CLI auth helper:
+For Gemini, installer can add auth plugins and provider config, but account login still goes through:
 
 ```bash
-bunx oh-my-opencode auth login
+opencode auth login
 ```
 
 ## Verify the Setup

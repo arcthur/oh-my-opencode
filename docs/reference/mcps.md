@@ -90,8 +90,8 @@ These MCP servers are not merged into the global `config.mcp` table; they are ma
 
 The OpenCode `config.mcp` table is assembled in `src/plugin-handlers/config-handler.ts` as:
 
-1. OpenCode base config `mcp` (if any)
-2. Built-in MCPs (filtered by `disabled_mcps`)
+1. Built-in MCPs (filtered by `disabled_mcps`)
+2. OpenCode base config `mcp` (if any)
 3. Claude Code `.mcp.json` servers (if enabled)
 4. Plugin-provided MCP servers (`pluginComponents.mcpServers`)
 
@@ -99,7 +99,7 @@ Later layers override earlier layers for the same server name.
 
 ```mermaid
 flowchart TD
-  A["OpenCode base config.mcp"] --> B["Built-in MCPs (createBuiltinMcps)"]
+  A["Built-in MCPs (createBuiltinMcps)"] --> B["OpenCode base config.mcp"]
   B --> C["Claude Code .mcp.json (optional)"]
   C --> D["Plugin components mcpServers"]
   D --> E["Final config.mcp"]

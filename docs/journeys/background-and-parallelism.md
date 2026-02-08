@@ -18,12 +18,12 @@ sequenceDiagram
   participant Out as background_output tool
 
   User->>Main: Request parallel exploration / subtasks
-  Main->>DT: delegate_task(run_in_background=true, ...)
+  Main->>DT: delegate_task({ run_in_background: true, ... })
   DT->>BG: launch(description, prompt, agent, ...)
   BG->>Sub: Create session + prompt
   Sub-->>BG: Progress / results
   BG-->>Notif: Emit completion/idle events
-  Main->>Out: background_output(task_id)
+  Main->>Out: background_output({ task_id })
   Out-->>Main: Latest output + session_id (for continuation)
   Main-->>User: Integrate findings / next steps
 ```

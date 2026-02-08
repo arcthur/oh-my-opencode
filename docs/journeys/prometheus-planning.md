@@ -13,9 +13,9 @@ flowchart TD
   R --> Q["Interview (one question at a time)"]
   Q --> OPT["Explore 2-3 approaches (when non-trivial)"]
   OPT --> CLR{"Clearance check\\n(requirements, scope, tests)"}
-  CLR -->|Pass| PLAN["Write plan → .sisyphus/plans/<name>.md"]
+  CLR -->|Pass| PLAN["Write plan draft → .sisyphus/plans/<planId>.md"]
   CLR -->|Fail| Q
-  PLAN --> EXEC["Execution (/start-work → execution-orchestrator hook)"]
+  PLAN --> EXEC["Execution (/start-work migrates to .sisyphus/plans/<planId>/plan.md)"]
 ```
 
 Prometheus is the strategic planning agent in OpenCode. Named after the Titan who brought fire (knowledge/foresight) to humanity, it brings structure and clarity to complex work through thoughtful consultation.
@@ -145,7 +145,7 @@ Auto-triggers when clearance check passes.
 □ No blocking questions outstanding?
 ```
 
-**Output:** `.sisyphus/plans/{name}.md`
+**Output:** `.sisyphus/plans/{planId}.md` (plan draft; `/start-work` migrates it into `.sisyphus/plans/{planId}/plan.md` for execution mode)
 
 ### Phase 3: High Accuracy Mode (Optional)
 
@@ -163,8 +163,9 @@ Multi-model planning with debate for critical decisions.
 | Draft | `.sisyphus/drafts/{topic}.md` | Working memory during interview |
 | Design Doc | `.sisyphus/designs/{topic-slug}.md` | WHY/HOW decisions |
 | Research Findings | `.sisyphus/drafts/{topic}-research.md` | Investigation results |
-| Work Plan | `.sisyphus/plans/{name}.md` | WHAT/DO execution steps |
-| Context Manifest | `.sisyphus/context-manifests/{name}.md` | Deterministic context packs for delegation |
+| Work Plan (draft) | `.sisyphus/plans/{planId}.md` | Planner output (what to do, why, verification) |
+| Execution Plan (SSOT) | `.sisyphus/plans/{planId}/plan.md` | Task single source of truth used by execution mode |
+| Context Manifest | `.sisyphus/context-manifests/{planId}.md` | Deterministic context packs for delegation |
 
 ### Design Doc vs Work Plan
 

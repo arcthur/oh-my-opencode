@@ -22,6 +22,68 @@ This document does **not** restate every Zod schema field. The schema is authori
 - Merge semantics: `src/plugin-config.ts`
 - Generated JSON schema: `assets/oh-my-opencode.schema.json`
 
+## Top-level Keys (Index)
+
+The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these keys:
+
+### Meta / wiring
+
+- `$schema`: Optional JSON schema URL for editor autocomplete.
+- `new_task_system_enabled`: Reserved flag. Parsed and defaulted, but not wired to runtime behavior yet.
+- `experimental`: Experimental feature toggles (see [Experimental](#experimental)).
+- `auto_update`: Controls whether `auto-update-checker` performs automatic install or notification-only mode (see [Auto Update](#auto-update)).
+
+### Disable / hide surfaces
+
+- `disabled_agents`: Disable built-in agents (see [Agents](#agents)).
+- `disabled_skills`: Disable schema-recognized built-in skills (see [Built-in Skills](#built-in-skills)).
+- `disabled_hooks`: Disable built-in hooks (see [Hooks](#hooks) and `docs/reference/hooks.md`).
+- `disabled_mcps`: Disable built-in MCP servers only (see [MCPs](#mcps) and `docs/reference/mcps.md`).
+- `disabled_commands`: Disable schema-recognized built-in slash commands (see [Disabling Commands](#disabling-commands)).
+- `disabled_tools`: Hide tools from the plugin tool registry by exact tool name (see [Disabling Tools](#disabling-tools) and `docs/reference/tools.md`).
+
+### Agents / categories / skills
+
+- `agents`: Built-in agent override block (model/variant/tools/permission/etc).
+- `categories`: Category presets for `delegate_task({ category: ... })`.
+- `skills`: Skill discovery/merge/enablement configuration (see `docs/reference/skills.md`).
+- `default_run_agent`: Default agent name for `bunx oh-my-opencode run` (see [CLI](../guide/cli.md#4-run-message)).
+- `claude_code`: Claude Code compatibility toggles (see `docs/guide/features.md` and loaders under `src/features/claude-code-*-loader/`).
+- `sisyphus_agent`: Enables/disables Sisyphus orchestration and derived agents (see [Sisyphus Agent](#sisyphus-agent)).
+
+### Orchestration / execution
+
+- `background_task`: Background task concurrency limits (see [Background Tasks](#background-tasks)).
+- `parallel_runtime`: Shared global admission control across background and swarm (see [Parallel Runtime](#parallel-runtime)).
+- `multi_plan_pipeline`: Multi-plan pipeline behavior controls (see [Multi-Plan Pipeline](#multi-plan-pipeline)).
+- `ralph_loop`: Ralph loop opt-in config for `/ralph-loop` and `/ulw-loop` (see [Ralph Loop](#ralph-loop)).
+- `planning_with_files`: Persistent planning filesystem feature (see [Planning with Files](#planning-with-files)).
+- `continuation_control`: Single-writer continuation arbitration configuration (see [Continuation Control](#continuation-control)).
+- `sisyphus`: Sisyphus Tasks & Swarm configuration (see [Sisyphus](#sisyphus)).
+- `tmux_parallel_agents`: Auto-create tmux windows/worktrees for background agents (see [Tmux Parallel Agents](#tmux-parallel-agents)).
+
+### Context / memory / governance
+
+- `context_budget`: Shared context injection token budget (see [Context Budget](#context-budget)).
+- `context_window_governor`: Token-limit warning/compaction/recovery policy (see [Context Window Governor](#context-window-governor)).
+- `silent_tool_output`: Tool output shaping config (requires `silent-tool-output` hook; see `docs/reference/hooks.md`).
+- `repo_overview`: Repository overview injection config (requires `repo-overview-injector` hook; see `docs/reference/hooks.md`).
+- `runtime_tracker`: Tool runtime tracking config (requires `runtime-tracker` hook; see `docs/reference/hooks.md`).
+- `comment_checker`: Comment checker hook config (see [Comment Checker](#comment-checker)).
+- `user_memory`: User memory subsystem config (see `docs/reference/user-memory.md`).
+- `org_memory`: Org memory subsystem config (see `docs/reference/org-memory.md`).
+- `session_handoff`: Session handoff + session reference config (see [Session Handoff](#session-handoff) and `docs/journeys/session-handoff-and-reference.md`).
+- `conditional_rules`: Conditional rules injection config (see `docs/journeys/conditional-rules.md`).
+- `governance`: Governance module config (see `docs/reference/governance.md` and `docs/journeys/governance.md`).
+
+### UX / notifications
+
+- `notification`: Notification behavior controls (see [Notifications](#notifications)).
+
+### Skills: built-in integrations
+
+- `git_master`: git-master skill configuration (see [Git Master](#git-master)).
+
 ## Config File Locations
 
 Config file locations (priority order):
@@ -68,6 +130,44 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
 }
 ```
 
+## Disabling Commands
+
+`disabled_commands` disables **built-in** slash commands shipped by this repo (schema: `BuiltinCommandNameSchema` in `src/config/schema.ts`).
+
+Contract:
+
+- Scope: built-in commands only. It MUST NOT be assumed to disable filesystem-discovered commands or skills.
+- Validation: values MUST match the built-in command name enum. Invalid values cause config validation to fail for that file.
+- Merge: user + project config are merged via **set union** (`src/plugin-config.ts`).
+
+Example:
+
+```json
+{
+  "disabled_commands": ["refactor", "start-work"]
+}
+```
+
+## Disabling Tools
+
+`disabled_tools` removes tool definitions from the **plugin tool registry** returned by this plugin (exact name match; case-sensitive). See `src/shared/disabled-tools.ts`.
+
+Contract:
+
+- Scope: plugin-provided tools only. It MUST NOT be assumed to disable OpenCode core tools.
+- Matching: exact and case-sensitive (unknown names are ignored).
+- Merge: last-write-wins when both user and project config specify `disabled_tools` (`src/plugin-config.ts`).
+
+Example:
+
+```json
+{
+  "disabled_tools": ["interactive_bash", "multi_plan"]
+}
+```
+
+For the built-in tool name surface shipped by this repo, see `docs/reference/tools.md`.
+
 ## Google Auth
 
 **Recommended**: For Google Gemini authentication, install the [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin. It provides multi-account load balancing, more models (including Claude via Antigravity), and active maintenance. See [Installation > Google Gemini (Antigravity OAuth)](../guide/installation.md#google-gemini-antigravity-oauth).
@@ -90,7 +190,7 @@ Override built-in agent settings:
 }
 ```
 
-Each agent supports: `model`, `temperature`, `top_p`, `prompt`, `prompt_append`, `tools`, `disable`, `description`, `mode`, `color`, `permission`.
+Each agent supports: `model`, `variant`, `category`, `skills`, `temperature`, `top_p`, `prompt`, `prompt_append`, `tools`, `permission`, `disable`, `description`, `mode`, `color`.
 
 **Note**: The `agents` override keys are limited to `AgentOverridesSchema` in `src/config/schema.ts` (unknown agent keys are ignored). Some built-in agents (e.g., `hephaestus`) can be disabled via `disabled_agents` but are not currently overrideable via the `agents` block.
 
@@ -142,7 +242,7 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available built-in agents: `sisyphus`, `sisyphus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`, `hephaestus`
+Available built-in agents: `sisyphus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`, `hephaestus`
 
 ## Multi-Plan Pipeline
 
@@ -382,6 +482,153 @@ Configure global concurrency admission shared by Background and Swarm execution 
 - Global admission is evaluated in addition to local limits (both must pass in enforce mode).
 - `acquire_timeout_ms` applies to blocking admissions (Background); Swarm admission is non-blocking in `enforce` and simply stops new assignments when at capacity.
 
+## Continuation Control
+
+Continuation control is an always-on **single-writer arbiter** for continuation prompts triggered around `session.idle`.
+
+- Configuration key: `continuation_control` (schema: `ContinuationControlConfigSchema` in `src/config/schema.ts`)
+- Implementation: `src/hooks/continuation-control/index.ts`
+- Wiring: `src/index.ts` (deep-merged with defaults)
+
+Contract:
+
+- For a given session idle "round", at most one continuation prompt SHOULD be emitted.
+- If multiple sources report intents for the same round, the arbiter MUST select the highest priority and reject others with `lower_priority`.
+- When the session was compacted recently, intents MUST be rejected during `post_compaction_grace_ms`.
+
+Configuration example:
+
+```jsonc
+{
+  "continuation_control": {
+    "post_compaction_grace_ms": 1500,
+    "priority": {
+      "execution-orchestrator": 400,
+      "ralph-loop": 300,
+      "todo-auto-continuation": 200,
+      "planning-with-files": 100
+    }
+  }
+}
+```
+
+Sources (current implementation):
+
+- `execution-orchestrator`
+- `ralph-loop`
+- `todo-auto-continuation`
+- `planning-with-files`
+
+## Ralph Loop
+
+`ralph_loop` configures the `ralph-loop` hook and the `/ralph-loop` and `/ulw-loop` workflows.
+
+- Hook implementation: `src/hooks/ralph-loop/`
+- Schema: `RalphLoopConfigSchema` in `src/config/schema.ts`
+- State file (default): `.sisyphus/ralph-loop.local.md`
+
+Enablement contract:
+
+- The `ralph-loop` hook MUST be enabled (not present in `disabled_hooks`), and
+- `ralph_loop.enabled` MUST be `true`.
+
+Notes:
+
+- `ralph_loop.default_max_iterations` sets the default max iteration count when the command does not pass `--max-iterations=...`.
+- `ralph_loop.state_dir` is treated as a **state file path** relative to project root in the current implementation (despite the name). If set, it overrides the default state file location.
+
+Example:
+
+```json
+{
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 100
+  }
+}
+```
+
+## Planning with Files
+
+`planning_with_files` enables a persistent, file-backed planning protocol under `.sisyphus/`. For the end-to-end lifecycle and prompts, see `docs/journeys/planning-with-files.md`.
+
+Enablement contract:
+
+- The `planning-with-files` hook MUST be enabled (not present in `disabled_hooks`), and
+- `planning_with_files.enabled` MUST be `true`.
+
+Artifacts (canonical layout):
+
+- `.sisyphus/work.yaml`: single active plan + protocol state
+- `.sisyphus/plans/<plan_id>/plan.md`
+- `.sisyphus/plans/<plan_id>/ledger.yaml`
+- `.sisyphus/plans/<plan_id>/findings.md`
+- `.sisyphus/plans/<plan_id>/progress.md`
+
+Directory note:
+
+- `planning_with_files.directory` is **deprecated and ignored** in the current implementation; the directory is fixed to `.sisyphus/plans` (`src/hooks/planning-with-files/index.ts`, `src/features/planning-with-files/types.ts`).
+
+Minimal config:
+
+```jsonc
+{
+  "planning_with_files": {
+    "enabled": true
+  }
+}
+```
+
+## Tmux Parallel Agents
+
+`tmux_parallel_agents` configures tmux/worktree orchestration for background tasks and Swarm.
+
+- Hook: `tmux-parallel-agents` (`src/hooks/tmux-parallel-agents/`)
+- Schema: `TmuxParallelAgentsConfigSchema` in `src/config/schema.ts`
+- See journeys:
+  - `docs/journeys/parallel-agents.md`
+  - `docs/journeys/swarm-coordination.md`
+
+Enablement contract:
+
+- The `tmux-parallel-agents` hook MUST be enabled (not present in `disabled_hooks`), and
+- `tmux_parallel_agents.enabled` MUST be `true`.
+
+Example:
+
+```jsonc
+{
+  "tmux_parallel_agents": {
+    "enabled": true,
+    "layout": "main-vertical",
+    "auto_rescue": false,
+    "worktree": {
+      "enabled": false
+    }
+  }
+}
+```
+
+## Sisyphus
+
+The `sisyphus` block configures **Sisyphus Tasks** and **Sisyphus Swarm** subsystems.
+This is separate from `sisyphus_agent` (which controls whether Sisyphus replaces OpenCode build/plan slots).
+
+Schema: `SisyphusConfigSchema` in `src/config/schema.ts`.
+
+### Tasks
+
+- `sisyphus.tasks.enabled` (default: `false`): Enables the Tasks subsystem.
+- `sisyphus.tasks.storage_path` (default: `.sisyphus/tasks`): Storage directory.
+
+### Swarm
+
+- `sisyphus.swarm.enabled` (default: `false`): Enables Swarm.
+- `sisyphus.swarm.storage_path` (default: `.sisyphus/teams`): Storage directory.
+- `sisyphus.swarm.ui_mode` (default: `toast`): `toast` / `tmux` / `both`
+- `sisyphus.swarm.swarm_first` (default: `false`): Auto-start Swarm from `/start-work`.
+- `sisyphus.swarm.worker_count` (default: `3`): Target worker count when Swarm-first is enabled.
+
 ## Categories
 
 Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `sisyphus-junior` agent.
@@ -393,7 +640,7 @@ Categories enable domain-specific task delegation via the `delegate_task` tool. 
 | `visual-engineering` | `google/gemini-3-pro` | Frontend, UI/UX, design, styling, animation |
 | `ultrabrain` | `openai/gpt-5.3-codex` (xhigh) | Deep logical reasoning and complex architecture |
 | `deep` | `openai/gpt-5.3-codex` (medium) | Goal-oriented autonomous problem-solving |
-| `artistry` | `google/gemini-3-pro` (max) | Highly creative/artistic tasks |
+| `artistry` | `google/gemini-3-pro` (high) | Highly creative/artistic tasks |
 | `quick` | `anthropic/claude-haiku-4-5` | Trivial tasks (small changes) |
 | `unspecified-low` | `anthropic/claude-sonnet-4-5` | Moderate-effort tasks that don't fit other categories |
 | `unspecified-high` | `anthropic/claude-opus-4-6` (max) | High-effort tasks that don't fit other categories |
@@ -401,24 +648,24 @@ Categories enable domain-specific task delegation via the `delegate_task` tool. 
 
 **Usage:**
 
-```
+```typescript
 // Via delegate_task tool
-delegate_task(
-  category="visual-engineering",
-  load_skills=["frontend-ui-ux"],
-  description="dashboard UI",
-  prompt="Create a responsive dashboard component",
-  run_in_background=false
-)
+delegate_task({
+  category: "visual-engineering",
+  load_skills: ["frontend-ui-ux"],
+  description: "dashboard UI",
+  prompt: "Create a responsive dashboard component",
+  run_in_background: false,
+})
 
 // Or target a specific agent directly
-delegate_task(
-  subagent_type="oracle",
-  load_skills=[],
-  description="architecture review",
-  prompt="Review this architecture",
-  run_in_background=false
-)
+delegate_task({
+  subagent_type: "oracle",
+  load_skills: [],
+  description: "architecture review",
+  prompt: "Review this architecture",
+  run_in_background: false,
+})
 ```
 
 **Custom Categories:**
@@ -441,184 +688,72 @@ Add custom categories in `oh-my-opencode.json`:
 }
 ```
 
-Each category supports: `model`, `temperature`, `top_p`, `maxTokens`, `thinking`, `reasoningEffort`, `textVerbosity`, `tools`, `prompt_append`.
+Each category supports: `model`, `variant`, `temperature`, `top_p`, `maxTokens`, `thinking`, `reasoningEffort`, `textVerbosity`, `tools`, `prompt_append`, `is_unstable_agent`, `description`.
 
 ## Model Selection System
 
-The installer automatically configures optimal models based on your subscriptions. This section explains how models are selected for each agent and category.
+Model selection has two layers:
 
-### Overview
+1. **Installer bootstrap** (`src/cli/model-fallback.ts`): writes initial `agents` / `categories` model defaults into `oh-my-opencode.json`.
+2. **Runtime resolution** (`src/shared/model-requirements.ts`, `src/shared/model-resolution-pipeline.ts`): resolves final model by availability + fallback chain at runtime.
 
-**Problem**: Users have different subscription combinations (Claude, OpenAI, Gemini, etc.). The system needs to automatically select the best available model for each task.
+### Runtime Fallback Chains (source of truth)
 
-**Solution**: A tiered fallback system that:
-1. Prioritizes native provider subscriptions (Claude, OpenAI, Gemini)
-2. Falls back through alternative providers in priority order
-3. Applies capability-specific logic (e.g., Oracle prefers GPT, visual tasks prefer Gemini)
+#### Agent chains
 
-### Provider Priority
+| Agent | Runtime fallback chain |
+|---|---|
+| `sisyphus` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `zai-coding-plan:glm-4.7` → `opencode:glm-4.7-free` |
+| `hephaestus` | `openai/github-copilot/opencode:gpt-5.3-codex(medium)` |
+| `oracle` | `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` |
+| `librarian` | `zai-coding-plan:glm-4.7` → `opencode:glm-4.7-free` → `anthropic/github-copilot/opencode:claude-sonnet-4-5` |
+| `explore` | `github-copilot:grok-code-fast-1` → `anthropic/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
+| `multimodal-looker` | `google/github-copilot/opencode:gemini-3-flash` → `openai/github-copilot/opencode:gpt-5.2` → `zai-coding-plan:glm-4.6v` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `anthropic/github-copilot/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
+| `prometheus` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro` |
+| `plan-synthesizer` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro` |
 
-```mermaid
-flowchart TB
-  subgraph T1["Tier 1: Native providers (direct subscriptions)"]
-    C["Claude (anthropic/)\nOpus / Sonnet / Haiku"] --> O["OpenAI (openai/)\nGPT-5.2 / Codex"] --> G["Gemini (google/)\nGemini 3 Pro / Flash"]
-  end
+Runtime constraints:
+- `sisyphus` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
+- `hephaestus` requires provider connectivity: `openai` or `github-copilot` or `opencode`.
 
-  T2["Tier 2: OpenCode Zen\n(opencode/...)"] --> T3["Tier 3: GitHub Copilot\n(github-copilot/...)"]
-  T3 --> T4["Tier 4: Z.ai Coding Plan\n(zai-coding-plan/...)"]
-  T4 --> F["Fallback: Free tier\n(opencode/glm-4.7-free)"]
+#### Category chains
 
-  T1 -->|"if no native available"| T2
-```
+| Category | Runtime fallback chain |
+|---|---|
+| `visual-engineering` | `google/github-copilot/opencode:gemini-3-pro` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `zai-coding-plan:glm-4.7` |
+| `ultrabrain` | `openai/github-copilot/opencode:gpt-5.3-codex(xhigh)` → `google/github-copilot/opencode:gemini-3-pro(high)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` |
+| `deep` | `openai/github-copilot/opencode:gpt-5.3-codex(medium)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
+| `artistry` | `google/github-copilot/opencode:gemini-3-pro(high)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `openai/github-copilot/opencode:gpt-5.2` |
+| `quick` | `anthropic/github-copilot/opencode:claude-haiku-4-5` → `google/github-copilot/opencode:gemini-3-flash` → `opencode:gpt-5-nano` |
+| `unspecified-low` | `anthropic/github-copilot/opencode:claude-sonnet-4-5` → `openai/github-copilot/opencode:gpt-5.3-codex(medium)` → `google/github-copilot/opencode:gemini-3-flash` |
+| `unspecified-high` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro` |
+| `writing` | `google/github-copilot/opencode:gemini-3-flash` → `anthropic/github-copilot/opencode:claude-sonnet-4-5` → `zai-coding-plan:glm-4.7` → `openai/github-copilot/opencode:gpt-5.2` |
 
-### Native Tier Cross-Fallback
+Runtime constraints:
+- `deep` requires `gpt-5.3-codex` availability.
+- `artistry` requires `gemini-3-pro` availability.
 
-Within the Native tier, models fall back based on capability requirements:
+### Installer Bootstrap Behavior
 
-| Capability | 1st Choice | 2nd Choice | 3rd Choice |
-|------------|------------|------------|------------|
-| **High-tier tasks** (Sisyphus, Sisyphus Execution Mode) | Claude Opus | OpenAI GPT-5.2 | Gemini 3 Pro |
-| **Standard tasks** | Claude Sonnet | OpenAI GPT-5.2 | Gemini 3 Flash |
-| **Quick tasks** | Claude Haiku | OpenAI GPT-5.1-mini | Gemini 3 Flash |
-| **Deep reasoning** (Oracle) | OpenAI GPT-5.2 | Claude Opus | Gemini 3 Pro |
-| **Visual/UI tasks** | Gemini 3 Pro | OpenAI GPT-5.2 | Claude Sonnet |
-| **Writing tasks** | Gemini 3 Flash | OpenAI GPT-5.2 | Claude Sonnet |
+`bunx oh-my-opencode install` uses `generateModelConfig(...)` to prefill config from subscription flags.
 
-### Agent-Specific Rules
+Important details:
+- If no providers are selected, installer writes `opencode/glm-4.7-free` for agents/categories as ultimate fallback.
+- `sisyphus` is omitted when none of its fallback-chain providers are available (for example OpenAI-only).
+- `explore` has installer-specific shortcuts:
+  - Claude available: `anthropic/claude-haiku-4-5`
+  - Else OpenCode Zen: `opencode/claude-haiku-4-5`
+  - Else Copilot: `github-copilot/gpt-5-mini`
+  - Else: `opencode/gpt-5-nano`
+- `librarian` is pinned to `zai-coding-plan/glm-4.7` when Z.ai is available.
 
-#### Standard Agents
+### `isMax20` Impact (current implementation)
 
-| Agent | Capability | Example (Claude + OpenAI + Gemini) |
-|-------|------------|-------------------------------------|
-| **Sisyphus** | High-tier (isMax20) or Standard | `anthropic/claude-opus-4-6` or `anthropic/claude-sonnet-4-5` |
-| **Oracle** | Deep reasoning | `openai/gpt-5.2` |
-| **Prometheus** | High-tier/Standard | Same as Sisyphus |
-| **Sisyphus Execution Mode** | High-tier/Standard | Same as Sisyphus |
-| **plan-synthesizer** | High-tier/Standard | Typically Opus-class or same as Sisyphus |
-| **multimodal-looker** | Visual | `google/gemini-3-pro-preview` |
+In installer bootstrap logic, `isMax20` affects category downgrade behavior:
+- `isMax20=true`: keep `unspecified-high` chain.
+- `isMax20=false`: `unspecified-high` category uses `unspecified-low` chain during generation.
 
-#### Special Case: explore Agent
-
-The `explore` agent has unique logic for cost optimization:
-
-```mermaid
-flowchart TD
-  Q{"Has Claude + isMax20?"}
-  Q -->|Yes| H["anthropic/claude-haiku-4-5\n(use Claude quota)"]
-  Q -->|No| GK["github-copilot/grok-code-fast-1\n(preferred)"]
-```
-
-#### Special Case: librarian Agent
-
-The `librarian` agent prioritizes Z.ai when available:
-
-```mermaid
-flowchart TD
-  Q{"Has Z.ai Coding Plan?"}
-  Q -->|Yes| Z["zai-coding-plan/glm-4.7\n(prefer GLM for docs/research)"]
-  Q -->|No| N["Normal fallback chain applies"]
-```
-
-### Category-Specific Rules
-
-Categories follow the same fallback logic as agents:
-
-| Category | Primary Capability | Fallback Chain |
-|----------|-------------------|----------------|
-| `visual-engineering` | Visual | Gemini → OpenAI → Claude |
-| `ultrabrain` | Deep reasoning | OpenAI → Claude → Gemini |
-| `artistry` | Visual/Creative | Gemini → OpenAI → Claude |
-| `quick` | Quick tasks | Claude Haiku → OpenAI mini → Gemini Flash |
-| `unspecified-low` | Standard | Claude Sonnet → OpenAI → Gemini Flash |
-| `unspecified-high` | High-tier | Claude Opus → OpenAI → Gemini Pro |
-| `writing` | Writing | Gemini Flash → OpenAI → Claude |
-
-### Subscription Scenarios
-
-#### Scenario 1: Claude Only (Standard Plan)
-
-```json
-// User has: Claude Pro (not max20)
-{
-  "agents": {
-    "sisyphus": { "model": "anthropic/claude-sonnet-4-5" },
-    "oracle": { "model": "anthropic/claude-opus-4-6" },
-    "explore": { "model": "anthropic/claude-haiku-4-5" },
-    "librarian": { "model": "opencode/glm-4.7-free" }
-  }
-}
-```
-
-#### Scenario 2: Claude Only (Max20 Plan)
-
-```json
-// User has: Claude Max (max20 mode)
-{
-  "agents": {
-    "sisyphus": { "model": "anthropic/claude-opus-4-6" },
-    "oracle": { "model": "anthropic/claude-opus-4-6" },
-    "explore": { "model": "anthropic/claude-haiku-4-5" },
-    "librarian": { "model": "opencode/glm-4.7-free" }
-  }
-}
-```
-
-#### Scenario 3: ChatGPT Only
-
-```json
-// User has: OpenAI/ChatGPT Plus only
-{
-  "agents": {
-    "sisyphus": { "model": "openai/gpt-5.2" },
-    "oracle": { "model": "openai/gpt-5.2" },
-    "explore": { "model": "opencode/gpt-5-nano" },
-    "multimodal-looker": { "model": "openai/gpt-5.2" },
-    "librarian": { "model": "opencode/glm-4.7-free" }
-  }
-}
-```
-
-#### Scenario 4: Full Stack (Claude + OpenAI + Gemini)
-
-```json
-// User has: All native providers
-{
-  "agents": {
-    "sisyphus": { "model": "anthropic/claude-opus-4-6" },
-    "oracle": { "model": "openai/gpt-5.2" },
-    "explore": { "model": "anthropic/claude-haiku-4-5" },
-    "multimodal-looker": { "model": "google/gemini-3-pro-preview" },
-    "librarian": { "model": "opencode/glm-4.7-free" }
-  }
-}
-```
-
-#### Scenario 5: GitHub Copilot Only
-
-```json
-// User has: GitHub Copilot only (no native providers)
-{
-  "agents": {
-    "sisyphus": { "model": "github-copilot/claude-sonnet-4.5" },
-    "oracle": { "model": "github-copilot/gpt-5.2" },
-    "explore": { "model": "github-copilot/grok-code-fast-1" },
-    "librarian": { "model": "github-copilot/gpt-5.2" }
-  }
-}
-```
-
-### isMax20 Flag Impact
-
-The `isMax20` flag (Claude Max 20x mode) affects high-tier task model selection:
-
-| isMax20 | High-tier Capability | Result |
-|---------|---------------------|--------|
-| `true` | Uses `unspecified-high` | Opus-class models |
-| `false` | Uses `unspecified-low` | Sonnet-class models |
-
-**Affected agents**: Sisyphus, Prometheus, Sisyphus Execution Mode
-
-**Why?**: Max20 users have 20x more Claude usage, so they can afford Opus for orchestration. Standard users should conserve quota with Sonnet.
+The runtime fallback chain definitions themselves are in `src/shared/model-requirements.ts`.
 
 ### Manual Override
 
@@ -689,7 +824,7 @@ Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-m
 }
 ```
 
-Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For wiring status (including reserved-but-not-wired names) and ordering, see `docs/reference/hooks.md`.
+Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For full hook surface and runtime ordering, see `docs/reference/hooks.md`.
 
 **Note on `claude-code-hooks` enablement**:
 
@@ -702,6 +837,78 @@ Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For wiring
 **Note on `context-window-governor`**: This hook is wired in `src/index.ts` under the `experimental.session.compacting` lifecycle surface. When OpenCode emits that event during compaction, the plugin can run Claude Code compat `PreCompact` hooks and/or inject extra compaction-time context via `context-window-governor` (best-effort; depends on runtime support and hook enablement).
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
+
+## Comment Checker
+
+`comment_checker` configures the `comment-checker` hook.
+
+- Hook implementation: `src/hooks/comment-checker/`
+- Schema: `CommentCheckerConfigSchema` in `src/config/schema.ts`
+
+Behavior (current implementation):
+
+- When `comment-checker` is enabled and the comment-checker CLI is available, it MAY append a warning message to `Write` / `Edit` / `MultiEdit` tool output when source comments are detected.
+- If the CLI is unavailable, the hook SHOULD fail open (silently skip comment checking).
+
+### `comment_checker.custom_prompt`
+
+- When set, replaces the default warning message.
+- Use `{{comments}}` as a placeholder for the detected comments XML payload.
+
+Example:
+
+```jsonc
+{
+  "comment_checker": {
+    "custom_prompt": "Comments are not allowed in this repo. Remove them before continuing.\n\n{{comments}}"
+  }
+}
+```
+
+## Auto Update
+
+`auto_update` controls whether the `auto-update-checker` hook performs automatic install or notification-only behavior.
+
+- Hook implementation: `src/hooks/auto-update-checker/`
+- Wiring: `src/index.ts` passes `autoUpdate: pluginConfig.auto_update ?? true`
+
+Contract:
+
+- When `auto-update-checker` is enabled and `auto_update=true` (default), the plugin MAY update the pinned plugin version and run `bun install` (best-effort).
+- When `auto-update-checker` is enabled and `auto_update=false`, the plugin MUST NOT attempt to install updates automatically (toast/notification only).
+- Disabling the `auto-update-checker` hook via `disabled_hooks` MUST disable all update-check behavior regardless of `auto_update`.
+
+Example (notification-only mode):
+
+```json
+{
+  "auto_update": false
+}
+```
+
+## Notifications
+
+`notification` configures runtime behavior for the `session-notification` hook.
+
+- Hook implementation: `src/hooks/session-notification.ts`
+- Schema: `NotificationConfigSchema` in `src/config/schema.ts`
+
+### `notification.force_enable`
+
+This repo detects external notification plugins and disables `session-notification` by default to avoid double-notifications.
+
+- When `true`, forces `session-notification` to run even if an external notifier is detected.
+- When `false`/unset (default), `session-notification` is skipped when a conflict is detected.
+
+Example:
+
+```json
+{
+  "notification": {
+    "force_enable": true
+  }
+}
+```
 
 ## Context Window Governor
 

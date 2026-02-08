@@ -78,7 +78,7 @@ Not currently checked (despite the fields existing in the decision schema):
 
 - `domain` validation (domain mismatch warnings are not implemented).
 - Underkill (too weak an agent for a complex task).
-- Special-case routing for frontend agents or documentation agents.
+- Category/skill-aware routing recommendations (e.g., UI tasks via `category: "visual-engineering"` + `load_skills: ["frontend-ui-ux"]`).
 
 ## Enabling / Disabling
 

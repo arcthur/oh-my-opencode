@@ -46,19 +46,20 @@ flowchart TD
         Prometheus["Prometheus<br>Planner"] --> MultiPlan["multi_plan tool<br>(optional)"]
         MultiPlan --> Synth["Plan Synthesizer<br>(plan-synthesizer)"]
         Synth --> Prometheus
-        Prometheus --> PlanFile["/.sisyphus/plans/{name}.md"]
-        Prometheus --> ManifestFile["/.sisyphus/context-manifests/{name}.md"]
+        Prometheus --> PlanDraft[".sisyphus/plans/{planId}.md"]
+        Prometheus --> ManifestFile[".sisyphus/context-manifests/{planId}.md"]
     end
 
-    PlanFile --> StartWork["/start-work"]
-    StartWork --> WorkState[work.yaml]
+    PlanDraft --> StartWork["/start-work"]
+    StartWork --> WorkState[".sisyphus/work.yaml"]
+    StartWork --> ExecPlan[".sisyphus/plans/{planId}/plan.md"]
 
     subgraph Execution Phase
         WorkState --> Sisyphus[Sisyphus<br>Orchestrator]
-        PlanFile -.-> |"TASK SSOT"| Sisyphus
+        ExecPlan -.-> |"TASK SSOT"| Sisyphus
         ManifestFile -.-> |"CONTEXT PACKS"| Sisyphus
         Sisyphus --> Oracle[Oracle]
-        Sisyphus --> Frontend[Frontend<br>Engineer]
+        Sisyphus --> Junior["Sisyphus-Junior<br>Executor"]
         Sisyphus --> Explore[Explore]
     end
 ```
@@ -70,11 +71,11 @@ The system uses two complementary sources of truth:
 | SSOT | File | Purpose |
 |------|------|---------|
 | **STATE** | `.sisyphus/work.yaml` | Session metadata, protocol state (2-action, 3-strike), decision history |
-| **TASKS** | `.sisyphus/plans/*.md` | Actual tasks with checkboxes, human-readable progress |
+| **TASKS** | `.sisyphus/plans/*/plan.md` | Actual tasks with checkboxes, human-readable progress |
 
 - **work.yaml** is machine-optimized: structured YAML for programmatic session management
 - **plans/*.md** is human-optimized: markdown for agent reasoning and human review
-- **Path convention**: `work.yaml.active_plan` is stored as a **workspace-relative** path when possible (e.g., `.sisyphus/plans/x.md`)
+- **Path convention**: `work.yaml.execution_plan_path` is stored as a **workspace-relative** path when possible (e.g., `.sisyphus/plans/<planId>/plan.md`)
 
 **Performance Note (Optional Cache):**
 
@@ -109,7 +110,7 @@ task_snapshot:
 ### Sisyphus (Orchestrator)
 - **Model**: `anthropic/claude-opus-4-6` (Extended Thinking 32k)
 - **Role**: Execution and delegation
-- **Characteristic**: Doesn't do everything directly, actively delegates to specialized agents (Frontend, Librarian, etc.).
+- **Characteristic**: Doesn't do everything directly, actively delegates to specialized agents (Oracle, Librarian, Explore, etc.) and uses Categories + Skills for domain routing (e.g., `visual-engineering` + `frontend-ui-ux` for UI work).
 
 ---
 
@@ -126,7 +127,7 @@ Prometheus starts in **interview mode** by default. Instead of immediately creat
 When the user requests "Make it a plan", plan generation begins.
 
 1. **Optional multi_plan**: For complex work, Prometheus may call `multi_plan` to generate a stronger plan.
-2. **Plan Creation**: Writes a single plan in `.sisyphus/plans/{name}.md` file.
+2. **Plan Creation**: Writes a plan draft to `.sisyphus/plans/{planId}.md` and a context manifest to `.sisyphus/context-manifests/{planId}.md`.
 3. **Handoff**: Once plan creation is complete, guides user to use `/start-work` command.
 
 ### Phase 3: Execution
@@ -134,7 +135,7 @@ When the user enters `/start-work`, the execution phase begins.
 
 1. **State Management**: Creates/updates `work.yaml` to track active plan, session IDs, and protocol state.
 2. **Task Execution**: Sisyphus reads the plan file and processes tasks one by one.
-3. **Delegation**: UI work is delegated to Frontend agent, complex logic to Oracle.
+3. **Delegation**: UI work is delegated via category + skills (e.g., `visual-engineering` + `frontend-ui-ux`, executed by Sisyphus-Junior); complex logic to Oracle.
 4. **Continuity**: Even if the session is interrupted, work continues in the next session through `work.yaml`.
 5. **Protocol Enforcement**: 2-action rule (research tracking) and 3-strike protocol (error recording) are managed via work.yaml.
 
@@ -171,7 +172,7 @@ You can control related features in `oh-my-opencode.json`.
 ```jsonc
 {
   "sisyphus_agent": {
-    "disabled": false,           // Enable Sisyphus orchestration (default: false)
+    "disabled": false,           // Disable Sisyphus orchestration when true (default: false)
     "planner_enabled": true,     // Enable Prometheus (default: true)
     "replace_plan": true         // Replace default plan agent with Prometheus (default: true)
   },
@@ -253,8 +254,8 @@ Deep dive (recommended): `docs/journeys/context-packs-and-manifests.md`
 
 ### 8.1 Artifacts and Responsibilities
 
-- **Plan (Task SSOT)**: `.sisyphus/plans/{name}.md`
-- **Context Manifest (Delegation Context)**: `.sisyphus/context-manifests/{name}.md`
+- **Plan (Task SSOT)**: `.sisyphus/plans/{planId}/plan.md`
+- **Context Manifest (Delegation Context)**: `.sisyphus/context-manifests/{planId}.md`
   - Organized as *Context Packs* (3–8 stable pack IDs)
   - Each pack lists the relevant specs / key files / index entrypoints, plus **why** (what the executor should extract)
 
@@ -296,7 +297,7 @@ Benefits:
 ### 8.3 Recommended Conventions
 
 - When Prometheus generates the plan:
-  - Also generate `.sisyphus/context-manifests/{name}.md`
+  - Also generate `.sisyphus/context-manifests/{planId}.md`
   - Every TODO block must include a `Context Packs:` selector line (used by the injector)
 - When Sisyphus Execution Mode delegates:
   - Copy the TODO’s `Context Packs:` line verbatim into the `delegate_task` prompt (keep it a single line)
@@ -304,8 +305,8 @@ Benefits:
 ### 8.4 Troubleshooting (Quick)
 
 If “it didn’t inject anything”, check:
-- You ran `/start-work` (so `.sisyphus/work.yaml` exists and `plan_name` is set)
-- `.sisyphus/context-manifests/{plan_name}.md` exists
+- You ran `/start-work` (so `.sisyphus/work.yaml` exists and `plan_id` is set)
+- `.sisyphus/context-manifests/{plan_id}.md` exists
 - The manifest contains a valid `[CONTEXT_MANIFEST]...[/CONTEXT_MANIFEST]` JSON block
 - Your `delegate_task` prompt includes `Context Packs: ...`
 - The hook is enabled (not listed in `disabled_hooks`)

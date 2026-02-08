@@ -193,23 +193,23 @@ describe("opencode check", () => {
       expect(result.details?.some((d) => d.includes(MIN_OPENCODE_VERSION))).toBe(true)
     })
 
-    it("returns pass when properly installed", async () => {
-      // given current version installed
-      getInfoSpy = spyOn(opencode, "getOpenCodeInfo").mockResolvedValue({
-        installed: true,
-        version: "1.0.200",
-        path: "/usr/local/bin/opencode",
-        binary: "opencode",
-      })
+	    it("returns pass when properly installed", async () => {
+	      // given current version installed
+	      getInfoSpy = spyOn(opencode, "getOpenCodeInfo").mockResolvedValue({
+	        installed: true,
+	        version: "1.1.1",
+	        path: "/usr/local/bin/opencode",
+	        binary: "opencode",
+	      })
 
       // when checking installation
       const result = await opencode.checkOpenCodeInstallation()
 
-      // then should pass
-      expect(result.status).toBe("pass")
-      expect(result.message).toContain("1.0.200")
-    })
-  })
+	      // then should pass
+	      expect(result.status).toBe("pass")
+	      expect(result.message).toContain("1.1.1")
+	    })
+	  })
 
   describe("getOpenCodeCheckDefinition", () => {
     it("returns valid check definition", () => {

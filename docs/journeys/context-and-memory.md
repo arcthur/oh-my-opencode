@@ -31,6 +31,7 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 - Context window management: `docs/journeys/context-window-management.md`
 - Deterministic delegation context: `docs/journeys/context-packs-and-manifests.md`
 - User memory contract: `docs/reference/user-memory.md`
+- Org memory contract: `docs/reference/org-memory.md`
 - User memory deep dive (non-normative): `docs/research/user-memory-deep-dive.md`
 - Cross-session continuity: `docs/journeys/cross-session-continuity.md`
 - Session handoff & session reference: `docs/journeys/session-handoff-and-reference.md`

@@ -76,9 +76,12 @@ See `src/shared/paths.ts`.
 
 The `.sisyphus/` directory is used for fork-owned artifacts such as:
 
-- Plans: `.sisyphus/plans/`
+- Plans:
+  - Planner drafts: `.sisyphus/plans/<planId>.md`
+  - Execution plan directories: `.sisyphus/plans/<planId>/` (SSOT: `plan.md`)
 - Plan reviews: `.sisyphus/plan-reviews/`
 - Notepads: `.sisyphus/notepads/`
+- Ralph loop state: `.sisyphus/ralph-loop.local.md` (when enabled and active)
 - Drafts / designs / evidence (used by planning workflows): `.sisyphus/drafts/`, `.sisyphus/designs/`, `.sisyphus/evidence/`
 
 ### Tasks and Swarm storage paths (configurable)
@@ -121,6 +124,14 @@ User memory persists user-scoped state under:
 - `~/.opencode/memory/operations.jsonl` (optional, best-effort)
 
 See `docs/reference/user-memory.md` and `src/features/user-memory/`.
+
+## Org Memory (`.opencode/memory/`)
+
+Org memory persists project-scoped state under:
+
+- `.opencode/memory/org.json`
+
+See `docs/reference/org-memory.md` and `src/features/org-memory/`.
 
 ## Governance (`~/.sisyphus/`)
 

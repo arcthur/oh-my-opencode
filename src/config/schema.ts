@@ -308,7 +308,7 @@ export const RalphLoopConfigSchema = z.object({
   enabled: z.boolean().default(false),
   /** Default max iterations if not specified in command (default: 100) */
   default_max_iterations: z.number().min(1).max(1000).default(100),
-  /** Custom state file directory relative to project root (default: .opencode/) */
+  /** Custom state file path relative to project root (default: .sisyphus/ralph-loop.local.md) */
   state_dir: z.string().optional(),
 })
 

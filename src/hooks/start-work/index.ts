@@ -2,8 +2,10 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { createWorkStateManager } from "../../features/work-state"
 import { log } from "../../shared/logger"
 import { updateSessionAgent } from "../../features/claude-code-session-state"
-import { existsSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
 import { basename, isAbsolute, join } from "node:path"
+import { initializePlan, writePlan } from "../../features/planning-with-files/manager"
+import { sanitizePathSegment } from "../../shared/path-sanitizer"
 
 export const HOOK_NAME = "start-work"
 
@@ -22,6 +24,63 @@ interface PlanProgress {
   total: number
   completed: number
   isComplete: boolean
+}
+
+async function migrateLegacyFlatPlans(cwd: string): Promise<void> {
+  const plansDir = join(cwd, ".sisyphus", "plans")
+  const manifestsDir = join(cwd, ".sisyphus", "context-manifests")
+  if (!existsSync(plansDir) || !existsSync(manifestsDir)) return
+
+  let entries: Array<{ name: string; isFile: () => boolean }> = []
+  try {
+    entries = readdirSync(plansDir, { withFileTypes: true }) as Array<{
+      name: string
+      isFile: () => boolean
+    }>
+  } catch {
+    return
+  }
+
+  const legacyPlanFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => entry.name)
+
+  for (const fileName of legacyPlanFiles) {
+    const rawPlanId = basename(fileName, ".md")
+    const planId = sanitizePathSegment(rawPlanId)
+    if (!planId) continue
+
+    const manifestPath = join(manifestsDir, `${planId}.md`)
+    if (!existsSync(manifestPath)) continue
+
+    const migratedPlanPath = join(plansDir, planId, "plan.md")
+    if (existsSync(migratedPlanPath)) continue
+
+    const legacyPlanPath = join(plansDir, fileName)
+    let legacyContent = ""
+    try {
+      legacyContent = readFileSync(legacyPlanPath, "utf-8")
+    } catch {
+      continue
+    }
+
+    try {
+      await initializePlan(cwd, planId, planId)
+      await writePlan(cwd, planId, legacyContent)
+      log(`[${HOOK_NAME}] Migrated legacy plan file into plan directory`, {
+        planId,
+        legacyPlanPath,
+        migratedPlanPath,
+      })
+    } catch (err) {
+      log(`[${HOOK_NAME}] Legacy plan migration failed (non-fatal)`, {
+        planId,
+        legacyPlanPath,
+        migratedPlanPath,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
 }
 
 function extractUserRequestPlanId(promptText: string): string | null {
@@ -112,6 +171,11 @@ export function createStartWorkHook(ctx: PluginInput) {
       })
 
       updateSessionAgent(input.sessionID, "sisyphus")
+
+      // Back-compat: Prometheus historically wrote plans to `.sisyphus/plans/{planId}.md`.
+      // Execution mode requires `.sisyphus/plans/{planId}/plan.md`, so we migrate
+      // legacy flat plans when a matching context manifest exists.
+      await migrateLegacyFlatPlans(ctx.directory)
 
       const existingState = workStateManager.load()
       const sessionId = input.sessionID

@@ -32,7 +32,6 @@ The built-in agent names surfaced by configuration (`BuiltinAgentNameSchema`) ar
 
 - `sisyphus` (primary user-facing agent)
 - `hephaestus` (high-autonomy executor)
-- `sisyphus` (orchestrator/conductor)
 - `oracle` (high-accuracy consultation)
 - `librarian` (docs and research)
 - `explore` (codebase exploration)
@@ -41,14 +40,15 @@ The built-in agent names surfaced by configuration (`BuiltinAgentNameSchema`) ar
 
 Contract:
 
-- These names are **case-insensitive** for `disabled_agents` and override lookup.
+- `disabled_agents` is schema-validated against `BuiltinAgentNameSchema`, so config input is effectively case-sensitive at parse time.
+- Runtime lookup for agent comparisons may normalize case internally, but this does not relax config schema validation.
 - Disabling a built-in agent **MUST** remove it from the built-in agent set produced by `createBuiltinAgents`.
 
 ## Derived and Compatibility Agent Names
 
 In addition to the built-in set above, the runtime agent table can include “derived” or “compatibility” agents that are produced by the config handler:
 
-- `sisyphus-junior`: a focused executor used by `delegate_task(category=...)`.
+- `sisyphus-junior`: a focused executor used by `delegate_task({ category: ... })`.
 - `prometheus`: the plan agent used for the multi-model planning pipeline.
 - `OpenCode-Builder`: an optional builder agent (enabled via `sisyphus_agent.default_builder_enabled`).
 - `build` / `plan`: OpenCode default agent slots that may be demoted or replaced depending on configuration.
@@ -56,7 +56,7 @@ In addition to the built-in set above, the runtime agent table can include “de
 Contract:
 
 - `disabled_agents` **MUST NOT** be assumed to disable these derived agents.
-- Tooling (e.g., `delegate_task(subagent_type="...")`) MAY reference these names when they exist in the runtime agent table.
+- Tooling (e.g., `delegate_task({ subagent_type: "..." })`) MAY reference these names when they exist in the runtime agent table.
 
 ## Agent Configuration Surfaces
 
@@ -82,7 +82,7 @@ Implications:
 
 Categories define model and prompt append settings used by:
 
-- `delegate_task(category="...")`
+- `delegate_task({ category: "..." })`
 - Agent overrides that specify `category` (inherit category config)
 
 Schema: `CategoriesConfigSchema` / `CategoryConfigSchema` in `src/config/schema.ts`.

@@ -53,6 +53,8 @@ Reference pages are stable, “look it up quickly” docs:
 - Artifacts & paths: `docs/reference/artifacts-and-paths.md`
 - Governance: `docs/reference/governance.md`
 - User memory: `docs/reference/user-memory.md`
+- Org memory: `docs/reference/org-memory.md`
+- Session lifecycle: `docs/reference/session-lifecycle.md`
 - Capability matrix: `docs/reference/capability-matrix.md`
 - Glossary: `docs/reference/glossary.md`
 

@@ -10,7 +10,7 @@ Planning with Files persists the plan, findings, and progress under `.sisyphus/`
 ```mermaid
 flowchart TD
   U["User request"] --> CM["chat.message hook detects/initializes active plan"]
-  CM --> FS["Persist plan artifacts under .sisyphus/<directory>/<plan>/"]
+  CM --> FS["Persist plan artifacts under .sisyphus/plans/<plan>/"]
 
   subgraph ToolBoundary["Tool boundaries (auto_reread)"]
     TB["tool.execute.before for write/edit/bash/…"] --> INJ["Inject <plan-context> (critical priority)"]
@@ -56,13 +56,14 @@ flowchart LR
 
 ## The 3-File Pattern
 
-Every complex task creates three markdown files:
+Every complex task creates three markdown files plus a YAML ledger:
 
 ```
-.sisyphus/{directory}/{plan-name}/
-├── plan.md           # Phases, goals, decisions, errors, blockers
-├── findings.md            # Research results (2-action rule)
-├── progress.md            # Session logs, phase transitions
+.sisyphus/plans/{plan-id}/
+├── plan.md        # Phases, goals, decisions, errors, blockers
+├── ledger.yaml    # Runtime errors/blockers/decisions
+├── findings.md    # Research results (2-action rule)
+├── progress.md    # Session logs, phase transitions
 ```
 
 Shared runtime state is persisted in `.sisyphus/work.yaml` (single active plan).
@@ -97,7 +98,6 @@ Enable in `.opencode/oh-my-opencode.json`:
 {
   "planning_with_files": {
     "enabled": true,
-    "directory": "plans",
     "two_action_rule": true,
     "three_strike_protocol": true,
     "auto_reread": true,
@@ -107,12 +107,14 @@ Enable in `.opencode/oh-my-opencode.json`:
 }
 ```
 
+**Note**: `planning_with_files.directory` is deprecated and ignored in the current implementation. The canonical layout is fixed to `.sisyphus/plans/`.
+
 ### Configuration Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `enabled` | `false` | Enable the planning-with-files pattern |
-| `directory` | `"plans"` | Directory for planning files (relative to .sisyphus/) |
+| `directory` | `"plans"` | Deprecated and ignored (canonical path is fixed to `.sisyphus/plans/`) |
 | `two_action_rule` | `true` | Remind to update findings after 2 research ops |
 | `three_strike_protocol` | `true` | Structured error handling with escalation |
 | `auto_reread` | `true` | Re-read task_plan before Write/Edit/Bash/NotebookEdit |
@@ -123,7 +125,7 @@ Enable in `.opencode/oh-my-opencode.json`:
 
 ## Core Mechanisms
 
-### 1. PreToolUse Hook - Full plan.md Injection
+### 1. tool.execute.before - Full plan.md Injection
 
 Before Write/Edit/Bash/NotebookEdit operations, the **full** plan.md content is injected:
 
@@ -139,12 +141,14 @@ Before Write/Edit/Bash/NotebookEdit operations, the **full** plan.md content is 
 | 1 | Discovery | complete |
 | 2 | Implementation | in_progress |
 ...
-</task-plan-context>
+</plan-context>
 
 <reminder>
 Stay focused on the current phase. Do not deviate from the goal.
 </reminder>
 ```
+
+**Claude Code terminology note**: In Claude Code vocabulary this corresponds to `PreToolUse`, but the runtime surface in OpenCode is `tool.execute.before`. See `docs/reference/hooks.md`.
 
 **OpenCode Implementation Note**: Injection is performed via ContextCollector + `experimental.chat.messages.transform`, so the plan appears as a stable prefix without mutating stored conversation history.
 
@@ -160,7 +164,7 @@ After every 2 research operations (Read/WebFetch/WebSearch/Glob/Grep/Task), remi
 
 2 research operations completed.
 
-Update `.sisyphus/{directory}/{plan}/findings.md` with:
+Update `.sisyphus/plans/{plan}/findings.md` with:
 - Key discoveries
 - Technical decisions
 - Resources found
@@ -319,7 +323,7 @@ This enables:
 - **Session recovery**: State survives process restarts
 - **Cross-session continuity**: Resume the active plan where you left off
 - **Accurate mtime detection**: No keyword matching needed
-- **Single active-plan semantics**: Protocol counters/strikes are scoped to the current `active_plan`
+- **Single-plan semantics**: Protocol counters/strikes are scoped to the current `plan_id`
 
 ## Silent Tool Output
 
@@ -387,7 +391,7 @@ Context: Just the confirmation (trust the filesystem)
 **"Trust the filesystem, not the context"**
 
 - Write tools only need to confirm success, not echo content
-- Planning files are already injected via PreToolUse, Read output is redundant
+- Planning files are already injected via `tool.execute.before`, Read output is redundant
 - Search results provide location references; use Read for detailed content
 
 ## Usage
@@ -421,7 +425,7 @@ Ensure all phases are `complete` or `blocked` before stopping.
 
 When `auto_from_multi_plan: true`, after a successful `multi_plan` tool run completes:
 
-1. Planning files are initialized at `.sisyphus/{directory}/{planName}/` (if missing)
+1. Planning files are initialized at `.sisyphus/plans/{planId}/` (if missing)
 2. `plan.md` starts from the default template (edit freely)
 3. The unified plan remains the source of truth for detailed TODOs; planning-with-files focuses on persistence, error tracking, and lightweight phase gating
 

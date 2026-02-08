@@ -14,11 +14,13 @@ Context Packs and Context Manifests turn “context selection” into a first-cl
 ```mermaid
 flowchart TD
   U["User request"] --> P["Prometheus planning"]
-  P --> PLAN["Work plan → .sisyphus/plans/<name>.md"]
-  P --> CM["Context manifest → .sisyphus/context-manifests/<name>.md"]
+  P --> Draft["Plan draft → .sisyphus/plans/<planId>.md"]
+  P --> CM["Context manifest → .sisyphus/context-manifests/<planId>.md"]
 
-  PLAN --> SW["/start-work → .sisyphus/work.yaml"]
-  SW --> AT["Sisyphus Execution Mode orchestrates"]
+  Draft --> SW["/start-work"]
+  SW --> WS["Work state → .sisyphus/work.yaml"]
+  SW --> PLAN["Execution plan → .sisyphus/plans/<planId>/plan.md"]
+  WS --> AT["Sisyphus Execution Mode orchestrates"]
 
   AT --> DT["delegate_task prompt includes: Context Packs: ..."]
   DT --> HOOK["context-manifest-injector (tool.execute.before)"]
@@ -41,7 +43,7 @@ Pack IDs are intentionally boring: stable, composable building blocks.
 
 The **Context Manifest** is a per-plan artifact that defines the pack catalog:
 
-- Path: `.sisyphus/context-manifests/{planName}.md`
+- Path: `.sisyphus/context-manifests/{planId}.md`
 - Format: Markdown + an embedded JSON payload between markers:
 
 ```text
@@ -56,9 +58,12 @@ This keeps it human-readable (Markdown) and machine-parseable (JSON block).
 
 ### Step 1: Prometheus generates both artifacts
 
-For a plan `{name}`, Prometheus should write:
-- `.sisyphus/plans/{name}.md`
-- `.sisyphus/context-manifests/{name}.md`
+For a plan `{planId}`, Prometheus should write:
+- `.sisyphus/plans/{planId}.md` (plan draft)
+- `.sisyphus/context-manifests/{planId}.md`
+
+When you run `/start-work`, execution mode migrates the plan draft into:
+- `.sisyphus/plans/{planId}/plan.md` (task SSOT)
 
 The plan template enforces that each TODO includes:
 
@@ -72,7 +77,7 @@ This line is the selection mechanism for deterministic injection.
 
 Run `/start-work` so the system records the active plan in `.sisyphus/work.yaml`.
 
-The injector resolves the manifest path from `work.yaml.plan_name`.
+The injector resolves the manifest path from `work.yaml.plan_id`.
 
 ### Step 3: Delegate as usual
 
@@ -87,8 +92,8 @@ The injector hook then appends the corresponding pack content (rendered) right b
 Hook: `context-manifest-injector` (runs on `tool.execute.before` for `delegate_task`)
 
 1. Parse pack IDs from the prompt (`Context Packs:`)
-2. Load `.sisyphus/work.yaml` → `plan_name`
-3. Read `.sisyphus/context-manifests/{plan_name}.md`
+2. Load `.sisyphus/work.yaml` → `plan_id`
+3. Read `.sisyphus/context-manifests/{plan_id}.md`
 4. Parse the `[CONTEXT_MANIFEST]...[/CONTEXT_MANIFEST]` JSON
 5. Render the selected packs into a stable markdown snippet
 6. Append snippet to the `delegate_task` prompt
@@ -130,8 +135,8 @@ Item kinds are intentionally limited:
 ```text
 [CONTEXT_MANIFEST]
 {
-  "schemaVersion": 1,
-  "planName": "demo",
+  "schemaVersion": 2,
+  "planId": "demo",
   "generatedAt": "2026-02-05T00:00:00Z",
   "packs": [
     {
@@ -153,9 +158,9 @@ Item kinds are intentionally limited:
 
 Check these first:
 - You ran `/start-work` and `.sisyphus/work.yaml` exists.
-- `work.yaml.plan_name` matches the manifest filename: `.sisyphus/context-manifests/{plan_name}.md`.
+- `work.yaml.plan_id` matches the manifest filename: `.sisyphus/context-manifests/{plan_id}.md`.
 - Your `delegate_task` prompt includes `Context Packs: ...`.
-- The manifest contains a valid JSON block and `schemaVersion: 1`.
+- The manifest contains a valid JSON block and `schemaVersion: 2`.
 - Pack IDs in the prompt are safe (invalid IDs are ignored).
 - The hook is enabled (not in `disabled_hooks`).
 
@@ -169,4 +174,3 @@ This is expected when packs exceed the default caps. Keep packs small and split 
 - Parser/renderer: `src/features/context-manifests/`
 - Prometheus plan template: `src/agents/prometheus/plan-template.ts`
 - Orchestration overview: `docs/guide/orchestration.md`
-

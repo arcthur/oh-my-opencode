@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach, spyOn } from "bun:test"
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { randomUUID } from "node:crypto"
@@ -169,6 +169,35 @@ describe("start-work hook", () => {
       expect(output.parts[0].text).toContain("Auto-Selected Plan")
       expect(output.parts[0].text).toContain("plan-incomplete")
       expect(output.parts[0].text).not.toContain("Multiple Plans Found")
+    })
+
+    test("should migrate legacy flat plan into plan directory when context manifest exists", async () => {
+      const legacyPlan = "# Plan: legacy-plan\n\n## TODOs\n\n- [ ] 1. Task 1\n- [x] 2. Task 2\n"
+      mkdirSync(join(testDir, ".sisyphus", "plans"), { recursive: true })
+      const legacyPlanPath = join(testDir, ".sisyphus", "plans", "legacy-plan.md")
+      writeFileSync(legacyPlanPath, legacyPlan, "utf-8")
+
+      const manifestDir = join(testDir, ".sisyphus", "context-manifests")
+      mkdirSync(manifestDir, { recursive: true })
+      writeFileSync(
+        join(manifestDir, "legacy-plan.md"),
+        `[CONTEXT_MANIFEST]{"schemaVersion":2,"planId":"legacy-plan","generatedAt":"2026-02-06T00:00:00Z","packs":[]}[/CONTEXT_MANIFEST]\n`,
+        "utf-8"
+      )
+
+      const hook = createStartWorkHook(createMockPluginInput())
+      const output = {
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
+      }
+
+      await hook["chat.message"]({ sessionID: "session-123" }, output)
+
+      const migratedPath = join(testDir, ".sisyphus", "plans", "legacy-plan", "plan.md")
+      expect(existsSync(migratedPath)).toBe(true)
+      expect(readFileSync(migratedPath, "utf-8")).toBe(legacyPlan)
+
+      expect(output.parts[0].text).toContain("Auto-Selected Plan")
+      expect(output.parts[0].text).toContain("legacy-plan")
     })
 
     test("should wrap multiple plans message in system-reminder tag", async () => {

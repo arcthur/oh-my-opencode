@@ -30,7 +30,7 @@ This document does **not** define the full content of every built-in skill templ
 A **skill** is an instruction bundle that can be:
 
 - Executed directly via the `skill` tool (by name), and/or
-- Injected into delegated prompts via `delegate_task(load_skills=[...])`, and/or
+- Injected into delegated prompts via `delegate_task({ load_skills: [...] })`, and/or
 - Exposed as a command via `slashcommand` (skills-as-commands).
 
 Skills can optionally declare:

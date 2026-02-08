@@ -37,32 +37,34 @@ flowchart TB
         Oracle["Oracle<br/>(Architecture)<br/>GPT-5.2"]
         Explore["Explore<br/>(Codebase Grep)<br/>Grok Code Fast-1"]
         Librarian["Librarian<br/>(Docs/OSS)<br/>GLM-4.7"]
-        Frontend["Frontend<br/>(UI/UX)<br/>Gemini 3 Pro"]
+        Multimodal["Multimodal Looker<br/>(Image/PDF)<br/>Gemini 3 Flash"]
     end
     
     User -->|"Describe work"| Prometheus
     Prometheus -->|"Interview"| User
-    Prometheus -->|"Generate plan"| Plan[".sisyphus/plans/*.md"]
+    Prometheus -->|"Generate plan draft"| PlanDraft[".sisyphus/plans/{planId}.md<br/>(planner output)"]
+    Prometheus -->|"Generate context manifest"| Manifest[".sisyphus/context-manifests/{planId}.md"]
     Prometheus -->|"Complex plan?"| MultiPlan
     MultiPlan -->|"Compare + Synthesize"| Synth
     Synth -->|"Unified plan + report"| Prometheus
     
     User -->|"/start-work"| Orchestrator
     Orchestrator --> WorkState[".sisyphus/work.yaml<br/>(STATE SSOT)"]
+    PlanDraft -->|"Migrate on /start-work"| Plan[".sisyphus/plans/{planId}/plan.md<br/>(TASK SSOT)"]
     Plan -->|"Read tasks"| Orchestrator
     WorkState -->|"Resume state"| Orchestrator
     
-    Orchestrator -->|"delegate_task(category)"| Junior
+    Orchestrator -->|"delegate_task(category + load_skills)"| Junior
     Orchestrator -->|"delegate_task(subagent_type)"| Oracle
     Orchestrator -->|"delegate_task(subagent_type)"| Explore
     Orchestrator -->|"delegate_task(subagent_type)"| Librarian
-    Orchestrator -->|"delegate_task(subagent_type)"| Frontend
+    Orchestrator -->|"delegate_task(subagent_type)"| Multimodal
     
     Junior -->|"Results + Learnings"| Orchestrator
     Oracle -->|"Advice"| Orchestrator
     Explore -->|"Code patterns"| Orchestrator
     Librarian -->|"Documentation"| Orchestrator
-    Frontend -->|"UI code"| Orchestrator
+    Multimodal -->|"Extracted info"| Orchestrator
 ```
 
 ---
@@ -163,11 +165,10 @@ flowchart LR
 - Search patterns with `grep` / `glob` / `ast_grep_*`
 - Create git commits **after verification** (atomic, scoped)
 
-**What Orchestrator MUST delegate:**
-- Writing/editing code files
-- Fixing bugs
-- Creating tests
-- Large implementation changes (delegate; only do small verification fixes if needed)
+**What Orchestrator SHOULD delegate (for isolation + throughput):**
+- Medium/large code changes (implementation, refactors)
+- Test creation and multi-file migrations
+- Specialized work that benefits from a focused context window (UI/UX, deep reasoning, research)
 
 ### Wisdom Accumulation
 
@@ -197,27 +198,27 @@ Independent tasks run in parallel:
 ```typescript
 // Orchestrator identifies parallelizable groups from plan
 // Group A: Tasks 2, 3, 4 (no file conflicts)
-delegate_task(
-  category="ultrabrain",
-  load_skills=[],
-  description="task 2",
-  prompt="Task 2...",
-  run_in_background=true
-)
-delegate_task(
-  category="visual-engineering",
-  load_skills=["frontend-ui-ux"],
-  description="task 3",
-  prompt="Task 3...",
-  run_in_background=true
-)
-delegate_task(
-  category="unspecified-low",
-  load_skills=[],
-  description="task 4",
-  prompt="Task 4...",
-  run_in_background=true
-)
+delegate_task({
+  category: "ultrabrain",
+  load_skills: [],
+  description: "task 2",
+  prompt: "Task 2...",
+  run_in_background: true,
+})
+delegate_task({
+  category: "visual-engineering",
+  load_skills: ["frontend-ui-ux"],
+  description: "task 3",
+  prompt: "Task 3...",
+  run_in_background: true,
+})
+delegate_task({
+  category: "unspecified-low",
+  load_skills: [],
+  description: "task 4",
+  prompt: "Task 4...",
+  run_in_background: true,
+})
 // All run simultaneously
 ```
 
@@ -229,10 +230,10 @@ delegate_task(
 
 Junior is the **workhorse** that actually writes code. Key characteristics:
 
-- **Focused**: Cannot delegate (blocked from task/delegate_task tools)
+- **Focused**: No implementation delegation. `delegate_task` is **research-scoped only** (explore/librarian, no categories, `load_skills=[]`).
 - **Disciplined**: Obsessive todo tracking
-- **Verified**: Must pass lsp_diagnostics before completion
-- **Constrained**: Cannot modify plan files (READ-ONLY)
+- **Verified**: Prompt requires `lsp_diagnostics` clean (and tests when applicable) before claiming completion; Orchestrator still verifies independently.
+- **Constrained**: `task` tool is denied. Plan/ledger artifacts under `.sisyphus/` are treated as read-only by convention (SSOT is owned by the orchestrator workflow).
 
 **Why Sonnet is Sufficient:**
 
@@ -275,40 +276,40 @@ This "work continuation" mechanism (the Sisyphus “boulder pushing” metaphor)
 // - semantic categories (intent presets), or
 // - explicit specialists via subagent_type.
 
-delegate_task(
-  subagent_type="oracle",
-  load_skills=[],
-  description="architecture review",
-  prompt="...",
-  run_in_background=false
-)
+delegate_task({
+  subagent_type: "oracle",
+  load_skills: [],
+  description: "architecture review",
+  prompt: "...",
+  run_in_background: false,
+})
 ```
 
 **The Solution: Semantic Categories:**
 
 ```typescript
 // NEW: Category describes INTENT, not implementation
-delegate_task(
-  category="ultrabrain",
-  load_skills=[],
-  description="deep reasoning task",
-  prompt="...",
-  run_in_background=false
-)
-delegate_task(
-  category="visual-engineering",
-  load_skills=["frontend-ui-ux"],
-  description="visual task",
-  prompt="...",
-  run_in_background=false
-)
-delegate_task(
-  category="quick",
-  load_skills=[],
-  description="quick fix",
-  prompt="...",
-  run_in_background=false
-)
+delegate_task({
+  category: "ultrabrain",
+  load_skills: [],
+  description: "deep reasoning task",
+  prompt: "...",
+  run_in_background: false,
+})
+delegate_task({
+  category: "visual-engineering",
+  load_skills: ["frontend-ui-ux"],
+  description: "visual task",
+  prompt: "...",
+  run_in_background: false,
+})
+delegate_task({
+  category: "quick",
+  load_skills: [],
+  description: "quick fix",
+  prompt: "...",
+  run_in_background: false,
+})
 ```
 
 ### Built-in Categories
@@ -318,7 +319,7 @@ delegate_task(
 | `visual-engineering` | Gemini 3 Pro | Frontend, UI/UX, design, styling, animation |
 | `ultrabrain` | GPT-5.3 Codex (xhigh) | Deep logical reasoning, complex architecture decisions |
 | `deep` | GPT-5.3 Codex (medium) | Goal-oriented autonomous problem-solving for hairy tasks |
-| `artistry` | Gemini 3 Pro (max) | Highly creative/artistic tasks, novel ideas |
+| `artistry` | Gemini 3 Pro (high) | Highly creative/artistic tasks, novel ideas |
 | `quick` | Claude Haiku 4.5 | Trivial tasks - single file changes, typo fixes |
 | `unspecified-low` | Claude Sonnet 4.5 | Tasks that don't fit other categories, low effort |
 | `unspecified-high` | Claude Opus 4.6 (max) | Tasks that don't fit other categories, high effort |
@@ -347,29 +348,29 @@ Skills prepend specialized instructions to subagent prompts:
 
 ```typescript
 // Category + Skill combination
-delegate_task(
-  category="visual-engineering", 
-  load_skills=["frontend-ui-ux"],  // Adds UI/UX expertise
-  description="UI implementation",
-  prompt="...",
-  run_in_background=false
-)
+delegate_task({
+  category: "visual-engineering",
+  load_skills: ["frontend-ui-ux"], // Adds UI/UX expertise
+  description: "UI implementation",
+  prompt: "...",
+  run_in_background: false,
+})
 
-delegate_task(
-  category="deep",
-  load_skills=["playwright"],  // Adds browser automation expertise
-  description="browser verification",
-  prompt="...",
-  run_in_background=false
-)
+delegate_task({
+  category: "deep",
+  load_skills: ["playwright"], // Adds browser automation expertise
+  description: "browser verification",
+  prompt: "...",
+  run_in_background: false,
+})
 ```
 
 **Example Evolution:**
 
 | Before | After |
 |--------|-------|
-| Hardcoded: `frontend-ui-ux-engineer` (Gemini 3 Pro) | `category="visual-engineering" + load_skills=["frontend-ui-ux"]` |
-| One-size-fits-all | `category="visual-engineering" + load_skills=["unity-master"]` |
+| Hardcoded: `frontend-ui-ux-engineer` (Gemini 3 Pro) | `category: "visual-engineering" + load_skills: ["frontend-ui-ux"]` |
+| One-size-fits-all | `category: "visual-engineering" + load_skills: ["unity-master"]` |
 | Model bias | Category-based: model abstraction eliminates bias |
 
 ---

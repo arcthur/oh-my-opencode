@@ -24,7 +24,7 @@ A Category is an agent configuration preset optimized for specific domains.
 | `visual-engineering` | `google/gemini-3-pro` | Frontend, UI/UX, design, styling, animation |
 | `ultrabrain` | `openai/gpt-5.3-codex` (xhigh) | Deep logical reasoning, complex architecture decisions requiring extensive analysis |
 | `deep` | `openai/gpt-5.3-codex` (medium) | Goal-oriented autonomous problem-solving. Thorough research before action. For hairy problems requiring deep understanding. |
-| `artistry` | `google/gemini-3-pro` (max) | Highly creative/artistic tasks, novel ideas |
+| `artistry` | `google/gemini-3-pro` (high) | Highly creative/artistic tasks, novel ideas |
 | `quick` | `anthropic/claude-haiku-4-5` | Trivial tasks - single file changes, typo fixes, simple modifications |
 | `unspecified-low` | `anthropic/claude-sonnet-4-5` | Tasks that don't fit other categories, low effort required |
 | `unspecified-high` | `anthropic/claude-opus-4-6` (max) | Tasks that don't fit other categories, high effort required |
@@ -35,19 +35,19 @@ A Category is an agent configuration preset optimized for specific domains.
 Specify the `category` parameter when invoking the `delegate_task` tool.
 
 ```typescript
-delegate_task(
-  category="visual-engineering",
-  load_skills=["frontend-ui-ux"],
-  description="dashboard chart",
-  prompt="Add a responsive chart component to the dashboard page",
-  run_in_background=false
-)
+delegate_task({
+  category: "visual-engineering",
+  load_skills: ["frontend-ui-ux"],
+  description: "dashboard chart",
+  prompt: "Add a responsive chart component to the dashboard page",
+  run_in_background: false,
+})
 ```
 
 ### Sisyphus-Junior (Delegated Executor)
 
 When you use a Category, a special agent called **Sisyphus-Junior** performs the work.
-- **Characteristic**: Cannot **re-delegate** tasks to other agents.
+- **Characteristic**: `delegate_task` is **research-scoped** only (explore/librarian, no categories, `load_skills=[]`); `task` is denied.
 - **Purpose**: Prevents infinite delegation loops and ensures focus on the assigned task.
 
 ---
@@ -77,13 +77,13 @@ A Skill is a mechanism that injects **specialized knowledge (Context)** and **to
 Add desired skill names to the `load_skills` array.
 
 ```typescript
-delegate_task(
-  category="quick",
-  load_skills=["git-master"],
-  description="commit changes",
-  prompt="Commit current changes. Follow the repository's commit message style.",
-  run_in_background=false
-)
+delegate_task({
+  category: "quick",
+  load_skills: ["git-master"],
+  description: "commit changes",
+  prompt: "Commit current changes. Follow the repository's commit message style.",
+  run_in_background: false,
+})
 ```
 
 ### Skill Customization (SKILL.md)
@@ -122,7 +122,7 @@ You can create powerful specialized agents by combining Categories and Skills.
 ### The Architect (Design Review)
 - **Category**: `ultrabrain`
 - **load_skills**: `[]` (pure reasoning)
-- **Effect**: Leverages GPT-5.2's logical reasoning for in-depth system architecture analysis.
+- **Effect**: Leverages the `ultrabrain` category’s high-effort model preset (e.g., GPT-5.3 Codex xhigh) for in-depth system architecture analysis.
 
 ### The Maintainer (Quick Fixes)
 - **Category**: `quick`
@@ -148,7 +148,7 @@ When delegating, **clear and specific** prompts are essential. Include these 7 e
 
 **Good Example**:
 > **TASK**: Fix mobile layout breaking issue in `LoginButton.tsx`
-> **CONTEXT**: `src/components/LoginButton.tsx`, using Tailwind CSS
+> **CONTEXT**: `<your-project>/src/components/LoginButton.tsx`, using Tailwind CSS
 > **MUST DO**: Change flex-direction at `md:` breakpoint
 > **MUST NOT DO**: Modify existing desktop layout
 > **EXPECTED**: Buttons align vertically on mobile

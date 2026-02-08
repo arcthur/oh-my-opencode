@@ -53,8 +53,12 @@ describe("ralph-loop", () => {
     input: ReturnType<typeof createMockPluginInput>,
     options: TestRalphLoopOptions = {}
   ) {
+    const config = options.config
+      ? { enabled: true, default_max_iterations: 100, ...options.config }
+      : { enabled: true, default_max_iterations: 100 }
     return createRalphLoopHookBase(input, {
       ...options,
+      config,
       reportContinuationIntent:
         options.reportContinuationIntent ?? createDirectContinuationReporterForTesting(input),
     })
@@ -180,6 +184,23 @@ describe("ralph-loop", () => {
   })
 
   describe("hook", () => {
+    test("should not start loop when disabled by config", () => {
+      // given - hook instance with ralph_loop.enabled=false
+      const hook = createRalphLoopHook(createMockPluginInput(), {
+        config: { enabled: false, default_max_iterations: 100 },
+      })
+
+      // when - start loop
+      const success = hook.startLoop("session-123", "Build something", {
+        maxIterations: 25,
+        completionPromise: "FINISHED",
+      })
+
+      // then - loop should not start or write state
+      expect(success).toBe(false)
+      expect(hook.getState()).toBeNull()
+    })
+
     test("should start loop and write state", () => {
       // given - hook instance
       const hook = createRalphLoopHook(createMockPluginInput())

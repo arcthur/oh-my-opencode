@@ -166,6 +166,11 @@ export function createRalphLoopHook(
     prompt: string,
     loopOptions?: { maxIterations?: number; completionPromise?: string; ultrawork?: boolean }
   ): boolean => {
+    if (config?.enabled !== true) {
+      log(`[${HOOK_NAME}] startLoop ignored: ralph_loop.enabled=false`, { sessionID })
+      return false
+    }
+
     const state: RalphLoopState = {
       active: true,
       iteration: 1,
@@ -212,6 +217,10 @@ export function createRalphLoopHook(
     event: { type: string; properties?: unknown }
   }): Promise<void> => {
     const props = event.properties as Record<string, unknown> | undefined
+
+    if (config?.enabled !== true) {
+      return
+    }
 
     if (event.type === "session.idle") {
       const sessionID = props?.sessionID as string | undefined

@@ -15,7 +15,7 @@ A named OpenCode persona/configuration. In this repo:
 
 ## Category
 
-A named execution profile used by `delegate_task(category=...)`. A category can specify model, variant, temperature, tool policy, and a prompt append.
+A named execution profile used by `delegate_task({ category: ... })`. A category can specify model, variant, temperature, tool policy, and a prompt append.
 See `CategoryConfigSchema` in `src/config/schema.ts`.
 
 ## Hook
@@ -34,7 +34,7 @@ Canonical runtime order: `src/hooks/runtime/pipeline-order.ts`; canonical node w
 A discoverable instruction bundle that can be:
 
 - Executed via the `skill` tool,
-- Injected into delegated prompts via `delegate_task(load_skills=[...])`,
+- Injected into delegated prompts via `delegate_task({ load_skills: [...] })`,
 - Exposed as a slash command via `slashcommand`.
 
 Skills can optionally declare embedded MCP servers and tool allowlists.
@@ -49,7 +49,7 @@ A server that exposes tools to the model via a standard interface. In this repo,
 
 ## Background Task
 
-Work executed asynchronously while the main session continues. Background tasks are typically launched via `delegate_task(run_in_background=true, ...)` and monitored via `background_output`.
+Work executed asynchronously while the main session continues. Background tasks are typically launched via `delegate_task({ run_in_background: true, ... })` and monitored via `background_output({ task_id: ... })`.
 
 ## Session Handoff
 

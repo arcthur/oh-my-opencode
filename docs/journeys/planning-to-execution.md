@@ -12,14 +12,16 @@ flowchart TD
   U["User request"] --> PG["Plan generation (Prometheus / multi_plan)"]
   PG --> PS["Plan synthesis (plan-synthesizer)"]
 
-  PS --> PWF{"planning_with_files.enabled?"}
-  PWF -->|Yes| FS["Persist plan + work state to .sisyphus/"]
-  PWF -->|No| CH["Plan remains in chat context"]
+  PS --> ART["Write plan draft + context manifest → .sisyphus/"]
+  ART --> SW["Start execution (/start-work or start-work hook)"]
+  SW --> MIG["Migrate plan draft → .sisyphus/plans/<planId>/plan.md\nCreate/Update .sisyphus/work.yaml"]
 
-  FS --> SW["Start execution (/start-work or start-work hook)"]
-  CH --> SW
+  MIG --> PWF{"planning_with_files.enabled?"}
+  PWF -->|Yes| PWFY["Enable execution guardrails\n(2-action, 3-strike, auto reread, stop verification)"]
+  PWF -->|No| PWFN["Skip planning-with-files protocols"]
 
-  SW --> MODE{"Swarm-first enabled?"}
+  PWFY --> MODE{"Swarm-first enabled?"}
+  PWFN --> MODE
   MODE -->|No| AT["Single-session execution (execution-orchestrator hook)"]
   MODE -->|Yes| SF["Swarm-first bootstrap (swarm-from-plan)\nSync TODOs -> task pool; (optional) spawn workers"]
 
@@ -28,7 +30,7 @@ flowchart TD
   TOOL --> OUT["Artifacts + final answer"]
 ```
 
-This journey explains how a plan is produced, validated, and executed through orchestration.
+This journey explains how a plan is produced, validated, migrated into execution SSOT (`plan.md` + `work.yaml`), and then executed through orchestration.
 
 ## Swarm-first (Optional)
 

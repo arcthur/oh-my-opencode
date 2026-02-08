@@ -46,6 +46,65 @@ This repo contains lifecycle interceptors that are:
 
 If you need a definitive answer for “can I disable this?”, consult the wiring in `src/index.ts` for an `isHookEnabled("<name>")` guard.
 
+### Hook name surface (`HookNameSchema`)
+
+`disabled_hooks` accepts only names defined in `src/config/schema.ts`:
+
+```text
+todo-auto-continuation
+context-window-governor
+session-state-repair
+session-notification
+comment-checker
+tool-output-truncator
+directory-agents-injector
+directory-readme-injector
+empty-task-response-detector
+think-mode
+rules-injector
+background-notification
+auto-update-checker
+startup-toast
+keyword-detector
+delegation-nudge-agent-usage
+non-interactive-env
+interactive-bash-session
+thinking-block-validator
+ralph-loop
+claude-code-hooks
+auto-slash-command
+edit-failure-guidance
+delegation-failure-guidance
+prometheus-md-only
+start-work
+swarm-from-plan
+execution-orchestrator
+multi-plan-trigger
+planning-with-files
+silent-tool-output
+context-manifest-injector
+repo-overview-injector
+runtime-tracker
+anti-slop-enforcer
+pre-completion-verification
+delegation-validate-decision
+conditional-rules
+session-handoff
+question-label-truncator
+delegation-block-subagent-question
+write-existing-file-guard
+continuation-stop-guard
+delegation-nudge-category-skill
+sisyphus-junior-notepad
+tmux-parallel-agents
+swarm-agent
+anthropic-effort
+```
+
+Notes:
+- `anthropic-effort` is executed on `chat.params` outside runtime dispatcher ordering.
+- `task-resume-info` is an internal node (`internal:task-resume-info`) and is intentionally not part of `HookNameSchema`.
+
 ### Reserved-but-not-wired names
 
 Runtime wiring is validated at startup (`schema ↔ registry ↔ order` consistency check). In normal startup, a schema hook that is declared but not wired will fail fast instead of silently drifting.
@@ -179,7 +238,7 @@ All hooks that inject context into tool output, chat messages, delegate prompts,
 Compaction-time ordering:
 
 1. Claude Code bridge node (`PreCompact`, if enabled and event payload supports context)
-2. Compaction context injector (internal)
+2. `context-window-governor` compaction hook (if enabled)
 
 ## Claude Code Compatibility Mapping
 
