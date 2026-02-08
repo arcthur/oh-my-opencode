@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { existsSync, mkdirSync, rmSync, writeFileSync, utimesSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { randomUUID } from "node:crypto"
@@ -8,10 +8,10 @@ import { createWorkStateManager } from "./manager"
 import type { WorkState } from "./types"
 
 function createTempWorkspace(): string {
-  return join(tmpdir(), `work-state-v2-${randomUUID()}`)
+  return join(tmpdir(), `work-state-v3-${randomUUID()}`)
 }
 
-describe("WorkStateManager v2", () => {
+describe("WorkStateManager v3", () => {
   let workspaceDir: string
 
   beforeEach(() => {
@@ -36,7 +36,7 @@ describe("WorkStateManager v2", () => {
     expect(loaded).toBeNull()
   })
 
-  test("initializePlan writes schema v2 state with canonical plan and ledger paths", () => {
+  test("initializePlan writes schema v3 state with canonical plan and ledger paths", () => {
     // #given
     const manager = createWorkStateManager(workspaceDir)
 
@@ -44,7 +44,7 @@ describe("WorkStateManager v2", () => {
     const state = manager.initializePlan("auth-refactor", "session-1")
 
     // #then
-    expect(state.schema_version).toBe(2)
+    expect(state.schema_version).toBe(3)
     expect(state.plan_id).toBe("auth-refactor")
     expect(state.execution_plan_path).toBe(".sisyphus/plans/auth-refactor/plan.md")
     expect(state.runtime_ledger_path).toBe(".sisyphus/plans/auth-refactor/ledger.yaml")
@@ -68,7 +68,7 @@ describe("WorkStateManager v2", () => {
   test("load rejects state with broken plan invariant", () => {
     // #given
     const badState: WorkState = {
-      schema_version: 2,
+      schema_version: 3,
       plan_id: "demo",
       execution_plan_path: ".sisyphus/plans/demo.md",
       runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
@@ -78,7 +78,6 @@ describe("WorkStateManager v2", () => {
       last_findings_mtime: 0,
       errors: [],
       blockers: [],
-      phase_completions: [],
       decisions: [],
     }
     mkdirSync(join(workspaceDir, ".sisyphus"), { recursive: true })
@@ -107,62 +106,12 @@ describe("WorkStateManager v2", () => {
     expect(switched.session_ids).toEqual(["session-b"])
   })
 
-  test("getPlanProgress reads numbered checkbox todos from canonical plan.md", () => {
-    // #given
-    const planDir = join(workspaceDir, ".sisyphus", "plans", "demo")
-    mkdirSync(planDir, { recursive: true })
-    writeFileSync(
-      join(planDir, "plan.md"),
-      "# Demo\n\n## TODOs\n\n- [x] 1. Setup\n- [ ] 2. Implement\n- [ ] 3. Verify\n",
-      "utf-8"
-    )
-
-    const manager = createWorkStateManager(workspaceDir)
-    manager.initializePlan("demo", "session-1")
-
-    // #when
-    const progress = manager.getPlanProgress()
-
-    // #then
-    expect(progress.total).toBe(3)
-    expect(progress.completed).toBe(1)
-    expect(progress.isComplete).toBe(false)
-  })
-
-  test("task snapshot invalidates when plan.md mtime changes", () => {
-    // #given
-    const planDir = join(workspaceDir, ".sisyphus", "plans", "snapshot")
-    const planPath = join(planDir, "plan.md")
-    mkdirSync(planDir, { recursive: true })
-    writeFileSync(planPath, "# Demo\n- [x] 1. Done\n- [ ] 2. Pending\n", "utf-8")
-
-    const manager = createWorkStateManager(workspaceDir)
-    manager.initializePlan("snapshot", "session-1")
-
-    const first = manager.getPlanProgress()
-    expect(first.completed).toBe(1)
-    const firstSnapshot = manager.getTaskSnapshot()
-
-    // #when
-    writeFileSync(planPath, "# Demo\n- [x] 1. Done\n- [x] 2. Pending\n", "utf-8")
-    const baselineMtime = firstSnapshot?.plan_mtime ?? Date.now()
-    const bumpedMtime = new Date(baselineMtime + 2000)
-    utimesSync(planPath, new Date(), bumpedMtime)
-
-    const second = manager.getPlanProgress()
-    const secondSnapshot = manager.getTaskSnapshot()
-
-    // #then
-    expect(second.completed).toBe(2)
-    expect(secondSnapshot?.plan_mtime).toBeGreaterThan(firstSnapshot?.plan_mtime ?? 0)
-  })
-
   test("findPlans discovers only canonical plan.md files in plan directories", () => {
     // #given
     mkdirSync(join(workspaceDir, ".sisyphus", "plans", "p1"), { recursive: true })
     mkdirSync(join(workspaceDir, ".sisyphus", "plans", "p2"), { recursive: true })
-    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p1", "plan.md"), "# p1\n- [ ] 1. a")
-    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p2", "plan.md"), "# p2\n- [ ] 1. b")
+    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p1", "plan.md"), "# p1")
+    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p2", "plan.md"), "# p2")
     writeFileSync(join(workspaceDir, ".sisyphus", "plans", "legacy.md"), "# legacy")
 
     const manager = createWorkStateManager(workspaceDir)
@@ -176,3 +125,4 @@ describe("WorkStateManager v2", () => {
     expect(plans.some((p) => p.endsWith("legacy.md"))).toBe(false)
   })
 })
+

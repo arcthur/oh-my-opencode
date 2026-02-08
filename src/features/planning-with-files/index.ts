@@ -28,18 +28,7 @@ export {
   writeLedger,
   detectActivePlan,
   initializePlan,
-  parsePlanTodos,
-  getStrikeGuidance,
-  cleanupSession,
-  // Reflection and error handling
-  detectTodoCompletion,
-  generateReflectionPrompt,
-  generateErrorRecordingPrompt,
-  generateBlockerPrompt,
-  getCurrentTodo,
   isErrorRecorded,
   readFindings,
   readProgress,
-  areAllTodosComplete,
-  getIncompleteTodos,
 } from "./manager"

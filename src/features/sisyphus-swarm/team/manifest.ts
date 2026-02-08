@@ -92,7 +92,6 @@ export function createTeam(
   config: Partial<OhMyOpenCodeConfig>,
   options?: {
     description?: string
-    taskListId?: string
     settings?: Partial<TeamManifest["settings"]>
   }
 ): TeamManifest {
@@ -118,7 +117,6 @@ export function createTeam(
       heartbeatTimeoutMs: options?.settings?.heartbeatTimeoutMs ?? 30000,
       assignmentStrategy: options?.settings?.assignmentStrategy ?? "capability-match",
     },
-    taskListId: options?.taskListId ?? teamName,
     idleWorkers: [],
   }
 

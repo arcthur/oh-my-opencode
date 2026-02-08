@@ -44,7 +44,7 @@ cli/
 |---------|---------|
 | `install` | Interactive setup with provider selection |
 | `doctor` | 14 health checks for diagnostics |
-| `run` | Launch session with todo enforcement |
+| `run` | Launch session with task enforcement |
 | `get-local-version` | Version detection and update check |
 
 ## DOCTOR CATEGORIES (14 Checks)

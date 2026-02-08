@@ -1,14 +1,16 @@
 /**
  * Work State Types
  *
- * Runtime state is tracked in `.sisyphus/work.yaml` and points to a canonical
- * plan directory:
+ * Runtime state is tracked in `.sisyphus/work.yaml`.
+ * It binds sessions to a single active plan directory:
  *
  * `.sisyphus/plans/{plan_id}/`
- * - `plan.md` (execution source of truth)
+ * - `plan.md` (human-readable plan artifact)
  * - `ledger.yaml` (runtime ledger)
  * - `findings.md`
  * - `progress.md`
+ *
+ * Note: TaskGraph is the execution source of truth for tasks.
  */
 
 import { z } from "zod"
@@ -20,7 +22,7 @@ export const ErrorRecordSchema = z.object({
   key: z.string(),
   /** Number of times this error occurred (3-strike protocol) */
   strikes: z.number().default(1),
-  /** Whether error has been recorded in plan file */
+  /** Whether error has been recorded in ledger.yaml */
   recorded: z.boolean().default(false),
   /** Last occurrence timestamp */
   last_at: z.string(),
@@ -39,15 +41,6 @@ export const BlockerRecordSchema = z.object({
   resolution: z.string().optional(),
 })
 
-export const PhaseCompletionSchema = z.object({
-  /** Phase identifier */
-  phase_id: z.string(),
-  /** When phase was completed */
-  completed_at: z.string(),
-  /** Whether reflection prompt was shown */
-  reflected: z.boolean().default(false),
-})
-
 export const DecisionSchema = z.object({
   /** When decision was made */
   timestamp: z.string(),
@@ -59,26 +52,10 @@ export const DecisionSchema = z.object({
   alternatives_rejected: z.array(z.string()).optional(),
 })
 
-/**
- * TaskSnapshot - cached progress from plan file.
- * Used for fast progress queries without re-parsing markdown.
- * Re-synced when plan file mtime changes.
- */
-export const TaskSnapshotSchema = z.object({
-  /** Total number of tasks (checkboxes or phases) */
-  total: z.number(),
-  /** Number of completed tasks */
-  completed: z.number(),
-  /** Plan file mtime when snapshot was taken */
-  plan_mtime: z.number(),
-  /** ISO timestamp when snapshot was last synced */
-  last_sync: z.string(),
-})
-
 export const WorkStateSchema = z.object({
   // === Core work state ===
   /** Work state schema version (breaking state upgrades bump this value) */
-  schema_version: z.literal(2),
+  schema_version: z.literal(3),
   /** Stable plan identifier */
   plan_id: z.string().min(1),
   /** Canonical execution plan path (.sisyphus/plans/{plan_id}/plan.md) */
@@ -102,15 +79,8 @@ export const WorkStateSchema = z.object({
   // === Blocker tracking ===
   blockers: z.array(BlockerRecordSchema).default([]),
 
-  // === Phase completion tracking ===
-  phase_completions: z.array(PhaseCompletionSchema).default([]),
-
   // === Decision history ===
   decisions: z.array(DecisionSchema).default([]),
-
-  // === Task snapshot (cached progress) ===
-  /** Cached task progress from plan file for fast queries */
-  task_snapshot: TaskSnapshotSchema.optional(),
 
   // === Metadata ===
   /** Last update timestamp */
@@ -121,32 +91,8 @@ export const WorkStateSchema = z.object({
 
 export type ErrorRecord = z.infer<typeof ErrorRecordSchema>
 export type BlockerRecord = z.infer<typeof BlockerRecordSchema>
-export type PhaseCompletion = z.infer<typeof PhaseCompletionSchema>
 export type Decision = z.infer<typeof DecisionSchema>
-export type TaskSnapshot = z.infer<typeof TaskSnapshotSchema>
 export type WorkState = z.infer<typeof WorkStateSchema>
-
-// === Plan Progress (computed from plan file) ===
-
-export interface PlanProgress {
-  /** Total number of checkboxes */
-  total: number
-  /** Number of completed checkboxes */
-  completed: number
-  /** Whether all tasks are done */
-  isComplete: boolean
-}
-
-// === Phase Info (parsed from plan file) ===
-
-export type PhaseStatus = "pending" | "in_progress" | "complete" | "blocked"
-
-export interface Phase {
-  id: string
-  name: string
-  status: PhaseStatus
-  description?: string
-}
 
 // === Constants ===
 

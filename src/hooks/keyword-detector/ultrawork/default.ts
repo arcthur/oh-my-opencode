@@ -113,7 +113,7 @@ delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], ru
 **WHY PLAN AGENT IS MANDATORY:**
 - Plan agent analyzes dependencies and parallel execution opportunities
 - Plan agent outputs a **parallel task graph** with waves and dependencies
-- Plan agent provides structured TODO list with category + skills per task
+- Plan agent provides structured task list with category + skills per task
 - YOU are an orchestrator, NOT an implementer
 
 ### SESSION CONTINUITY WITH PLAN AGENT (CRITICAL)
@@ -152,7 +152,7 @@ delegate_task(description="Continue planning", session_id="ses_abc123", load_ski
 |-----------|--------|-----|
 | Codebase exploration | \`delegate_task(description="Explore context", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")\` | Parallel, context-efficient |
 | Documentation lookup | \`delegate_task(description="Research docs", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="...")\` | Specialized knowledge |
-| Planning | \`delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], run_in_background=false, prompt="...")\` | Parallel task graph + structured TODO list |
+| Planning | \`delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], run_in_background=false, prompt="...")\` | Parallel task graph + structured task list |
 | Hard problem (conventional) | \`delegate_task(description="Consult oracle", subagent_type="oracle", load_skills=[], run_in_background=false, prompt="...")\` | Architecture, debugging, complex logic |
 | Hard problem (non-conventional) | \`delegate_task(description="Try unconventional", category="artistry", load_skills=[...], run_in_background=false, prompt="...")\` | Different approach needed |
 | Implementation | \`delegate_task(description="Implement task", category="...", load_skills=[...], run_in_background=false, prompt="...")\` | Domain-optimized models |
@@ -322,7 +322,7 @@ Write these criteria explicitly. Share with user if scope is non-trivial.
 - **NO MockUp Work**: When user asked you to do "port A", you must "port A", fully, 100%. No Extra feature, No reduced feature, no mock data, fully working 100% port.
 - **NO Partial Completion**: Never stop at 60-80% saying "you can extend this..." - finish 100%
 - **NO Assumed Shortcuts**: Never skip requirements you deem "optional" or "can be added later"
-- **NO Premature Stopping**: Never declare done until ALL TODOs are completed and verified
+- **NO Premature Stopping**: Never declare done until ALL tasks are completed and verified
 - **NO TEST DELETION**: Never delete or skip failing tests to make the build pass. Fix the code, not the tests.
 
 THE USER ASKED FOR X. DELIVER EXACTLY X. NOT A SUBSET. NOT A DEMO. NOT A STARTING POINT.

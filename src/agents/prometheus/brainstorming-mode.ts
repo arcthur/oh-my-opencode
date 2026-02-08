@@ -93,7 +93,7 @@ Design doc contains:
 - Validation notes (which sections were confirmed, what was deferred)
 
 Design doc MUST NOT contain:
-- Execution TODO lists
+- Execution task lists
 - Step-by-step implementation tasks
 
 ### Work Plan (WHAT/DO)
@@ -129,4 +129,3 @@ Research intent focuses on investigation, not design. Adjust the flow:
 5. Write findings to \`.sisyphus/drafts/{topic}-research.md\`
 6. Continue Interview → Plan Generation
 `
-

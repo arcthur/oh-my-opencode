@@ -43,8 +43,14 @@ export async function formatSessionList(sessionIDs: string[]): Promise<string> {
 
 export function formatSessionMessages(
   messages: SessionMessage[],
-  includeTodos?: boolean,
-  todos?: Array<{ id: string; content: string; status: string }>
+  includeTasks?: boolean,
+  tasks?: Array<{
+    id: string
+    title: string
+    state: string
+    readiness: string
+    blocked_by_unresolved: string[]
+  }>
 ): string {
   if (messages.length === 0) {
     return "No messages found in this session."
@@ -72,11 +78,18 @@ export function formatSessionMessages(
     }
   }
 
-  if (includeTodos && todos && todos.length > 0) {
-    lines.push("\n\n=== Todos ===")
-    for (const todo of todos) {
-      const status = todo.status === "completed" ? "[x]" : todo.status === "in_progress" ? "[-]" : "[ ]"
-      lines.push(`${status} [${todo.status}] ${todo.content}`)
+  if (includeTasks && tasks && tasks.length > 0) {
+    lines.push("\n\n=== Tasks ===")
+    for (const task of tasks) {
+      const status = task.state === "completed"
+        ? "[x]"
+        : task.state === "in_progress"
+          ? "[-]"
+          : "[ ]"
+      const blocked = task.readiness === "blocked"
+        ? ` blocked_by=${task.blocked_by_unresolved.join(",") || "unknown"}`
+        : ""
+      lines.push(`${status} [${task.state}] ${task.title}${blocked}`)
     }
   }
 
@@ -89,7 +102,7 @@ export function formatSessionInfo(info: SessionInfo): string {
     `Messages: ${info.message_count}`,
     `Date Range: ${info.first_message?.toISOString() ?? "N/A"} to ${info.last_message?.toISOString() ?? "N/A"}`,
     `Agents Used: ${info.agents_used.join(", ") || "none"}`,
-    `Has Todos: ${info.has_todos ? `Yes (${info.todos?.length ?? 0} items)` : "No"}`,
+    `Has Tasks: ${info.has_tasks ? `Yes (${info.tasks?.length ?? 0} items)` : "No"}`,
     `Has Transcript: ${info.has_transcript ? `Yes (${info.transcript_entries} entries)` : "No"}`,
   ]
 

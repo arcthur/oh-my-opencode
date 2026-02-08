@@ -3,12 +3,12 @@ import { join } from "path"
 import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from "fs"
 import { z } from "zod"
 import {
-  getTaskDir,
-  getTaskPath,
   getTeamDir,
   getInboxPath,
+  getProjectRoot,
   ensureDir,
   readJsonSafe,
+  SISYPHUS_PROJECT_ROOT_ENV,
   writeJsonAtomic,
 } from "./storage"
 
@@ -24,25 +24,45 @@ describe("Storage Utilities", () => {
     rmSync(TEST_DIR, { recursive: true, force: true })
   })
 
-  describe("getTaskDir", () => {
-    // given default config
-    // when getting task directory
-    // then it should return .sisyphus/tasks/{listId}
-    it("returns sisyphus path by default", () => {
-      const config = { sisyphus: { tasks: { storage_path: ".sisyphus/tasks" } } }
-      const result = getTaskDir("list-123", config as any)
-      expect(result).toContain(".sisyphus/tasks/list-123")
-    })
-  })
+  describe("getProjectRoot", () => {
+    it("uses cwd when SISYPHUS_PROJECT_ROOT is not set", () => {
+      // #given
+      const originalEnv = process.env[SISYPHUS_PROJECT_ROOT_ENV]
+      delete process.env[SISYPHUS_PROJECT_ROOT_ENV]
 
-  describe("getTaskPath", () => {
-    // given list and task IDs
-    // when getting task path
-    // then it should return path to task JSON file
-    it("returns path to task JSON", () => {
-      const config = { sisyphus: { tasks: { storage_path: ".sisyphus/tasks" } } }
-      const result = getTaskPath("list-123", "1", config as any)
-      expect(result).toContain("list-123/1.json")
+      try {
+        // #when
+        const result = getProjectRoot()
+
+        // #then
+        expect(result).toBe(process.cwd())
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env[SISYPHUS_PROJECT_ROOT_ENV] = originalEnv
+        } else {
+          delete process.env[SISYPHUS_PROJECT_ROOT_ENV]
+        }
+      }
+    })
+
+    it("uses SISYPHUS_PROJECT_ROOT when set", () => {
+      // #given
+      const originalEnv = process.env[SISYPHUS_PROJECT_ROOT_ENV]
+      process.env[SISYPHUS_PROJECT_ROOT_ENV] = TEST_DIR
+
+      try {
+        // #when
+        const result = getProjectRoot()
+
+        // #then
+        expect(result).toBe(TEST_DIR)
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env[SISYPHUS_PROJECT_ROOT_ENV] = originalEnv
+        } else {
+          delete process.env[SISYPHUS_PROJECT_ROOT_ENV]
+        }
+      }
     })
   })
 

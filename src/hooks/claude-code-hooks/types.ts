@@ -80,7 +80,6 @@ export interface StopInput {
   permission_mode?: PermissionMode
   hook_event_name: "Stop"
   stop_hook_active: boolean
-  todo_path?: string
   hook_source?: HookSource
 }
 
@@ -139,28 +138,6 @@ export interface TranscriptEntry {
   tool_input?: Record<string, unknown>
   tool_output?: Record<string, unknown>
   content?: string
-}
-
-export interface TodoItem {
-  id: string
-  content: string
-  status: "pending" | "in_progress" | "completed" | "cancelled"
-  priority?: "low" | "medium" | "high"
-  created_at: string
-  updated_at?: string
-}
-
-export interface ClaudeCodeTodoItem {
-  content: string
-  status: string // "pending" | "in_progress" | "completed"
-  activeForm: string
-}
-
-export interface TodoFile {
-  session_id: string
-  items: TodoItem[]
-  created_at: string
-  updated_at: string
 }
 
 export interface StopOutput {

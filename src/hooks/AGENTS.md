@@ -14,7 +14,7 @@ hooks/
 ├── planning-with-files/        # Manus-style planning (uses work-state)
 ├── start-work/                 # Session initialization (uses work-state)
 ├── context-window-governor/    # Unified context window governance (warn/preemptive/recovery/inject)
-├── todo-auto-continuation.ts   # Force TODO completion
+├── task-auto-continuation.ts   # Force task completion
 ├── ralph-loop/                 # Self-referential dev loop until done
 ├── claude-code-hooks/          # settings.json hook compat layer (13 files)
 ├── comment-checker/            # Prevents AI slop/excessive comments

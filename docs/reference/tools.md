@@ -35,6 +35,16 @@ The Oh-My-OpenCode plugin registers the following tools (in addition to any tool
 | `swarm` | `src/tools/swarm.ts` | Sisyphus Swarm orchestration entrypoint |
 | `look_at` | `src/tools/look-at/` | Assistive “inspect” tool (used by multimodal workflows) |
 
+### TaskGraph V2
+
+| Tool name | Implementation | Purpose |
+|---|---|---|
+| `task_create` | `src/tools/task-graph/` | Create a task node in TaskGraph V2 |
+| `task_get` | `src/tools/task-graph/` | Read a task summary by id |
+| `task_list` | `src/tools/task-graph/` | List task summaries with scope/container and readiness filters |
+| `task_update` | `src/tools/task-graph/` | Update structural fields only (title/description/priority/owner/metadata/dependencies) |
+| `task_transition` | `src/tools/task-graph/` | Transition lifecycle state with state-machine and readiness enforcement |
+
 ### Skills and commands
 
 | Tool name | Implementation | Purpose |
@@ -132,6 +142,57 @@ If you launch a background task, you SHOULD:
 
 - Poll with `background_output({ task_id: "..." })` until completion, and/or
 - Cancel with `background_cancel({ task_id: "..." })` if the task is stuck.
+
+## Contract: `task_*` (TaskGraph V2)
+
+TaskGraph tools expose the canonical task API for session/plan/swarm execution flows.
+
+### Common selector surface
+
+All task tools support:
+
+- `scope`: `session | plan | swarm` (default: `session`)
+- `container_id`: required for `plan`/`swarm`; defaults to `sessionID` for `session`
+
+### Write semantics and CAS
+
+- `task_create` initializes `revision=1`.
+- `task_update` and `task_transition` MUST include `expected_revision`.
+- On mismatch, writes MUST fail with `TASK_REVISION_CONFLICT`.
+- Successful writes return the updated task summary with incremented `revision`.
+
+### Lifecycle and readiness
+
+- Lifecycle states: `open | in_progress | completed | cancelled | failed`
+- `task_update` MUST NOT change lifecycle state.
+- `task_transition` is the only state transition entry.
+- Transition to `completed` MUST fail when readiness is blocked by unresolved dependencies.
+
+### Dependency model
+
+- Dependencies are represented only by `depends_on`.
+- Adding/removing dependencies is done via:
+  - `task_update.add_depends_on`
+  - `task_update.remove_depends_on`
+- Cycles MUST fail with `TASK_DEPENDENCY_CYCLE`.
+
+### `task_list` contract
+
+`task_list` returns task summaries (not raw storage nodes) with:
+
+- `state`
+- `readiness`
+- `blocked_by_unresolved`
+- `owner`
+- `scope`
+- `container_id`
+- `revision`
+
+Filters:
+
+- `ready_only`
+- `include_completed` (default false)
+- `state`
 
 ## Contract: `multi_plan`
 

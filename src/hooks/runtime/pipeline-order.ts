@@ -94,7 +94,7 @@ export const EVENT_TOTAL_ORDER: Record<HookEventType, HookNodeId[]> = {
     "bridge:claude-code-hooks:event",
     "background-notification:event",
     "session-notification:event",
-    "todo-auto-continuation:event",
+    "task-auto-continuation:event",
     "pre-completion-verification:event",
     "planning-with-files:event",
     "internal:user-memory:event",

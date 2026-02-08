@@ -20,7 +20,7 @@ For non-trivial work, you MUST NOT enter plan generation until Brainstorming is 
 - Acknowledge the request
 - Explain you must lock design first for non-trivial work
 - Continue Brainstorming (ask ONE question at a time)
-- DO NOT register Phase 2 plan-generation todos yet
+- DO NOT register Phase 2 plan-generation tasks yet
 
 ## Trigger Conditions
 
@@ -33,24 +33,22 @@ For non-trivial work, you MUST NOT enter plan generation until Brainstorming is 
 **If preconditions are satisfied**: enter plan generation immediately.
 **If preconditions are NOT satisfied (non-trivial)**: return to Brainstorming/Interview and resolve gaps first.
 
-## MANDATORY: Register Todo List IMMEDIATELY (NON-NEGOTIABLE)
+## MANDATORY: Register TaskGraph List IMMEDIATELY (NON-NEGOTIABLE)
 
-**The INSTANT you ENTER Phase 2 Plan Generation, you MUST register the following steps as todos using TodoWrite.**
+**The INSTANT you ENTER Phase 2 Plan Generation, you MUST register the following steps as tasks using task_create/task_transition.**
 
 **This is not optional. This is your first action upon Phase 2 entry.**
 
 \`\`\`typescript
 // IMMEDIATELY upon Phase 2 entry - NO EXCEPTIONS
-todoWrite([
-  { id: "plan-1", content: "Choose plan name + assemble full planning context", status: "pending", priority: "high" },
-  { id: "plan-2", content: "If multi-model configured: run multi_plan (debate optional)", status: "pending", priority: "high" },
-  { id: "plan-3", content: "Else: generate work plan to .sisyphus/plans/{name}.md", status: "pending", priority: "high" },
-  { id: "plan-3b", content: "Generate context manifest to .sisyphus/context-manifests/{name}.md", status: "pending", priority: "high" },
-  { id: "plan-4", content: "Self-review: classify gaps (critical/minor/ambiguous)", status: "pending", priority: "high" },
-  { id: "plan-5", content: "Present summary with auto-resolved items and decisions needed", status: "pending", priority: "high" },
-  { id: "plan-6", content: "If decisions needed: wait for user, update plan", status: "pending", priority: "high" },
-  { id: "plan-7", content: "Guide user to /start-work", status: "pending", priority: "medium" }
-])
+task_create({ title: "plan-1 Choose plan name + assemble full planning context", scope: "session" })
+task_create({ title: "plan-2 If multi-model configured: run multi_plan (debate optional)", scope: "session" })
+task_create({ title: "plan-3 Else: generate work plan to .sisyphus/plans/{name}.md", scope: "session" })
+task_create({ title: "plan-4 Generate context manifest to .sisyphus/context-manifests/{name}.md", scope: "session" })
+task_create({ title: "plan-5 Self-review: classify gaps (critical/minor/ambiguous)", scope: "session" })
+task_create({ title: "plan-6 Present summary with auto-resolved items and decisions needed", scope: "session" })
+task_create({ title: "plan-7 If decisions needed: wait for user, update plan", scope: "session" })
+task_create({ title: "plan-8 Guide user to /start-work", scope: "session" })
 \`\`\`
 
 **WHY THIS IS CRITICAL:**
@@ -60,16 +58,16 @@ todoWrite([
 - Enables recovery if session is interrupted
 
 **WORKFLOW:**
-1. Phase 2 entered → **IMMEDIATELY** TodoWrite (plan-1 through plan-7)
+1. Phase 2 entered → **IMMEDIATELY** register tasks (plan-1 through plan-7)
 2. Mark plan-1 as \`in_progress\` → Pick plan name and assemble full context
 3. If multi-model planning is available: Mark plan-2 as \`in_progress\` → Call \`multi_plan\`
 4. Else: Mark plan-3 as \`in_progress\` → Generate plan directly and write to \`.sisyphus/plans/{name}.md\`
-5. Mark plan-3b as \`in_progress\` → Generate context manifest and write to \`.sisyphus/context-manifests/{name}.md\`
-6. Mark plan-4 as \`in_progress\` → Self-review and classify gaps
-7. Mark plan-5 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
-8. Mark plan-6 as \`in_progress\` → If decisions needed, wait for user and update plan
-9. Mark plan-7 as \`in_progress\` → Guide user to \`/start-work\`
-9. NEVER skip a todo. NEVER proceed without updating status.
+5. Mark plan-4 as \`in_progress\` → Generate context manifest and write to \`.sisyphus/context-manifests/{name}.md\`
+6. Mark plan-5 as \`in_progress\` → Self-review and classify gaps
+7. Mark plan-6 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
+8. Mark plan-7 as \`in_progress\` → If decisions needed, wait for user and update plan
+9. Mark plan-8 as \`in_progress\` → Guide user to \`/start-work\`
+9. NEVER skip a task. NEVER proceed without updating status.
 
 ## Plan Generation Routing (MANDATORY)
 
@@ -150,7 +148,7 @@ Plan saved to: \`.sisyphus/plans/{name}.md\`
 Before presenting summary, verify:
 
 \`\`\`
-□ All TODO items have concrete acceptance criteria?
+□ All task items have concrete acceptance criteria?
 □ All file references exist in codebase?
 □ No assumptions about business logic without evidence?
 □ Scope boundaries clearly defined?

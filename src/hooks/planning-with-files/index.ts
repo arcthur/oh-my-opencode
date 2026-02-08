@@ -1,19 +1,17 @@
 import type { Hooks, PluginInput } from "@opencode-ai/plugin"
 import * as fs from "node:fs"
 import * as path from "node:path"
+import type { OhMyOpenCodeConfig } from "../../config/schema"
 import type { ContextCollector } from "../../features/context-injector"
 import { contextCollector as defaultCollector } from "../../features/context-injector"
 import type { PlanningWithFilesConfig } from "../../features/planning-with-files/types"
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
 import {
   detectActivePlan,
-  detectTodoCompletion,
   getExecutionPlanPath,
   getPlanDir,
-  getIncompleteTodos,
   initializePlan,
   isErrorRecorded,
-  parsePlanTodos,
   readPlan,
 } from "../../features/planning-with-files/manager"
 import {
@@ -22,13 +20,15 @@ import {
 } from "../../features/planning-with-files/blocker-detection"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 import { createWorkStateManager } from "../../features/work-state"
+import { listIncompleteTasks, listTaskNodes, syncPlanTasksToTaskGraph } from "../../features/task-system"
 import { log } from "../../shared/logger"
 import type { ContinuationIntent } from "../continuation-control"
 
 export interface PlanningWithFilesHookOptions {
   config?: Partial<PlanningWithFilesConfig>
+  taskConfig?: Partial<OhMyOpenCodeConfig>
   collector?: ContextCollector
-  todoContinuationEnabled?: boolean
+  taskContinuationEnabled?: boolean
   isContinuationStopped?: (sessionID: string) => boolean
   getContinuationRound?: (sessionID: string) => number | undefined
   reportContinuationIntent: (intent: ContinuationIntent) => Promise<void>
@@ -42,7 +42,7 @@ ${content}
 </plan-context>
 
 <reminder>
-Stay focused on the current TODO. Do not deviate from the goal.
+Stay focused on the current TaskGraph task. Do not deviate from the goal.
 </reminder>`
 }
 
@@ -82,6 +82,39 @@ function extractPlanId(toolArgs: unknown): string | null {
   const rawPlanId = obj.planId
   if (typeof rawPlanId !== "string" || !rawPlanId.trim()) return null
   return sanitizePathSegment(rawPlanId.trim()) ?? null
+}
+
+async function seedPlanTasksIfMissing(
+  cwd: string,
+  planId: string,
+  taskConfig: Partial<OhMyOpenCodeConfig>,
+  planningConfig: PlanningWithFilesConfig
+): Promise<void> {
+  try {
+    const existing = listTaskNodes(
+      {
+        scope: "plan",
+        container_id: planId,
+        include_completed: true,
+      },
+      taskConfig
+    )
+
+    if (existing.length > 0) return
+
+    const planMarkdown = await readPlan(cwd, planId, planningConfig)
+    if (!planMarkdown) return
+
+    syncPlanTasksToTaskGraph({
+      config: taskConfig,
+      scope: "plan",
+      container_id: planId,
+      planId,
+      planMarkdown,
+    })
+  } catch {
+    // Best effort seeding. Runtime behavior falls back to manual task_create.
+  }
 }
 
 /**
@@ -130,7 +163,7 @@ function buildActiveNotice(planId: string): string {
 **Location**: ${planDir}/
 
 **Files**:
-- plan.md - Execution TODO source of truth
+- plan.md - Execution plan file (tasks are tracked in TaskGraph via task_* tools)
 - ledger.yaml - Runtime errors/blockers/decisions
 - findings.md - Research (2-action rule)
 - progress.md - Session logs
@@ -139,7 +172,7 @@ function buildActiveNotice(planId: string): string {
 - Auto re-read plan.md before Write/Edit/Bash/NotebookEdit
 - 2-Action Rule with auto-reset
 - 3-Strike Error Protocol (forced recording on Strike 2+)
-- TODO Reflection (prompts on completion for plan adjustment)
+- Task Reflection (prompts on completion for plan adjustment)
 - Stop verification
 </planning-with-files-active>`
 }
@@ -152,6 +185,7 @@ export function createPlanningWithFilesHook(
   ctx: PluginInput,
   options: PlanningWithFilesHookOptions
 ): Hooks {
+  const taskConfig = options.taskConfig ?? {}
   const collector = options.collector ?? defaultCollector
   const config: PlanningWithFilesConfig = {
     ...DEFAULT_PLANNING_CONFIG,
@@ -384,21 +418,7 @@ Error: ${errorText.slice(0, 150)}
     }
 
     if (["Write", "Edit", "write", "edit"].includes(input.tool) && filePath && isPlanFilePath(filePath)) {
-      const planMarkdown = await readPlan(ctx.directory, planId, config)
-      if (planMarkdown) {
-        const todos = parsePlanTodos(planMarkdown)
-        const completedTodos = detectTodoCompletion(ctx.directory, planId, todos)
-        for (const todo of completedTodos) {
-          workStateManager.recordPhaseCompletion(String(todo.id))
-          collector.register(input.sessionID, {
-            id: `todo-reflection-${todo.id}`,
-            source: "planning-with-files",
-            priority: "high",
-            content: workStateManager.generateReflectionPrompt({ id: String(todo.id), name: todo.name }),
-            metadata: { planId, todoId: todo.id },
-          })
-        }
-      }
+      await seedPlanTasksIfMissing(ctx.directory, planId, taskConfig, config)
     }
 
     const findingsPath = path.join(getPlanDir(ctx.directory, planId, config), "findings.md")
@@ -450,11 +470,9 @@ Counter auto-resets when you modify findings.md.
 
       if (deletedID) {
         injectedSessions.delete(deletedID)
-        const deletedPlanId = activePlanBySessionID.get(deletedID)
         activePlanBySessionID.delete(deletedID)
         stopVerificationLastPromptAt.delete(deletedID)
         blockerCache.delete(deletedID)
-        workStateManager.clearPhaseCache(deletedPlanId)
       }
       return
     }
@@ -467,43 +485,36 @@ Counter auto-resets when you modify findings.md.
     if (!sessionID) return
 
     if (isContinuationStopped?.(sessionID)) return
+    if (options.taskContinuationEnabled) return
 
     const lastPromptAt = stopVerificationLastPromptAt.get(sessionID) ?? 0
     const attemptAt = Date.now()
     if (attemptAt - lastPromptAt < STOP_VERIFICATION_COOLDOWN_MS) return
 
-    if (options.todoContinuationEnabled) {
-      try {
-        const todosResp = await ctx.client.session.todo({ path: { id: sessionID } })
-        const todos = (todosResp as any)?.data ?? todosResp
-        if (Array.isArray(todos)) {
-          const incompleteTodos = todos.filter((t) => {
-            const status = (t as { status?: string } | null)?.status
-            return status !== "completed" && status !== "cancelled"
-          })
-          if (incompleteTodos.length > 0) return
-        }
-      } catch {
-        // Fail open - stop verification still applies.
-      }
-    }
-
     const planId = await resolveActivePlan(sessionID)
     if (!planId) return
 
-    const incompleteTodos = await getIncompleteTodos(ctx.directory, planId, config)
-    if (incompleteTodos.length === 0) return
+    await seedPlanTasksIfMissing(ctx.directory, planId, taskConfig, config)
 
-    const reason = `Incomplete TODOs:\n\n${incompleteTodos
-      .map((todo) => `- ${todo}`)
-      .join("\n")}\n\n**Options**:\n1. Complete remaining TODOs\n2. Mark blocked TODOs in \`plan.md\` and record blocker in \`ledger.yaml\`\n3. Use \`/stop --force\` to override`
+    const incompleteTasks = listIncompleteTasks(
+      {
+        scope: "plan",
+        container_id: planId,
+      },
+      taskConfig
+    )
+    if (incompleteTasks.length === 0) return
+
+    const reason = `Incomplete plan tasks remain:\n\n${incompleteTasks
+      .map((t) => `- ${t.title} [state=${t.state}, readiness=${t.readiness}]`)
+      .join("\n")}\n\n**Options**:\n1. Complete remaining ready tasks\n2. If blocked: fix dependencies (task_update) or cancel the task (task_transition -> cancelled), and record blocker in \`ledger.yaml\`\n3. Use \`/stop --force\` to override`
 
     try {
       await reportContinuationIntent({
         sessionID,
         round: getContinuationRound?.(sessionID),
         source: "planning-with-files",
-        reason: `stop_verification:${incompleteTodos.length}`,
+        reason: `stop_verification:${incompleteTasks.length}`,
         prompt: { text: reason },
         onResult: (result) => {
           if (result.status === "accepted") {

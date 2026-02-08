@@ -289,7 +289,7 @@ Incomplete phases:
 
 **Operational Notes**:
 - Stop verification is advisory (prompt-based) and throttled per session to avoid repeated injections.
-- If `todo-auto-continuation` is enabled and pending TODOs exist, stop verification defers to it to avoid duplicate continuation prompts.
+- If `task-auto-continuation` is enabled and pending tasks exist, stop verification defers to it to avoid duplicate continuation prompts.
 
 ### 7. State Persistence
 
@@ -427,7 +427,7 @@ When `auto_from_multi_plan: true`, after a successful `multi_plan` tool run comp
 
 1. Planning files are initialized at `.sisyphus/plans/{planId}/` (if missing)
 2. `plan.md` starts from the default template (edit freely)
-3. The unified plan remains the source of truth for detailed TODOs; planning-with-files focuses on persistence, error tracking, and lightweight phase gating
+3. The unified plan remains the source of truth for detailed task breakdown; planning-with-files focuses on persistence, error tracking, and lightweight phase gating
 
 This enables seamless transition from planning to execution with full tracking.
 

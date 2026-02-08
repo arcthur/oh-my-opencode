@@ -76,8 +76,6 @@ export const TeamManifestSchema = z.object({
     heartbeatTimeoutMs: 30000,
     assignmentStrategy: "capability-match" as const,
   })),
-  /** Associated task list ID */
-  taskListId: z.string().optional(),
   /**
    * Workers currently idle and ready for tasks (level-triggered)
    *

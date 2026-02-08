@@ -53,11 +53,11 @@ export function buildEventNodes(
     })
   }
 
-  if (context.todoAutoContinuation?.handler) {
+  if (context.taskAutoContinuation?.handler) {
     nodes.push({
-      id: "todo-auto-continuation:event",
+      id: "task-auto-continuation:event",
       invoke: async () => {
-        await context.todoAutoContinuation?.handler?.(input)
+        await context.taskAutoContinuation?.handler?.(input)
       },
     })
   }

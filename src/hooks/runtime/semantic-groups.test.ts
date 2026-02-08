@@ -34,7 +34,7 @@ describe("semantic groups", () => {
       RECOVERY_MECHANISM_CATEGORY_BY_HOOK["continuation-stop-guard"]
     ).toBe("continuation-control")
     expect(
-      RECOVERY_MECHANISM_CATEGORY_BY_HOOK["todo-auto-continuation"]
+      RECOVERY_MECHANISM_CATEGORY_BY_HOOK["task-auto-continuation"]
     ).toBe("continuation-control")
   })
 

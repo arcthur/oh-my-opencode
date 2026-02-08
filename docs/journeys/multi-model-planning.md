@@ -175,12 +175,12 @@ The `MultiPlanOrchestrator` launches N background tasks, one per configured mode
 4. **Assumptions** (with confidence levels)
 5. **Risks** (with probability/impact/mitigation)
 6. Verification Strategy
-7. TODOs
+7. Tasks
 8. Success Criteria
 
 For the exact manifest format contract (marker-delimited JSON), see: `docs/journeys/context-packs-and-manifests.md`.
 
-Additionally, each TODO should include a deterministic selector line:
+Additionally, each task should include a deterministic selector line:
 
 ```text
 Context Packs: global, tooling
@@ -278,7 +278,7 @@ These scores inform conflict resolution - higher-scoring plans generally win.
 
 **VERDICT**: Accept claude-opus-4-5's assumption
 **REASON**: Higher confidence, verified via code exploration
-**ACTION**: Validate in first TODO if needed
+**ACTION**: Validate in first task if needed
 ```
 
 **Unshared Risks**: Risks only one model identified are PRESERVED:
@@ -516,7 +516,7 @@ Each follows the standard plan format:
 - **Assumptions** (with confidence levels)
 - **Risks** (with probability/impact/mitigation)
 - Verification Strategy
-- TODOs
+- Tasks
 - Success Criteria
 
 ### Comparison Report
@@ -541,7 +541,7 @@ Contains:
 ```
 
 The synthesized plan combining the best elements from all models, ready for execution with `/start-work`.
-In execution mode, `/start-work` migrates it into `.sisyphus/plans/{planId}/plan.md` (task SSOT).
+In execution mode, `/start-work` migrates it into `.sisyphus/plans/{planId}/plan.md` (plan spec) and seeds TaskGraph under `.sisyphus/tasks/plan/{planId}/` (task SSOT).
 
 ---
 

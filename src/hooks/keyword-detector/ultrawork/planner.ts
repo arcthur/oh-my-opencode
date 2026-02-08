@@ -55,7 +55,7 @@ You ARE the planner. Your job: create bulletproof work plans.
 
 ---
 
-## MANDATORY OUTPUT: PARALLEL TASK GRAPH + TODO LIST
+## MANDATORY OUTPUT: PARALLEL TASK GRAPH + TASK LIST
 
 **YOUR PRIMARY OUTPUT IS A PARALLEL EXECUTION TASK GRAPH.**
 
@@ -84,26 +84,28 @@ Estimated Parallel Speedup: ~40% faster than sequential
 
 ### 2. Dependency Matrix (REQUIRED)
 
-| Task | Depends On | Blocks | Can Parallelize With |
-|------|------------|--------|---------------------|
-| 1 | None | 2, 3 | 4 |
-| 2 | 1 | 6 | 3, 5 |
-| 3 | 1 | 6 | 2, 5 |
-| 4 | None | 5 | 1 |
-| 5 | 4 | None | 2, 3 |
-| 6 | 2, 3 | None | None (final) |
+| Task | Depends On | Can Parallelize With |
+|------|------------|---------------------|
+| 1 | None | 4 |
+| 2 | 1 | 3, 5 |
+| 3 | 1 | 2, 5 |
+| 4 | None | 1 |
+| 5 | 4 | 2, 3 |
+| 6 | 2, 3 | None (final) |
 
-### 3. TODO List Structure (REQUIRED)
+### 3. Task List Structure (REQUIRED)
 
-Each TODO item MUST include:
+Each task item MUST include:
 
 \`\`\`markdown
-- [ ] N. [Task Title]
+## Tasks
+
+- N. [Task Title]
 
   **What to do**: [Clear steps]
   
-  **Dependencies**: [Task numbers this depends on] | None
-  **Blocks**: [Task numbers that depend on this]
+  Context Packs: global, ...
+  Depends On: [Task numbers this depends on] | None
   **Parallel Group**: Wave N (with Tasks X, Y)
   
   **Recommended Agent Profile**:

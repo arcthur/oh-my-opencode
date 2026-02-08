@@ -34,7 +34,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   if (legacyPlanPath && existsSync(legacyPlanPath)) {
     writeFileSync(canonicalPlanAbsPath, readFileSync(legacyPlanPath, "utf-8"))
   } else if (!existsSync(canonicalPlanAbsPath)) {
-    writeFileSync(canonicalPlanAbsPath, "# Plan\n\n- [ ] 1. Task\n")
+    writeFileSync(canonicalPlanAbsPath, "# Plan\n\n## Tasks\n\n- 1. Task\n")
   }
 
   const canonicalLedgerAbsPath = join(directory, canonicalLedgerPath)
@@ -46,7 +46,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   }
 
   const fullState: WorkState = {
-    schema_version: 2,
+    schema_version: 3,
     plan_id: planId,
     execution_plan_path: canonicalPlanPath,
     runtime_ledger_path: canonicalLedgerPath,
@@ -56,9 +56,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
     last_findings_mtime: state.last_findings_mtime ?? 0,
     errors: state.errors ?? [],
     blockers: state.blockers ?? [],
-    phase_completions: state.phase_completions ?? [],
     decisions: state.decisions ?? [],
-    task_snapshot: state.task_snapshot,
     last_updated: state.last_updated,
   }
 
@@ -153,7 +151,7 @@ describe("execution-orchestrator hook", () => {
 
     const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
     mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
-    writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2\n")
+    writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
@@ -600,7 +598,7 @@ Implement atomic fix for login validator.
 
     const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
     mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
-    writeFileSync(planPath, "# Plan\n- [ ] Task 1\n- [x] Task 2\n")
+    writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",

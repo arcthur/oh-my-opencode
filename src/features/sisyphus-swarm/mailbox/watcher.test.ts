@@ -155,7 +155,7 @@ describe("mailbox/watcher", () => {
     sendMessage(teamName, senderId, agentId, {
       type: "task_assignment",
       taskId: "task_001",
-      subject: "Test",
+      title: "Test",
       description: "...",
       assignedBy: senderId,
       timestamp: Date.now(),
@@ -180,7 +180,7 @@ describe("mailbox/watcher", () => {
     sendMessage(teamName, senderId, agentId, {
       type: "task_assignment",
       taskId: "task_001",
-      subject: "Test",
+      title: "Test",
       description: "...",
       assignedBy: senderId,
       timestamp: Date.now(),

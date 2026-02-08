@@ -1,6 +1,8 @@
 import type { BackgroundTask } from "./types"
-import type { OpencodeClient, Todo } from "./constants"
+import type { OpencodeClient } from "./constants"
 import { TASK_CLEANUP_DELAY_MS } from "./constants"
+import type { OhMyOpenCodeConfig } from "../../config/schema"
+import { countIncompleteSessionTasks } from "../task-system"
 import { log } from "../../shared"
 import { getTaskToastManager } from "../task-toast-manager"
 import { findNearestMessageWithFields } from "../hook-message-injector"
@@ -39,24 +41,16 @@ export interface ResultHandlerContext {
   client: OpencodeClient
   concurrencyManager: ConcurrencyManager
   state: TaskStateManager
+  taskConfig?: Partial<OhMyOpenCodeConfig>
   onTaskFinalized?: (task: BackgroundTask, status: "completed") => void | Promise<void>
 }
 
-export async function checkSessionTodos(
-  client: OpencodeClient,
-  sessionID: string
+export async function checkSessionTasks(
+  sessionID: string,
+  taskConfig: Partial<OhMyOpenCodeConfig> = {}
 ): Promise<boolean> {
   try {
-    const response = await client.session.todo({
-      path: { id: sessionID },
-    })
-    const todos = (response.data ?? response) as Todo[]
-    if (!todos || todos.length === 0) return false
-
-    const incomplete = todos.filter(
-      (t) => t.status !== "completed" && t.status !== "cancelled"
-    )
-    return incomplete.length > 0
+    return countIncompleteSessionTasks(sessionID, taskConfig) > 0
   } catch {
     return false
   }

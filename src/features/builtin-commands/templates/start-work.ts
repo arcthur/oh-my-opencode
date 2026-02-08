@@ -3,13 +3,12 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
 ## WHAT TO DO
 
 1. **Find available plans**:
-   - Preferred (execution SSOT): \`.sisyphus/plans/<planId>/plan.md\`
-   - Legacy (plan draft): \`.sisyphus/plans/<planId>.md\` (migrate into \`plan.md\` before execution)
+   - Plan artifact: \`.sisyphus/plans/<planId>/plan.md\`
 
 2. **Check for active work state**: Read \`.sisyphus/work.yaml\` if it exists
 
 3. **Decision logic**:
-   - If \`.sisyphus/work.yaml\` exists AND plan is NOT complete (has unchecked boxes):
+   - If \`.sisyphus/work.yaml\` exists AND plan is NOT complete in TaskGraph:
      - **APPEND** current session to session_ids
      - Continue work on existing plan
    - If no active plan OR plan is complete:
@@ -19,7 +18,7 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
 
 4. **Create/Update work.yaml**:
    \`\`\`yaml
-   schema_version: 2
+   schema_version: 3
    plan_id: plan-name
    execution_plan_path: .sisyphus/plans/plan-name/plan.md
    runtime_ledger_path: .sisyphus/plans/plan-name/ledger.yaml
@@ -31,11 +30,16 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
    last_findings_mtime: 0
    errors: []
    blockers: []
-   phase_completions: []
    decisions: []
    \`\`\`
 
-5. **Read the plan file** (\`.sisyphus/plans/<planId>/plan.md\`) and start executing tasks in sisyphus execution mode
+5. **Seed plan tasks into TaskGraph (if missing)**:
+   - Parse \`## Tasks\` from \`plan.md\`
+   - Create TaskGraph nodes under: scope=\`plan\`, container_id=\`<planId>\`
+
+6. **Execute via TaskGraph**:
+   - Use \`task_list({ scope: \"plan\", container_id: \"<planId>\", ready_only: true })\` to pick next ready task
+   - Use \`task_transition\` to move tasks through \`open -> in_progress -> completed\`
 
 ## OUTPUT FORMAT
 
@@ -60,7 +64,7 @@ Active Plan: {plan-name}
 Progress: {completed}/{total} tasks
 Sessions: {count} (appending current session)
 
-Reading plan and continuing from last incomplete task...
+Continuing from next ready TaskGraph task...
 \`\`\`
 
 When auto-selecting single plan:
@@ -78,5 +82,5 @@ Reading plan and beginning execution...
 
 - The session_id is injected by the hook - use it directly
 - Always update work.yaml BEFORE starting work
-- Read the FULL plan file before delegating any tasks
+- TaskGraph is the execution SSOT (plan.md is an artifact)
 - Follow execution-mode delegation protocols (7-section format)`

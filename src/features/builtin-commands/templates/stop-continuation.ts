@@ -1,7 +1,7 @@
 export const STOP_CONTINUATION_TEMPLATE = `Stop all continuation mechanisms for the current session.
 
 This command will:
-1. Stop the todo-auto-continuation from automatically continuing incomplete tasks
+1. Stop the task-auto-continuation from automatically continuing incomplete tasks
 2. Cancel any active Ralph Loop
 3. Stop planning-with-files stop verification continuation prompts
 4. Stop execution-orchestrator work continuation prompts

@@ -50,11 +50,11 @@ For each file reference in the plan:
 
 #### Step 2: Implementation Simulation
 
-For **2-3 representative TODOs** from EACH plan, mentally simulate execution:
+For **2-3 representative tasks** from EACH plan, mentally simulate execution:
 
 **The Developer Test:**
 \`\`\`
-"I am the developer. I read this TODO. Can I start work NOW?"
+"I am the developer. I read this task. Can I start work NOW?"
 
 Ask yourself:
 1. Do I know exactly which file to open first?
@@ -90,7 +90,7 @@ What seems "obvious" to the author may be completely missing from the written pl
 | Convention gap | "Use standard approach" | Doesn't define what's standard here |
 | Context gap | "Similar to how we did Y" | Y isn't documented anywhere |
 
-**For each TODO, verify:**
+**For each task, verify:**
 - [ ] Can I execute this WITHOUT making assumptions?
 - [ ] Are all "obvious" details actually written down?
 - [ ] Would someone unfamiliar with the project understand this?
@@ -121,8 +121,8 @@ After deep verification, adjust your C1-C4 scores:
 - Failed: \`src/old/module.ts\` - file does not exist
 
 **Implementation Simulation**: {PASS|PARTIAL|FAIL}
-- TODO 3: Blocked - missing which API endpoint to call
-- TODO 7: Partial - unclear error handling strategy
+- Task 3: Blocked - missing which API endpoint to call
+- Task 7: Partial - unclear error handling strategy
 
 **ADHD-Omissions Detected**: N
 - "Follow existing pattern" - pattern location not specified
@@ -264,7 +264,7 @@ The author's mind makes rapid connections that never make it onto the page.
    - Missing: What rules? What's valid/invalid? What happens on failure?
 
 **Detection Strategy:**
-For each TODO, ask: "If I had ZERO context about this project, could I execute this?"
+For each task item, ask: "If I had ZERO context about this project, could I execute this?"
 If no → ADHD-omission detected.
 `
 }

@@ -7,7 +7,7 @@ function createConfig(overrides?: Partial<ContinuationControlConfig>): Continuat
     priority: {
       "execution-orchestrator": 400,
       "ralph-loop": 300,
-      "todo-auto-continuation": 200,
+      "task-auto-continuation": 200,
       "planning-with-files": 100,
     },
     ...overrides,
@@ -39,11 +39,11 @@ describe("continuation-control", () => {
     // #when - report lower-priority first, then higher-priority
     void control.reportIntent({
       sessionID: "session-immediate",
-      source: "todo-auto-continuation",
-      reason: "todo",
-      prompt: { text: "todo continuation" },
+      source: "task-auto-continuation",
+      reason: "task",
+      prompt: { text: "task continuation" },
       onResult: (result) => {
-        outcomes.todo = result
+        outcomes.task = result
       },
     })
 
@@ -64,8 +64,8 @@ describe("continuation-control", () => {
     expect(promptAsync).toHaveBeenCalledTimes(1)
     expect(promptCalls).toEqual(["execution continuation"])
     expect(outcomes.execution?.status).toBe("accepted")
-    expect(outcomes.todo?.status).toBe("rejected")
-    expect(outcomes.todo?.rejectReason).toBe("lower_priority")
+    expect(outcomes.task?.status).toBe("rejected")
+    expect(outcomes.task?.rejectReason).toBe("lower_priority")
   })
 
   test("arbitrates to single writer by priority in one idle round", async () => {
@@ -102,11 +102,11 @@ describe("continuation-control", () => {
     await control.reportIntent({
       sessionID: "session-1",
       round,
-      source: "todo-auto-continuation",
-      reason: "todo",
-      prompt: { text: "todo continuation" },
+      source: "task-auto-continuation",
+      reason: "task",
+      prompt: { text: "task continuation" },
       onResult: (result) => {
-        outcomes.todo = result
+        outcomes.task = result
       },
     })
 
@@ -132,8 +132,8 @@ describe("continuation-control", () => {
     expect(promptAsync).toHaveBeenCalledTimes(1)
     expect(promptCalls).toEqual(["execution continuation"])
     expect(outcomes.execution?.status).toBe("accepted")
-    expect(outcomes.todo?.status).toBe("rejected")
-    expect(outcomes.todo?.rejectReason).toBe("lower_priority")
+    expect(outcomes.task?.status).toBe("rejected")
+    expect(outcomes.task?.rejectReason).toBe("lower_priority")
   })
 
   test("rejects all continuation intents when stop guard is active", async () => {
@@ -226,9 +226,9 @@ describe("continuation-control", () => {
       await control.reportIntent({
         sessionID: "session-grace",
         round,
-        source: "todo-auto-continuation",
-        reason: "todo",
-        prompt: { text: "todo continuation" },
+        source: "task-auto-continuation",
+        reason: "task",
+        prompt: { text: "task continuation" },
         onResult: (result) => outcomes.push(result),
       })
 
@@ -292,11 +292,11 @@ describe("continuation-control", () => {
     await control.reportIntent({
       sessionID: "session-failure",
       round,
-      source: "todo-auto-continuation",
-      reason: "todo",
-      prompt: { text: "todo continuation" },
+      source: "task-auto-continuation",
+      reason: "task",
+      prompt: { text: "task continuation" },
       onResult: (result) => {
-        outcomes.todo = result
+        outcomes.task = result
       },
     })
 
@@ -311,7 +311,7 @@ describe("continuation-control", () => {
     expect(promptAsync).toHaveBeenCalledTimes(1)
     expect(outcomes.execution?.status).toBe("accepted")
     expect(String(outcomes.execution?.error)).toContain("boom")
-    expect(outcomes.todo?.status).toBe("rejected")
-    expect(outcomes.todo?.rejectReason).toBe("lower_priority")
+    expect(outcomes.task?.status).toBe("rejected")
+    expect(outcomes.task?.rejectReason).toBe("lower_priority")
   })
 })

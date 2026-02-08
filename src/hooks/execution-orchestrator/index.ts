@@ -1,5 +1,7 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { execSync } from "node:child_process"
+import type { OhMyOpenCodeConfig } from "../../config/schema"
+import { listTaskNodes } from "../../features/task-system"
 import { createWorkStateManager } from "../../features/work-state"
 import { getMainSessionID, isSubagentSession } from "../../features/claude-code-session-state"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
@@ -55,12 +57,16 @@ You have an active work plan with incomplete tasks. Continue working.
 
 RULES:
 - Proceed without asking for permission
-- Change \`- [ ]\` to \`- [x]\` in the plan file when done
+- Use \`task_list\` (scope=plan) to pick the next ready task
+- Use \`task_transition\` to move tasks through \`open -> in_progress -> completed\`
 - Use the notepad at .sisyphus/notepads/{PLAN_NAME}/ to record learnings
 - Do not stop until all tasks are complete
 - If blocked, document the blocker and move to the next task
 
-Plan file: \`{PLAN_PATH}\``
+Plan file: \`{PLAN_PATH}\`
+
+TaskGraph scope: \`plan\`
+TaskGraph container_id: \`{PLAN_NAME}\``
 
 const VERIFICATION_REMINDER = `**MANDATORY: WHAT YOU MUST DO RIGHT NOW**
 
@@ -89,12 +95,13 @@ Run these commands YOURSELF - do NOT trust agent's claims:
 
 Static analysis CANNOT catch: visual bugs, animation issues, user flow breakages.
 
-**STEP 3: IF QA IS NEEDED - ADD TO TODO IMMEDIATELY**
+**STEP 3: IF QA IS NEEDED - ADD A TASK IMMEDIATELY**
 
 \`\`\`
-todowrite([
-  { id: "qa-X", content: "HANDS-ON QA: [specific verification action]", status: "pending", priority: "high" }
-])
+task_create({
+  title: "qa-X HANDS-ON QA: [specific verification action]",
+  priority: 100,
+})
 \`\`\`
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -299,13 +306,14 @@ function buildOrchestratorReminder(
 
 ${buildVerificationReminder(sessionId)}
 
-**STEP 4: MARK COMPLETION IN PLAN FILE (IMMEDIATELY)**
+**STEP 4: MARK COMPLETION IN TASKGRAPH (IMMEDIATELY)**
 
 RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
 
-Update the plan file \`${planPath}\`:
-- Change \`- [ ]\` to \`- [x]\` for the completed task
-- Use \`Edit\` tool to modify the checkbox
+Use \`task_list\` to find the current \`in_progress\` task (should be exactly one), then:
+\`\`\`
+task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "completed", scope: "plan", container_id: "${planId}" })
+\`\`\`
 
 **DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
 
@@ -316,7 +324,7 @@ Update the plan file \`${planPath}\`:
 
 **STEP 6: PROCEED TO NEXT TASK**
 
-- Read the plan file to identify the next \`- [ ]\` task
+- Use \`task_list({ ready_only: true, scope: "plan", container_id: "${planId}" })\` to find the next ready task
 - Start immediately - DO NOT STOP
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -477,6 +485,7 @@ const CONTINUATION_COOLDOWN_MS = 5000
 export interface ExecutionOrchestratorHookOptions {
   directory: string
   backgroundManager?: BackgroundManager
+  taskConfig?: Partial<OhMyOpenCodeConfig>
   /** Enable 2-action rule (remind to document research after 2 ops) */
   twoActionRule?: boolean
   /** Enable 3-strike protocol (track and guide error handling) */
@@ -516,6 +525,7 @@ export function createExecutionOrchestratorHook(
   options: ExecutionOrchestratorHookOptions
 ) {
   const backgroundManager = options.backgroundManager
+  const taskConfig = options.taskConfig ?? {}
   const twoActionRule = options.twoActionRule ?? false
   const threeStrikeProtocol = options.threeStrikeProtocol ?? false
   const researchTools = new Set((options.researchTools ?? DEFAULT_RESEARCH_TOOLS).map(t => t.toLowerCase()))
@@ -526,6 +536,26 @@ export function createExecutionOrchestratorHook(
   const workStateManager = createWorkStateManager(ctx.directory)
   const sessions = new Map<string, SessionState>()
   const pendingFilePaths = new Map<string, string>()
+
+  function computeWorkProgress(planId: string): { total: number; completed: number; remaining: number; isComplete: boolean } {
+    try {
+      const tasks = listTaskNodes(
+        {
+          scope: "plan",
+          container_id: planId,
+          include_completed: true,
+        },
+        taskConfig
+      )
+
+      const total = tasks.length
+      const completed = tasks.filter((t) => t.state === "completed" || t.state === "cancelled").length
+      const remaining = total - completed
+      return { total, completed, remaining, isComplete: total > 0 && remaining === 0 }
+    } catch {
+      return { total: 0, completed: 0, remaining: 0, isComplete: false }
+    }
+  }
 
   function getState(sessionID: string): SessionState {
     let state = sessions.get(sessionID)
@@ -544,7 +574,7 @@ export function createExecutionOrchestratorHook(
 
     if (!workState.session_ids.includes(sessionID)) return false
 
-    const progress = workStateManager.getPlanProgress()
+    const progress = computeWorkProgress(workState.plan_id)
     if (progress.isComplete) return false
 
     return isCallerSisyphus(sessionID)
@@ -571,7 +601,9 @@ export function createExecutionOrchestratorHook(
     const prompt = WORK_CONTINUATION_PROMPT
       .replace(/{PLAN_NAME}/g, planId)
       .replace(/{PLAN_PATH}/g, planPath) +
-      `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`
+      (total === 0
+        ? `\n\n[Status: no plan tasks found in TaskGraph]\nCreate tasks with:\n- task_create({ title: \"1. ...\", scope: \"plan\", container_id: \"${planId}\" })`
+        : `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`)
 
     try {
       log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planId, remaining })
@@ -733,7 +765,7 @@ export function createExecutionOrchestratorHook(
           return
         }
 
-        const progress = workStateManager.getPlanProgress()
+        const progress = computeWorkProgress(workState.plan_id)
         if (progress.isComplete) {
           log(`[${HOOK_NAME}] Work complete`, { sessionID, plan: workState.plan_id })
           return
@@ -745,12 +777,11 @@ export function createExecutionOrchestratorHook(
           return
         }
 
-        const remaining = progress.total - progress.completed
         await injectContinuation(
           sessionID,
           workState.plan_id,
           workState.execution_plan_path,
-          remaining,
+          progress.remaining,
           progress.total,
           getContinuationRound?.(sessionID)
         )
@@ -890,7 +921,7 @@ export function createExecutionOrchestratorHook(
 
             let guidance = `\n\n<three-strike-protocol strike="${strikes}">\n${workStateManager.getStrikeGuidance(strikes, requiresRecording)}`
             if (requiresRecording) {
-              guidance += `\n\n**REQUIRED**: Record this error in the plan file's Errors/Issues section before retrying.`
+              guidance += `\n\n**REQUIRED**: Record this error in \`ledger.yaml\` before retrying (plan=${workState.plan_id}).`
             }
             guidance += `\n</three-strike-protocol>`
 
@@ -971,7 +1002,7 @@ This helps maintain context across sessions and prevents knowledge loss.
           return
         }
 
-        const progress = workStateManager.getPlanProgress()
+        const progress = computeWorkProgress(currentWorkState.plan_id)
 
         if (input.sessionID && !currentWorkState.session_ids.includes(input.sessionID)) {
           workStateManager.appendSessionId(input.sessionID)
@@ -996,7 +1027,12 @@ ${fileChanges}
 ${originalResponse}
 
 <system-reminder>
-${buildOrchestratorReminder(currentWorkState.plan_id, currentWorkState.execution_plan_path, progress, subagentSessionId)}
+${buildOrchestratorReminder(
+  currentWorkState.plan_id,
+  currentWorkState.execution_plan_path,
+  { total: progress.total, completed: progress.completed },
+  subagentSessionId
+)}
 </system-reminder>`
 
         log(`[${HOOK_NAME}] Output transformed for execution mode`, {

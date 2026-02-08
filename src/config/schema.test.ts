@@ -783,7 +783,7 @@ describe("continuation_control schema", () => {
         priority: {
           "execution-orchestrator": 400,
           "ralph-loop": 300,
-          "todo-auto-continuation": 200,
+          "task-auto-continuation": 200,
           "planning-with-files": 100,
         },
       })
@@ -810,7 +810,7 @@ describe("continuation_control schema", () => {
       expect(result.data.continuation_control?.priority).toEqual({
         "execution-orchestrator": 500,
         "ralph-loop": 250,
-        "todo-auto-continuation": 200,
+        "task-auto-continuation": 200,
         "planning-with-files": 100,
       })
     }

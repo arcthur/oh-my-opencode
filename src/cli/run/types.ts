@@ -1,4 +1,5 @@
 import type { OpencodeClient } from "@opencode-ai/sdk"
+import type { OhMyOpenCodeConfig } from "../../config"
 
 export interface RunOptions {
   message: string
@@ -12,13 +13,7 @@ export interface RunContext {
   sessionID: string
   directory: string
   abortController: AbortController
-}
-
-export interface Todo {
-  id: string
-  content: string
-  status: string
-  priority: string
+  taskConfig?: Partial<OhMyOpenCodeConfig>
 }
 
 export interface SessionStatus {

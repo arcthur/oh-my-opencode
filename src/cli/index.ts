@@ -65,7 +65,7 @@ Model Providers (Priority: Native > Copilot > OpenCode Zen > Z.ai > Kimi):
 
 program
   .command("run <message>")
-  .description("Run opencode with todo/background task completion enforcement")
+  .description("Run opencode with task/background completion enforcement")
   .option("-a, --agent <name>", "Agent to use (default: from CLI/env/config, fallback: Sisyphus)")
   .option("-d, --directory <path>", "Working directory")
   .option("-t, --timeout <ms>", "Timeout in milliseconds (default: 0 = no timeout)", parseInt)
@@ -85,7 +85,7 @@ Available core agents:
   Sisyphus, Hephaestus, Prometheus
 
 Unlike 'opencode run', this command waits until:
-  - All todos are completed or cancelled
+  - All tasks are completed or cancelled
   - All child sessions (background tasks) are idle
 `)
   .action(async (message: string, options) => {

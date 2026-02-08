@@ -1,39 +1,36 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import type { OhMyOpenCodeConfig } from "../config/schema"
 import type { BackgroundManager } from "../features/background-agent"
 import { getMainSessionID, isSubagentSession } from "../features/claude-code-session-state"
+import { listIncompleteTasks, listTaskNodes, type TaskSummary } from "../features/task-system"
 import {
     findNearestMessageWithFields,
     type ToolPermission,
 } from "../features/hook-message-injector"
+import { resolveActiveTaskSelector } from "../features/work-state"
 import { log } from "../shared/logger"
 import { getMessageDir } from "../shared/session-utils"
 import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
 import type { ContinuationIntent } from "./continuation-control"
 
-const HOOK_NAME = "todo-auto-continuation"
+const HOOK_NAME = "task-auto-continuation"
 
 const DEFAULT_SKIP_AGENTS = ["prometheus", "compaction"]
 
-export interface TodoAutoContinuationHookOptions {
+export interface TaskAutoContinuationHookOptions {
   backgroundManager?: BackgroundManager
+  taskConfig?: Partial<OhMyOpenCodeConfig>
   skipAgents?: string[]
   isContinuationStopped?: (sessionID: string) => boolean
   getContinuationRound?: (sessionID: string) => number | undefined
   reportContinuationIntent: (intent: ContinuationIntent) => Promise<void>
 }
 
-export interface TodoAutoContinuationHook {
+export interface TaskAutoContinuationHook {
   handler: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
   markRecovering: (sessionID: string) => void
   markRecoveryComplete: (sessionID: string) => void
   cancelAllCountdowns: () => void
-}
-
-interface Todo {
-  content: string
-  status: string
-  priority: string
-  id: string
 }
 
 interface SessionState {
@@ -45,9 +42,9 @@ interface SessionState {
   idleRound?: number
 }
 
-const CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.TODO_CONTINUATION)}
+const CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.TASK_CONTINUATION)}
 
-Incomplete tasks remain in your todo list. Continue working on the next pending task.
+Incomplete tasks remain in TaskGraph. Continue working on the next ready task.
 
 - Proceed without asking for permission
 - Mark each task complete when finished
@@ -57,8 +54,8 @@ const COUNTDOWN_SECONDS = 2
 const TOAST_DURATION_MS = 900
 const COUNTDOWN_GRACE_PERIOD_MS = 500
 
-function getIncompleteCount(todos: Todo[]): number {
-  return todos.filter(t => t.status !== "completed" && t.status !== "cancelled").length
+function getIncompleteCount(tasks: TaskSummary[]): number {
+  return tasks.filter((task) => task.state !== "completed" && task.state !== "cancelled").length
 }
 
 interface MessageInfo {
@@ -81,12 +78,13 @@ function isLastAssistantMessageAborted(messages: Array<{ info?: MessageInfo }>):
   return errorName === "MessageAbortedError" || errorName === "AbortError"
 }
 
-export function createTodoAutoContinuationHook(
+export function createTaskAutoContinuationHook(
   ctx: PluginInput,
-  options: TodoAutoContinuationHookOptions
-): TodoAutoContinuationHook {
+  options: TaskAutoContinuationHookOptions
+): TaskAutoContinuationHook {
   const {
     backgroundManager,
+    taskConfig = {},
     skipAgents = DEFAULT_SKIP_AGENTS,
     isContinuationStopped,
     getContinuationRound,
@@ -141,7 +139,7 @@ export function createTodoAutoContinuationHook(
   async function showCountdownToast(seconds: number, incompleteCount: number): Promise<void> {
     await ctx.client.tui.showToast({
       body: {
-        title: "Todo Continuation",
+        title: "Task Continuation",
         message: `Resuming in ${seconds}s... (${incompleteCount} tasks remaining)`,
         variant: "warning" as const,
         duration: TOAST_DURATION_MS,
@@ -159,7 +157,6 @@ export function createTodoAutoContinuationHook(
   async function injectContinuation(
     sessionID: string,
     incompleteCount: number,
-    total: number,
     resolvedInfo?: ResolvedMessageInfo,
     round?: number
   ): Promise<void> {
@@ -179,18 +176,27 @@ export function createTodoAutoContinuationHook(
       return
     }
 
-    let todos: Todo[] = []
+    let incompleteTasks: TaskSummary[] = []
+    let totalTaskCount = 0
     try {
-      const response = await ctx.client.session.todo({ path: { id: sessionID } })
-      todos = (response.data ?? response) as Todo[]
+      const resolved = resolveActiveTaskSelector(ctx.directory, sessionID)
+      incompleteTasks = listIncompleteTasks(resolved.selector, taskConfig)
+      totalTaskCount = listTaskNodes(
+        {
+          scope: resolved.selector.scope,
+          container_id: resolved.selector.container_id,
+          include_completed: true,
+        },
+        taskConfig
+      ).length
     } catch (err) {
-      log(`[${HOOK_NAME}] Failed to fetch todos`, { sessionID, error: String(err) })
+      log(`[${HOOK_NAME}] Failed to query tasks`, { sessionID, error: String(err) })
       return
     }
 
-    const freshIncompleteCount = getIncompleteCount(todos)
+    const freshIncompleteCount = getIncompleteCount(incompleteTasks)
     if (freshIncompleteCount === 0) {
-      log(`[${HOOK_NAME}] Skipped injection: no incomplete todos`, { sessionID })
+      log(`[${HOOK_NAME}] Skipped injection: no incomplete tasks`, { sessionID })
       return
     }
 
@@ -228,16 +234,21 @@ export function createTodoAutoContinuationHook(
       return
     }
 
-    const incompleteTodos = todos.filter(t => t.status !== "completed" && t.status !== "cancelled")
-    const todoList = incompleteTodos
-      .map(t => `- [${t.status}] ${t.content}`)
+    const taskList = incompleteTasks
+      .map((task) => `- [${task.state}] ${task.title}`)
       .join("\n")
+    const selectorInfo = (() => {
+      const resolved = resolveActiveTaskSelector(ctx.directory, sessionID)
+      return `TaskGraph selector: scope=${resolved.selector.scope}, container_id=${resolved.selector.container_id}`
+    })()
     const prompt = `${CONTINUATION_PROMPT}
 
-[Status: ${todos.length - freshIncompleteCount}/${todos.length} completed, ${freshIncompleteCount} remaining]
+[${selectorInfo}]
+
+[Status: ${Math.max(0, totalTaskCount - freshIncompleteCount)}/${Math.max(totalTaskCount, freshIncompleteCount)} completed, ${freshIncompleteCount} remaining]
 
 Remaining tasks:
-${todoList}`
+${taskList}`
 
     try {
       log(`[${HOOK_NAME}] Injecting continuation`, { sessionID, agent: agentName, model, incompleteCount: freshIncompleteCount })
@@ -245,8 +256,8 @@ ${todoList}`
       await reportContinuationIntent({
         sessionID,
         round,
-        source: "todo-auto-continuation",
-        reason: `incomplete_todos:${freshIncompleteCount}/${todos.length}`,
+        source: "task-auto-continuation",
+        reason: `incomplete_tasks:${freshIncompleteCount}/${Math.max(totalTaskCount, freshIncompleteCount)}`,
         prompt: {
           ...(agentName !== undefined ? { agent: agentName } : {}),
           ...(model !== undefined ? { model } : {}),
@@ -283,7 +294,6 @@ ${todoList}`
   function startCountdown(
     sessionID: string,
     incompleteCount: number,
-    total: number,
     resolvedInfo?: ResolvedMessageInfo,
     round?: number
   ): void {
@@ -303,7 +313,7 @@ ${todoList}`
 
     state.countdownTimer = setTimeout(() => {
       cancelCountdown(sessionID)
-      injectContinuation(sessionID, incompleteCount, total, resolvedInfo, round)
+      injectContinuation(sessionID, incompleteCount, resolvedInfo, round)
     }, COUNTDOWN_SECONDS * 1000)
 
     log(`[${HOOK_NAME}] Countdown started`, { sessionID, seconds: COUNTDOWN_SECONDS, incompleteCount })
@@ -388,23 +398,32 @@ ${todoList}`
         log(`[${HOOK_NAME}] Messages fetch failed, continuing`, { sessionID, error: String(err) })
       }
 
-      let todos: Todo[] = []
+      let incompleteTasks: TaskSummary[] = []
+      let totalTasks = 0
       try {
-        const response = await ctx.client.session.todo({ path: { id: sessionID } })
-        todos = (response.data ?? response) as Todo[]
+        const resolved = resolveActiveTaskSelector(ctx.directory, sessionID)
+        incompleteTasks = listIncompleteTasks(resolved.selector, taskConfig)
+        totalTasks = listTaskNodes(
+          {
+            scope: resolved.selector.scope,
+            container_id: resolved.selector.container_id,
+            include_completed: true,
+          },
+          taskConfig
+        ).length
       } catch (err) {
-        log(`[${HOOK_NAME}] Todo fetch failed`, { sessionID, error: String(err) })
+        log(`[${HOOK_NAME}] Task query failed`, { sessionID, error: String(err) })
         return
       }
 
-      if (!todos || todos.length === 0) {
-        log(`[${HOOK_NAME}] No todos`, { sessionID })
+      if (totalTasks === 0) {
+        log(`[${HOOK_NAME}] No tasks`, { sessionID })
         return
       }
 
-      const incompleteCount = getIncompleteCount(todos)
+      const incompleteCount = getIncompleteCount(incompleteTasks)
       if (incompleteCount === 0) {
-        log(`[${HOOK_NAME}] All todos complete`, { sessionID, total: todos.length })
+        log(`[${HOOK_NAME}] All tasks complete`, { sessionID, total: totalTasks })
         return
       }
 
@@ -457,7 +476,7 @@ ${todoList}`
         return
       }
 
-      startCountdown(sessionID, incompleteCount, todos.length, resolvedInfo, state.idleRound)
+      startCountdown(sessionID, incompleteCount, resolvedInfo, state.idleRound)
       return
     }
 

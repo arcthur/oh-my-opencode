@@ -90,7 +90,7 @@ describe("ProtocolMessageSchema", () => {
     const msg = {
       type: "task_assignment",
       taskId: "1",
-      subject: "Fix bug",
+      title: "Fix bug",
       description: "Fix the auth bug",
       assignedBy: "team-lead",
       timestamp: Date.now(),

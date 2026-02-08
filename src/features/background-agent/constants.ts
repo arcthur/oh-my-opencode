@@ -30,13 +30,6 @@ export interface BackgroundEvent {
   properties?: EventProperties
 }
 
-export interface Todo {
-  content: string
-  status: string
-  priority: string
-  id: string
-}
-
 export interface QueueItem {
   task: BackgroundTask
   input: LaunchInput

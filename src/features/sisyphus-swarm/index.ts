@@ -23,7 +23,7 @@
  * import {
  *   createCoordinator,
  *   createWorker,
- *   createTask,
+ *   createSwarmTask,
  * } from "./features/sisyphus-swarm"
  *
  * // Start coordinator
@@ -35,7 +35,7 @@
  *
  * // Add tasks
  * coordinator.addTask({
- *   subject: "Implement feature X",
+ *   title: "Implement feature X",
  *   description: "...",
  * })
  *
@@ -62,8 +62,8 @@ export * from "./mailbox"
 // Re-export team module
 export * from "./team"
 
-// Re-export task pool module
-export * from "./task-pool"
+// Re-export task graph module
+export * from "./task-graph"
 
 // Re-export agent module
 export * from "./agent"

@@ -27,7 +27,7 @@ export function createSisyphusAgent(
   const permission = { question: "allow" } as AgentConfig["permission"]
   const base = {
     description:
-      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically via category+skills combinations. Uses explore for internal code (parallel-friendly), librarian for external docs.",
+      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with tasks, assesses search complexity before exploration, delegates strategically via category+skills combinations. Uses explore for internal code (parallel-friendly), librarian for external docs.",
     mode: MODE,
     model,
     maxTokens: 64000,

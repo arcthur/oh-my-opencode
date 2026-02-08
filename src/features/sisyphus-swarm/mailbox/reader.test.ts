@@ -125,7 +125,7 @@ describe("mailbox/reader", () => {
         payload: {
           type: "task_assignment",
           taskId: "task_1",
-          subject: "Test",
+          title: "Test",
           description: "Test task",
           assignedBy: "coord",
           timestamp: Date.now(),

@@ -278,7 +278,7 @@ Hooks are enabled by default and can be disabled via `disabled_hooks`:
 **Detection Logic**:
 
 ```typescript
-if (messageContainsCompletionClaim(text) && hasIncompleteTodos(sessionID)) {
+if (messageContainsCompletionClaim(text) && hasIncompleteTasks(sessionID)) {
   injectVerificationReminder()
 }
 ```
@@ -300,10 +300,10 @@ You claimed completion, but incomplete tasks remain.
 Before claiming work is done, you MUST:
 1. Run verification commands for each completed task
 2. Confirm all tests pass
-3. Mark each TODO as completed with evidence
+3. Mark each task as completed with evidence
 
 Current incomplete tasks need to be addressed first.
-Use TodoWrite to update task status after verification.
+Use `task_transition` to update task status after verification.
 ─────────────────────────────────────────────────────
 ```
 
@@ -359,7 +359,7 @@ After ANY implementation task:
 
 4. **Completion**
    - Only mark task complete after REQUIRED stages pass
-   - Evidence required for each TODO completion
+   - Evidence required for each task completion
 ```
 
 ## Data Flow
@@ -432,7 +432,7 @@ Detected 1 issue(s):
 
 ### 4. Pre-Completion Hook Triggers
 
-Claim "task is complete" with incomplete TODOs, should see:
+Claim "task is complete" with incomplete tasks, should see:
 
 ```
 [COMPLETION VERIFICATION REQUIRED]

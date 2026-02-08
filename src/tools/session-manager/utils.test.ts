@@ -51,7 +51,7 @@ describe("session-manager utils", () => {
     expect(result).toContain("Hello world")
   })
 
-  test("formatSessionMessages includes todos when requested", () => {
+  test("formatSessionMessages includes tasks when requested", () => {
     // given
     const messages: SessionMessage[] = [
       {
@@ -61,16 +61,16 @@ describe("session-manager utils", () => {
         parts: [{ id: "prt_001", type: "text", text: "Test" }],
       },
     ]
-    const todos = [
-      { id: "1", content: "Task 1", status: "completed" as const },
-      { id: "2", content: "Task 2", status: "pending" as const },
+    const tasks = [
+      { id: "1", title: "Task 1", state: "completed" as const, readiness: "ready" as const, blocked_by_unresolved: [] },
+      { id: "2", title: "Task 2", state: "open" as const, readiness: "blocked" as const, blocked_by_unresolved: ["1"] },
     ]
 
     // when
-    const result = formatSessionMessages(messages, true, todos)
+    const result = formatSessionMessages(messages, true, tasks)
 
     // then
-    expect(result).toContain("Todos")
+    expect(result).toContain("Tasks")
     expect(result).toContain("Task 1")
     expect(result).toContain("Task 2")
   })
@@ -83,9 +83,9 @@ describe("session-manager utils", () => {
       first_message: new Date("2025-12-20T10:00:00Z"),
       last_message: new Date("2025-12-24T15:00:00Z"),
       agents_used: ["build", "oracle"],
-      has_todos: true,
+      has_tasks: true,
       has_transcript: true,
-      todos: [{ id: "1", content: "Test", status: "pending" }],
+      tasks: [{ id: "1", title: "Test", state: "open", readiness: "ready", blocked_by_unresolved: [], priority: 0 }],
       transcript_entries: 123,
     }
 

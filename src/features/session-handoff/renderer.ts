@@ -278,7 +278,7 @@ function renderDomainContextSection(domainContext: string[], max: number): strin
 function renderRemainingTasksSection(tasks?: string[]): string {
   if (!tasks || tasks.length === 0) return ""
 
-  const formatted = tasks.map((t) => `- [ ] ${t}`).join("\n")
+  const formatted = tasks.map((t) => `- ${t}`).join("\n")
 
   return `**Remaining Tasks:**\n${formatted}`
 }
@@ -447,7 +447,7 @@ ${formatted}`)
 
   // Remaining tasks
   if (includeRemainingTasks && payload.remainingTasks && payload.remainingTasks.length > 0) {
-    const formatted = payload.remainingTasks.map((t) => `- [ ] ${t}`).join("\n")
+    const formatted = payload.remainingTasks.map((t) => `- ${t}`).join("\n")
 
     sections.push(`## Remaining Tasks
 

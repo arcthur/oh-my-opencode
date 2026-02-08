@@ -16,7 +16,6 @@ export interface SessionLifecycleState {
   rootSessionID?: string
   // Feature-contributed metadata
   activePlan?: string
-  hasPendingTodos?: boolean
   isInRecovery?: boolean
 }
 

@@ -58,7 +58,7 @@ If you cannot run them, state that explicitly and downgrade relevant criteria to
 ### Phase 5 — Verdict (STRICT)
 
 - **PASS** only if all criteria are **PASS** and verification is complete (or not required).
-- Otherwise **FAIL** (or **PASS with TODOs** only when the remaining items are explicitly non-blocking and accepted by the user).
+- Otherwise **FAIL** (or **PASS with remaining tasks** only when the remaining items are explicitly non-blocking and accepted by the user).
 
 ## Output Format (MUST FOLLOW)
 
@@ -87,4 +87,3 @@ If you cannot run them, state that explicitly and downgrade relevant criteria to
 PASS | FAIL | UNKNOWN
 `,
 }
-

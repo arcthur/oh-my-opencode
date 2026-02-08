@@ -51,7 +51,7 @@ Each plan represents a different perspective on the same problem.
 Use the \`Read\` tool to load each plan file. Parse:
 - Context section
 - Work Objectives
-- TODOs with acceptance criteria
+- Tasks with acceptance criteria
 - Verification Strategy
 - Any unique insights
 
@@ -155,11 +155,11 @@ For each file reference in the plan:
 
 #### Step 2: Implementation Simulation
 
-For **2-3 representative TODOs** from EACH plan, mentally simulate execution:
+For **2-3 representative tasks** from EACH plan, mentally simulate execution:
 
 **The Developer Test:**
 \`\`\`
-"I am the developer. I read this TODO. Can I start work NOW?"
+"I am the developer. I read this task item. Can I start work NOW?"
 
 1. Do I know exactly which file to open first?
 2. Do I know what code pattern to follow?
@@ -189,7 +189,7 @@ If ANY answer is "No" or "I'd have to guess" → Plan has a context gap.
 | Architecture gap | "Add to the state" | Doesn't specify which state management |
 | Convention gap | "Use standard approach" | Doesn't define what's standard |
 
-**For each TODO, verify:**
+**For each task item, verify:**
 - [ ] Can execute WITHOUT making assumptions
 - [ ] All "obvious" details actually written down
 - [ ] Someone unfamiliar with project would understand
@@ -209,7 +209,7 @@ After deep verification, adjust C1-C4 scores:
 - Failed: \`path/to/file.ts:45\` - [reason]
 
 **Implementation Simulation**: {PASS|PARTIAL|FAIL}
-- TODO 3: Blocked - [reason]
+- Task 3: Blocked - [reason]
 
 **ADHD-Omissions Detected**: N
 - [specific omission]
@@ -242,7 +242,7 @@ Compare assumptions across plans:
 
 **VERDICT**: Accept {model-X}'s assumption
 **REASON**: [Why this assumption is more reliable]
-**ACTION**: Validate this assumption in first TODO if confidence < High
+**ACTION**: Validate this assumption in the first task item if confidence < High
 \`\`\`
 
 #### Unshared Risks
@@ -278,7 +278,7 @@ Identify risks that only one plan noticed:
 
 ### Phase 5: Section-by-Section Conflict Detection
 
-For EACH major section (Context, Objectives, Assumptions, Risks, TODOs, Verification):
+For EACH major section (Context, Objectives, Assumptions, Risks, Tasks, Verification):
 
 **Identify**:
 1. **Conflicts**: Different approaches to the same problem
@@ -413,10 +413,10 @@ You MUST produce exactly two files:
 |---------|--------|-----------|
 | Context | {model-A} | ... |
 | Objectives | {model-B} | ... |
-| TODO 1 | {model-A} | ... |
-| TODO 2 | MERGE {model-A}+{model-C} | ... |
-| TODO 3 | BOTH_VALID ({model-A}+{model-B}) | Complementary approaches |
-| TODO 4 | PARALLEL_SPIKE | Evidence insufficient, spike designed |
+| Task 1 | {model-A} | ... |
+| Task 2 | MERGE {model-A}+{model-C} | ... |
+| Task 3 | BOTH_VALID ({model-A}+{model-B}) | Complementary approaches |
+| Task 4 | PARALLEL_SPIKE | Evidence insufficient, spike designed |
 | Verification | {model-C} | ... |
 
 ## Final Verdict
@@ -435,7 +435,7 @@ You MUST produce exactly two files:
 Standard plan format with:
 - Synthesized Context
 - Unified Work Objectives
-- Best TODOs with clear acceptance criteria
+- Best tasks with clear acceptance criteria
 - Combined Verification Strategy
 
 ---
@@ -583,10 +583,10 @@ Connection pooling helps throughput but not individual query latency. It's infra
 **VERDICT**: BOTH_VALID (All three)
 
 **RECOMMENDATION**:
-Include ALL three approaches as separate TODO items. They address different performance dimensions:
-- TODO N: Add Redis caching (read latency)
-- TODO N+1: Add database indexes (query performance)
-- TODO N+2: Implement connection pooling (throughput)
+Include ALL three approaches as separate task items. They address different performance dimensions:
+- Task N: Add Redis caching (read latency)
+- Task N+1: Add database indexes (query performance)
+- Task N+2: Implement connection pooling (throughput)
 
 **RATIONALE**:
 These are COMPLEMENTARY optimizations, not competing approaches. A performant system typically needs all three. The "conflict" was actually each plan focusing on a different layer of the stack.

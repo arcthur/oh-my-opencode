@@ -8,8 +8,7 @@ import { createCoordinator } from "../../features/sisyphus-swarm/agent"
 import type { SwarmRuntimeService } from "../../features/sisyphus-swarm/runtime"
 import { createSwarmOrchestrator } from "../../features/sisyphus-swarm/tmux"
 import { getStaleMembers, readManifest, teamExists } from "../../features/sisyphus-swarm/team"
-import { getContextManifestPath } from "../../features/context-manifests"
-import { syncPlanTodosToTaskPool } from "../../features/sisyphus-swarm/plan-sync"
+import { syncPlanTasksToTaskGraph } from "../../features/task-system"
 import { log } from "../../shared/logger"
 
 export const HOOK_NAME = "swarm-from-plan"
@@ -214,17 +213,6 @@ export function createSwarmFromPlanHook(
         return
       }
 
-      const manifestPath = join(ctx.directory, getContextManifestPath(planId))
-      const manifestMarkdown = existsSync(manifestPath)
-        ? (() => {
-            try {
-              return readFileSync(manifestPath, "utf-8")
-            } catch {
-              return undefined
-            }
-          })()
-        : undefined
-
       // Ensure coordinator exists (in-process)
       const coordinatorReady = await ensureCoordinatorForSessionTeam(
         input.sessionID,
@@ -237,13 +225,13 @@ export function createSwarmFromPlanHook(
 
       runtime.bindSessionToTeam(input.sessionID, ctx.directory, teamName)
 
-      // Sync plan TODOs to task pool (idempotent)
-      const sync = syncPlanTodosToTaskPool({
+      // Sync plan Tasks to TaskGraph (idempotent)
+      const sync = syncPlanTasksToTaskGraph({
         config,
-        listId: teamName,
+        scope: "swarm",
+        container_id: teamName,
         planId,
         planMarkdown,
-        manifestMarkdown,
       })
 
       // Spawn workers (tmux/worktree) if available

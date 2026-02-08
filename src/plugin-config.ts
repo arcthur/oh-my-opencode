@@ -118,11 +118,6 @@ export function loadPluginConfig(
     config = mergeConfigs(config, projectConfig);
   }
 
-  config = {
-    ...config,
-    new_task_system_enabled: config.new_task_system_enabled ?? false,
-  };
-
   log("Final merged config", {
     agents: config.agents,
     disabled_agents: config.disabled_agents,

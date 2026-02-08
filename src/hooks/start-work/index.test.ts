@@ -5,8 +5,10 @@ import { tmpdir } from "node:os"
 import { randomUUID } from "node:crypto"
 import * as yaml from "js-yaml"
 import { createStartWorkHook } from "./index"
+import { createTaskNode, readAllTaskNodes, transitionTaskNode } from "../../features/task-system"
 import type { WorkState } from "../../features/work-state"
 import * as sessionState from "../../features/claude-code-session-state"
+import type { OhMyOpenCodeConfig } from "../../config/schema"
 
 function createPlan(directory: string, planId: string, body: string): string {
   const planDir = join(directory, ".sisyphus", "plans", planId)
@@ -33,7 +35,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
-    schema_version: 2,
+    schema_version: 3,
     plan_id: planId,
     execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
     runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
@@ -43,9 +45,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
     last_findings_mtime: state.last_findings_mtime ?? 0,
     errors: state.errors ?? [],
     blockers: state.blockers ?? [],
-    phase_completions: state.phase_completions ?? [],
     decisions: state.decisions ?? [],
-    task_snapshot: state.task_snapshot,
     last_updated: state.last_updated,
   }
 
@@ -54,6 +54,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
 describe("start-work hook", () => {
   let testDir: string
+  let config: Partial<OhMyOpenCodeConfig>
 
   function createMockPluginInput() {
     return {
@@ -66,6 +67,14 @@ describe("start-work hook", () => {
     testDir = join(tmpdir(), `start-work-test-${randomUUID()}`)
     mkdirSync(testDir, { recursive: true })
     mkdirSync(join(testDir, ".sisyphus"), { recursive: true })
+    config = {
+      sisyphus: {
+        tasks: {
+          enabled: true,
+          storage_path: join(testDir, ".sisyphus", "tasks"),
+        },
+      },
+    }
   })
 
   afterEach(() => {
@@ -76,7 +85,7 @@ describe("start-work hook", () => {
 
   describe("chat.message handler", () => {
     test("should ignore non-start-work commands", async () => {
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "Just a regular message" }],
       }
@@ -87,7 +96,7 @@ describe("start-work hook", () => {
     })
 
     test("should detect start-work command via session-context tag", async () => {
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context>Some context here</session-context>" }],
       }
@@ -101,7 +110,7 @@ describe("start-work hook", () => {
       createPlan(
         testDir,
         "test-plan",
-        "# Plan: test-plan\n\n## TODOs\n\n- [ ] 1. Task 1\n- [x] 2. Task 2\n"
+        "# Plan: test-plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n"
       )
 
       writeWorkState(testDir, {
@@ -112,7 +121,7 @@ describe("start-work hook", () => {
         session_ids: ["session-1"],
       })
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
@@ -124,7 +133,7 @@ describe("start-work hook", () => {
     })
 
     test("should replace $SESSION_ID placeholder", async () => {
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context>Session: $SESSION_ID</session-context>" }],
       }
@@ -136,7 +145,7 @@ describe("start-work hook", () => {
     })
 
     test("should replace $TIMESTAMP placeholder", async () => {
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context>Time: $TIMESTAMP</session-context>" }],
       }
@@ -151,15 +160,28 @@ describe("start-work hook", () => {
       createPlan(
         testDir,
         "plan-complete",
-        "# Plan: plan-complete\n\n## TODOs\n\n- [x] 1. Task 1\n- [x] 2. Task 2\n"
+        "# Plan: plan-complete\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n"
       )
       createPlan(
         testDir,
         "plan-incomplete",
-        "# Plan: plan-incomplete\n\n## TODOs\n\n- [ ] 1. Task 1\n- [x] 2. Task 2\n"
+        "# Plan: plan-incomplete\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n"
       )
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      // Mark plan-complete tasks as completed so start-work selects the other plan.
+      const c1 = createTaskNode({ scope: "plan", container_id: "plan-complete", title: "1. Task 1" }, config)
+      const c2 = createTaskNode({ scope: "plan", container_id: "plan-complete", title: "2. Task 2" }, config)
+      const c1Done = transitionTaskNode(
+        { scope: "plan", container_id: "plan-complete", id: c1.id, expected_revision: c1.revision, next_state: "completed" },
+        config
+      )
+      transitionTaskNode(
+        { scope: "plan", container_id: "plan-complete", id: c2.id, expected_revision: c2.revision, next_state: "completed" },
+        config
+      )
+      expect(c1Done.state).toBe("completed")
+
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
@@ -169,42 +191,17 @@ describe("start-work hook", () => {
       expect(output.parts[0].text).toContain("Auto-Selected Plan")
       expect(output.parts[0].text).toContain("plan-incomplete")
       expect(output.parts[0].text).not.toContain("Multiple Plans Found")
-    })
 
-    test("should migrate legacy flat plan into plan directory when context manifest exists", async () => {
-      const legacyPlan = "# Plan: legacy-plan\n\n## TODOs\n\n- [ ] 1. Task 1\n- [x] 2. Task 2\n"
-      mkdirSync(join(testDir, ".sisyphus", "plans"), { recursive: true })
-      const legacyPlanPath = join(testDir, ".sisyphus", "plans", "legacy-plan.md")
-      writeFileSync(legacyPlanPath, legacyPlan, "utf-8")
-
-      const manifestDir = join(testDir, ".sisyphus", "context-manifests")
-      mkdirSync(manifestDir, { recursive: true })
-      writeFileSync(
-        join(manifestDir, "legacy-plan.md"),
-        `[CONTEXT_MANIFEST]{"schemaVersion":2,"planId":"legacy-plan","generatedAt":"2026-02-06T00:00:00Z","packs":[]}[/CONTEXT_MANIFEST]\n`,
-        "utf-8"
-      )
-
-      const hook = createStartWorkHook(createMockPluginInput())
-      const output = {
-        parts: [{ type: "text", text: "<session-context></session-context>" }],
-      }
-
-      await hook["chat.message"]({ sessionID: "session-123" }, output)
-
-      const migratedPath = join(testDir, ".sisyphus", "plans", "legacy-plan", "plan.md")
-      expect(existsSync(migratedPath)).toBe(true)
-      expect(readFileSync(migratedPath, "utf-8")).toBe(legacyPlan)
-
-      expect(output.parts[0].text).toContain("Auto-Selected Plan")
-      expect(output.parts[0].text).toContain("legacy-plan")
+      // Tasks should be imported into TaskGraph for the selected plan.
+      const imported = readAllTaskNodes("plan", "plan-incomplete", config)
+      expect(imported.length).toBeGreaterThan(0)
     })
 
     test("should wrap multiple plans message in system-reminder tag", async () => {
-      createPlan(testDir, "plan-a", "# Plan: plan-a\n\n## TODOs\n\n- [ ] 1. Task 1\n")
-      createPlan(testDir, "plan-b", "# Plan: plan-b\n\n## TODOs\n\n- [ ] 1. Task 2\n")
+      createPlan(testDir, "plan-a", "# Plan: plan-a\n\n## Tasks\n\n- 1. Task 1\n")
+      createPlan(testDir, "plan-b", "# Plan: plan-b\n\n## Tasks\n\n- 1. Task 2\n")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
@@ -217,10 +214,10 @@ describe("start-work hook", () => {
     })
 
     test("should use 'ask user' prompt style for multiple plans", async () => {
-      createPlan(testDir, "plan-x", "# Plan: plan-x\n\n## TODOs\n\n- [ ] 1. Task 1\n")
-      createPlan(testDir, "plan-y", "# Plan: plan-y\n\n## TODOs\n\n- [ ] 1. Task 2\n")
+      createPlan(testDir, "plan-x", "# Plan: plan-x\n\n## Tasks\n\n- 1. Task 1\n")
+      createPlan(testDir, "plan-y", "# Plan: plan-y\n\n## Tasks\n\n- 1. Task 2\n")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
@@ -232,8 +229,8 @@ describe("start-work hook", () => {
     })
 
     test("should select explicitly specified plan name from user-request, ignoring existing work state", async () => {
-      createPlan(testDir, "old-plan", "# Plan: old-plan\n\n## TODOs\n\n- [ ] 1. Old Task\n")
-      createPlan(testDir, "new-plan", "# Plan: new-plan\n\n## TODOs\n\n- [ ] 1. New Task\n")
+      createPlan(testDir, "old-plan", "# Plan: old-plan\n\n## Tasks\n\n- 1. Old Task\n")
+      createPlan(testDir, "new-plan", "# Plan: new-plan\n\n## Tasks\n\n- 1. New Task\n")
 
       writeWorkState(testDir, {
         plan_id: "old-plan",
@@ -243,7 +240,7 @@ describe("start-work hook", () => {
         session_ids: ["old-session"],
       })
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [
           {
@@ -261,9 +258,9 @@ describe("start-work hook", () => {
     })
 
     test("should strip ultrawork/ulw keywords from plan name argument", async () => {
-      createPlan(testDir, "my-feature-plan", "# Plan: my-feature-plan\n\n## TODOs\n\n- [ ] 1. Task 1\n")
+      createPlan(testDir, "my-feature-plan", "# Plan: my-feature-plan\n\n## Tasks\n\n- 1. Task 1\n")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [
           {
@@ -280,9 +277,9 @@ describe("start-work hook", () => {
     })
 
     test("should strip ulw keyword from plan name argument", async () => {
-      createPlan(testDir, "api-refactor", "# Plan: api-refactor\n\n## TODOs\n\n- [ ] 1. Task 1\n")
+      createPlan(testDir, "api-refactor", "# Plan: api-refactor\n\n## Tasks\n\n- 1. Task 1\n")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [
           {
@@ -302,10 +299,10 @@ describe("start-work hook", () => {
       createPlan(
         testDir,
         "2026-01-15-feature-implementation",
-        "# Plan: 2026-01-15-feature-implementation\n\n## TODOs\n\n- [ ] 1. Task 1\n"
+        "# Plan: 2026-01-15-feature-implementation\n\n## Tasks\n\n- 1. Task 1\n"
       )
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [
           {
@@ -326,7 +323,7 @@ describe("start-work hook", () => {
     test("should update session agent to sisyphus when start-work command is triggered", async () => {
       const updateSpy = spyOn(sessionState, "updateSessionAgent")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
         parts: [{ type: "text", text: "<session-context></session-context>" }],
       }

@@ -1,4 +1,7 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import type { OhMyOpenCodeConfig } from "../config/schema"
+import { countIncompleteTasks } from "../features/task-system"
+import { resolveActiveTaskSelector } from "../features/work-state"
 import { log } from "../shared/logger"
 
 const HOOK_NAME = "pre-completion-verification"
@@ -6,7 +9,7 @@ const HOOK_NAME = "pre-completion-verification"
 const COMPLETION_PATTERNS = [
   /\b(done|completed?|finished|all\s+done)\b/i,
   /\b(task|work|implementation)\s+(is\s+)?(complete|done|finished)\b/i,
-  /\ball\s+(tasks?|items?|todos?)\s+(are\s+)?(complete|done|finished)\b/i,
+  /\ball\s+(tasks?|items?)\s+(are\s+)?(complete|done|finished)\b/i,
   /\bsuccessfully\s+(completed?|implemented|finished)\b/i,
   /\bready\s+(for|to)\s+(review|merge|deploy)\b/i,
 ]
@@ -20,19 +23,12 @@ You claimed completion, but incomplete tasks remain.
 Before claiming work is done, you MUST:
 1. Run verification commands for each completed task
 2. Confirm all tests pass
-3. Mark each TODO as completed with evidence
+3. Transition each task to completed with evidence
 
 Current incomplete tasks need to be addressed first.
-Use TodoWrite to update task status after verification.
+Use task_transition to update task lifecycle status after verification.
 ─────────────────────────────────────────────────────
 `
-
-interface Todo {
-  content: string
-  status: string
-  priority?: string
-  id?: string
-}
 
 interface SessionState {
   lastCompletionClaimTime?: number
@@ -54,7 +50,8 @@ function extractTextFromParts(
 
 export function createPreCompletionVerificationHook(
   ctx: PluginInput,
-  options?: PreCompletionVerificationOptions
+  options?: PreCompletionVerificationOptions,
+  taskConfig: Partial<OhMyOpenCodeConfig> = {}
 ) {
   if (options?.disabled) {
     return {}
@@ -74,12 +71,6 @@ export function createPreCompletionVerificationHook(
   function containsCompletionClaim(text: string): boolean {
     if (!text || typeof text !== "string") return false
     return COMPLETION_PATTERNS.some((pattern) => pattern.test(text))
-  }
-
-  function getIncompleteCount(todos: Todo[]): number {
-    return todos.filter(
-      (t) => t.status !== "completed" && t.status !== "cancelled"
-    ).length
   }
 
   const chatMessageHandler = async (
@@ -106,21 +97,17 @@ export function createPreCompletionVerificationHook(
       return
     }
 
-    let todos: Todo[] = []
+    let incompleteCount = 0
     try {
-      const response = await ctx.client.session.todo({
-        path: { id: input.sessionID },
-      })
-      todos = (response.data ?? response) as Todo[]
+      const { selector } = resolveActiveTaskSelector(ctx.directory, input.sessionID)
+      incompleteCount = countIncompleteTasks(selector, taskConfig)
     } catch (err) {
-      log(`[${HOOK_NAME}] Failed to fetch todos`, {
+      log(`[${HOOK_NAME}] Failed to query tasks`, {
         sessionID: input.sessionID,
         error: String(err),
       })
       return
     }
-
-    const incompleteCount = getIncompleteCount(todos)
 
     if (incompleteCount === 0) {
       return
@@ -129,7 +116,7 @@ export function createPreCompletionVerificationHook(
     log(`[${HOOK_NAME}] Completion claim with ${incompleteCount} incomplete tasks`, {
       sessionID: input.sessionID,
       incompleteCount,
-      totalTodos: todos.length,
+      totalTasks: incompleteCount,
     })
 
     output.parts.push({

@@ -14,7 +14,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
-    schema_version: 2,
+    schema_version: 3,
     execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
     runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
     plan_id: planId,
@@ -24,7 +24,6 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
     last_findings_mtime: state.last_findings_mtime ?? 0,
     errors: state.errors ?? [],
     blockers: state.blockers ?? [],
-    phase_completions: state.phase_completions ?? [],
     decisions: state.decisions ?? [],
   }
   writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))

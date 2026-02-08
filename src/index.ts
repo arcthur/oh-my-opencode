@@ -1,7 +1,7 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import type { Message, Part } from "@opencode-ai/sdk";
 import {
-  createTodoAutoContinuationHook,
+  createTaskAutoContinuationHook,
   createContextWindowGovernorHook,
   createSessionStateRepairHook,
   createSessionNotification,
@@ -117,6 +117,7 @@ import {
   createDelegateTask,
   createMultiPlanTool,
   createSwarmTool,
+  createTaskGraphTools,
   interactive_bash,
   startTmuxCheck,
   lspManager,
@@ -293,7 +294,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         allPlugins: externalNotifier.allPlugins,
       });
     } else {
-      sessionNotification = createSessionNotification(ctx);
+      sessionNotification = createSessionNotification(ctx, undefined, pluginConfig);
     }
   }
 
@@ -470,7 +471,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
 
   const startWork = isHookEnabled("start-work")
-    ? createStartWorkHook(ctx)
+    ? createStartWorkHook(ctx, pluginConfig)
     : null;
 
   const swarmRuntime = createSwarmRuntimeService();
@@ -487,12 +488,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task, {
     parallelRuntimeConfig: pluginConfig.parallel_runtime ?? { enabled: true },
+    taskConfig: pluginConfig,
   });
 
   const executionOrchestratorHook = isHookEnabled("execution-orchestrator")
     ? createExecutionOrchestratorHook(ctx, {
         directory: ctx.directory,
         backgroundManager,
+        taskConfig: pluginConfig,
         isContinuationStopped,
         getContinuationRound,
         reportContinuationIntent,
@@ -525,13 +528,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
-  const todoAutoContinuationEnabled = isHookEnabled("todo-auto-continuation");
+  const taskAutoContinuationEnabled = isHookEnabled("task-auto-continuation");
 
   const planningWithFiles = isHookEnabled("planning-with-files") && pluginConfig.planning_with_files?.enabled
     ? createPlanningWithFilesHook(ctx, {
         config: pluginConfig.planning_with_files,
         collector: contextCollector,
-        todoContinuationEnabled: todoAutoContinuationEnabled,
+        taskConfig: pluginConfig,
+        taskContinuationEnabled: taskAutoContinuationEnabled,
         isContinuationStopped,
         getContinuationRound,
         reportContinuationIntent,
@@ -542,9 +546,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createContextManifestInjectorHook(ctx)
     : null;
 
-  const todoAutoContinuation = todoAutoContinuationEnabled
-    ? createTodoAutoContinuationHook(ctx, {
+  const taskAutoContinuation = taskAutoContinuationEnabled
+    ? createTaskAutoContinuationHook(ctx, {
         backgroundManager,
+        taskConfig: pluginConfig,
         isContinuationStopped,
         getContinuationRound,
         reportContinuationIntent,
@@ -556,7 +561,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
 
   const preCompletionVerification = isHookEnabled("pre-completion-verification")
-    ? createPreCompletionVerificationHook(ctx)
+    ? createPreCompletionVerificationHook(ctx, undefined, pluginConfig)
     : null;
 
   const delegationValidateDecision = isHookEnabled("delegation-validate-decision")
@@ -663,10 +668,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
-  if (sessionStateRepair && todoAutoContinuation) {
-    sessionStateRepair.setOnAbortCallback(todoAutoContinuation.markRecovering);
+  if (sessionStateRepair && taskAutoContinuation) {
+    sessionStateRepair.setOnAbortCallback(taskAutoContinuation.markRecovering);
     sessionStateRepair.setOnRecoveryCompleteCallback(
-      todoAutoContinuation.markRecoveryComplete
+      taskAutoContinuation.markRecoveryComplete
     );
   }
 
@@ -871,7 +876,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     autoUpdateChecker: optional(autoUpdateChecker),
     backgroundNotificationHook: optional(backgroundNotificationHook),
     sessionNotification: optional(sessionNotification),
-    todoAutoContinuation: optional(todoAutoContinuation),
+    taskAutoContinuation: optional(taskAutoContinuation),
     runtimeTracker: optional(runtimeTracker),
     repoOverviewInjector: optional(repoOverviewInjector),
     contextWindowGovernor: optional(contextWindowGovernor),
@@ -904,9 +909,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     taskResumeInfo: optional(taskResumeInfo),
   } as RuntimeAssemblyContext;
 
+  const taskGraphTools = createTaskGraphTools(pluginConfig);
+
   const allTools = {
     ...builtinTools,
     ...backgroundTools,
+    ...taskGraphTools,
     look_at: lookAt,
     delegate_task: delegateTask,
     multi_plan: multiPlanTool,

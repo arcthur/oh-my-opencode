@@ -74,19 +74,17 @@ Options I see:
 Should I proceed with [recommendation], or would you prefer differently?
 \`\`\`
 
-## Step 0.3: Create Initial Todos
+## Step 0.3: Create Initial TaskGraph Items
 
-**IMMEDIATELY after understanding the request, create todos:**
+**IMMEDIATELY after understanding the request, create task nodes:**
 
 \`\`\`
-TodoWrite([
-  {"id": "phase-1", "content": "PHASE 1: Codebase Analysis - launch parallel explore agents", "status": "pending", "priority": "high"},
-  {"id": "phase-2", "content": "PHASE 2: Build Codemap - map dependencies and impact zones", "status": "pending", "priority": "high"},
-  {"id": "phase-3", "content": "PHASE 3: Test Assessment - analyze test coverage and verification strategy", "status": "pending", "priority": "high"},
-  {"id": "phase-4", "content": "PHASE 4: Plan Generation - invoke Plan agent for detailed refactoring plan", "status": "pending", "priority": "high"},
-  {"id": "phase-5", "content": "PHASE 5: Execute Refactoring - step-by-step with continuous verification", "status": "pending", "priority": "high"},
-  {"id": "phase-6", "content": "PHASE 6: Final Verification - full test suite and regression check", "status": "pending", "priority": "high"}
-])
+task_create({ title: "phase-1 PHASE 1: Codebase Analysis - launch parallel explore agents", priority: 100 })
+task_create({ title: "phase-2 PHASE 2: Build Codemap - map dependencies and impact zones", priority: 100 })
+task_create({ title: "phase-3 PHASE 3: Test Assessment - analyze test coverage and verification strategy", priority: 100 })
+task_create({ title: "phase-4 PHASE 4: Plan Generation - invoke Plan agent for detailed refactoring plan", priority: 100 })
+task_create({ title: "phase-5 PHASE 5: Execute Refactoring - step-by-step with continuous verification", priority: 100 })
+task_create({ title: "phase-6 PHASE 6: Final Verification - full test suite and regression check", priority: 100 })
 \`\`\`
 
 ---
@@ -394,19 +392,17 @@ After receiving plan from Plan agent:
 3. **Verify order**: Dependencies respected?
 4. **Verify verification**: Test commands specified?
 
-## 4.3: Register Detailed Todos
+## 4.3: Register Detailed TaskGraph Items
 
-Convert Plan agent output into granular todos:
+Convert Plan agent output into granular task nodes:
 
 \`\`\`
-TodoWrite([
-  // Each step from the plan becomes a todo
-  {"id": "refactor-1", "content": "Step 1: [description]", "status": "pending", "priority": "high"},
-  {"id": "verify-1", "content": "Verify Step 1: run tests", "status": "pending", "priority": "high"},
-  {"id": "refactor-2", "content": "Step 2: [description]", "status": "pending", "priority": "medium"},
-  {"id": "verify-2", "content": "Verify Step 2: run tests", "status": "pending", "priority": "medium"},
-  // ... continue for all steps
-])
+// Each step from the plan becomes a task node
+task_create({ title: "refactor-1 Step 1: [description]", priority: 100 })
+task_create({ title: "verify-1 Verify Step 1: run tests", priority: 100 })
+task_create({ title: "refactor-2 Step 2: [description]", priority: 50 })
+task_create({ title: "verify-2 Verify Step 2: run tests", priority: 50 })
+// ... continue for all steps
 \`\`\`
 
 **Mark phase-4 as completed.**
@@ -422,7 +418,7 @@ TodoWrite([
 For EACH refactoring step:
 
 ### Pre-Step
-1. Mark step todo as \`in_progress\`
+1. Mark step task as \`in_progress\`
 2. Read current file state
 3. Verify lsp_diagnostics is baseline
 
@@ -580,7 +576,7 @@ All existing tests pass. No new errors introduced.
 - Preview before applying (ast_grep dryRun=true)
 - Verify after every change
 - Follow existing codebase patterns
-- Keep todos updated in real-time
+- Keep tasks updated in real-time
 - Commit at logical checkpoints
 - Report issues immediately
 

@@ -48,6 +48,7 @@ Reference pages are stable, “look it up quickly” docs:
 - Agents: `docs/reference/agents.md`
 - Skills: `docs/reference/skills.md`
 - Tools: `docs/reference/tools.md`
+- TaskGraph: `docs/reference/task-graph.md`
 - Hooks: `docs/reference/hooks.md`
 - MCPs: `docs/reference/mcps.md`
 - Artifacts & paths: `docs/reference/artifacts-and-paths.md`

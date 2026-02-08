@@ -10,7 +10,7 @@ export type RecoveryMechanismHook =
   | "edit-failure-guidance"
   | "delegation-failure-guidance"
   | "continuation-stop-guard"
-  | "todo-auto-continuation"
+  | "task-auto-continuation"
 
 export const RECOVERY_MECHANISM_CATEGORY_BY_HOOK: Record<
   RecoveryMechanismHook,
@@ -20,7 +20,7 @@ export const RECOVERY_MECHANISM_CATEGORY_BY_HOOK: Record<
   "edit-failure-guidance": "failure-guidance",
   "delegation-failure-guidance": "failure-guidance",
   "continuation-stop-guard": "continuation-control",
-  "todo-auto-continuation": "continuation-control",
+  "task-auto-continuation": "continuation-control",
 }
 
 export type DelegationProgressStage = "block" | "validate" | "nudge"

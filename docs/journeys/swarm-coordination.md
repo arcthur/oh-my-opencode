@@ -29,8 +29,8 @@ sequenceDiagram
   H-->>W: session.created => initialize workers
   W->>FS: join_request / heartbeat / idle_notification (mailbox)
 
-  U->>ST: /swarm task add <subject> [desc]
-  ST->>FS: createTask() => tasks/<listId>/task_*.json
+  U->>ST: /swarm task add <title> [description]
+  ST->>FS: createSwarmTask() => tasks/swarm/<team>/task_*.json
   C->>FS: poll tasks + inboxes
   C->>FS: task_assignment => worker inbox msg_*.json
   W->>H: onTaskAssigned => prompt session with task
@@ -58,7 +58,7 @@ sequenceDiagram
 - **Coordination plane**: a file-based mailbox protocol stored under `.sisyphus/teams/<team>/inboxes/<agentId>/`.
 - **Control plane (in-process)**: `SwarmRuntimeService` in `src/features/sisyphus-swarm/runtime/` owns runtime handles (session↔team binding, coordinator/worker handles, team-scoped orchestrators).
 - **Work plane**: each agent is an independent `opencode` process (often a tmux window).
-- **Task plane**: a shared task pool stored under `.sisyphus/tasks/<listId>/task_*.json`.
+- **Task plane**: shared TaskGraph storage under `.sisyphus/tasks/swarm/<team>/task_*.json`.
 - **Admission plane**: a shared parallel-runtime lease registry under `.sisyphus/runtime/parallel/` that applies global slots across Swarm and Background execution.
 
 Swarm works without a daemon: persistent truth is still filesystem-based, while runtime handles are centralized in one in-memory control-plane service.
@@ -68,7 +68,7 @@ Swarm works without a daemon: persistent truth is still filesystem-based, while 
 1. Start in a `tmux` session (recommended).
 2. Create a team: `/swarm create my-team`.
 3. Spawn workers: `/swarm spawn 3`.
-4. Add tasks: `/swarm task add "Subject" "Description"`.
+4. Add tasks: `/swarm task add "Title" "Description"`.
 5. Monitor: `/swarm status`.
 6. Stop:
    - `/swarm stop` to stop workers for the current team but keep worktrees for manual merge, or
@@ -82,14 +82,14 @@ Swarm can also be bootstrapped automatically from the “plan → execution” w
 2. Run `/start-work`.
 3. If Swarm-first is enabled, the plugin will:
    - create/recover a Swarm team for the active plan,
-   - sync pending plan TODO blocks into `.sisyphus/tasks/<team>/` (idempotent),
+   - sync plan tasks (from `plan.md` `## Tasks`) into `.sisyphus/tasks/swarm/<team>/` (idempotent),
    - optionally spawn worker windows in tmux (and optional git worktrees).
 
 This binds **task structure**, **workspace isolation**, and **recovery**: tasks are durable (filesystem), workers are isolated (worktrees), and re-running `/start-work` can safely recover state.
 
 ### Config (Swarm-first)
 
-Swarm-first requires both Sisyphus Tasks (task pool) and Swarm to be enabled:
+Swarm-first requires both TaskGraph and Swarm to be enabled:
 
 ```jsonc
 {
@@ -168,7 +168,7 @@ Note: Swarm window spawning requires **running inside tmux** and having the `tmu
 - Runtime control-plane service: `src/features/sisyphus-swarm/runtime/`
 - Team + manifest: `src/features/sisyphus-swarm/team/`
 - Mailbox protocol (per-message files): `src/features/sisyphus-swarm/mailbox/`
-- Task pool: `src/features/sisyphus-swarm/task-pool/`
+- TaskGraph (swarm scope): `src/features/sisyphus-swarm/task-graph/`
 - tmux orchestration + worktrees: `src/features/sisyphus-swarm/tmux/`
 - Storage path helpers: `src/features/sisyphus-tasks/storage.ts`
 

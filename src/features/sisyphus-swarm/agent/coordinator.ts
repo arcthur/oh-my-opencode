@@ -30,19 +30,17 @@ import {
 import type { AgentIdentity, AgentCapability, TeamManifest } from "../team/types"
 import {
   autoAssignTasksWithRuntime,
+  createSwarmTask,
+  getSwarmTaskPoolStats,
   reassignStaleTasks,
+  releaseSwarmTaskLease,
+  reassignSwarmTask,
+  listSwarmTaskSummaries,
+  readSwarmTaskNode,
   getAssignmentStatus,
-} from "../task-pool/assignment"
-import {
-  createTask,
-  filterTasks,
-  getPoolStats,
-  readTask,
-  reassignTask,
-  updateTask,
-} from "../task-pool/pool"
-import { recordRunEvent, releaseSlot, renewSlot, resolveParallelRuntimeConfig } from "../../parallel-runtime"
-import type { TaskCreateInput } from "../../sisyphus-tasks/types"
+  type SwarmTaskCreateInput,
+} from "../task-graph"
+import { renewSlot, resolveParallelRuntimeConfig } from "../../parallel-runtime"
 import { AgentStateMachine } from "./state"
 import type { RiskLevel } from "./worker"
 
@@ -68,15 +66,6 @@ interface PendingPlanApproval {
   planFile?: string
   taskId?: string
   requestedAt: number
-}
-
-const META_PARALLEL_LEASE_ID = "parallelRuntimeLeaseId"
-const META_PARALLEL_RUN_ID = "parallelRuntimeRunId"
-const META_PARALLEL_SUBSYSTEM = "parallelRuntimeSubsystem"
-
-function getMetadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
-  const value = metadata?.[key]
-  return typeof value === "string" && value.trim().length > 0 ? value : undefined
 }
 
 /**
@@ -241,12 +230,14 @@ export class CoordinatorAgent {
       return { workers: 0, total: 0, pending: 0, inProgress: 0, completed: 0 }
     }
 
-    const listId = this.manifest.taskListId ?? this.coordConfig.teamName
-    const poolStats = getPoolStats(listId, this.config)
+    const poolStats = getSwarmTaskPoolStats(this.coordConfig.teamName, this.config)
 
     return {
       workers: this.manifest.members.length - 1, // Exclude coordinator
-      ...poolStats,
+      total: poolStats.total,
+      pending: poolStats.open,
+      inProgress: poolStats.in_progress,
+      completed: poolStats.completed,
     }
   }
 
@@ -293,7 +284,6 @@ export class CoordinatorAgent {
         // Create new team
         this.manifest = createTeam(teamName, this.identity, this.config, {
           description,
-          taskListId: teamName,
           settings: {
             autoApprove: autoApprove ?? false,
             maxMembers: maxMembers ?? 10,
@@ -363,13 +353,12 @@ export class CoordinatorAgent {
    * After creating the task, automatically attempts to assign it
    * to any idle workers (level-triggered assignment).
    */
-  addTask(input: TaskCreateInput): string {
+  addTask(input: SwarmTaskCreateInput): string {
     if (!this.manifest) {
       throw new Error("Coordinator not started")
     }
 
-    const listId = this.manifest.taskListId ?? this.coordConfig.teamName
-    const task = createTask(listId, input, this.config)
+    const task = createSwarmTask(this.coordConfig.teamName, input, this.config)
 
     // Trigger auto-assignment for idle workers (level-triggered)
     // This ensures newly added tasks are immediately assigned if workers are waiting
@@ -387,7 +376,15 @@ export class CoordinatorAgent {
     if (!this.manifest) {
       return {
         tasks: [],
-        stats: { total: 0, pending: 0, inProgress: 0, completed: 0, blocked: 0 },
+        stats: {
+          total: 0,
+          open: 0,
+          in_progress: 0,
+          completed: 0,
+          failed: 0,
+          cancelled: 0,
+          blocked: 0,
+        },
       }
     }
 
@@ -410,12 +407,14 @@ export class CoordinatorAgent {
     const runtimeConfig = resolveParallelRuntimeConfig(this.config.parallel_runtime)
     if (!runtimeConfig.enabled) return
 
-    const listId = this.manifest.taskListId ?? this.coordConfig.teamName
-    const inProgressTasks = filterTasks(listId, { status: "in_progress" }, this.config)
+    const inProgressTasks = listSwarmTaskSummaries(this.coordConfig.teamName, this.config, {
+      include_completed: true,
+    }).filter((task) => task.state === "in_progress")
 
     const renewals: Array<Promise<boolean>> = []
     for (const task of inProgressTasks) {
-      const leaseId = getMetadataString(task.metadata, META_PARALLEL_LEASE_ID)
+      const node = readSwarmTaskNode(this.coordConfig.teamName, task.id, this.config)
+      const leaseId = node?.lease?.lease_id
       if (!leaseId) continue
 
       renewals.push(
@@ -431,48 +430,8 @@ export class CoordinatorAgent {
     }
   }
 
-  private releaseParallelLeaseFromTask(
-    listId: string,
-    taskId: string,
-    outcome: "completed" | "failed" | "cancelled",
-    reason?: string
-  ): void {
-    const task = readTask(listId, taskId, this.config)
-    if (!task) return
-
-    const leaseId = getMetadataString(task.metadata, META_PARALLEL_LEASE_ID)
-    const runId = getMetadataString(task.metadata, META_PARALLEL_RUN_ID)
-    const runtimeConfig = resolveParallelRuntimeConfig(this.config.parallel_runtime)
-
-    if (runtimeConfig.enabled && runId) {
-      recordRunEvent(
-        {
-          runId,
-          subsystem: "swarm",
-          type: outcome,
-          leaseId,
-          metadata: reason ? { reason } : undefined,
-        },
-        runtimeConfig
-      ).catch(() => {})
-    }
-
-    if (runtimeConfig.enabled && leaseId) {
-      releaseSlot(leaseId, runtimeConfig).catch(() => {})
-    }
-
-    updateTask(
-      listId,
-      {
-        taskId,
-        metadata: {
-          [META_PARALLEL_LEASE_ID]: null,
-          [META_PARALLEL_RUN_ID]: null,
-          [META_PARALLEL_SUBSYSTEM]: null,
-        },
-      },
-      this.config
-    )
+  private releaseParallelLeaseFromTask(taskId: string, outcome: "completed" | "failed" | "cancelled", reason?: string): void {
+    releaseSwarmTaskLease(this.coordConfig.teamName, taskId, this.config, outcome, reason ? { reason } : undefined)
   }
 
   /**
@@ -996,13 +955,7 @@ export class CoordinatorAgent {
 
       case "task_completed":
         this.coordConfig.onTaskCompleted?.(payload.taskId, payload.agentId)
-        {
-          const manifest = readManifest(this.coordConfig.teamName, this.config)
-          if (manifest) {
-            const listId = manifest.taskListId ?? this.coordConfig.teamName
-            this.releaseParallelLeaseFromTask(listId, payload.taskId, "completed")
-          }
-        }
+        this.releaseParallelLeaseFromTask(payload.taskId, "completed")
         break
 
       case "idle_notification":
@@ -1025,22 +978,11 @@ export class CoordinatorAgent {
         this.coordConfig.onError?.(
           new Error(`Task ${payload.taskId} rejected by ${payload.agentId}: ${payload.reason}`)
         )
-        {
-          const manifest = readManifest(this.coordConfig.teamName, this.config)
-          if (manifest) {
-            const listId = manifest.taskListId ?? this.coordConfig.teamName
-            this.releaseParallelLeaseFromTask(
-              listId,
-              payload.taskId,
-              "failed",
-              payload.reason
-            )
-            // Only reassign if the task is still owned by this rejecting worker.
-            reassignTask(listId, payload.taskId, payload.reason, this.config, {
-              expectedOwnerId: payload.agentId,
-            })
-          }
-        }
+        this.releaseParallelLeaseFromTask(payload.taskId, "failed", payload.reason)
+        // Only reassign if the task is still owned by this rejecting worker.
+        reassignSwarmTask(this.coordConfig.teamName, payload.taskId, payload.reason, this.config, {
+          expectedOwnerId: payload.agentId,
+        })
         // Trigger auto-assign to try assigning the requeued task to another worker
         await this.autoAssignWithAdmissionControl()
         break

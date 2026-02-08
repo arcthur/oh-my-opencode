@@ -461,9 +461,9 @@ EXECUTION_PLAN:
 ## PHASE 5: Commit Execution
 
 <execution>
-### 5.1 Register TODO Items
+### 5.1 Register Task Items
 
-Use TodoWrite to register each commit as a trackable item:
+Use task_create/task_transition to register each commit as a trackable item:
 \`\`\`
 - [ ] Fixup: <description> -> <target-hash>
 - [ ] New: <description>

@@ -7,7 +7,7 @@
 | **Simple** | Just prompt | Simple tasks, quick fixes, single-file changes |
 | **Complex + Lazy** | Just type `ulw` or `ultrawork` | Complex tasks where explaining context is tedious. Agent figures it out. |
 | **Complex + Precise** | `@plan` → `/start-work` | Precise, multi-step work requiring true orchestration. Prometheus plans, Sisyphus executes. |
-| **Complex + Parallel (Isolated)** | `@plan` → `/start-work` (Swarm-first) | Large work where you want parallel execution with git worktree isolation and a recoverable task pool. |
+| **Complex + Parallel (Isolated)** | `@plan` → `/start-work` (Swarm-first) | Large work where you want parallel execution with git worktree isolation and a recoverable TaskGraph state. |
 
 **Decision Flow:**
 
@@ -53,10 +53,12 @@ flowchart TD
     PlanDraft --> StartWork["/start-work"]
     StartWork --> WorkState[".sisyphus/work.yaml"]
     StartWork --> ExecPlan[".sisyphus/plans/{planId}/plan.md"]
+    StartWork --> TaskGraph[".sisyphus/tasks/plan/{planId}/task_*.json"]
 
     subgraph Execution Phase
         WorkState --> Sisyphus[Sisyphus<br>Orchestrator]
-        ExecPlan -.-> |"TASK SSOT"| Sisyphus
+        TaskGraph -.-> |"TASK SSOT"| Sisyphus
+        ExecPlan -.-> |"PLAN SPEC"| Sisyphus
         ManifestFile -.-> |"CONTEXT PACKS"| Sisyphus
         Sisyphus --> Oracle[Oracle]
         Sisyphus --> Junior["Sisyphus-Junior<br>Executor"]
@@ -71,15 +73,15 @@ The system uses two complementary sources of truth:
 | SSOT | File | Purpose |
 |------|------|---------|
 | **STATE** | `.sisyphus/work.yaml` | Session metadata, protocol state (2-action, 3-strike), decision history |
-| **TASKS** | `.sisyphus/plans/*/plan.md` | Actual tasks with checkboxes, human-readable progress |
+| **TASKS** | `.sisyphus/tasks/<scope>/<container_id>/task_*.json` | TaskGraph nodes: state, dependencies, revision (CAS), optional lease |
 
 - **work.yaml** is machine-optimized: structured YAML for programmatic session management
-- **plans/*.md** is human-optimized: markdown for agent reasoning and human review
+- **plans/*/plan.md** is human-optimized: plan spec and task seed (not task state)
 - **Path convention**: `work.yaml.execution_plan_path` is stored as a **workspace-relative** path when possible (e.g., `.sisyphus/plans/<planId>/plan.md`)
 
 **Performance Note (Optional Cache):**
 
-To avoid re-parsing the plan file on every progress check, `work.yaml` may include an optional cached snapshot:
+To avoid scanning the task graph on every progress check, `work.yaml` may include an optional cached snapshot:
 
 ```yaml
 task_snapshot:
@@ -89,8 +91,8 @@ task_snapshot:
   last_sync: "2026-01-27T08:00:00Z"
 ```
 
-- This snapshot is **derived from** the plan file and is **never** the source of truth for tasks.
-- It is automatically refreshed when the plan file changes.
+- This snapshot is **derived from** TaskGraph and is **never** the source of truth for tasks.
+- It is automatically refreshed when the task graph changes.
 
 ---
 
@@ -134,7 +136,7 @@ When the user requests "Make it a plan", plan generation begins.
 When the user enters `/start-work`, the execution phase begins.
 
 1. **State Management**: Creates/updates `work.yaml` to track active plan, session IDs, and protocol state.
-2. **Task Execution**: Sisyphus reads the plan file and processes tasks one by one.
+2. **Task Execution**: Sisyphus processes tasks from TaskGraph (seeded from `plan.md`) and advances state via `task_transition`.
 3. **Delegation**: UI work is delegated via category + skills (e.g., `visual-engineering` + `frontend-ui-ux`, executed by Sisyphus-Junior); complex logic to Oracle.
 4. **Continuity**: Even if the session is interrupted, work continues in the next session through `work.yaml`.
 5. **Protocol Enforcement**: 2-action rule (research tracking) and 3-strike protocol (error recording) are managed via work.yaml.
@@ -144,9 +146,9 @@ When the user enters `/start-work`, the execution phase begins.
 If Swarm-first is enabled, `/start-work` becomes a bootstrap point for a **recoverable parallel execution** model:
 
 - A Swarm team is created (or recovered) for the active plan.
-- The plan’s pending TODO blocks are synced into a task pool under `.sisyphus/tasks/<team>/`.
+- Plan tasks (from `plan.md` `## Tasks`) are synced into TaskGraph under `.sisyphus/tasks/swarm/<team>/`.
 - Worker processes can be spawned in tmux windows, optionally one git worktree per worker.
-- The coordinator auto-assigns tasks; completion is tracked in the task pool (not by editing the plan file in parallel).
+- The coordinator auto-assigns tasks; completion is tracked in TaskGraph (not by editing the plan file in parallel).
 
 This is the closest “Trellis-style” binding between **task structure**, **workspace isolation**, and **recovery**.
 
@@ -189,7 +191,7 @@ You can control related features in `oh-my-opencode.json`.
 
 ### Swarm-first (Recommended for parallel + isolation)
 
-Swarm-first requires both Sisyphus Tasks (task pool) and Swarm to be enabled.
+Swarm-first requires both TaskGraph and Swarm to be enabled.
 
 > **Schema reference**: `src/config/schema.ts` — `SisyphusConfigSchema`, `TmuxParallelAgentsConfigSchema`
 
@@ -241,7 +243,7 @@ Note: in `enforce` mode, Background admissions may wait up to `acquire_timeout_m
 ## 7. Best Practices
 
 1. **Don't Rush**: Invest sufficient time in the interview with Prometheus. The more perfect the plan, the faster the execution.
-2. **Single Plan Principle**: No matter how large the task, contain all TODOs in one plan file (`.md`). This prevents context fragmentation.
+2. **Single Plan Principle**: No matter how large the task, contain all task items in one plan file (`.md`). This prevents context fragmentation.
 3. **Active Delegation**: During execution, delegate to specialized agents via `delegate_task` rather than modifying code directly.
 
 ---
@@ -254,7 +256,8 @@ Deep dive (recommended): `docs/journeys/context-packs-and-manifests.md`
 
 ### 8.1 Artifacts and Responsibilities
 
-- **Plan (Task SSOT)**: `.sisyphus/plans/{planId}/plan.md`
+- **TaskGraph (Task SSOT)**: `.sisyphus/tasks/plan/{planId}/task_*.json`
+- **Plan spec (human-readable)**: `.sisyphus/plans/{planId}/plan.md`
 - **Context Manifest (Delegation Context)**: `.sisyphus/context-manifests/{planId}.md`
   - Organized as *Context Packs* (3–8 stable pack IDs)
   - Each pack lists the relevant specs / key files / index entrypoints, plus **why** (what the executor should extract)
@@ -298,9 +301,9 @@ Benefits:
 
 - When Prometheus generates the plan:
   - Also generate `.sisyphus/context-manifests/{planId}.md`
-  - Every TODO block must include a `Context Packs:` selector line (used by the injector)
+  - Every task block must include a `Context Packs:` selector line (used by the injector)
 - When Sisyphus Execution Mode delegates:
-  - Copy the TODO’s `Context Packs:` line verbatim into the `delegate_task` prompt (keep it a single line)
+  - Copy the task’s `Context Packs:` line verbatim into the `delegate_task` prompt (keep it a single line)
 
 ### 8.4 Troubleshooting (Quick)
 

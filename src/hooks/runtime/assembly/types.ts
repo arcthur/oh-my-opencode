@@ -249,7 +249,7 @@ export interface RuntimeAssemblyContext {
 
   sessionNotification?: EventHandler
 
-  todoAutoContinuation?: {
+  taskAutoContinuation?: {
     handler?: EventHandler
     cancelAllCountdowns: () => void
   }

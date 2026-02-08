@@ -63,9 +63,10 @@ For a plan `{planId}`, Prometheus should write:
 - `.sisyphus/context-manifests/{planId}.md`
 
 When you run `/start-work`, execution mode migrates the plan draft into:
-- `.sisyphus/plans/{planId}/plan.md` (task SSOT)
+- `.sisyphus/plans/{planId}/plan.md` (plan spec)
+- `.sisyphus/tasks/plan/{planId}/task_*.json` (TaskGraph task SSOT)
 
-The plan template enforces that each TODO includes:
+The plan template enforces that each task includes:
 
 ```text
 Context Packs: global, tooling
@@ -81,7 +82,7 @@ The injector resolves the manifest path from `work.yaml.plan_id`.
 
 ### Step 3: Delegate as usual
 
-When Sisyphus Execution Mode calls `delegate_task(...)`, it copies the TODO’s `Context Packs:` line into the delegation prompt.
+When Sisyphus Execution Mode calls `delegate_task(...)`, it copies the task’s `Context Packs:` line into the delegation prompt.
 
 The injector hook then appends the corresponding pack content (rendered) right before the tool executes.
 

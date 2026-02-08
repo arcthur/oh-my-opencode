@@ -67,7 +67,7 @@ describe("session-manager tools", () => {
   test("session_read executes with valid parameters", async () => {
     const result = await session_read.execute({
       session_id: "ses_test123",
-      include_todos: true,
+      include_tasks: true,
       include_transcript: true,
     }, mockContext)
     

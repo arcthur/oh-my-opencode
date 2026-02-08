@@ -4,7 +4,7 @@ import { log } from "../../shared/logger"
 export type ContinuationSource =
   | "execution-orchestrator"
   | "ralph-loop"
-  | "todo-auto-continuation"
+  | "task-auto-continuation"
   | "planning-with-files"
 
 export type ContinuationRejectReason =
@@ -44,7 +44,7 @@ export interface ContinuationIntent {
 export interface ContinuationControlPriority {
   "execution-orchestrator": number
   "ralph-loop": number
-  "todo-auto-continuation": number
+  "task-auto-continuation": number
   "planning-with-files": number
 }
 

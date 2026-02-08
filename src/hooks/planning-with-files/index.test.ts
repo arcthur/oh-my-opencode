@@ -7,6 +7,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { ContextCollector, createContextInjectorMessagesTransformHook } from "../../features/context-injector"
 import { initializePlan } from "../../features/planning-with-files/manager"
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
+import { createTaskNode } from "../../features/task-system"
 import { createDirectContinuationReporterForTesting } from "../continuation-control"
 import {
   createPlanningWithFilesHook as createPlanningWithFilesHookBase,
@@ -25,10 +26,8 @@ function readWorkState(projectDir: string): Record<string, unknown> | null {
 
 function createMockPluginInput(
   projectDir: string,
-  promptCalls: Array<{ sessionID: string; text: string }>,
-  options: { todos?: Array<{ status?: string }> } = {}
+  promptCalls: Array<{ sessionID: string; text: string }>
 ): PluginInput {
-  const { todos = [] } = options
   return {
     directory: projectDir,
     client: {
@@ -39,7 +38,6 @@ function createMockPluginInput(
           promptCalls.push({ sessionID, text })
           return { data: true }
         },
-        todo: async () => ({ data: todos }),
       },
       tui: {
         showToast: async () => ({ data: true }),
@@ -270,7 +268,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     // then
     expect(promptCalls).toHaveLength(1)
     expect(promptCalls[0].sessionID).toBe("session-stop")
-    expect(promptCalls[0].text).toContain("Incomplete TODOs")
+    expect(promptCalls[0].text).toContain("Incomplete plan tasks remain")
     expect(promptCalls[0].text).toContain("ledger.yaml")
     expect(promptCalls[0].text).toContain("/stop --force")
   })
@@ -306,7 +304,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(intents[0].sessionID).toBe("session-stop-reporter")
     expect(intents[0].source).toBe("planning-with-files")
     expect(intents[0].round).toBe(11)
-    expect(intents[0].text).toContain("Incomplete TODOs")
+    expect(intents[0].text).toContain("Incomplete plan tasks remain")
   })
 
   test("stop verification respects continuation stop guard", async () => {
@@ -415,100 +413,45 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(reported).toHaveLength(1)
   })
 
-  test("stop verification defers when incomplete todos exist and todo continuation is enabled", async () => {
+  test("stop verification defers when incomplete tasks exist and task continuation is enabled", async () => {
     // given
     await initializePlan(tmpDir, "stop-plan", "Goal")
     const collector = new ContextCollector()
     const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const sessionID = "session-stop-task"
+    const taskConfig = {
+      sisyphus: {
+        tasks: {
+          enabled: true,
+          storage_path: path.join(tmpDir, ".sisyphus", "tasks"),
+        },
+      },
+    } as const
+    createTaskNode(
+      {
+        scope: "session",
+        container_id: sessionID,
+        title: "Incomplete runtime task",
+      },
+      taskConfig
+    )
     const hook = createPlanningWithFilesHook(
-      createMockPluginInput(tmpDir, promptCalls, { todos: [{ status: "pending" }] }),
+      createMockPluginInput(tmpDir, promptCalls),
       {
         config: { enabled: true, stop_verification: true },
         collector,
-        todoContinuationEnabled: true,
+        taskConfig,
+        taskContinuationEnabled: true,
       }
     )
 
     // when
     await hook.event?.({
-      event: { type: "session.idle", properties: { sessionID: "session-stop-todo" } },
+      event: { type: "session.idle", properties: { sessionID } },
     })
 
     // then
     expect(promptCalls).toHaveLength(0)
-  })
-
-  test("emits phase-reflection prompt when a TODO transitions to complete", async () => {
-    // given
-    await initializePlan(tmpDir, "reflection-plan", "Goal")
-
-    const planDir = path.join(tmpDir, ".sisyphus", "plans", "reflection-plan")
-    const planPath = path.join(planDir, "plan.md")
-
-    // Make TODO 1 pending so we can transition it to complete
-    fs.writeFileSync(
-      planPath,
-      `# Plan: reflection-plan
-
-> **Goal**: Goal
-
-## TODOs
-
-- [ ] 1. Discovery
-- [ ] 2. Implementation
-`
-    )
-
-    const collector = new ContextCollector()
-    const promptCalls: Array<{ sessionID: string; text: string }> = []
-    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
-      config: { enabled: true },
-      collector,
-    })
-
-    // First cycle initializes phase cache (no reflection)
-    await hook["tool.execute.before"]?.(
-      { tool: "Edit", sessionID: "session-reflect", callID: "call-1" },
-      { args: { path: planPath } }
-    )
-    collector.consume("session-reflect")
-    await hook["tool.execute.after"]?.(
-      { tool: "Edit", sessionID: "session-reflect", callID: "call-1" },
-      { title: "Edit", output: "ok", metadata: {} }
-    )
-
-    expect(collector.hasPending("session-reflect")).toBe(false)
-
-    // Transition TODO 1 to complete
-    fs.writeFileSync(
-      planPath,
-      `# Plan: reflection-plan
-
-> **Goal**: Goal
-
-## TODOs
-
-- [x] 1. Discovery
-- [ ] 2. Implementation
-`
-    )
-
-    // when - second edit after completion
-    await hook["tool.execute.before"]?.(
-      { tool: "Edit", sessionID: "session-reflect", callID: "call-2" },
-      { args: { path: planPath } }
-    )
-    collector.consume("session-reflect")
-    await hook["tool.execute.after"]?.(
-      { tool: "Edit", sessionID: "session-reflect", callID: "call-2" },
-      { title: "Edit", output: "ok", metadata: {} }
-    )
-
-    // then
-    expect(collector.hasPending("session-reflect")).toBe(true)
-    const pending = collector.getPending("session-reflect")
-    expect(pending.merged).toContain("<phase-reflection>")
-    expect(pending.merged).toContain("TODO 1 Complete")
   })
 
   test("three-strike protocol requires error recording on strike 2+", async () => {

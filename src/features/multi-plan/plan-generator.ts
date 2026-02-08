@@ -349,12 +349,13 @@ Generate a comprehensive work plan following the standard .sisyphus/plans/*.md f
    - Test infrastructure decision
    - Framework choice
 
-8. **TODOs** (numbered, with checkboxes)
-   Each TODO must have:
+8. **Tasks** (numbered, under \`## Tasks\`)
+   Each task must have:
    - What to do (clear steps)
-   - Must NOT do (guardrails specific to this TODO)
+   - Must NOT do (guardrails specific to this task)
    - Parallelizable: YES/NO
    - Context Packs: \`pack-a, pack-b\` (comma-separated; must match your Context Manifests section)
+   - Depends On: \`1, 2\` | None
    - References (CRITICAL - specific file paths and line numbers)
    - Acceptance Criteria (checkboxes)
 
@@ -364,9 +365,9 @@ Generate a comprehensive work plan following the standard .sisyphus/plans/*.md f
 **Quality Requirements**:
 - Be SPECIFIC - no vague "add feature" or "improve X"
 - Every claim must have a file reference
-- Every TODO must have concrete acceptance criteria
+- Every task must have concrete acceptance criteria
 - Apply AI-slop guardrails from above
-- Include intent-specific directives in your TODOs
+- Include intent-specific directives in your Tasks section
 `
   }
 

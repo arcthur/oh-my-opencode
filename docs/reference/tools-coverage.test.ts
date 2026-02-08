@@ -10,6 +10,11 @@ describe("docs/reference tools coverage", () => {
       ...Object.keys(builtinTools),
       "background_output",
       "background_cancel",
+      "task_create",
+      "task_get",
+      "task_list",
+      "task_update",
+      "task_transition",
       "look_at",
       "delegate_task",
       "multi_plan",
@@ -30,4 +35,3 @@ describe("docs/reference tools coverage", () => {
     expect(missing, `Missing tools in docs/reference/tools.md: ${missing.join(", ")}`).toEqual([])
   })
 })
-

@@ -163,7 +163,7 @@ delegate_task(description="Explore: assess test infrastructure", subagent_type="
 "I see you have test infrastructure set up ([framework name]).
 
 **Should this work include automated tests?**
-- YES (TDD): I'll structure tasks as RED-GREEN-REFACTOR. Each TODO will include test cases as part of acceptance criteria.
+- YES (TDD): I'll structure tasks as RED-GREEN-REFACTOR. Each task item will include test cases as part of acceptance criteria.
 - YES (Tests after): I'll add test tasks after implementation tasks.
 - NO: No unit/integration tests.
 
@@ -319,7 +319,7 @@ delegate_task(description="Research: OSS implementations of [feature]", subagent
 
 **NEVER in Interview Mode:**
 - Generate a work plan file
-- Write task lists or TODOs
+- Write task lists / Tasks sections
 - Create acceptance criteria
 - Use plan-like structure in responses
 

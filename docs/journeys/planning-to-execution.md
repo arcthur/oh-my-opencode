@@ -23,22 +23,22 @@ flowchart TD
   PWFY --> MODE{"Swarm-first enabled?"}
   PWFN --> MODE
   MODE -->|No| AT["Single-session execution (execution-orchestrator hook)"]
-  MODE -->|Yes| SF["Swarm-first bootstrap (swarm-from-plan)\nSync TODOs -> task pool; (optional) spawn workers"]
+  MODE -->|Yes| SF["Swarm-first bootstrap (swarm-from-plan)\nSync plan tasks -> TaskGraph (scope=swarm); (optional) spawn workers"]
 
   AT --> TOOL["Tools (Read/Glob/Grep/LSP/Edit/Bash/...)"]
   SF --> TOOL
   TOOL --> OUT["Artifacts + final answer"]
 ```
 
-This journey explains how a plan is produced, validated, migrated into execution SSOT (`plan.md` + `work.yaml`), and then executed through orchestration.
+This journey explains how a plan is produced, validated, migrated into execution state (`work.yaml` + TaskGraph), and then executed through orchestration.
 
 ## Swarm-first (Optional)
 
 If Swarm-first is enabled, `/start-work` can act as a bootstrap point for parallel execution:
 
-- Pending plan TODO blocks are synced into `.sisyphus/tasks/<team>/`.
+- Plan tasks (from `plan.md` `## Tasks`) are synced into TaskGraph scope `swarm` (storage path: `.sisyphus/tasks/swarm/<team>/task_*.json`).
 - Workers can be spawned in tmux windows, optionally one git worktree per worker.
-- Progress and completion are tracked in the task pool, making recovery (across sessions) deterministic.
+- Progress and completion are tracked in TaskGraph, making recovery (across sessions) deterministic.
 - Global concurrency can be governed by `parallel_runtime` so Swarm + Background share one slot budget.
 
 See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.

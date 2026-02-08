@@ -75,17 +75,17 @@ describe("agent/state", () => {
     test("TASK_ASSIGNED transitions to working", () => {
       let state = createInitialState()
       state = applyEvent(state, { type: "JOIN_APPROVED" })
-      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test task" })
+      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test task" })
 
       expect(state.status).toBe("working")
       expect(state.currentTaskId).toBe("task_1")
-      expect(state.currentTaskSubject).toBe("Test task")
+      expect(state.currentTaskTitle).toBe("Test task")
     })
 
     test("TASK_COMPLETED transitions to idle and increments counter", () => {
       let state = createInitialState()
       state = applyEvent(state, { type: "JOIN_APPROVED" })
-      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test task" })
+      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test task" })
       state = applyEvent(state, { type: "TASK_COMPLETED" })
 
       expect(state.status).toBe("idle")
@@ -96,7 +96,7 @@ describe("agent/state", () => {
     test("TASK_FAILED transitions to idle and increments failed counter", () => {
       let state = createInitialState()
       state = applyEvent(state, { type: "JOIN_APPROVED" })
-      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test task" })
+      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test task" })
       state = applyEvent(state, { type: "TASK_FAILED", error: "Out of memory" })
 
       expect(state.status).toBe("idle")
@@ -107,7 +107,7 @@ describe("agent/state", () => {
     test("PAUSE transitions to paused with context", () => {
       let state = createInitialState()
       state = applyEvent(state, { type: "JOIN_APPROVED" })
-      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test task" })
+      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test task" })
       state = applyEvent(state, {
         type: "PAUSE",
         reason: "Awaiting permission",
@@ -125,7 +125,7 @@ describe("agent/state", () => {
     test("RESUME transitions back to working and clears pauseContext", () => {
       let state = createInitialState()
       state = applyEvent(state, { type: "JOIN_APPROVED" })
-      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test task" })
+      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test task" })
       state = applyEvent(state, {
         type: "PAUSE",
         reason: "Awaiting permission",
@@ -140,7 +140,7 @@ describe("agent/state", () => {
     test("PAUSE_TIMEOUT transitions to idle and increments failed counter", () => {
       let state = createInitialState()
       state = applyEvent(state, { type: "JOIN_APPROVED" })
-      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test task" })
+      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test task" })
       state = applyEvent(state, {
         type: "PAUSE",
         reason: "Awaiting permission",
@@ -183,7 +183,7 @@ describe("agent/state", () => {
     test("RESET returns initial state", () => {
       let state = createInitialState()
       state = applyEvent(state, { type: "JOIN_APPROVED" })
-      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test" })
+      state = applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test" })
       state = applyEvent(state, { type: "TASK_COMPLETED" })
       state = applyEvent(state, { type: "RESET" })
 
@@ -195,7 +195,7 @@ describe("agent/state", () => {
       const state = createInitialState()
 
       expect(() => {
-        applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", subject: "Test" })
+        applyEvent(state, { type: "TASK_ASSIGNED", taskId: "task_1", title: "Test" })
       }).toThrow("Invalid transition")
     })
   })
@@ -233,7 +233,7 @@ describe("agent/state", () => {
       machine.dispatch({ type: "JOIN_APPROVED" })
       expect(machine.getStatus()).toBe("idle")
 
-      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", subject: "Test" })
+      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", title: "Test" })
       expect(machine.getStatus()).toBe("working")
     })
 
@@ -246,7 +246,7 @@ describe("agent/state", () => {
       })
 
       machine.dispatch({ type: "JOIN_APPROVED" })
-      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", subject: "Test" })
+      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", title: "Test" })
 
       expect(events).toContain("JOIN_APPROVED")
       expect(events).toContain("TASK_ASSIGNED")
@@ -262,7 +262,7 @@ describe("agent/state", () => {
 
       machine.dispatch({ type: "JOIN_APPROVED" })
       unsub()
-      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", subject: "Test" })
+      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", title: "Test" })
 
       expect(events.length).toBe(1)
       expect(events[0]).toBe("JOIN_APPROVED")
@@ -271,7 +271,7 @@ describe("agent/state", () => {
     test("getSummary returns formatted string", () => {
       const machine = new AgentStateMachine()
       machine.dispatch({ type: "JOIN_APPROVED" })
-      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", subject: "Build feature" })
+      machine.dispatch({ type: "TASK_ASSIGNED", taskId: "t1", title: "Build feature" })
 
       const summary = machine.getSummary()
 

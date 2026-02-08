@@ -1,4 +1,4 @@
-export { createTodoAutoContinuationHook, type TodoAutoContinuationHook } from "./todo-auto-continuation";
+export { createTaskAutoContinuationHook, type TaskAutoContinuationHook } from "./task-auto-continuation";
 export {
   createContinuationControl,
   type ContinuationControlConfig,

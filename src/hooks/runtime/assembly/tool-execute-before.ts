@@ -298,7 +298,7 @@ export function buildToolExecuteBeforeNodes(
 
       if (command === "stop-continuation" && sessionID) {
         context.continuationStopGuard?.stop(sessionID)
-        context.todoAutoContinuation?.cancelAllCountdowns()
+        context.taskAutoContinuation?.cancelAllCountdowns()
         context.ralphLoop?.cancelLoop(sessionID)
         if (context.directory) {
           createWorkStateManager(context.directory).clear()

@@ -165,7 +165,7 @@ Old tool outputs deep in history can often be removed safely; the agent generall
 ### 4.2 Medium-term improvements
 
 1. Improve session summarization templates to preserve:
-   - active TODOs / next steps
+   - active tasks / next steps
    - “do not do” constraints
    - critical environment state and tool prerequisites
 2. Add “preserve recent turns” behavior as an explicit knob to reduce momentum loss.

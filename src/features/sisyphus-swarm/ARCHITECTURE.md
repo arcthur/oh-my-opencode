@@ -34,12 +34,13 @@ Multi-agent coordination system using file-based messaging.
 │       │   │   └── msg_def.json
 │       │   └── ...
 └── tasks/
-    └── {list-id}/
-        └── {task-id}.json         # Shared task pool (single source of truth)
+    └── swarm/
+        └── {team-name}/
+            └── task_*.json         # Shared TaskGraph nodes (single source of truth)
 ```
 
 Notes:
-- The team manifest references the shared task list via `taskListId` (defaults to the team name).
+- Swarm tasks are stored in TaskGraph scope `swarm` with `container_id={team-name}`.
 - In worktree mode, `SISYPHUS_PROJECT_ROOT` is used so all agents share the same `.sisyphus/` directory.
 
 ## Message Flow
@@ -126,7 +127,7 @@ worker.reportTaskComplete()
 
 **Completion Detection Methods**:
 1. **Idle timeout**: 5s of no activity → task complete
-2. **Tool signals**: `TodoWrite(status=completed)` → task complete
+2. **Tool signals**: `task_transition(next_state=completed)` → task complete
 3. **Explicit timeout**: 30 min max per task (configurable)
 
 **Trade-off**: May report completion prematurely if session goes idle mid-task.
@@ -221,10 +222,10 @@ withLockSync(manifestPath, () => {
 
 ### Task Dependency Cycle Detection
 
-Before adding `blockedBy` dependencies, the system checks for cycles:
+Before adding `depends_on` dependencies, the system checks for cycles:
 
 ```typescript
-if (wouldCreateCycle(listId, taskId, blockerId, config)) {
+if (wouldCreateDependencyCycle(taskId, dependsOn, (id) => taskMap.get(id)?.depends_on ?? [])) {
   throw new Error("Cannot add dependency: would create a cycle")
 }
 ```
@@ -259,7 +260,7 @@ if (result.approved) {
 
 | Risk Level | Tools | Default |
 |------------|-------|---------|
-| Low | Read, Glob, Grep, LSP, WebFetch, WebSearch, Task, TaskOutput | Auto-approve |
+| Low | Read, Glob, Grep, LSP, WebFetch, WebSearch, task_create, task_get, task_list, task_update, task_transition | Auto-approve |
 | Medium | Custom tools | Callback decides |
 | High | Bash, Write, Edit, NotebookEdit | Human approval |
 

@@ -8,9 +8,6 @@
     "$schema": {
       "type": "string"
     },
-    "new_task_system_enabled": {
-      "type": "boolean"
-    },
     "default_run_agent": {
       "type": "string"
     },
@@ -66,7 +63,7 @@
       "items": {
         "type": "string",
         "enum": [
-          "todo-auto-continuation",
+          "task-auto-continuation",
           "context-window-governor",
           "session-state-repair",
           "session-notification",
@@ -1987,7 +1984,7 @@
           "default": {
             "execution-orchestrator": 400,
             "ralph-loop": 300,
-            "todo-auto-continuation": 200,
+            "task-auto-continuation": 200,
             "planning-with-files": 100
           },
           "type": "object",
@@ -2004,7 +2001,7 @@
               "minimum": 0,
               "maximum": 1000
             },
-            "todo-auto-continuation": {
+            "task-auto-continuation": {
               "default": 200,
               "type": "number",
               "minimum": 0,
@@ -2549,7 +2546,8 @@
                 "Glob",
                 "Grep",
                 "LSP",
-                "TodoRead"
+                "task_get",
+                "task_list"
               ],
               "type": "array",
               "items": {

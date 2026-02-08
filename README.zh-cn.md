@@ -197,7 +197,7 @@
   - Librarian：官方文档、开源实现、代码库探索 (Claude Sonnet 4.5)
   - Explore：极速代码库探索（上下文感知 Grep）(Grok Code Fast / Claude Haiku 回退)
 - 完整 LSP / AstGrep 支持：果断重构。
-- Todo 继续执行器：如果智能体中途退出，强制它继续。**这就是让 Sisyphus 继续推动巨石的关键。**
+- Task 继续执行器：如果智能体中途退出，强制它继续。**这就是让 Sisyphus 继续推动巨石的关键。**
 - 注释检查器：防止 AI 添加过多注释。Sisyphus 生成的代码应该与人类编写的代码无法区分。
 - Claude Code 兼容性：Command、Agent、Skill、MCP、Hook（PreToolUse、PostToolUse、UserPromptSubmit、Stop）
 - 精选 MCP：
@@ -238,7 +238,7 @@
 4. 如果 Sisyphus 陷入循环或碰壁，他不会继续撞墙——他会召唤 GPT 5.2 进行高智商战略支援。
 5. 在处理复杂的开源框架时？Sisyphus 生成子智能体实时消化原始源代码和文档。他拥有完整的上下文感知。
 6. 当 Sisyphus 处理注释时，他要么证明它们存在的必要性，要么删除它们。他保持你的代码库整洁。
-7. Sisyphus 受他的 TODO 列表约束。如果他没有完成开始的工作，系统会强制他回到"推石头"模式。你的任务会被完成，句号。
+7. Sisyphus 受 TaskGraph 约束。如果他没有完成开始的工作，系统会强制他回到"推石头"模式。你的任务会被完成，句号。
 8. 老实说，甚至不用费心读文档。只需写你的提示。包含 'ultrawork' 关键词。Sisyphus 会分析结构，收集上下文，挖掘外部源代码，然后持续推进直到工作 100% 完成。
 9. 其实，打 'ultrawork' 太费劲了。只需打 'ulw'。就 ulw。喝杯咖啡。你的工作完成了。
 
@@ -318,7 +318,7 @@ curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads
 - **Claude Code 兼容性**：完整的钩子系统、命令、技能、智能体、MCP
 - **内置 MCP**：websearch (Exa)、context7 (文档)、grep_app (GitHub 搜索)
 - **会话工具**：列出、读取、搜索和分析会话历史
-- **生产力功能**：Ralph Loop、Todo Enforcer、Comment Checker、Think Mode 等
+- **生产力功能**：Ralph Loop、Task 继续执行器、Comment Checker、Think Mode 等
 
 ## 配置
 

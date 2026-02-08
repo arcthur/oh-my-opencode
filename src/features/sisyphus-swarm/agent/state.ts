@@ -30,8 +30,8 @@ export const AgentStateSchema = z.object({
   status: AgentStatusSchema,
   /** Current task ID if working */
   currentTaskId: z.string().optional(),
-  /** Current task subject for display */
-  currentTaskSubject: z.string().optional(),
+  /** Current task title for display */
+  currentTaskTitle: z.string().optional(),
   /** Last status change timestamp */
   lastStatusChange: z.number(),
   /** Error message if in error state */
@@ -52,7 +52,7 @@ export type AgentState = z.infer<typeof AgentStateSchema>
 export type StateEvent =
   | { type: "JOIN_APPROVED" }
   | { type: "JOIN_REJECTED"; reason: string }
-  | { type: "TASK_ASSIGNED"; taskId: string; subject: string }
+  | { type: "TASK_ASSIGNED"; taskId: string; title: string }
   | { type: "TASK_COMPLETED" }
   | { type: "TASK_FAILED"; error: string }
   | { type: "PAUSE"; reason: string; resumeOn: string; timeoutMs?: number; requestId?: string }
@@ -132,7 +132,7 @@ export function applyEvent(state: AgentState, event: StateEvent): AgentState {
         ...state,
         status: "working",
         currentTaskId: event.taskId,
-        currentTaskSubject: event.subject,
+        currentTaskTitle: event.title,
         lastStatusChange: now,
       }
 
@@ -144,7 +144,7 @@ export function applyEvent(state: AgentState, event: StateEvent): AgentState {
         ...state,
         status: "idle",
         currentTaskId: undefined,
-        currentTaskSubject: undefined,
+        currentTaskTitle: undefined,
         pauseContext: undefined,
         lastStatusChange: now,
         tasksCompleted: state.tasksCompleted + 1,
@@ -158,7 +158,7 @@ export function applyEvent(state: AgentState, event: StateEvent): AgentState {
         ...state,
         status: "idle",
         currentTaskId: undefined,
-        currentTaskSubject: undefined,
+        currentTaskTitle: undefined,
         pauseContext: undefined,
         lastStatusChange: now,
         error: event.error,
@@ -202,7 +202,7 @@ export function applyEvent(state: AgentState, event: StateEvent): AgentState {
         ...state,
         status: "idle",
         currentTaskId: undefined,
-        currentTaskSubject: undefined,
+        currentTaskTitle: undefined,
         pauseContext: undefined,
         lastStatusChange: now,
         error: `Pause timeout: ${state.pauseContext?.reason ?? "unknown"}`,
@@ -340,12 +340,12 @@ export class AgentStateMachine {
    * Get state summary for display
    */
   getSummary(): string {
-    const { status, currentTaskSubject, error, tasksCompleted, tasksFailed } = this.state
+    const { status, currentTaskTitle, error, tasksCompleted, tasksFailed } = this.state
 
     let summary = `Status: ${status}`
 
-    if (currentTaskSubject) {
-      summary += ` | Task: ${currentTaskSubject}`
+    if (currentTaskTitle) {
+      summary += ` | Task: ${currentTaskTitle}`
     }
 
     if (error) {

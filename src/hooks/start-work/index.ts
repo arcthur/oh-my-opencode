@@ -2,9 +2,10 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { createWorkStateManager } from "../../features/work-state"
 import { log } from "../../shared/logger"
 import { updateSessionAgent } from "../../features/claude-code-session-state"
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { basename, isAbsolute, join } from "node:path"
-import { initializePlan, writePlan } from "../../features/planning-with-files/manager"
+import type { OhMyOpenCodeConfig } from "../../config/schema"
+import { listTaskNodes, syncPlanTasksToTaskGraph } from "../../features/task-system"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 
 export const HOOK_NAME = "start-work"
@@ -24,63 +25,6 @@ interface PlanProgress {
   total: number
   completed: number
   isComplete: boolean
-}
-
-async function migrateLegacyFlatPlans(cwd: string): Promise<void> {
-  const plansDir = join(cwd, ".sisyphus", "plans")
-  const manifestsDir = join(cwd, ".sisyphus", "context-manifests")
-  if (!existsSync(plansDir) || !existsSync(manifestsDir)) return
-
-  let entries: Array<{ name: string; isFile: () => boolean }> = []
-  try {
-    entries = readdirSync(plansDir, { withFileTypes: true }) as Array<{
-      name: string
-      isFile: () => boolean
-    }>
-  } catch {
-    return
-  }
-
-  const legacyPlanFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .map((entry) => entry.name)
-
-  for (const fileName of legacyPlanFiles) {
-    const rawPlanId = basename(fileName, ".md")
-    const planId = sanitizePathSegment(rawPlanId)
-    if (!planId) continue
-
-    const manifestPath = join(manifestsDir, `${planId}.md`)
-    if (!existsSync(manifestPath)) continue
-
-    const migratedPlanPath = join(plansDir, planId, "plan.md")
-    if (existsSync(migratedPlanPath)) continue
-
-    const legacyPlanPath = join(plansDir, fileName)
-    let legacyContent = ""
-    try {
-      legacyContent = readFileSync(legacyPlanPath, "utf-8")
-    } catch {
-      continue
-    }
-
-    try {
-      await initializePlan(cwd, planId, planId)
-      await writePlan(cwd, planId, legacyContent)
-      log(`[${HOOK_NAME}] Migrated legacy plan file into plan directory`, {
-        planId,
-        legacyPlanPath,
-        migratedPlanPath,
-      })
-    } catch (err) {
-      log(`[${HOOK_NAME}] Legacy plan migration failed (non-fatal)`, {
-        planId,
-        legacyPlanPath,
-        migratedPlanPath,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }
 }
 
 function extractUserRequestPlanId(promptText: string): string | null {
@@ -114,40 +58,76 @@ function resolvePlanPath(cwd: string, planPath: string): string {
   return isAbsolute(planPath) ? planPath : join(cwd, planPath)
 }
 
-function getPlanProgressFromFile(cwd: string, planPath: string): PlanProgress {
-  const absPath = resolvePlanPath(cwd, planPath)
-  if (!existsSync(absPath)) return { total: 0, completed: 0, isComplete: false }
-
+function computePlanProgressFromTaskGraph(
+  planId: string,
+  config: Partial<OhMyOpenCodeConfig>
+): PlanProgress {
   try {
-    const content = readFileSync(absPath, "utf-8")
-    const uncheckedMatches = content.match(/^[-*]\s*\[\s*\]/gm) || []
-    const checkedMatches = content.match(/^[-*]\s*\[[xX]\]/gm) || []
+    const tasks = listTaskNodes(
+      {
+        scope: "plan",
+        container_id: planId,
+        include_completed: true,
+      },
+      config
+    )
 
-    const total = uncheckedMatches.length + checkedMatches.length
-    const completed = checkedMatches.length
-    return {
-      total,
-      completed,
-      isComplete: total === 0 ? false : completed === total,
-    }
+    const total = tasks.length
+    const completed = tasks.filter((t) => t.state === "completed" || t.state === "cancelled").length
+    const remaining = total - completed
+    return { total, completed, isComplete: total > 0 && remaining === 0 }
   } catch {
     return { total: 0, completed: 0, isComplete: false }
   }
 }
 
 function findIncompletePlans(
-  cwd: string,
   planPaths: string[]
+  ,
+  config: Partial<OhMyOpenCodeConfig>
 ): Array<{ path: string; planId: string; progress: PlanProgress }> {
   return planPaths
     .map((p) => {
-      const progress = getPlanProgressFromFile(cwd, p)
-      return { path: p, planId: extractPlanIdFromPath(p), progress }
+      const planId = extractPlanIdFromPath(p)
+      const progress = computePlanProgressFromTaskGraph(planId, config)
+      return { path: p, planId, progress }
     })
     .filter((p) => !p.progress.isComplete)
 }
 
-export function createStartWorkHook(ctx: PluginInput) {
+function syncPlanTasksFromFile(
+  cwd: string,
+  planId: string,
+  planPath: string,
+  config: Partial<OhMyOpenCodeConfig>
+): { created: number; skipped: number } {
+  const absPath = resolvePlanPath(cwd, planPath)
+  if (!existsSync(absPath)) {
+    return { created: 0, skipped: 0 }
+  }
+
+  let planMarkdown = ""
+  try {
+    planMarkdown = readFileSync(absPath, "utf-8")
+  } catch {
+    return { created: 0, skipped: 0 }
+  }
+
+  const sync = syncPlanTasksToTaskGraph({
+    config,
+    scope: "plan",
+    container_id: planId,
+    planId,
+    planMarkdown,
+  })
+
+  return { created: sync.created.length, skipped: sync.skipped.length }
+}
+
+export function createStartWorkHook(
+  ctx: PluginInput,
+  taskConfig: Partial<OhMyOpenCodeConfig> = {}
+) {
   const workStateManager = createWorkStateManager(ctx.directory)
 
   return {
@@ -172,11 +152,6 @@ export function createStartWorkHook(ctx: PluginInput) {
 
       updateSessionAgent(input.sessionID, "sisyphus")
 
-      // Back-compat: Prometheus historically wrote plans to `.sisyphus/plans/{planId}.md`.
-      // Execution mode requires `.sisyphus/plans/{planId}/plan.md`, so we migrate
-      // legacy flat plans when a matching context manifest exists.
-      await migrateLegacyFlatPlans(ctx.directory)
-
       const existingState = workStateManager.load()
       const sessionId = input.sessionID
       const timestamp = new Date().toISOString()
@@ -195,7 +170,8 @@ export function createStartWorkHook(ctx: PluginInput) {
 
         if (matchedPlanPath) {
           const matchedPlanId = extractPlanIdFromPath(matchedPlanPath)
-          const progress = getPlanProgressFromFile(ctx.directory, matchedPlanPath)
+          syncPlanTasksFromFile(ctx.directory, matchedPlanId, matchedPlanPath, taskConfig)
+          const progress = computePlanProgressFromTaskGraph(matchedPlanId, taskConfig)
           const isSamePlan = existingState && existingState.plan_id === matchedPlanId
 
           if (isSamePlan) {
@@ -218,7 +194,7 @@ All ${progress.total} tasks are done. Create a new plan with: /plan "your task"`
 **Sessions**: ${sessions} (current session appended)
 **Original Start**: ${existingState.started_at}
 
-Continuing existing work session. Read the plan and continue from the first unchecked task.`
+Continuing existing work session. Use TaskGraph to continue from the next ready task.`
             }
           } else {
             if (progress.isComplete) {
@@ -238,11 +214,11 @@ All ${progress.total} tasks are done. Create a new plan with: /plan "your task"`
 **Session ID**: ${sessionId}
 **Started**: ${timestamp}
 
-work.yaml has been created. Read the plan and begin execution.`
+work.yaml has been created. Begin execution via TaskGraph (task_list/task_transition).`
             }
           }
         } else {
-          const incompletePlans = findIncompletePlans(ctx.directory, allPlans)
+          const incompletePlans = findIncompletePlans(allPlans, taskConfig)
           if (incompletePlans.length > 0) {
             const planList = incompletePlans
               .map((p, i) => `${i + 1}. [${p.planId}] - Progress: ${p.progress.completed}/${p.progress.total}`)
@@ -266,7 +242,13 @@ No incomplete plans available. Create a new plan with: /plan "your task"`
           }
         }
       } else if (existingState) {
-        const progress = workStateManager.getPlanProgress()
+        syncPlanTasksFromFile(
+          ctx.directory,
+          existingState.plan_id,
+          existingState.execution_plan_path,
+          taskConfig
+        )
+        const progress = computePlanProgressFromTaskGraph(existingState.plan_id, taskConfig)
 
         if (!progress.isComplete) {
           workStateManager.appendSessionId(sessionId)
@@ -282,7 +264,7 @@ No incomplete plans available. Create a new plan with: /plan "your task"`
 **Started**: ${existingState.started_at}
 
 The current session (${sessionId}) has been added to session_ids.
-Read the plan file and continue from the first unchecked task.`
+Use TaskGraph to continue from the next ready task.`
         } else {
           contextInfo = `
 ## Previous Work Complete
@@ -294,10 +276,10 @@ Looking for new plans...`
 
       if (
         (!existingState && !explicitPlanId) ||
-        (existingState && !explicitPlanId && workStateManager.getPlanProgress().isComplete)
+        (existingState && !explicitPlanId && computePlanProgressFromTaskGraph(existingState.plan_id, taskConfig).isComplete)
       ) {
         const allPlans = workStateManager.findPlans()
-        const incompletePlans = findIncompletePlans(ctx.directory, allPlans)
+        const incompletePlans = findIncompletePlans(allPlans, taskConfig)
 
         if (incompletePlans.length === 0) {
           if (allPlans.length === 0) {
@@ -317,6 +299,8 @@ All ${allPlans.length} plan(s) are complete. Create a new plan with: /plan "your
         } else if (incompletePlans.length === 1) {
           const plan = incompletePlans[0]
           workStateManager.initializePlan(plan.planId, sessionId)
+          syncPlanTasksFromFile(ctx.directory, plan.planId, plan.path, taskConfig)
+          const progress = computePlanProgressFromTaskGraph(plan.planId, taskConfig)
 
           contextInfo += `
 
@@ -324,11 +308,11 @@ All ${allPlans.length} plan(s) are complete. Create a new plan with: /plan "your
 
 **Plan ID**: ${plan.planId}
 **Path**: ${plan.path}
-**Progress**: ${plan.progress.completed}/${plan.progress.total} tasks
+**Progress**: ${progress.completed}/${progress.total} tasks
 **Session ID**: ${sessionId}
 **Started**: ${timestamp}
 
-work.yaml has been created. Read the plan and begin execution.`
+work.yaml has been created. Begin execution via TaskGraph (task_list/task_transition).`
         } else {
           const planList = incompletePlans
             .map((p, i) => {

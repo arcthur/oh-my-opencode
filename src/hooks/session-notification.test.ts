@@ -22,7 +22,6 @@ describe("session-notification", () => {
       },
       client: {
         session: {
-          todo: async () => ({ data: [] }),
         },
       },
       directory: "/tmp/test",
@@ -103,7 +102,7 @@ describe("session-notification", () => {
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 10,
-      skipIfIncompleteTodos: false,
+      skipIfIncompleteTasks: false,
     })
 
     // when - main session goes idle
@@ -189,7 +188,7 @@ describe("session-notification", () => {
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 100, // Long delay
-      skipIfIncompleteTodos: false,
+      skipIfIncompleteTasks: false,
     })
 
     // when - session goes idle
@@ -264,7 +263,7 @@ describe("session-notification", () => {
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 50,
-      skipIfIncompleteTodos: false,
+      skipIfIncompleteTasks: false,
     })
 
     // when - session goes idle, then message.updated fires
@@ -298,7 +297,7 @@ describe("session-notification", () => {
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 50,
-      skipIfIncompleteTodos: false,
+      skipIfIncompleteTasks: false,
     })
 
     // when - session goes idle, then tool.execute.before fires
@@ -330,7 +329,7 @@ describe("session-notification", () => {
 
     const hook = createSessionNotification(createMockPluginInput(), {
       idleConfirmationDelay: 10,
-      skipIfIncompleteTodos: false,
+      skipIfIncompleteTasks: false,
     })
 
     // when - session goes idle twice

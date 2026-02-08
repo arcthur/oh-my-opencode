@@ -60,7 +60,7 @@ export const OverridableAgentNameSchema = z.enum([
 export const AgentNameSchema = BuiltinAgentNameSchema
 
 export const HookNameSchema = z.enum([
-  "todo-auto-continuation",
+  "task-auto-continuation",
   "context-window-governor",
   "session-state-repair",
   "session-notification",
@@ -451,8 +451,8 @@ export const ContinuationControlPrioritySchema = z.object({
   "execution-orchestrator": z.number().min(0).max(1000).default(400),
   /** Ralph loop continuation */
   "ralph-loop": z.number().min(0).max(1000).default(300),
-  /** Todo continuation */
-  "todo-auto-continuation": z.number().min(0).max(1000).default(200),
+  /** Task continuation */
+  "task-auto-continuation": z.number().min(0).max(1000).default(200),
   /** Planning stop-verification continuation */
   "planning-with-files": z.number().min(0).max(1000).default(100),
 })
@@ -464,7 +464,7 @@ export const ContinuationControlConfigSchema = z.object({
   priority: ContinuationControlPrioritySchema.default({
     "execution-orchestrator": 400,
     "ralph-loop": 300,
-    "todo-auto-continuation": 200,
+    "task-auto-continuation": 200,
     "planning-with-files": 100,
   }),
 })
@@ -734,7 +734,7 @@ export const GovernanceConfigSchema = z.object({
     enabled: z.boolean().default(true),
     /** Tools that always skip approval (glob patterns) */
     skip_patterns: z.array(z.string()).default([
-      "Read", "Glob", "Grep", "LSP", "TodoRead",
+      "Read", "Glob", "Grep", "LSP", "task_get", "task_list",
     ]),
     /** Token expiry time in minutes (default: 30) */
     token_expiry_minutes: z.number().min(1).max(1440).default(30),
@@ -991,8 +991,6 @@ export const DEFAULT_SESSION_REFERENCE_CONFIG = SessionReferenceConfigSchema.par
 
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
-  /** Enable new task system (default: false) */
-  new_task_system_enabled: z.boolean().optional(),
   /** Default agent name for `oh-my-opencode run` (env: OPENCODE_DEFAULT_AGENT) */
   default_run_agent: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),

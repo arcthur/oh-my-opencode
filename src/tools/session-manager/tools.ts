@@ -5,7 +5,7 @@ import {
   SESSION_SEARCH_DESCRIPTION,
   SESSION_INFO_DESCRIPTION,
 } from "./constants"
-import { getAllSessions, getMainSessions, getSessionInfo, readSessionMessages, readSessionTodos, sessionExists } from "./storage"
+import { getAllSessions, getMainSessions, getSessionInfo, readSessionMessages, readSessionTasks, sessionExists } from "./storage"
 import {
   filterSessionsByDate,
   formatSessionInfo,
@@ -59,7 +59,7 @@ export const session_read: ToolDefinition = tool({
   description: SESSION_READ_DESCRIPTION,
   args: {
     session_id: tool.schema.string().describe("Session ID to read"),
-    include_todos: tool.schema.boolean().optional().describe("Include todo list if available (default: false)"),
+    include_tasks: tool.schema.boolean().optional().describe("Include task list if available (default: false)"),
     include_transcript: tool.schema.boolean().optional().describe("Include transcript log if available (default: false)"),
     limit: tool.schema.number().optional().describe("Maximum number of messages to return (default: all)"),
   },
@@ -75,9 +75,9 @@ export const session_read: ToolDefinition = tool({
         messages = messages.slice(0, args.limit)
       }
 
-      const todos = args.include_todos ? await readSessionTodos(args.session_id) : undefined
+      const tasks = args.include_tasks ? await readSessionTasks(args.session_id) : undefined
 
-      return formatSessionMessages(messages, args.include_todos, todos)
+      return formatSessionMessages(messages, args.include_tasks, tasks)
     } catch (e) {
       return `Error: ${e instanceof Error ? e.message : String(e)}`
     }

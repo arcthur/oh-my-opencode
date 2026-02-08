@@ -17,7 +17,7 @@ npx oh-my-opencode
 | Command | Description |
 |---------|-------------|
 | `install` | Interactive/non-interactive setup wizard |
-| `run <message>` | Run OpenCode and wait for todo/background completion |
+| `run <message>` | Run OpenCode and wait for task/background completion |
 | `get-local-version` | Show installed version and check npm latest |
 | `doctor` | Environment diagnostics and health checks |
 | `mcp oauth ...` | OAuth token management for MCP servers |
@@ -52,7 +52,7 @@ Notes:
 ## 4. `run <message>`
 
 Run a session and keep polling until:
-- all todos are completed/cancelled, and
+- all tasks are completed/cancelled, and
 - child/background sessions become idle.
 
 ```bash

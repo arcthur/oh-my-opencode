@@ -75,7 +75,7 @@ describe("agent/worker plan approval + mode control", () => {
       {
         type: "task_assignment",
         taskId: "task_001",
-        subject: "Test task",
+        title: "Test task",
         description: "Do thing",
         assignedBy: coordinator.id,
         timestamp: Date.now(),
@@ -125,7 +125,7 @@ describe("agent/worker plan approval + mode control", () => {
       {
         type: "task_assignment",
         taskId: "task_001",
-        subject: "Test task",
+        title: "Test task",
         description: "Do thing",
         assignedBy: coordinator.id,
         timestamp: Date.now(),
@@ -187,7 +187,7 @@ describe("agent/worker plan approval + mode control", () => {
       {
         type: "task_assignment",
         taskId: "task_001",
-        subject: "Test task",
+        title: "Test task",
         description: "Do thing",
         assignedBy: coordinator.id,
         timestamp: Date.now(),
@@ -256,7 +256,7 @@ describe("agent/worker plan approval + mode control", () => {
       {
         type: "task_assignment",
         taskId: "task_001",
-        subject: "Test task",
+        title: "Test task",
         description: "Do thing",
         assignedBy: coordinator.id,
         timestamp: Date.now(),
@@ -292,4 +292,3 @@ describe("agent/worker plan approval + mode control", () => {
     expect(w.isPlanApprovedForCurrentTask()).toBe(true)
   })
 })
-

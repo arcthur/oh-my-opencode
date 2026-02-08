@@ -50,9 +50,8 @@ export interface SwarmAgentHook {
 // Task completion detection settings
 const IDLE_TIMEOUT_MS = 5000 // Consider task complete after 5s of no activity
 const COMPLETION_TOOL_PATTERNS = [
-  /TodoWrite.*status.*completed/i,
-  /TodoWrite.*status.*done/i,
-  /TaskUpdate.*completed/i,
+  /task_transition.*completed/i,
+  /task_transition.*done/i,
 ]
 
 /**
@@ -170,7 +169,7 @@ export function createSwarmAgentHook(
           onTaskAssigned: async (task: TaskInfo) => {
             log("[swarm-agent] Task assigned", {
               taskId: task.id,
-              subject: task.subject,
+              title: task.title,
             })
 
             // Prompt the OpenCode session with the task
@@ -182,7 +181,7 @@ export function createSwarmAgentHook(
                 `# Swarm Task Assignment`,
                 ``,
                 `**Task ID:** ${task.id}`,
-                `**Subject:** ${task.subject}`,
+                `**Title:** ${task.title}`,
               ]
 
               // Add priority if specified
@@ -253,7 +252,7 @@ export function createSwarmAgentHook(
                 `---`,
                 ``,
                 `Work autonomously until complete. When finished:`,
-                `- Use TodoWrite to mark related todos as completed, OR`,
+                `- Use task_transition to mark related tasks as completed, OR`,
                 `- Simply finish your work and the task will auto-complete after idle`
               )
 
@@ -506,8 +505,11 @@ export function createSwarmAgentHook(
           "Grep",
           "WebFetch",
           "WebSearch",
-          "TodoRead",
-          "TodoWrite",
+          "task_get",
+          "task_list",
+          "task_create",
+          "task_update",
+          "task_transition",
           "glob",
           "grep",
           "session_read",

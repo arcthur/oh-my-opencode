@@ -6,15 +6,12 @@
  */
 
 export { WorkStateManager, createWorkStateManager } from "./manager"
+export { resolveActiveTaskSelector, type ActiveTaskSelectorResult, type ActiveTaskSelectorSource } from "./task-selector"
 export type {
   WorkState,
   ErrorRecord,
   BlockerRecord,
-  PhaseCompletion,
   Decision,
-  PlanProgress,
-  Phase,
-  PhaseStatus,
 } from "./types"
 export {
   WorkStateSchema,

@@ -9,8 +9,8 @@ export const SYSTEM_DIRECTIVE_PREFIX = "[SYSTEM DIRECTIVE: OH-MY-OPENCODE"
 
 /**
  * Creates a system directive header with the given type.
- * @param type - The directive type (e.g., "TODO CONTINUATION", "RALPH LOOP")
- * @returns Formatted directive string like "[SYSTEM DIRECTIVE: OH-MY-OPENCODE - TODO CONTINUATION]"
+ * @param type - The directive type (e.g., "TASK CONTINUATION", "RALPH LOOP")
+ * @returns Formatted directive string like "[SYSTEM DIRECTIVE: OH-MY-OPENCODE - TASK CONTINUATION]"
  */
 export function createSystemDirective(type: string): string {
   return `${SYSTEM_DIRECTIVE_PREFIX} - ${type}]`
@@ -47,7 +47,7 @@ export function removeSystemReminders(text: string): string {
 }
 
 export const SystemDirectiveTypes = {
-  TODO_CONTINUATION: "TODO CONTINUATION",
+  TASK_CONTINUATION: "TASK CONTINUATION",
   RALPH_LOOP: "RALPH LOOP",
   WORK_CONTINUATION: "WORK CONTINUATION",
   DELEGATION_REQUIRED: "DELEGATION REQUIRED",

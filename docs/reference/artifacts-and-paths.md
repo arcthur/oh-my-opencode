@@ -78,7 +78,7 @@ The `.sisyphus/` directory is used for fork-owned artifacts such as:
 
 - Plans:
   - Planner drafts: `.sisyphus/plans/<planId>.md`
-  - Execution plan directories: `.sisyphus/plans/<planId>/` (SSOT: `plan.md`)
+  - Execution plan directories: `.sisyphus/plans/<planId>/` (plan spec: `plan.md`; task state SSOT: TaskGraph under `.sisyphus/tasks/plan/<planId>/`)
 - Plan reviews: `.sisyphus/plan-reviews/`
 - Notepads: `.sisyphus/notepads/`
 - Ralph loop state: `.sisyphus/ralph-loop.local.md` (when enabled and active)
@@ -86,12 +86,24 @@ The `.sisyphus/` directory is used for fork-owned artifacts such as:
 
 ### Tasks and Swarm storage paths (configurable)
 
-Sisyphus Tasks and Swarm store state in configurable directories:
+TaskGraph and Swarm store state in configurable directories:
 
 - Tasks: default `.sisyphus/tasks` (`sisyphus.tasks.storage_path`)
 - Teams: default `.sisyphus/teams` (`sisyphus.swarm.storage_path`)
 
-See `src/config/schema.ts` (`SisyphusTasksConfigSchema`, `SisyphusSwarmConfigSchema`).
+TaskGraph per-container layout:
+
+```text
+.sisyphus/tasks/<scope>/<container_id>/task_*.json
+```
+
+Scopes:
+
+- `session`: `container_id` is a session id
+- `plan`: `container_id` is a plan id
+- `swarm`: `container_id` is a team name
+
+See `src/config/schema.ts` (`SisyphusTasksConfigSchema`, `SisyphusSwarmConfigSchema`) and `docs/reference/task-graph.md`.
 
 ## Parallel Agents (tmux + git worktrees)
 

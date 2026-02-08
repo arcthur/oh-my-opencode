@@ -1,9 +1,11 @@
 import pc from "picocolors"
-import type { RunContext, Todo, ChildSession, SessionStatus } from "./types"
+import { countIncompleteTasks } from "../../features/task-system"
+import { resolveActiveTaskSelector } from "../../features/work-state"
+import type { RunContext, ChildSession, SessionStatus } from "./types"
 
 export async function checkCompletionConditions(ctx: RunContext): Promise<boolean> {
   try {
-    if (!await areAllTodosComplete(ctx)) {
+    if (!await areAllTasksComplete(ctx)) {
       return false
     }
 
@@ -18,16 +20,12 @@ export async function checkCompletionConditions(ctx: RunContext): Promise<boolea
   }
 }
 
-async function areAllTodosComplete(ctx: RunContext): Promise<boolean> {
-  const todosRes = await ctx.client.session.todo({ path: { id: ctx.sessionID } })
-  const todos = (todosRes.data ?? []) as Todo[]
+async function areAllTasksComplete(ctx: RunContext): Promise<boolean> {
+  const resolved = resolveActiveTaskSelector(ctx.directory, ctx.sessionID)
+  const incompleteTasks = countIncompleteTasks(resolved.selector, ctx.taskConfig ?? {})
 
-  const incompleteTodos = todos.filter(
-    (t) => t.status !== "completed" && t.status !== "cancelled"
-  )
-
-  if (incompleteTodos.length > 0) {
-    console.log(pc.dim(`  Waiting: ${incompleteTodos.length} todos remaining`))
+  if (incompleteTasks > 0) {
+    console.log(pc.dim(`  Waiting: ${incompleteTasks} tasks remaining`))
     return false
   }
 

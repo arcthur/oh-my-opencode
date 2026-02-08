@@ -44,13 +44,12 @@ describe("swarm-from-plan hook", () => {
     mkdirSync(tasksDir, { recursive: true })
 
     mkdirSync(join(projectDir, ".sisyphus", "plans"), { recursive: true })
-    mkdirSync(join(projectDir, ".sisyphus", "context-manifests"), { recursive: true })
 
-    // Minimal work.yaml (v2)
+    // Minimal work.yaml (v3)
     writeFileSync(
       join(projectDir, ".sisyphus", "work.yaml"),
       [
-        `schema_version: 2`,
+        `schema_version: 3`,
         `plan_id: "demo"`,
         `execution_plan_path: ".sisyphus/plans/demo/plan.md"`,
         `runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml"`,
@@ -60,7 +59,6 @@ describe("swarm-from-plan hook", () => {
         `last_findings_mtime: 0`,
         `errors: []`,
         `blockers: []`,
-        `phase_completions: []`,
         `decisions: []`,
       ].join("\n"),
       "utf-8"
@@ -70,7 +68,7 @@ describe("swarm-from-plan hook", () => {
     mkdirSync(join(projectDir, ".sisyphus", "plans", "demo"), { recursive: true })
     writeFileSync(
       join(projectDir, ".sisyphus", "plans", "demo", "plan.md"),
-      `# Demo\n\n## TODOs\n\n- [ ] 1. Task A\n\n  **Context Packs (REQUIRED)**:\n  - Context Packs: global\n`,
+      `# Demo\n\n## Tasks\n\n- 1. Task A\n\n  Context Packs: global\n`,
       "utf-8"
     )
     writeFileSync(
@@ -78,12 +76,6 @@ describe("swarm-from-plan hook", () => {
       `schema_version: 1\nplan_id: demo\nerrors: []\nblockers: []\ndecisions: []\nupdated_at: "2026-02-05T00:00:00Z"\n`,
       "utf-8"
     )
-    writeFileSync(
-      join(projectDir, ".sisyphus", "context-manifests", "demo.md"),
-      `[CONTEXT_MANIFEST]\n{"schemaVersion":2,"planId":"demo","generatedAt":"2026-02-05T00:00:00Z","packs":[{"id":"global","title":"G","items":[{"kind":"doc","ref":"docs/x.md"}]}]}\n[/CONTEXT_MANIFEST]`,
-      "utf-8"
-    )
-
     config = {
       sisyphus: {
         tasks: { enabled: true, storage_path: tasksDir },
@@ -98,7 +90,7 @@ describe("swarm-from-plan hook", () => {
     if (existsSync(tasksDir)) rmSync(tasksDir, { recursive: true })
   })
 
-  test("syncs plan todos to task pool on /start-work", async () => {
+  test("syncs plan tasks to TaskGraph on /start-work", async () => {
     // #given
     const { createSwarmFromPlanHook } = await import("./index")
     const runtime = createSwarmRuntimeService()
@@ -127,7 +119,7 @@ describe("swarm-from-plan hook", () => {
     expect(teamName).toBeDefined()
     expect(teamName?.startsWith("demo-")).toBe(true)
 
-    const listDir = join(tasksDir, teamName!)
+    const listDir = join(tasksDir, "swarm", teamName!)
     const entries = existsSync(listDir) ? readdirSync(listDir) : []
     expect(entries.filter((e) => e.endsWith(".json"))).toHaveLength(1)
 

@@ -21,7 +21,7 @@ import {
   notifyIdle,
 } from "../team/membership"
 import type { AgentIdentity, AgentCapability } from "../team/types"
-import { workerReportCompletion } from "../task-pool/assignment"
+import { workerReportCompletion } from "../task-graph"
 import { AgentStateMachine, type StateEvent } from "./state"
 import { getSwarmEnvContext } from "../tmux/utils"
 
@@ -71,7 +71,7 @@ export type RiskLevel = "low" | "medium" | "high"
  */
 export interface TaskInfo {
   id: string
-  subject: string
+  title: string
   description: string
   /** Optional context summary (e.g., relevant notepad content) */
   contextSummary?: string
@@ -396,7 +396,7 @@ export class WorkerAgent {
     this.clearPlanApprovalWatcher()
 
     // Notify coordinator so the task can be safely requeued/reassigned.
-    // Critical: the worker must NOT directly mutate the shared task pool in a way
+    // Critical: the worker must NOT directly mutate the shared TaskGraph in a way
     // that could clobber a newer assignment.
     this.rejectTaskAssignment(failedTaskId, error)
 
@@ -673,7 +673,7 @@ export class WorkerAgent {
     this.stateMachine.dispatch({
       type: "TASK_ASSIGNED",
       taskId: task.id,
-      subject: task.subject,
+      title: task.title,
     })
 
     // Store current task
@@ -782,7 +782,7 @@ export class WorkerAgent {
         if (this.stateMachine.is("idle")) {
           await this.processTaskAssignment({
             id: payload.taskId,
-            subject: payload.subject,
+            title: payload.title,
             description: payload.description,
             // Extended metadata fields
             contextSummary: payload.contextSummary,

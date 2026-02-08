@@ -13,7 +13,7 @@ export const RALPH_LOOP_TEMPLATE = `You are starting a Ralph Loop - a self-refer
 - Don't output the completion promise until the task is truly done
 - Each iteration should make meaningful progress toward the goal
 - If stuck, try different approaches
-- Use todos to track your progress
+- Use tasks to track your progress
 
 ## Exit Conditions
 

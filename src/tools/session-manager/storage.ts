@@ -1,8 +1,9 @@
 import { existsSync, readdirSync } from "node:fs"
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
-import { MESSAGE_STORAGE, PART_STORAGE, SESSION_STORAGE, TODO_DIR, TRANSCRIPT_DIR } from "./constants"
-import type { SessionMessage, SessionInfo, TodoItem, SessionMetadata } from "./types"
+import { listSessionTasks } from "../../features/task-system"
+import { MESSAGE_STORAGE, PART_STORAGE, SESSION_STORAGE, TRANSCRIPT_DIR } from "./constants"
+import type { SessionMessage, SessionInfo, SessionTaskItem, SessionMetadata } from "./types"
 
 export interface GetMainSessionsOptions {
   directory?: string
@@ -160,34 +161,20 @@ async function readParts(messageID: string): Promise<Array<{ id: string; type: s
   return parts.sort((a, b) => a.id.localeCompare(b.id))
 }
 
-export async function readSessionTodos(sessionID: string): Promise<TodoItem[]> {
-  if (!existsSync(TODO_DIR)) return []
-
+export async function readSessionTasks(sessionID: string): Promise<SessionTaskItem[]> {
   try {
-    const allFiles = await readdir(TODO_DIR)
-    const todoFiles = allFiles.filter((f) => f.includes(sessionID) && f.endsWith(".json"))
-
-    for (const file of todoFiles) {
-      try {
-        const content = await readFile(join(TODO_DIR, file), "utf-8")
-        const data = JSON.parse(content)
-        if (Array.isArray(data)) {
-          return data.map((item) => ({
-            id: item.id || "",
-            content: item.content || "",
-            status: item.status || "pending",
-            priority: item.priority,
-          }))
-        }
-      } catch {
-        continue
-      }
-    }
+    return listSessionTasks(sessionID, {}).map((task) => ({
+      id: task.id,
+      title: task.title,
+      state: task.state,
+      readiness: task.readiness,
+      blocked_by_unresolved: task.blocked_by_unresolved,
+      owner: task.owner,
+      priority: task.priority,
+    }))
   } catch {
     return []
   }
-
-  return []
 }
 
 export async function readSessionTranscript(sessionID: string): Promise<number> {
@@ -221,7 +208,7 @@ export async function getSessionInfo(sessionID: string): Promise<SessionInfo | n
     }
   }
 
-  const todos = await readSessionTodos(sessionID)
+  const tasks = await readSessionTasks(sessionID)
   const transcriptEntries = await readSessionTranscript(sessionID)
 
   return {
@@ -230,9 +217,9 @@ export async function getSessionInfo(sessionID: string): Promise<SessionInfo | n
     first_message: firstMessage,
     last_message: lastMessage,
     agents_used: Array.from(agentsUsed),
-    has_todos: todos.length > 0,
+    has_tasks: tasks.length > 0,
     has_transcript: transcriptEntries > 0,
-    todos,
+    tasks,
     transcript_entries: transcriptEntries,
   }
 }

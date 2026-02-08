@@ -193,7 +193,7 @@ Windows から Linux に初めて乗り換えた時のこと、自分の思い�
   - Librarian: 公式ドキュメント、オープンソース実装、コードベース探索 (Claude Sonnet 4.5)
    - Explore: 超高速コードベース探索 (Contextual Grep) (Claude Haiku 4.5)
 - Full LSP / AstGrep Support: 決定的にリファクタリングしましょう。
-- Todo Continuation Enforcer: 途中で諦めたら、続行を強制します。これがシジフォスに岩を転がし続けさせる秘訣です。
+- Task Continuation Enforcer: 途中で諦めたら、続行を強制します。これがシジフォスに岩を転がし続けさせる秘訣です。
 - Comment Checker: AIが過剰なコメントを付けないようにします。シジフォスが生成したコードは、人間が書いたものと区別がつかないべきです。
 - Claude Code Compatibility: Command, Agent, Skill, MCP, Hook(PreToolUse, PostToolUse, UserPromptSubmit, Stop)
 - Curated MCPs:
@@ -234,7 +234,7 @@ Windows から Linux に初めて乗り換えた時のこと、自分の思い�
 1. もしSisyphusがループに陥ったり壁にぶつかったりしても、無駄に悩み続けることはありません。高IQな戦略的バックアップとしてGPT 5.2を呼び出します。
 1. 複雑なオープンソースフレームワークを扱っていますか？Sisyphusはサブエージェントを生成し、生のソースコードやドキュメントをリアルタイムで消化します。彼は完全なコンテキスト認識を持って動作します。
 1. Sisyphusがコメントに触れるとき、その存在意義を証明するか、さもなくば削除します。あなたのコードベースを常にクリーンに保ちます。
-1. Sisyphusは自身のTODOリストに縛られています。もし始めたことを終わらせられなければ、システムは彼を強制的に「bouldering」モードに戻します。あなたのタスクは、何があろうと完了します。
+1. SisyphusはTaskGraphに縛られています。もし始めたことを終わらせられなければ、システムは彼を強制的に「bouldering」モードに戻します。あなたのタスクは、何があろうと完了します。
 1. 正直、ドキュメントなんて読む必要はありません。ただプロンプトを書いてください。「ultrawork」というキーワードを含めるだけで十分です。Sisyphusが構造を分析し、コンテキストを集め、外部のソースコードまで掘り下げ、仕事が100%完了するまでboulderingを続けます。
 1. ぶっちゃけ、「ultrawork」と打つのすら面倒ですよね。それなら「ulw」だけでOKです。ただulwと打ち、コーヒーでも飲んでいてください。仕事は終わっています。
 
@@ -308,7 +308,7 @@ oh-my-opencode を削除するには：
 - **Claude Code 互換性**: 完全なフックシステム、コマンド、スキル、エージェント、MCP
 - **内蔵 MCP**: websearch (Exa)、context7 (ドキュメント)、grep_app (GitHub 検索)
 - **セッションツール**: セッション履歴の一覧、読み取り、検索、分析
-- **生産性機能**: Ralph Loop、Todo Enforcer、Comment Checker、Think Mode など
+- **生産性機能**: Ralph Loop、Task Continuation Enforcer、Comment Checker、Think Mode など
 
 ## 設定
 

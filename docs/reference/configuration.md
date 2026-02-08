@@ -29,7 +29,6 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 ### Meta / wiring
 
 - `$schema`: Optional JSON schema URL for editor autocomplete.
-- `new_task_system_enabled`: Reserved flag. Parsed and defaulted, but not wired to runtime behavior yet.
 - `experimental`: Experimental feature toggles (see [Experimental](#experimental)).
 - `auto_update`: Controls whether `auto-update-checker` performs automatic install or notification-only mode (see [Auto Update](#auto-update)).
 
@@ -505,7 +504,7 @@ Configuration example:
     "priority": {
       "execution-orchestrator": 400,
       "ralph-loop": 300,
-      "todo-auto-continuation": 200,
+      "task-auto-continuation": 200,
       "planning-with-files": 100
     }
   }
@@ -516,7 +515,7 @@ Sources (current implementation):
 
 - `execution-orchestrator`
 - `ralph-loop`
-- `todo-auto-continuation`
+- `task-auto-continuation`
 - `planning-with-files`
 
 ## Ralph Loop
@@ -618,8 +617,8 @@ Schema: `SisyphusConfigSchema` in `src/config/schema.ts`.
 
 ### Tasks
 
-- `sisyphus.tasks.enabled` (default: `false`): Enables the Tasks subsystem.
-- `sisyphus.tasks.storage_path` (default: `.sisyphus/tasks`): Storage directory.
+- `sisyphus.tasks.enabled` (default: `false`): Enables TaskGraph V2.
+- `sisyphus.tasks.storage_path` (default: `.sisyphus/tasks`): Root storage directory. Runtime layout is `<root>/<scope>/<container_id>/task_*.json`.
 
 ### Swarm
 

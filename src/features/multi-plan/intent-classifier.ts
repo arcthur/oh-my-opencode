@@ -154,7 +154,7 @@ export function buildAISlopGuardrails(): string {
 | **Feature creep** | "While we're at it, let's also..." | Resist - stay focused |
 | **Unnecessary flexibility** | Config for everything | Hardcode until flexibility is needed |
 
-**Before writing EACH TODO, ask yourself:**
+**Before writing EACH task item, ask yourself:**
 1. Is this explicitly requested? If NO → don't include it
 2. Does this add complexity without proportional value? If YES → simplify
 3. Am I adding "best practices" that weren't asked for? If YES → remove
@@ -171,7 +171,7 @@ export function buildAISlopGuardrails(): string {
 - ❌ Creating configuration files for hardcoded values
 
 **Required Self-Check at End of Plan:**
-- [ ] Every TODO traces to an explicit requirement
+- [ ] Every task item traces to an explicit requirement
 - [ ] No "nice to have" items snuck in
 - [ ] Scope matches request exactly
 - [ ] No premature abstractions

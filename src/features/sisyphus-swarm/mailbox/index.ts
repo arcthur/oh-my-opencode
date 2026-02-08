@@ -11,7 +11,7 @@
  * sendMessage(teamName, myAgentId, workerAgentId, {
  *   type: "task_assignment",
  *   taskId: "task_001",
- *   subject: "Implement feature X",
+ *   title: "Implement feature X",
  *   description: "...",
  *   assignedBy: myAgentId,
  *   timestamp: Date.now(),

@@ -52,7 +52,7 @@ If you need a definitive answer for “can I disable this?”, consult the wirin
 `disabled_hooks` accepts only names defined in `src/config/schema.ts`:
 
 ```text
-todo-auto-continuation
+task-auto-continuation
 context-window-governor
 session-state-repair
 session-notification

@@ -73,7 +73,7 @@ $ARGUMENTS
   },
   "stop-continuation": {
     description:
-      "(builtin) Stop all continuation mechanisms (ralph loop, todo continuation, work-state) for this session",
+      "(builtin) Stop all continuation mechanisms (ralph loop, task continuation, work-state) for this session",
     template: `<command-instruction>
 ${STOP_CONTINUATION_TEMPLATE}
 </command-instruction>`,

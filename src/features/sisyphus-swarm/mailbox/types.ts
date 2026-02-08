@@ -54,7 +54,7 @@ export type ShutdownRejected = z.infer<typeof ShutdownRejectedSchema>
 export const TaskAssignmentSchema = z.object({
   type: z.literal("task_assignment"),
   taskId: z.string(),
-  subject: z.string(),
+  title: z.string(),
   description: z.string(),
   assignedBy: z.string(),
   timestamp: z.number(),

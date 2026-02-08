@@ -201,7 +201,7 @@ Hey please read this readme and tell me why it is different from other agent har
   - Librarian: 공식 문서, 오픈 소스 구현, 코드베이스 탐색 (Claude Sonnet 4.5)
    - Explore: 엄청나게 빠른 코드베이스 탐색 (Contextual Grep) (Claude Haiku 4.5)
 - 완전한 LSP / AstGrep 지원: 결정적으로 리팩토링합니다.
-- TODO 연속 강제: 에이전트가 중간에 멈추면 계속하도록 강제합니다. **이것이 Sisyphus가 그 바위를 굴리게 하는 것입니다.**
+- Task 연속 강제: 에이전트가 중간에 멈추면 계속하도록 강제합니다. **이것이 Sisyphus가 그 바위를 굴리게 하는 것입니다.**
 - 주석 검사기: AI가 과도한 주석을 추가하는 것을 방지합니다. Sisyphus가 생성한 코드는 인간이 작성한 것과 구별할 수 없어야 합니다.
 - Claude Code 호환성: 명령, 에이전트, 스킬, MCP, 훅(PreToolUse, PostToolUse, UserPromptSubmit, Stop)
 - 큐레이팅된 MCP:
@@ -224,7 +224,7 @@ Hey please read this readme and tell me why it is different from other agent har
 1. Sisyphus가 루프에 갇히거나 벽에 부딪히면 머리를 계속 부딪히지 않습니다. GPT 5.2에 고지능 전략 백업을 요청합니다.
 1. 복잡한 오픈 소스 프레임워크를 작업하고 있나요? Sisyphus는 하위 에이전트를 생성하여 실시간으로 원시 소스 코드와 문서를 소화합니다. 완전한 컨텍스트 인식으로 작동합니다.
 1. Sisyphus가 주석을 다루면 존재를 정당화하거나 제거합니다. 코드베이스를 깔끔하게 유지합니다.
-1. Sisyphus는 TODO 목록에 묶여 있습니다. 시작한 것을 완료하지 않으면 시스템이 "바위 굴리기" 모드로 다시 강제합니다. 작업이 완료됩니다.
+1. Sisyphus는 TaskGraph에 묶여 있습니다. 시작한 것을 완료하지 않으면 시스템이 "바위 굴리기" 모드로 다시 강제합니다. 작업이 완료됩니다.
 1. 솔직히, 문서를 읽을 필요조차 없습니다. 프롬프트를 작성하세요. 'ultrawork' 키워드를 포함하세요. Sisyphus는 구조를 분석하고, 컨텍스트를 수집하고, 외부 소스 코드를 파헤치고, 작업이 100% 완료될 때까지 계속 바위를 굴립니다.
 1. 사실, 'ultrawork'를 입력하는 것도 너무 많은 노력입니다. 'ulw'를 입력하세요. 그냥 ulw. 커피를 마시세요. 작업이 완료되었습니다.
 
@@ -321,7 +321,7 @@ oh-my-opencode를 제거하려면:
 - **Claude Code 호환성**: 완전한 훅 시스템, 명령, 스킬, 에이전트, MCP
 - **내장 MCP**: websearch(Exa), context7(문서), grep_app(GitHub 검색)
 - **세션 도구**: 세션 기록 나열, 읽기, 검색 및 분석
-- **생산성 기능**: Ralph 루프, Todo 강제, 주석 검사기, 생각 모드 등
+- **생산성 기능**: Ralph 루프, Task 연속 강제, 주석 검사기, 생각 모드 등
 
 ## 구성
 

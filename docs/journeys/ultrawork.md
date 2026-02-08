@@ -170,7 +170,7 @@ Everything in Oh My OpenCode is designed to make this loop work:
 | Multi-Model Planning | Catch ambiguities and blind spots via plan comparison + synthesis |
 | Plan Synthesizer | Verify plans are complete and actionable before execution |
 | Orchestrator | Coordinate work without human micromanagement |
-| Todo Continuation | Force completion, prevent "I'm done" lies |
+| Task Continuation | Force completion, prevent "I'm done" lies |
 | Category System | Route to optimal model without human decision |
 | Background Agents | Parallel research without blocking user |
 | Wisdom Accumulation | Learn from work, don't repeat mistakes |

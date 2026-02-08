@@ -6,7 +6,6 @@ export const OPENCODE_STORAGE = getOpenCodeStorageDir()
 export const MESSAGE_STORAGE = join(OPENCODE_STORAGE, "message")
 export const PART_STORAGE = join(OPENCODE_STORAGE, "part")
 export const SESSION_STORAGE = join(OPENCODE_STORAGE, "session")
-export const TODO_DIR = join(getClaudeConfigDir(), "todos")
 export const TRANSCRIPT_DIR = join(getClaudeConfigDir(), "transcripts")
 export const SESSION_LIST_DESCRIPTION = `List all OpenCode sessions with optional filtering.
 
@@ -25,11 +24,11 @@ Example output:
 
 export const SESSION_READ_DESCRIPTION = `Read messages and history from an OpenCode session.
 
-Returns a formatted view of session messages with role, timestamp, and content. Optionally includes todos and transcript data.
+Returns a formatted view of session messages with role, timestamp, and content. Optionally includes task summaries and transcript data.
 
 Arguments:
 - session_id (required): Session ID to read
-- include_todos (optional): Include todo list if available (default: false)
+- include_tasks (optional): Include task list if available (default: false)
 - include_transcript (optional): Include transcript log if available (default: false)
 - limit (optional): Maximum number of messages to return (default: all)
 
@@ -79,12 +78,12 @@ Messages: 45
 Date Range: 2025-12-20 10:30:00 to 2025-12-24 15:45:30
 Duration: 4 days, 5 hours
 Agents Used: build, oracle, librarian
-Has Todos: Yes (12 items, 8 completed)
+Has Tasks: Yes (12 items, 8 completed)
 Has Transcript: Yes (234 entries)`
 
 export const SESSION_DELETE_DESCRIPTION = `Delete an OpenCode session and all associated data.
 
-Removes session messages, parts, todos, and transcript. This operation cannot be undone.
+Removes session messages, parts, and transcript. This operation cannot be undone.
 
 Arguments:
 - session_id (required): Session ID to delete

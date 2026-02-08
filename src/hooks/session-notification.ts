@@ -1,6 +1,8 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { platform } from "os"
+import type { OhMyOpenCodeConfig } from "../config/schema"
 import { getMainSessionID, isSubagentSession } from "../features/claude-code-session-state"
+import { countIncompleteSessionTasks } from "../features/task-system"
 import {
   getOsascriptPath,
   getNotifySendPath,
@@ -11,13 +13,6 @@ import {
   startBackgroundCheck,
 } from "./session-notification-utils"
 
-interface Todo {
-  content: string
-  status: string
-  priority: string
-  id: string
-}
-
 interface SessionNotificationConfig {
   title?: string
   message?: string
@@ -25,8 +20,8 @@ interface SessionNotificationConfig {
   soundPath?: string
   /** Delay in ms before sending notification to confirm session is still idle (default: 1500) */
   idleConfirmationDelay?: number
-  /** Skip notification if there are incomplete todos (default: true) */
-  skipIfIncompleteTodos?: boolean
+  /** Skip notification if there are incomplete tasks (default: true) */
+  skipIfIncompleteTasks?: boolean
   /** Maximum number of sessions to track before cleanup (default: 100) */
   maxTrackedSessions?: number
 }
@@ -128,12 +123,12 @@ async function playSound(ctx: PluginInput, p: Platform, soundPath: string): Prom
   }
 }
 
-async function hasIncompleteTodos(ctx: PluginInput, sessionID: string): Promise<boolean> {
+async function hasIncompleteTasks(
+  sessionID: string,
+  taskConfig: Partial<OhMyOpenCodeConfig>
+): Promise<boolean> {
   try {
-    const response = await ctx.client.session.todo({ path: { id: sessionID } })
-    const todos = (response.data ?? response) as Todo[]
-    if (!todos || todos.length === 0) return false
-    return todos.some((t) => t.status !== "completed" && t.status !== "cancelled")
+    return countIncompleteSessionTasks(sessionID, taskConfig) > 0
   } catch {
     return false
   }
@@ -141,7 +136,8 @@ async function hasIncompleteTodos(ctx: PluginInput, sessionID: string): Promise<
 
 export function createSessionNotification(
   ctx: PluginInput,
-  config: SessionNotificationConfig = {}
+  config: SessionNotificationConfig = {},
+  taskConfig: Partial<OhMyOpenCodeConfig> = {}
 ) {
   const currentPlatform = detectPlatform()
   const defaultSoundPath = getDefaultSoundPath(currentPlatform)
@@ -154,7 +150,7 @@ export function createSessionNotification(
     playSound: false,
     soundPath: defaultSoundPath,
     idleConfirmationDelay: 1500,
-    skipIfIncompleteTodos: true,
+    skipIfIncompleteTasks: true,
     maxTrackedSessions: 100,
     ...config,
   }
@@ -229,8 +225,8 @@ export function createSessionNotification(
 
     executingNotifications.add(sessionID)
     try {
-      if (mergedConfig.skipIfIncompleteTodos) {
-        const hasPendingWork = await hasIncompleteTodos(ctx, sessionID)
+      if (mergedConfig.skipIfIncompleteTasks) {
+        const hasPendingWork = await hasIncompleteTasks(sessionID, taskConfig)
         if (notificationVersions.get(sessionID) !== version) {
           return
         }

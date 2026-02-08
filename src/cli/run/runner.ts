@@ -182,6 +182,7 @@ export async function run(options: RunOptions): Promise<number> {
         sessionID,
         directory,
         abortController,
+        taskConfig: pluginConfig,
       }
 
       const events = await client.event.subscribe()
@@ -210,7 +211,7 @@ export async function run(options: RunOptions): Promise<number> {
         // Check if session errored - exit with failure if so
         if (eventState.mainSessionError) {
           console.error(pc.red(`\n\nSession ended with error: ${eventState.lastError}`))
-          console.error(pc.yellow("Check if todos were completed before the error."))
+          console.error(pc.yellow("Check if tasks were completed before the error."))
           cleanup()
           process.exit(1)
         }
@@ -218,7 +219,7 @@ export async function run(options: RunOptions): Promise<number> {
         // Guard against premature completion: don't check completion until the
         // session has produced meaningful work (text output, tool call, or tool result).
         // Without this, a session that goes busy->idle before the LLM responds
-        // would exit immediately because 0 todos + 0 children = "complete".
+        // would exit immediately because 0 tasks + 0 children = "complete".
         if (!eventState.hasReceivedMeaningfulWork) {
           continue
         }

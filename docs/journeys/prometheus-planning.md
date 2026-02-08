@@ -164,7 +164,8 @@ Multi-model planning with debate for critical decisions.
 | Design Doc | `.sisyphus/designs/{topic-slug}.md` | WHY/HOW decisions |
 | Research Findings | `.sisyphus/drafts/{topic}-research.md` | Investigation results |
 | Work Plan (draft) | `.sisyphus/plans/{planId}.md` | Planner output (what to do, why, verification) |
-| Execution Plan (SSOT) | `.sisyphus/plans/{planId}/plan.md` | Task single source of truth used by execution mode |
+| Plan spec (migrated) | `.sisyphus/plans/{planId}/plan.md` | Execution-facing plan document (human-readable) |
+| TaskGraph (task SSOT) | `.sisyphus/tasks/plan/{planId}/task_*.json` | Task state, dependencies, revision (CAS) |
 | Context Manifest | `.sisyphus/context-manifests/{planId}.md` | Deterministic context packs for delegation |
 
 ### Design Doc vs Work Plan
@@ -173,7 +174,7 @@ Multi-model planning with debate for critical decisions.
 |--------|------------|-----------|
 | Focus | WHY and HOW | WHAT and DO |
 | Content | Decisions, rationale, trade-offs | Tasks, commands, acceptance criteria |
-| Sections | Context, Approach, Alternatives, Validation | TODOs, Verification, Commits |
+| Sections | Context, Approach, Alternatives, Validation | Tasks, Verification, Commits |
 | Created | After brainstorming (non-trivial only) | After interview complete |
 
 ## Turn Termination Rules

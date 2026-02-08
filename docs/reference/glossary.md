@@ -51,6 +51,16 @@ A server that exposes tools to the model via a standard interface. In this repo,
 
 Work executed asynchronously while the main session continues. Background tasks are typically launched via `delegate_task({ run_in_background: true, ... })` and monitored via `background_output({ task_id: ... })`.
 
+## TaskGraph
+
+The fork-owned task single-source-of-truth used across session, plan, and swarm flows. API surface is exposed via `task_create`, `task_get`, `task_list`, `task_update`, and `task_transition`.
+
+Reference: `docs/reference/task-graph.md`, implementation under `src/features/task-system/`.
+
+## Task Node
+
+A TaskGraph entity with lifecycle state, dependency edges (`depends_on`), ownership/metadata, and CAS revision (`revision`).
+
 ## Session Handoff
 
 A fork-owned mechanism for cross-session knowledge transfer. It extracts a structured summary at session end and injects relevant handoffs at session start (when enabled).

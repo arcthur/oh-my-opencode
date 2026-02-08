@@ -69,7 +69,7 @@ const model = resolveModelWithFallback({
 **System Directive Filtering**:
 ```typescript
 if (isSystemDirective(message)) return  // Skip system-generated
-const directive = createSystemDirective("TODO CONTINUATION")
+const directive = createSystemDirective("TASK CONTINUATION")
 ```
 
 ## ANTI-PATTERNS

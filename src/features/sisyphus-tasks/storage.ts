@@ -23,22 +23,6 @@ export function getProjectRoot(): string {
   return process.env[SISYPHUS_PROJECT_ROOT_ENV] || process.cwd()
 }
 
-export function getTaskDir(listId: string, config: Partial<OhMyOpenCodeConfig>): string {
-  const tasksConfig = config.sisyphus?.tasks
-
-  const storagePath = tasksConfig?.storage_path ?? ".sisyphus/tasks"
-
-  // Support both absolute and relative paths
-  if (isAbsolute(storagePath)) {
-    return join(storagePath, listId)
-  }
-  return join(getProjectRoot(), storagePath, listId)
-}
-
-export function getTaskPath(listId: string, taskId: string, config: Partial<OhMyOpenCodeConfig>): string {
-  return join(getTaskDir(listId, config), `${taskId}.json`)
-}
-
 export function getTeamDir(teamName: string, config: Partial<OhMyOpenCodeConfig>): string {
   const swarmConfig = config.sisyphus?.swarm
 

@@ -6,7 +6,7 @@
  * Commands:
  * - /swarm create <team> - Create a team, become coordinator
  * - /swarm spawn <count> - Spawn N workers in tmux windows
- * - /swarm task add <subject> [desc] - Add task to pool
+ * - /swarm task add <title> [desc] - Add task to graph
  * - /swarm plan submit <plan> - Submit plan for approval (worker)
  * - /swarm plan list|approve|reject|revise - Manage plan approvals (coordinator)
  * - /swarm status [team] - Show team status
@@ -27,7 +27,7 @@ import {
   getCurrentSession,
   inspectSwarmWindowsByTeam,
 } from "../features/sisyphus-swarm/tmux"
-import { createTask } from "../features/sisyphus-swarm/task-pool/pool"
+import { createSwarmTask } from "../features/sisyphus-swarm/task-graph"
 import type { SwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
 import { getRuntimeSnapshot, resolveParallelRuntimeConfig } from "../features/parallel-runtime"
 import { log } from "../shared/logger"
@@ -289,7 +289,7 @@ async function executeSwarmCommand(
         coordMsg,
         "",
         "Next steps:",
-        "1. Add tasks using TodoWrite",
+        "1. Add tasks: /swarm task add <title> [description]",
         "2. Spawn workers: /swarm spawn <count>",
         "3. Monitor: /swarm status",
       ].join("\n")
@@ -498,12 +498,12 @@ async function executeSwarmCommand(
       const subCmd = cmdArgs[0]?.toLowerCase()
 
       if (subCmd === "add") {
-        // /swarm task add "subject" "description"
-        const subject = cmdArgs[1]
-        const description = cmdArgs.slice(2).join(" ") || subject
+        // /swarm task add "title" "description"
+        const title = cmdArgs[1]
+        const description = cmdArgs.slice(2).join(" ") || title
 
-        if (!subject) {
-          return "Usage: /swarm task add <subject> [description]\n\nAdd a task to the team's task pool."
+        if (!title) {
+          return "Usage: /swarm task add <title> [description]\n\nAdd a task to the team's task graph."
         }
 
         // Get current team
@@ -517,17 +517,15 @@ async function executeSwarmCommand(
           return `Team "${teamName}" not found.`
         }
 
-        const listId = manifest.taskListId ?? teamName
-
         try {
-          const task = createTask(listId, {
-            subject,
+          const task = createSwarmTask(teamName, {
+            title,
             description,
           }, config)
 
           return [
             `✓ Task created: ${task.id}`,
-            `  Subject: ${subject}`,
+            `  Title: ${title}`,
             "",
             "The coordinator will assign this task to an available worker.",
           ].join("\n")
@@ -539,8 +537,8 @@ async function executeSwarmCommand(
       return [
         "Task management commands:",
         "",
-        "  /swarm task add <subject> [description]",
-        "    Add a task to the team's task pool",
+        "  /swarm task add <title> [description]",
+        "    Add a task to the team's task graph",
         "",
         "Example:",
         '  /swarm task add "Refactor auth module" "Extract login logic into separate service"',
@@ -653,7 +651,7 @@ async function executeSwarmCommand(
         "Commands:",
         "  /swarm create <team>  - Create team, become coordinator",
         "  /swarm spawn <count>  - Spawn N workers (1-10)",
-        "  /swarm task add <subject> [desc] - Add task to pool",
+        "  /swarm task add <title> [desc] - Add task to graph",
         "  /swarm plan submit <plan> - Submit plan for approval (worker)",
         "  /swarm plan list|approve|reject|revise - Manage plan approvals (coordinator)",
         "  /swarm status [team]  - Show team status",
@@ -683,7 +681,7 @@ export function createSwarmTool(ctx: SwarmToolContext): ToolDefinition {
       "Multi-agent coordination via Sisyphus Swarm. " +
       "Commands: 'create <team>' to create a team and become coordinator, " +
       "'spawn <count>' to spawn N workers in tmux windows, " +
-      "'task add <subject> [description]' to add a task to the pool, " +
+      "'task add <title> [description]' to add a task to the graph, " +
       "'plan submit|list|approve|reject|revise' to manage plan approvals, " +
       "'status' to show team status, " +
       "'stop [--cleanup]' to stop workers for active team.",

@@ -27,17 +27,20 @@ export interface SessionInfo {
   first_message?: Date
   last_message?: Date
   agents_used: string[]
-  has_todos: boolean
+  has_tasks: boolean
   has_transcript: boolean
-  todos?: TodoItem[]
+  tasks?: SessionTaskItem[]
   transcript_entries?: number
 }
 
-export interface TodoItem {
+export interface SessionTaskItem {
   id: string
-  content: string
-  status: "pending" | "in_progress" | "completed" | "cancelled"
-  priority?: string
+  title: string
+  state: "open" | "in_progress" | "completed" | "cancelled" | "failed"
+  readiness: "ready" | "blocked"
+  blocked_by_unresolved: string[]
+  owner?: string
+  priority: number
 }
 
 export interface SearchResult {
@@ -77,7 +80,7 @@ export interface SessionListArgs {
 
 export interface SessionReadArgs {
   session_id: string
-  include_todos?: boolean
+  include_tasks?: boolean
   include_transcript?: boolean
   limit?: number
 }

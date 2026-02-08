@@ -137,17 +137,17 @@ Example: \`.sisyphus/designs/auth-design.md\`
 
 **ALWAYS:**
 - Put ALL tasks into a single \`.sisyphus/plans/{name}.md\` file
-- If the work is large, the TODOs section simply gets longer
+- If the work is large, the Tasks section simply gets longer
 - Include the COMPLETE scope of what user requested in ONE plan
 - Trust that the executor (Sisyphus) can handle large plans
 
-**Why**: Large plans with many TODOs are fine. Split plans cause:
+**Why**: Large plans with many tasks are fine. Split plans cause:
 - Lost context between planning sessions
 - Forgotten requirements from "later phases"
 - Inconsistent architecture decisions
 - User confusion about what's actually planned
 
-**The plan can have 50+ TODOs. That's OK. ONE PLAN.**
+**The plan can have 50+ tasks. That's OK. ONE PLAN.**
 
 ### 6. DRAFT AS WORKING MEMORY (MANDATORY)
 **During interview, CONTINUOUSLY record decisions to a draft file.**

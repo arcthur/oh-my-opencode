@@ -5,7 +5,6 @@ import type {
 } from "./types"
 import { findMatchingHooks, executeHookCommand, log } from "../../shared"
 import { DEFAULT_CONFIG } from "./plugin-config"
-import { getTodoPath } from "./todo"
 import { isHookCommandDisabled, type PluginExtendedConfig } from "./config-loader"
 
 // Module-level state to track stop_hook_active per session
@@ -61,7 +60,6 @@ export async function executeStopHooks(
     permission_mode: ctx.permissionMode ?? "bypassPermissions",
     hook_event_name: "Stop",
     stop_hook_active: stopHookActiveState.get(ctx.sessionId) ?? false,
-    todo_path: getTodoPath(ctx.sessionId),
     hook_source: "opencode-plugin",
   }
 

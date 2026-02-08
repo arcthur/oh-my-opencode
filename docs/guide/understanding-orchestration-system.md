@@ -50,8 +50,10 @@ flowchart TB
     
     User -->|"/start-work"| Orchestrator
     Orchestrator --> WorkState[".sisyphus/work.yaml<br/>(STATE SSOT)"]
-    PlanDraft -->|"Migrate on /start-work"| Plan[".sisyphus/plans/{planId}/plan.md<br/>(TASK SSOT)"]
-    Plan -->|"Read tasks"| Orchestrator
+    PlanDraft -->|"Migrate on /start-work"| Plan[".sisyphus/plans/{planId}/plan.md<br/>(PLAN SPEC)"]
+    PlanDraft -->|"Seed TaskGraph"| TaskGraph[".sisyphus/tasks/plan/{planId}/task_*.json<br/>(TASK SSOT)"]
+    Plan -->|"Read spec"| Orchestrator
+    TaskGraph -->|"Read tasks"| Orchestrator
     WorkState -->|"Resume state"| Orchestrator
     
     Orchestrator -->|"delegate_task(category + load_skills)"| Junior
@@ -231,7 +233,7 @@ delegate_task({
 Junior is the **workhorse** that actually writes code. Key characteristics:
 
 - **Focused**: No implementation delegation. `delegate_task` is **research-scoped only** (explore/librarian, no categories, `load_skills=[]`).
-- **Disciplined**: Obsessive todo tracking
+- **Disciplined**: Obsessive task tracking
 - **Verified**: Prompt requires `lsp_diagnostics` clean (and tests when applicable) before claiming completion; Orchestrator still verifies independently.
 - **Constrained**: `task` tool is denied. Plan/ledger artifacts under `.sisyphus/` are treated as read-only by convention (SSOT is owned by the orchestrator workflow).
 
@@ -250,14 +252,14 @@ Even a mid-tier model executes precisely. The intelligence is in the **system**,
 The hook system ensures Junior never stops halfway:
 
 ```
-[SYSTEM REMINDER - TODO CONTINUATION]
+[SYSTEM REMINDER - TASK CONTINUATION]
 
-You have incomplete todos! Complete ALL before responding:
-- [ ] Implement user service ← IN PROGRESS
-- [ ] Add validation
-- [ ] Write tests
+You have incomplete tasks! Complete ALL before responding:
+- [in_progress] Implement user service
+- [open] Add validation
+- [open] Write tests
 
-DO NOT respond until all todos are marked completed.
+DO NOT respond until all tasks are marked completed.
 ```
 
 This "work continuation" mechanism (the Sisyphus “boulder pushing” metaphor) is why the system is named after Sisyphus.
@@ -395,7 +397,7 @@ sequenceDiagram
         
         Orchestrator->>Junior: delegate_task(category, load_skills, description, prompt, run_in_background)
         
-        Junior->>Junior: Create todos, execute
+        Junior->>Junior: Create tasks, execute
         Junior->>Junior: Verify (lsp_diagnostics, tests)
         Junior->>Notepad: Append learnings
         Junior->>Orchestrator: Results + completion status
@@ -461,7 +463,7 @@ Bulk work goes to cost-effective models (Sonnet, Haiku, Flash).
 4. **Review the Plan**: Check `.sisyphus/plans/` for generated work plan
 5. **Run `/start-work`**: Orchestrator takes over
 6. **Observe**: Watch tasks complete with verification
-7. **Done**: All todos complete, code verified, ready to ship
+7. **Done**: All tasks complete, code verified, ready to ship
 
 ---
 

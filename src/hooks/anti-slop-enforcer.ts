@@ -54,7 +54,7 @@ const DEFAULT_SLOP_PATTERNS: SlopPattern[] = [
   // TODO/FIXME in new code
   {
     pattern: /\/\/\s*TODO(?!:)/gi,
-    message: "TODO comment without context - use TodoWrite tool instead",
+    message: "TODO comment without context - track it via task_create/task_update instead",
     severity: "warning",
   },
 ]

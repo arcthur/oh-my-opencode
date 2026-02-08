@@ -3,7 +3,7 @@ import type { HookEventType, HookNodeId, RuntimeRegistryEntry } from "./types"
 import { validateSemanticGroups } from "./semantic-groups"
 
 const REGISTRY: RuntimeRegistryEntry[] = [
-  { name: "todo-auto-continuation", events: ["event"] },
+  { name: "task-auto-continuation", events: ["event"] },
   { name: "context-window-governor", events: ["event", "tool.execute.after", "experimental.session.compacting"] },
   { name: "session-state-repair", events: [] },
   { name: "session-notification", events: ["event"] },

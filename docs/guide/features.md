@@ -10,7 +10,7 @@ Oh-My-OpenCode provides multiple specialized AI agents (core, planning, and deri
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
-| **Sisyphus** | `anthropic/claude-opus-4-6` | **The default orchestrator.** Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. Todo-driven workflow with extended thinking (32k budget). |
+| **Sisyphus** | `anthropic/claude-opus-4-6` | **The default orchestrator.** Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. TaskGraph-driven workflow with extended thinking (32k budget). |
 | **hephaestus** | `openai/gpt-5.3-codex` | Autonomous deep worker for goal-oriented execution. Explores thoroughly, then drives end-to-end implementation with high autonomy. |
 | **oracle** | `openai/gpt-5.2` | Architecture decisions, code review, debugging. Read-only consultation - stellar logical reasoning and deep analysis. Inspired by AmpCode. |
 | **librarian** | `zai-coding-plan/glm-4.7` | Multi-repo analysis, documentation lookup, OSS implementation examples. Deep codebase understanding with evidence-based answers. Inspired by AmpCode. |
@@ -300,7 +300,7 @@ Uses sisyphus agent to execute planned tasks systematically.
 
 ### Command: /stop-continuation
 
-**Purpose**: Stop continuation loops for the current session (Ralph loop, todo auto-continuation, related continuation controls)
+**Purpose**: Stop continuation loops for the current session (Ralph loop, task auto-continuation, related continuation controls)
 
 **Usage**:
 ```
@@ -613,7 +613,7 @@ MCP configs support environment variable expansion: `${VAR}`.
 
 | Data | Location | Format |
 |------|----------|--------|
-| Todos | `~/.claude/todos/` | Claude Code compatible |
+| TaskGraph Nodes | `.sisyphus/tasks/<scope>/<container>/task_*.json` | Fork-owned TaskGraph V2 storage |
 | Transcripts | `~/.claude/transcripts/` | JSONL |
 
 ### Compatibility Toggles

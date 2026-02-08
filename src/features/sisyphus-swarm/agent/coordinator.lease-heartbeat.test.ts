@@ -13,7 +13,7 @@ import {
   addMember,
   markWorkerIdle,
 } from "../team"
-import { createTask } from "../task-pool/pool"
+import { createSwarmTask } from "../task-graph"
 import { createCoordinator } from "./coordinator"
 
 describe("coordinator lease heartbeat", () => {
@@ -100,11 +100,7 @@ describe("coordinator lease heartbeat", () => {
     markWorkerIdle(teamName, workerIdentity.id, config)
 
     // Create a task for auto-assignment
-    createTask(
-      teamName,
-      { subject: "Long-running task", description: "Takes > TTL" },
-      config
-    )
+    createSwarmTask(teamName, { title: "Long-running task", description: "Takes > TTL" }, config)
 
     const runtimeConfig = resolveParallelRuntimeConfig(config.parallel_runtime)
 

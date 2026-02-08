@@ -1,6 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundTask, LaunchInput, ResumeInput } from "./types"
-import type { BackgroundTaskConfig } from "../../config/schema"
+import type { BackgroundTaskConfig, OhMyOpenCodeConfig } from "../../config/schema"
 import type { ParallelRuntimeConfig, RunEventType, SlotAcquireRequest } from "../parallel-runtime"
 import {
   TASK_TTL_MS,
@@ -17,7 +17,7 @@ import {
 import { TaskStateManager } from "./state"
 import { createTask, startTask, resumeTask, type SpawnerContext } from "./spawner"
 import {
-  checkSessionTodos,
+  checkSessionTasks,
   validateSessionHasOutput,
   tryCompleteTask,
   notifyParentSession,
@@ -49,6 +49,7 @@ export class BackgroundManager {
   private shutdownTriggered = false
   private config?: BackgroundTaskConfig
   private parallelRuntimeConfig: ParallelRuntimeConfig
+  private taskConfig: Partial<OhMyOpenCodeConfig>
   private onShutdown?: () => void
   private state: TaskStateManager
   private leaseHeartbeatTimers = new Map<string, ReturnType<typeof setInterval>>()
@@ -59,6 +60,7 @@ export class BackgroundManager {
     options?: {
       onShutdown?: () => void
       parallelRuntimeConfig?: Partial<ParallelRuntimeConfig>
+      taskConfig?: Partial<OhMyOpenCodeConfig>
     }
   ) {
     this.state = new TaskStateManager()
@@ -69,6 +71,7 @@ export class BackgroundManager {
     this.parallelRuntimeConfig = resolveParallelRuntimeConfig(
       options?.parallelRuntimeConfig ?? { enabled: false }
     )
+    this.taskConfig = options?.taskConfig ?? {}
     this.onShutdown = options?.onShutdown
     this.registerProcessCleanup()
   }
@@ -87,6 +90,7 @@ export class BackgroundManager {
       client: this.client,
       concurrencyManager: this.concurrencyManager,
       state: this.state,
+      taskConfig: this.taskConfig,
       onTaskFinalized: async (task, status) => {
         this.releaseParallelLease(task, status)
       },
@@ -575,15 +579,15 @@ export class BackgroundManager {
           return
         }
 
-        const hasIncompleteTodos = await checkSessionTodos(this.client, sessionID)
+        const hasIncompleteTasks = await checkSessionTasks(sessionID, this.taskConfig)
 
         if (task.status !== "running") {
-          log("[background-agent] Task status changed during todo check, skipping:", { taskId: task.id, status: task.status })
+          log("[background-agent] Task status changed during task check, skipping:", { taskId: task.id, status: task.status })
           return
         }
 
-        if (hasIncompleteTodos) {
-          log("[background-agent] Task has incomplete todos, waiting for todo-continuation:", task.id)
+        if (hasIncompleteTasks) {
+          log("[background-agent] Task has incomplete tasks, waiting for task continuation:", task.id)
           return
         }
 
@@ -829,9 +833,9 @@ export class BackgroundManager {
 
           if (task.status !== "running") continue
 
-          const hasIncompleteTodos = await checkSessionTodos(this.client, sessionID)
-          if (hasIncompleteTodos) {
-            log("[background-agent] Task has incomplete todos via polling, waiting:", task.id)
+          const hasIncompleteTasks = await checkSessionTasks(sessionID, this.taskConfig)
+          if (hasIncompleteTasks) {
+            log("[background-agent] Task has incomplete tasks via polling, waiting:", task.id)
             continue
           }
 
@@ -911,8 +915,8 @@ export class BackgroundManager {
 
                 if (task.status !== "running") continue
 
-                const hasIncompleteTodos = await checkSessionTodos(this.client, sessionID)
-                if (!hasIncompleteTodos) {
+                const hasIncompleteTasks = await checkSessionTasks(sessionID, this.taskConfig)
+                if (!hasIncompleteTasks) {
                   await tryCompleteTask(task, "stability detection", this.getResultHandlerContext())
                   continue
                 }

@@ -81,7 +81,7 @@ export const DEFAULT_GOVERNANCE_CONFIG: GovernanceConfig = {
   enabled: false,
   approval_gate: {
     enabled: true,
-    skip_patterns: ["Read", "Glob", "Grep", "LSP", "TodoRead"],
+    skip_patterns: ["Read", "Glob", "Grep", "LSP", "task_get", "task_list"],
     token_expiry_minutes: 30,
   },
   tracer: {

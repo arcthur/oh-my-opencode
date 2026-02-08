@@ -8,7 +8,6 @@ const TEST_DIR = join(tmpdir(), `omo-test-session-manager-${randomUUID()}`)
 const TEST_MESSAGE_STORAGE = join(TEST_DIR, "message")
 const TEST_PART_STORAGE = join(TEST_DIR, "part")
 const TEST_SESSION_STORAGE = join(TEST_DIR, "session")
-const TEST_TODO_DIR = join(TEST_DIR, "todos")
 const TEST_TRANSCRIPT_DIR = join(TEST_DIR, "transcripts")
 
 mock.module("./constants", () => ({
@@ -16,7 +15,6 @@ mock.module("./constants", () => ({
   MESSAGE_STORAGE: TEST_MESSAGE_STORAGE,
   PART_STORAGE: TEST_PART_STORAGE,
   SESSION_STORAGE: TEST_SESSION_STORAGE,
-  TODO_DIR: TEST_TODO_DIR,
   TRANSCRIPT_DIR: TEST_TRANSCRIPT_DIR,
   SESSION_LIST_DESCRIPTION: "test",
   SESSION_READ_DESCRIPTION: "test",
@@ -26,7 +24,7 @@ mock.module("./constants", () => ({
   TOOL_NAME_PREFIX: "session_",
 }))
 
-const { getAllSessions, getMessageDir, sessionExists, readSessionMessages, readSessionTodos, getSessionInfo } =
+const { getAllSessions, getMessageDir, sessionExists, readSessionMessages, readSessionTasks, getSessionInfo } =
   await import("./storage")
 
 const storage = await import("./storage")
@@ -40,7 +38,6 @@ describe("session-manager storage", () => {
     mkdirSync(TEST_MESSAGE_STORAGE, { recursive: true })
     mkdirSync(TEST_PART_STORAGE, { recursive: true })
     mkdirSync(TEST_SESSION_STORAGE, { recursive: true })
-    mkdirSync(TEST_TODO_DIR, { recursive: true })
     mkdirSync(TEST_TRANSCRIPT_DIR, { recursive: true })
   })
 
@@ -127,12 +124,12 @@ describe("session-manager storage", () => {
     expect(messages[1].id).toBe("msg_002")
   })
 
-  test("readSessionTodos returns empty array when no todos exist", async () => {
+  test("readSessionTasks returns empty array when no tasks exist", async () => {
     // when
-    const todos = await readSessionTodos("ses_nonexistent")
+    const tasks = await readSessionTasks("ses_nonexistent")
 
     // then
-    expect(todos).toEqual([])
+    expect(tasks).toEqual([])
   })
 
   test("getSessionInfo returns null for non-existent session", async () => {
@@ -190,7 +187,6 @@ describe("session-manager storage - getMainSessions", () => {
     mkdirSync(TEST_MESSAGE_STORAGE, { recursive: true })
     mkdirSync(TEST_PART_STORAGE, { recursive: true })
     mkdirSync(TEST_SESSION_STORAGE, { recursive: true })
-    mkdirSync(TEST_TODO_DIR, { recursive: true })
     mkdirSync(TEST_TRANSCRIPT_DIR, { recursive: true })
   })
 

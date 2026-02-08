@@ -4,17 +4,22 @@ import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import { SISYPHUS_PROJECT_ROOT_ENV } from "../../sisyphus-tasks/storage"
-import { acquireSlot, getRuntimeSnapshot, releaseSlot, resolveParallelRuntimeConfig } from "../../parallel-runtime"
+import {
+  acquireSlot,
+  getRuntimeSnapshot,
+  releaseSlot,
+  resolveParallelRuntimeConfig,
+} from "../../parallel-runtime"
 import {
   createAgentIdentity,
   createTeam,
   addMember,
   markWorkerIdle,
 } from "../team"
-import { createTask, readTask } from "./pool"
+import { createSwarmTask, readSwarmTaskNode } from "./pool"
 import { autoAssignTasksWithRuntime } from "./assignment"
 
-describe("task-pool/assignment parallel-runtime integration", () => {
+describe("task-graph/assignment parallel-runtime integration", () => {
   let projectRoot: string
   let tasksDir: string
   let teamsDir: string
@@ -23,7 +28,10 @@ describe("task-pool/assignment parallel-runtime integration", () => {
 
   beforeEach(() => {
     previousRoot = process.env[SISYPHUS_PROJECT_ROOT_ENV]
-    projectRoot = join(tmpdir(), `assignment-parallel-runtime-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+    projectRoot = join(
+      tmpdir(),
+      `assignment-parallel-runtime-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    )
     tasksDir = join(projectRoot, "tasks")
     teamsDir = join(projectRoot, "teams")
     mkdirSync(tasksDir, { recursive: true })
@@ -86,10 +94,10 @@ describe("task-pool/assignment parallel-runtime integration", () => {
     addMember(teamName, worker, config)
     markWorkerIdle(teamName, worker.id, config)
 
-    const created = createTask(
+    const created = createSwarmTask(
       teamName,
       {
-        subject: "Task 1",
+        title: "Task 1",
         description: "Implement Task 1",
       },
       config
@@ -107,15 +115,13 @@ describe("task-pool/assignment parallel-runtime integration", () => {
 
     // #when
     const firstAttempt = await autoAssignTasksWithRuntime(teamName, coordinator.id, config)
-    const afterFirstAttempt = readTask(teamName, created.id, config)
+    const afterFirstAttempt = readSwarmTaskNode(teamName, created.id, config)
     const snapAfterFirstAttempt = await getRuntimeSnapshot(runtimeConfig)
 
     // #then
     expect(firstAttempt).toHaveLength(0)
-    expect(afterFirstAttempt?.status).toBe("pending")
+    expect(afterFirstAttempt?.state).toBe("open")
     expect(afterFirstAttempt?.owner).toBeUndefined()
-    // Admission should be non-blocking for Swarm in enforce mode:
-    // it records would_block but does NOT wait long enough to emit timed_out.
     expect(
       snapAfterFirstAttempt.recentEvents.some(
         (event) =>
@@ -135,14 +141,16 @@ describe("task-pool/assignment parallel-runtime integration", () => {
 
     // #when
     const secondAttempt = await autoAssignTasksWithRuntime(teamName, coordinator.id, config)
-    const afterSecondAttempt = readTask(teamName, created.id, config)
+    const afterSecondAttempt = readSwarmTaskNode(teamName, created.id, config)
 
     // #then
     expect(secondAttempt).toHaveLength(1)
     expect(secondAttempt[0]?.success).toBe(true)
-    expect(afterSecondAttempt?.status).toBe("in_progress")
+    expect(afterSecondAttempt?.state).toBe("in_progress")
     expect(afterSecondAttempt?.owner).toBe(worker.id)
-    expect(typeof afterSecondAttempt?.metadata?.parallelRuntimeLeaseId).toBe("string")
-    expect(afterSecondAttempt?.metadata?.parallelRuntimeRunId).toBe(`swarm:${teamName}:${created.id}`)
+    expect(typeof afterSecondAttempt?.lease?.lease_id).toBe("string")
+    expect(afterSecondAttempt?.lease?.run_id).toBe(`swarm:${teamName}:${created.id}`)
+    expect(afterSecondAttempt?.lease?.subsystem).toBe("swarm")
   })
 })
+
