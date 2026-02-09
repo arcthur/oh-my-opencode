@@ -43,8 +43,8 @@ describe("truncateDescription", () => {
     const result = truncateDescription(description)
 
     //#then
-    expect(result).toBe("a".repeat(120) + "...")
-    expect(result.length).toBe(123)
+    expect(result).toBe("a".repeat(117) + "...")
+    expect(result.length).toBe(120)
   })
 
   test("respects custom max length", () => {
@@ -55,6 +55,6 @@ describe("truncateDescription", () => {
     const result = truncateDescription(description, 20)
 
     //#then
-    expect(result).toBe("This is a longer des...")
+    expect(result).toBe("This is a longer ...")
   })
 })

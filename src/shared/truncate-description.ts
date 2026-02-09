@@ -7,5 +7,5 @@ export function truncateDescription(description: string, maxLength: number = 120
     return description
   }
 
-  return description.slice(0, maxLength) + "..."
+  return description.slice(0, maxLength - 3) + "..."
 }

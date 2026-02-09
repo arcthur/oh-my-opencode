@@ -66,6 +66,8 @@ Model Providers (Priority: Native > Copilot > OpenCode Zen > Z.ai > Kimi):
 
 program
   .command("run <message>")
+  .allowUnknownOption()
+  .passThroughOptions()
   .description("Run opencode with task/background completion enforcement")
   .option("-a, --agent <name>", "Agent to use (default: from CLI/env/config, fallback: Sisyphus)")
   .option("-d, --directory <path>", "Working directory")
