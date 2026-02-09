@@ -34,8 +34,7 @@ Canonical runtime order: `src/hooks/runtime/pipeline-order.ts`; canonical node a
 A discoverable instruction bundle that can be:
 
 - Executed via the `skill` tool,
-- Injected into delegated prompts via `delegate_task({ load_skills: [...] })`,
-- Exposed as a slash command via `slashcommand`.
+- Injected into delegated prompts via `delegate_task({ load_skills: [...] })`.
 
 Skills can optionally declare embedded MCP servers and tool allowlists.
 

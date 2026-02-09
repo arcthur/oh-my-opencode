@@ -4,6 +4,7 @@ import type {
   AutoSlashCommandHookOutput,
 } from "./types"
 import { AUTO_SLASH_COMMAND_TAG_OPEN } from "./constants"
+import type { LoadedSkill } from "../../features/opencode-skill-loader"
 
 // Import real shared module to avoid mock leaking to other test files
 import * as shared from "../../shared"
@@ -33,6 +34,20 @@ function createMockOutput(text: string): AutoSlashCommandHookOutput {
       tools: {},
     },
     parts: [{ type: "text", text }],
+  }
+}
+
+function createMockSkill(name: string, description = ""): LoadedSkill {
+  return {
+    name,
+    path: `/test/skills/${name}/SKILL.md`,
+    resolvedPath: `/test/skills/${name}`,
+    definition: {
+      name,
+      description: description || `Test skill ${name}`,
+      template: "Test template",
+    },
+    scope: "opencode-project",
   }
 }
 
@@ -165,6 +180,24 @@ describe("createAutoSlashCommandHook", () => {
       // then should not modify
       expect(output.parts[0].text).toBe(originalText)
     })
+
+    it("should NOT resolve skill names as slash commands even when skills are provided", async () => {
+      // given a skill-like slash token
+      const hook = createAutoSlashCommandHook({
+        skills: [createMockSkill("playwright", "Browser automation via Playwright MCP")],
+      })
+      const sessionID = `test-session-skill-split-${Date.now()}`
+      const input = createMockInput(sessionID)
+      const output = createMockOutput("/playwright")
+      const originalText = output.parts[0].text
+
+      // when hook is called
+      await hook["chat.message"](input, output)
+
+      // then should not modify (skill is not a slash command)
+      expect(output.parts[0].text).toBe(originalText)
+      expect(output.parts[0].text).not.toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
+    })
   })
 
   describe("already processed", () => {
@@ -282,6 +315,24 @@ describe("createAutoSlashCommandHook", () => {
       // then
       expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
       expect(output.parts[0].text).toContain("# /stop-continuation Command")
+    })
+
+    it("should respect disabled builtin commands and skip injection", async () => {
+      // given
+      const hook = createAutoSlashCommandHook({
+        disabledBuiltinCommands: ["stop-continuation"],
+      })
+      const sessionID = `test-session-command-before-disabled-${Date.now()}`
+      const input = { command: "stop-continuation", sessionID, arguments: "" }
+      const output = { parts: [{ type: "text", text: "/stop-continuation" }] }
+      const originalText = output.parts[0].text
+
+      // when
+      await hook["command.execute.before"]?.(input, output)
+
+      // then
+      expect(output.parts[0].text).toBe(originalText)
+      expect(output.parts[0].text).not.toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
     })
   })
 })

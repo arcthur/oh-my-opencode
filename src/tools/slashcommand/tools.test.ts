@@ -29,7 +29,7 @@ function createMockSkill(name: string, description = ""): LoadedSkill {
 }
 
 describe("slashcommand tool - synchronous description", () => {
-  it("includes available_skills immediately when commands and skills are pre-provided", () => {
+  it("includes command list immediately and excludes skills", () => {
     // given
     const commands = [createMockCommand("commit", "Create a git commit")]
     const skills = [createMockSkill("playwright", "Browser automation via Playwright MCP")]
@@ -38,12 +38,12 @@ describe("slashcommand tool - synchronous description", () => {
     const tool = createSlashcommandTool({ commands, skills })
 
     // then
-    expect(tool.description).toContain("<available_skills>")
+    expect(tool.description).toContain("<available_commands>")
     expect(tool.description).toContain("commit")
-    expect(tool.description).toContain("playwright")
+    expect(tool.description).not.toContain("playwright")
   })
 
-  it("includes all pre-provided commands and skills in description immediately", () => {
+  it("includes all pre-provided commands in description immediately", () => {
     // given
     const commands = [
       createMockCommand("commit", "Git commit"),
@@ -61,9 +61,9 @@ describe("slashcommand tool - synchronous description", () => {
     // then
     expect(tool.description).toContain("commit")
     expect(tool.description).toContain("plan")
-    expect(tool.description).toContain("playwright")
-    expect(tool.description).toContain("frontend-ui-ux")
-    expect(tool.description).toContain("git-master")
+    expect(tool.description).not.toContain("playwright")
+    expect(tool.description).not.toContain("frontend-ui-ux")
+    expect(tool.description).not.toContain("git-master")
   })
 
   it("shows prefix-only description when both commands and skills are empty", () => {
@@ -71,7 +71,8 @@ describe("slashcommand tool - synchronous description", () => {
     const tool = createSlashcommandTool({ commands: [], skills: [] })
 
     // then - even with no items, description should be built synchronously (not just prefix)
-    expect(tool.description).toContain("Load a skill")
+    expect(tool.description).toContain("Load or execute a slash command")
+    expect(tool.description).not.toContain("Load a skill")
   })
 
   it("includes user_message parameter documentation in description", () => {
@@ -85,5 +86,48 @@ describe("slashcommand tool - synchronous description", () => {
     // then
     expect(tool.description).toContain("user_message")
     expect(tool.description).toContain("command='publish' user_message='patch'")
+  })
+})
+
+describe("slashcommand tool - command-only execution semantics", () => {
+  it("executes a command by name", async () => {
+    // given
+    const commands = [createMockCommand("commit", "Create a git commit")]
+    const skills = [createMockSkill("playwright", "Browser automation via Playwright MCP")]
+    const tool = createSlashcommandTool({ commands, skills })
+
+    // when
+    const result = await tool.execute({ command: "commit" } as never, {} as never)
+
+    // then
+    expect(result).toContain("# /commit Command")
+  })
+
+  it("does not resolve skill names as slash commands", async () => {
+    // given
+    const commands = [createMockCommand("commit", "Create a git commit")]
+    const skills = [createMockSkill("playwright", "Browser automation via Playwright MCP")]
+    const tool = createSlashcommandTool({ commands, skills })
+
+    // when
+    const result = await tool.execute({ command: "playwright" } as never, {} as never)
+
+    // then
+    expect(result).toContain('Command "/playwright" not found.')
+    expect(result).not.toContain("# /playwright Command")
+  })
+
+  it("respects disabledBuiltinCommands during lazy command discovery", async () => {
+    // given
+    const tool = createSlashcommandTool({
+      disabledBuiltinCommands: ["stop-continuation"],
+    })
+
+    // when
+    const result = await tool.execute({ command: "stop-continuation" } as never, {} as never)
+
+    // then
+    expect(result).toContain('Command "/stop-continuation" not found.')
+    expect(result).not.toContain("# /stop-continuation Command")
   })
 })

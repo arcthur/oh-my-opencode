@@ -15,7 +15,7 @@ import type {
   CommandExecuteBeforeInput,
   CommandExecuteBeforeOutput,
 } from "./types"
-import type { LoadedSkill } from "../../features/opencode-skill-loader"
+import type { BuiltinCommandName } from "../../features/builtin-commands/types"
 
 export * from "./detector"
 export * from "./executor"
@@ -26,12 +26,20 @@ const sessionProcessedCommands = new Set<string>()
 const sessionProcessedCommandExecutions = new Set<string>()
 
 export interface AutoSlashCommandHookOptions {
-  skills?: LoadedSkill[]
+  /** @deprecated Skills are intentionally excluded from slash command semantics */
+  skills?: unknown[]
+  disabledBuiltinCommands?: BuiltinCommandName[]
 }
 
 export function createAutoSlashCommandHook(options?: AutoSlashCommandHookOptions) {
+  if (options?.skills && options.skills.length > 0) {
+    log(
+      "[auto-slash-command] deprecated options.skills provided and ignored; slash commands only resolve command catalog entries"
+    )
+  }
+
   const executorOptions: ExecutorOptions = {
-    skills: options?.skills,
+    disabledBuiltinCommands: options?.disabledBuiltinCommands,
   }
 
   return {

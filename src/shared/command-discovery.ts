@@ -4,7 +4,7 @@ import { parseFrontmatter } from "./frontmatter"
 import { sanitizeModelField, getCommandSource } from "./model-sanitizer"
 import { isMarkdownFile } from "./file-utils"
 import type { CommandFrontmatter } from "../features/claude-code-command-loader/types"
-import type { LoadedSkill, LazyContentLoader } from "../features/opencode-skill-loader/types"
+import type { LazyContentLoader } from "../features/opencode-skill-loader/types"
 
 export interface DiscoveredCommandMetadata {
   name: string
@@ -74,30 +74,4 @@ export function discoverCommandsFromDir<S extends string>(
 
 export interface DiscoveredCommandWithLoader<S extends string = string> extends DiscoveredCommand<S> {
   lazyContentLoader?: LazyContentLoader
-}
-
-/**
- * Converts a LoadedSkill to a command-like structure.
- * @param skill The loaded skill
- * @param scopeOverride Optional scope override (defaults to skill.scope)
- */
-export function skillToCommandInfo<S extends string = string>(
-  skill: LoadedSkill,
-  scopeOverride?: S
-): DiscoveredCommandWithLoader<S> {
-  return {
-    name: skill.name,
-    path: skill.path,
-    metadata: {
-      name: skill.name,
-      description: skill.definition.description || "",
-      argumentHint: skill.definition.argumentHint,
-      model: skill.definition.model,
-      agent: skill.definition.agent,
-      subtask: skill.definition.subtask,
-    },
-    content: skill.definition.template,
-    scope: (scopeOverride ?? skill.scope) as S,
-    lazyContentLoader: skill.lazyContent,
-  }
 }

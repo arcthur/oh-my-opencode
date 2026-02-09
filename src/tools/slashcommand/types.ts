@@ -1,28 +1,21 @@
-import type { LoadedSkill, LazyContentLoader } from "../../features/opencode-skill-loader"
+import type { LoadedSkill } from "../../features/opencode-skill-loader"
+import type { BuiltinCommandName } from "../../features/builtin-commands/types"
+import type {
+  SlashCommandInfo,
+  SlashCommandScope,
+} from "../../shared/slash-command-catalog"
 
-export type CommandScope = "builtin" | "config" | "user" | "project" | "opencode" | "opencode-project"
+export type CommandScope = SlashCommandScope
+export type CommandMetadata = SlashCommandInfo["metadata"]
+export type CommandInfo = SlashCommandInfo
 
-export interface CommandMetadata {
-  name: string
-  description: string
-  argumentHint?: string
-  model?: string
-  agent?: string
-  subtask?: boolean
-}
-
-export interface CommandInfo {
-  name: string
-  path?: string
-  metadata: CommandMetadata
-  content?: string
-  scope: CommandScope
-  lazyContentLoader?: LazyContentLoader
-}
+export type SlashCommandCatalogItem = SlashCommandInfo
 
 export interface SlashcommandToolOptions {
   /** Pre-loaded commands (skip discovery if provided) */
   commands?: CommandInfo[]
-  /** Pre-loaded skills (skip discovery if provided) */
+  /** Optional disabled built-in command list when commands are discovered lazily */
+  disabledBuiltinCommands?: BuiltinCommandName[]
+  /** @deprecated Skills are intentionally excluded from slashcommand semantics */
   skills?: LoadedSkill[]
 }

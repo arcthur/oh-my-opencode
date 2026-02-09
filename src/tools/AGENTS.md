@@ -2,9 +2,9 @@
 
 ## OVERVIEW
 
-20+ tools across 7 categories. Two patterns: Direct ToolDefinition (static) and Factory Function (context-dependent).
+20+ tools across 8 categories. Two patterns: Direct ToolDefinition (static) and Factory Function (context-dependent).
 
-**Categories**: LSP (6), AST-Grep (2), Search (2), Session (4), Agent delegation (2), Background (2), Skill (3)
+**Categories**: LSP (6), AST-Grep (2), Search (2), Session (4), Agent delegation (2), Background (2), Skill (2), Slash command (1)
 
 ## STRUCTURE
 
@@ -40,7 +40,8 @@ tools/
 | Agent | delegate_task | Factory |
 | Background | background_output, background_cancel | Factory |
 | System | interactive_bash, look_at | Mixed |
-| Skill | skill, skill_mcp, slashcommand | Factory |
+| Skill | skill, skill_mcp | Factory |
+| Slash command | slashcommand | Factory |
 
 ## HOW TO ADD
 

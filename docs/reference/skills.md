@@ -23,15 +23,14 @@ This document does **not** define the full content of every built-in skill templ
 - Skill discovery + merge: `src/features/opencode-skill-loader/`
 - Skill directories: `src/shared/paths.ts` (`getSkillDirectories`)
 - Runtime wiring (skills used by tools): `src/index.ts`
-- Skill tools: `src/tools/skill/`, `src/tools/skill-mcp/`, `src/tools/slashcommand/`
+- Skill tools: `src/tools/skill/`, `src/tools/skill-mcp/`
 
 ## Definition
 
 A **skill** is an instruction bundle that can be:
 
 - Executed directly via the `skill` tool (by name), and/or
-- Injected into delegated prompts via `delegate_task({ load_skills: [...] })`, and/or
-- Exposed as a command via `slashcommand` (skills-as-commands).
+- Injected into delegated prompts via `delegate_task({ load_skills: [...] })`.
 
 Skills can optionally declare:
 

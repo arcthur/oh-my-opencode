@@ -859,11 +859,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const commands = discoverCommandsSync(pluginConfig.disabled_commands);
   const slashcommandTool = createSlashcommandTool({
     commands,
-    skills: mergedSkills,
   });
 
   const autoSlashCommand = isHookEnabled("auto-slash-command")
-    ? createAutoSlashCommandHook({ skills: mergedSkills })
+    ? createAutoSlashCommandHook({
+      disabledBuiltinCommands: pluginConfig.disabled_commands,
+    })
     : null;
 
   const configHandler = createConfigHandler({

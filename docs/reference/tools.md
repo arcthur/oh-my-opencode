@@ -45,13 +45,13 @@ The Oh-My-OpenCode plugin registers the following tools (in addition to any tool
 | `task_update` | `src/tools/task-graph/` | Update structural fields only (title/description/priority/owner/metadata/dependencies) |
 | `task_transition` | `src/tools/task-graph/` | Transition lifecycle state with state-machine and readiness enforcement |
 
-### Skills and commands
+### Skills and slash commands
 
 | Tool name | Implementation | Purpose |
 |---|---|---|
 | `skill` | `src/tools/skill/` | Load and run a skill template by name |
 | `skill_mcp` | `src/tools/skill-mcp/` | Manage MCP servers declared by skills |
-| `slashcommand` | `src/tools/slashcommand/` | Discover and run commands (including skills-as-commands) |
+| `slashcommand` | `src/tools/slashcommand/` | Discover and run slash commands |
 
 ### Background task controls
 
