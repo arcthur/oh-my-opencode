@@ -78,6 +78,7 @@ export async function executePreToolUseHooks(
   const inputLines = buildInputLines(ctx.toolInput)
 
   for (const matcher of matchers) {
+    if (!matcher.hooks || matcher.hooks.length === 0) continue
     for (const hook of matcher.hooks) {
       if (hook.type !== "command") continue
 

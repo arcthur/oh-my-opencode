@@ -64,6 +64,7 @@ export async function executeStopHooks(
   }
 
   for (const matcher of matchers) {
+    if (!matcher.hooks || matcher.hooks.length === 0) continue
     for (const hook of matcher.hooks) {
       if (hook.type !== "command") continue
 

@@ -145,16 +145,20 @@ export function createRalphLoopHook(
       const assistantMessages = (messages as OpenCodeSessionMessage[]).filter(
         (msg) => msg.info?.role === "assistant"
       )
-      const lastAssistant = assistantMessages[assistantMessages.length - 1]
-      if (!lastAssistant?.parts) return false
+      if (assistantMessages.length === 0) return false
 
       const pattern = new RegExp(`<promise>\\s*${escapeRegex(promise)}\\s*</promise>`, "is")
-      const responseText = lastAssistant.parts
-        .filter((p) => p.type === "text")
-        .map((p) => p.text ?? "")
-        .join("\n")
+      const recentAssistants = assistantMessages.slice(-3)
+      for (const assistant of recentAssistants) {
+        if (!assistant.parts) continue
+        const responseText = assistant.parts
+          .filter((p) => p.type === "text" || p.type === "reasoning")
+          .map((p) => p.text ?? "")
+          .join("\n")
+        if (pattern.test(responseText)) return true
+      }
 
-      return pattern.test(responseText)
+      return false
     } catch (err) {
       log(`[${HOOK_NAME}] Session messages check failed`, { sessionID, error: String(err) })
       return false

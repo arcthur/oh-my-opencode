@@ -626,31 +626,65 @@ describe("ralph-loop", () => {
       expect(promptCalls.length).toBe(1)
     })
 
-    test("should only check LAST assistant message for completion", async () => {
-      // given - multiple assistant messages, only first has completion promise
+    test("should check last 3 assistant messages for completion", async () => {
+      //#given - multiple assistant messages, promise in recent (not last) assistant message
       mockSessionMessages = [
         { info: { role: "user" }, parts: [{ type: "text", text: "Start task" }] },
-        { info: { role: "assistant" }, parts: [{ type: "text", text: "I'll work on it. <promise>DONE</promise>" }] },
+        { info: { role: "assistant" }, parts: [{ type: "text", text: "Working on it." }] },
         { info: { role: "user" }, parts: [{ type: "text", text: "Continue" }] },
-        { info: { role: "assistant" }, parts: [{ type: "text", text: "Working on more features..." }] },
+        { info: { role: "assistant" }, parts: [{ type: "text", text: "Nearly there... <promise>DONE</promise>" }] },
+        { info: { role: "assistant" }, parts: [{ type: "text", text: "(extra output after promise)" }] },
       ]
       const hook = createRalphLoopHook(createMockPluginInput(), {
         getTranscriptPath: () => join(TEST_DIR, "nonexistent.jsonl"),
       })
       hook.startLoop("session-123", "Build something", { completionPromise: "DONE" })
 
-      // when - session goes idle
+      //#when - session goes idle
       await hook.event({
         event: { type: "session.idle", properties: { sessionID: "session-123" } },
       })
 
-      // then - loop should continue (last message has no completion promise)
-      expect(promptCalls.length).toBe(1)
-      expect(hook.getState()?.iteration).toBe(2)
+      //#then - loop should complete (promise found in recent assistant message)
+      expect(promptCalls.length).toBe(0)
+      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete!")).toBe(true)
+      expect(hook.getState()).toBeNull()
     })
 
-    test("should detect completion only in LAST assistant message", async () => {
-      // given - last assistant message has completion promise
+    test("should detect completion promise in reasoning part via session messages API", async () => {
+      //#given - active loop with assistant reasoning containing completion promise
+      mockSessionMessages = [
+        { info: { role: "user" }, parts: [{ type: "text", text: "Build something" }] },
+        {
+          info: { role: "assistant" },
+          parts: [
+            { type: "reasoning", text: "I am done now. <promise>REASONING_DONE</promise>" },
+          ],
+        },
+      ]
+      const hook = createRalphLoopHook(createMockPluginInput(), {
+        getTranscriptPath: () => join(TEST_DIR, "nonexistent.jsonl"),
+      })
+      hook.startLoop("session-123", "Build something", {
+        completionPromise: "REASONING_DONE",
+      })
+
+      //#when - session goes idle
+      await hook.event({
+        event: {
+          type: "session.idle",
+          properties: { sessionID: "session-123" },
+        },
+      })
+
+      //#then - loop completed via API detection, no continuation
+      expect(promptCalls.length).toBe(0)
+      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete!")).toBe(true)
+      expect(hook.getState()).toBeNull()
+    })
+
+    test("should detect completion in LAST assistant message", async () => {
+      //#given - last assistant message has completion promise
       mockSessionMessages = [
         { info: { role: "user" }, parts: [{ type: "text", text: "Start task" }] },
         { info: { role: "assistant" }, parts: [{ type: "text", text: "Starting work..." }] },
@@ -662,12 +696,12 @@ describe("ralph-loop", () => {
       })
       hook.startLoop("session-123", "Build something", { completionPromise: "DONE" })
 
-      // when - session goes idle
+      //#when - session goes idle
       await hook.event({
         event: { type: "session.idle", properties: { sessionID: "session-123" } },
       })
 
-      // then - loop should complete (last message has completion promise)
+      //#then - loop should complete (last message has completion promise)
       expect(promptCalls.length).toBe(0)
       expect(toastCalls.some((t) => t.title === "Ralph Loop Complete!")).toBe(true)
       expect(hook.getState()).toBeNull()
