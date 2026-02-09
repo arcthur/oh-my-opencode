@@ -53,8 +53,12 @@ export class TaskStateManager {
     return Array.from(this.tasks.values()).filter(t => t.status === "running")
   }
 
-  getCompletedTasks(): BackgroundTask[] {
+  getNonRunningTasks(): BackgroundTask[] {
     return Array.from(this.tasks.values()).filter(t => t.status !== "running")
+  }
+
+  getCompletedTasks(): BackgroundTask[] {
+    return Array.from(this.tasks.values()).filter(t => t.status === "completed")
   }
 
   hasRunningTasks(): boolean {

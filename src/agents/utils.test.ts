@@ -211,6 +211,43 @@ describe("createBuiltinAgents with model overrides", () => {
     // #then
     expect(agents.sisyphus.prompt).toContain("Role: Designer-Turned-Developer")
   })
+
+  test("disabledSkills filter removes discovered skills from generated prompt context", async () => {
+    // #given
+    const discoveredSkills = [
+      {
+        name: "my-custom-skill",
+        definition: {
+          name: "my-custom-skill",
+          description: "UNIQUE_DISABLED_SKILL_MARKER",
+          template: "unused",
+        },
+        scope: "project",
+      },
+    ]
+
+    // #when
+    const agents = await withModelStubs(
+      { connectedProviders: null, availableModels: new Set() },
+      async () =>
+        createBuiltinAgents(
+          [],
+          {},
+          undefined,
+          TEST_DEFAULT_MODEL,
+          undefined,
+          undefined,
+          discoveredSkills,
+          undefined,
+          undefined,
+          undefined,
+          new Set(["my-custom-skill"])
+        )
+    )
+
+    // #then
+    expect(agents.sisyphus.prompt).not.toContain("UNIQUE_DISABLED_SKILL_MARKER")
+  })
 })
 
 describe("createBuiltinAgents without systemDefaultModel", () => {
@@ -513,6 +550,29 @@ describe("override.category expansion in createBuiltinAgents", () => {
     // #then
     expect(agents.oracle).toBeDefined()
     expect(agents.oracle.reasoningEffort).toBe("high")
+  })
+
+  test("standard agent override with category appends prompt_append to base prompt", async () => {
+    // #given
+    const categories = {
+      "prompt-cat": {
+        model: "openai/gpt-5.2",
+        prompt_append: "CATEGORY_PROMPT_APPEND_MARKER",
+      },
+    }
+    const overrides = {
+      oracle: { category: "prompt-cat" },
+    }
+
+    // #when
+    const agents = await withModelStubs(
+      { connectedProviders: null, availableModels: new Set() },
+      async () => createBuiltinAgents([], overrides, undefined, TEST_DEFAULT_MODEL, categories)
+    )
+
+    // #then
+    expect(agents.oracle).toBeDefined()
+    expect(agents.oracle.prompt).toContain("CATEGORY_PROMPT_APPEND_MARKER")
   })
 
   test("sisyphus override with category expands category properties", async () => {

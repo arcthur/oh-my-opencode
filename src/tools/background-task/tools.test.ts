@@ -190,6 +190,36 @@ describe("background_output full_session", () => {
     expect(output).toContain("Task ID")
   })
 
+  test("shows interrupted note for interrupt status", async () => {
+    // given
+    const task = createTask({ status: "interrupt", error: "prompt interrupted" })
+    const manager = createMockManager(task)
+    const client = createMockClient({})
+    const tool = createBackgroundOutput(manager, client)
+
+    // when
+    const output = await tool.execute({ task_id: "task-1" }, mockContext)
+
+    // then
+    expect(output).toContain("**interrupt**")
+    expect(output).toContain("**Interrupted**")
+  })
+
+  test("returns immediately for interrupt status even when block=true", async () => {
+    // given
+    const task = createTask({ status: "interrupt", error: "prompt interrupted" })
+    const manager = createMockManager(task)
+    const client = createMockClient({})
+    const tool = createBackgroundOutput(manager, client)
+
+    // when
+    const output = await tool.execute({ task_id: "task-1", block: true, timeout: 1000 }, mockContext)
+
+    // then
+    expect(output).toContain("# Task Status")
+    expect(output).toContain("**interrupt**")
+  })
+
   test("truncates thinking content to thinking_max_chars", async () => {
     // given
     const longThinking = "x".repeat(500)

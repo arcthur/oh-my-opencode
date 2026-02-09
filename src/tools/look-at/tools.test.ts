@@ -112,7 +112,7 @@ describe("look-at tool", () => {
       // when
       const result = await tool.execute(
         { file_path: "/test/file.png", goal: "analyze image" },
-        toolContext
+        toolContext,
       )
 
       // then
@@ -120,6 +120,48 @@ describe("look-at tool", () => {
       expect(result).toContain("malformed response")
       expect(result).toContain("multimodal-looker")
       expect(result).toContain("image/png")
+    })
+
+    test("returns assistant output even when prompt throws", async () => {
+      // given
+      const mockClient = {
+        session: {
+          get: async () => ({ data: { directory: "/project" } }),
+          create: async () => ({ data: { id: "ses_test_prompt_error_with_message" } }),
+          prompt: async () => {
+            throw {}
+          },
+          messages: async () => ({
+            data: [
+              {
+                info: { role: "assistant", time: { created: 1 } },
+                parts: [{ type: "text", text: "analysis result despite prompt error" }],
+              },
+            ],
+          }),
+        },
+      }
+
+      const tool = createLookAt({
+        client: mockClient,
+        directory: "/project",
+      } as any)
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+
+      // when
+      const result = await tool.execute(
+        { file_path: "/test/file.png", goal: "analyze image" },
+        toolContext,
+      )
+
+      // then
+      expect(result).toBe("analysis result despite prompt error")
     })
 
     test("handles generic prompt error gracefully", async () => {
@@ -150,7 +192,7 @@ describe("look-at tool", () => {
       // when
       const result = await tool.execute(
         { file_path: "/test/file.pdf", goal: "extract text" },
-        toolContext
+        toolContext,
       )
 
       // then
@@ -223,4 +265,3 @@ describe("look-at tool", () => {
     })
   })
 })
-

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "node:fs"
 import type { CheckResult, CheckDefinition } from "../types"
 import { CHECK_IDS, CHECK_NAMES } from "../constants"
-import { parseJsonc, detectConfigFile } from "../../../shared"
+import { parseJsonc, detectConfigFile, getOpenCodeConfigPaths } from "../../../shared"
 import {
   AGENT_MODEL_REQUIREMENTS,
   CATEGORY_MODEL_REQUIREMENTS,
@@ -25,8 +25,11 @@ function loadAvailableModels(): { providers: string[]; modelCount: number; cache
 
   try {
     const content = readFileSync(cacheFile, "utf-8")
-    const data = JSON.parse(content) as Record<string, { models?: Record<string, unknown> }>
-    
+    const data = parseJsonc<Record<string, { models?: Record<string, unknown> }>>(content)
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return { providers: [], modelCount: 0, cacheExists: false }
+    }
+
     const providers = Object.keys(data)
     let modelCount = 0
     for (const providerId of providers) {
@@ -43,9 +46,17 @@ function loadAvailableModels(): { providers: string[]; modelCount: number; cache
 }
 
 const PACKAGE_NAME = "oh-my-opencode"
-const USER_CONFIG_DIR = join(homedir(), ".config", "opencode")
-const USER_CONFIG_BASE = join(USER_CONFIG_DIR, PACKAGE_NAME)
-const PROJECT_CONFIG_BASE = join(process.cwd(), ".opencode", PACKAGE_NAME)
+
+function getUserConfigBase(): string {
+  return join(
+    getOpenCodeConfigPaths({ binary: "opencode", version: null }).configDir,
+    PACKAGE_NAME
+  )
+}
+
+function getProjectConfigBase(cwd = process.cwd()): string {
+  return join(cwd, ".opencode", PACKAGE_NAME)
+}
 
 export interface AgentResolutionInfo {
   name: string
@@ -76,7 +87,7 @@ interface OmoConfig {
 }
 
 function loadConfig(): OmoConfig | null {
-  const projectDetected = detectConfigFile(PROJECT_CONFIG_BASE)
+  const projectDetected = detectConfigFile(getProjectConfigBase())
   if (projectDetected.format !== "none") {
     try {
       const content = readFileSync(projectDetected.path, "utf-8")
@@ -86,7 +97,7 @@ function loadConfig(): OmoConfig | null {
     }
   }
 
-  const userDetected = detectConfigFile(USER_CONFIG_BASE)
+  const userDetected = detectConfigFile(getUserConfigBase())
   if (userDetected.format !== "none") {
     try {
       const content = readFileSync(userDetected.path, "utf-8")
@@ -204,6 +215,7 @@ interface AvailableModelsInfo {
 
 function buildDetailsArray(info: ModelResolutionInfo, available: AvailableModelsInfo): string[] {
   const details: string[] = []
+  const cacheFilePath = join(getOpenCodeCacheDir(), "models.json")
 
   details.push("═══ Available Models (from cache) ═══")
   details.push("")
@@ -211,7 +223,7 @@ function buildDetailsArray(info: ModelResolutionInfo, available: AvailableModels
     details.push(`  Providers in cache: ${available.providers.length}`)
     details.push(`  Sample: ${available.providers.slice(0, 6).join(", ")}${available.providers.length > 6 ? "..." : ""}`)
     details.push(`  Total models: ${available.modelCount}`)
-    details.push(`  Cache: ~/.cache/opencode/models.json`)
+    details.push(`  Cache: ${cacheFilePath}`)
     details.push(`  ℹ Runtime: only connected providers used`)
     details.push(`  Refresh: opencode models --refresh`)
   } else {

@@ -159,11 +159,21 @@ function logEventVerbose(ctx: RunContext, payload: EventPayload): void {
       const toolProps = props as ToolExecuteProps | undefined
       const toolName = toolProps?.name ?? "unknown"
       const input = toolProps?.input ?? {}
-      const inputStr = JSON.stringify(input).slice(0, 150)
+      let inputStr: string
+      try {
+        inputStr = JSON.stringify(input)
+      } catch {
+        try {
+          inputStr = String(input)
+        } catch {
+          inputStr = "[unserializable]"
+        }
+      }
+      const inputPreview = inputStr.slice(0, 150)
       console.error(
         pc.cyan(`${sessionTag} TOOL.EXECUTE: ${pc.bold(toolName)}`)
       )
-      console.error(pc.dim(`   input: ${inputStr}${inputStr.length >= 150 ? "..." : ""}`))
+      console.error(pc.dim(`   input: ${inputPreview}${inputStr.length >= 150 ? "..." : ""}`))
       break
     }
 
@@ -266,6 +276,7 @@ function handleMessageUpdated(
   if (props?.info?.role !== "assistant") return
 
   state.hasReceivedMeaningfulWork = true
+  state.lastPartText = ""
 }
 
 function handleToolExecute(

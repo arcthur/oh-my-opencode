@@ -423,6 +423,11 @@ export async function install(args: InstallArgs): Promise<number> {
     return runNonTuiInstall(args)
   }
 
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    console.error("Error: Interactive installer requires a TTY. Use --no-tui for non-interactive mode.")
+    return 1
+  }
+
   const detected = detectCurrentConfig()
   const isUpdate = detected.isInstalled
 

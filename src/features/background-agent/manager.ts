@@ -37,6 +37,10 @@ import {
 
 type ProcessCleanupHandler = () => void
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
 export class BackgroundManager {
   private static cleanupManagers = new Set<BackgroundManager>()
   private static cleanupRegistered = false
@@ -227,7 +231,7 @@ export class BackgroundManager {
   private handleTaskError(task: BackgroundTask, error: Error): void {
     const existingTask = this.state.findBySession(task.sessionID ?? "")
     if (existingTask) {
-      existingTask.status = "error"
+      existingTask.status = "interrupt"
       const errorMessage = error.message
       if (errorMessage.includes("agent.name") || errorMessage.includes("undefined")) {
         existingTask.error = `Agent "${task.agent}" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.`
@@ -646,6 +650,10 @@ export class BackgroundManager {
     return this.state.getRunningTasks()
   }
 
+  getNonRunningTasks(): BackgroundTask[] {
+    return this.state.getNonRunningTasks()
+  }
+
   getCompletedTasks(): BackgroundTask[] {
     return this.state.getCompletedTasks()
   }
@@ -847,11 +855,24 @@ export class BackgroundManager {
           path: { id: sessionID },
         })
 
-        if (!messagesResult.error && messagesResult.data) {
-          const messages = messagesResult.data as Array<{
-            info?: { role?: string }
-            parts?: Array<{ type?: string; tool?: string; name?: string; text?: string }>
-          }>
+        const hasMessageError =
+          isRecord(messagesResult) && "error" in messagesResult && Boolean(messagesResult.error)
+        if (!hasMessageError) {
+          const messagesPayload = Array.isArray(messagesResult)
+            ? messagesResult
+            : isRecord(messagesResult) && "data" in messagesResult
+              ? messagesResult.data
+              : undefined
+
+          const messages = Array.isArray(messagesPayload)
+            ? (messagesPayload as Array<{
+              info?: { role?: string }
+              parts?: Array<{ type?: string; tool?: string; name?: string; text?: string }>
+            }>)
+            : []
+
+          if (messages.length === 0) continue
+
           const assistantMsgs = messages.filter(
             (m) => m.info?.role === "assistant"
           )

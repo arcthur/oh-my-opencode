@@ -23,6 +23,19 @@ export interface AvailableCategory {
   model?: string
 }
 
+function sanitizeMarkdownTableCell(value: string): string {
+  return value
+    .replace(/\r?\n/g, " ")
+    .replace(/\|/g, "\\|")
+    .replace(/`/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function truncateFirstSentence(value: string): string {
+  return value.split(".")[0] || value
+}
+
 export function categorizeTools(toolNames: string[]): AvailableTool[] {
   return toolNames.map((name) => {
     let category: AvailableTool["category"] = "other"
@@ -66,7 +79,7 @@ function formatToolsForPrompt(tools: AvailableTool[]): string {
 export function buildKeyTriggersSection(agents: AvailableAgent[], _skills: AvailableSkill[] = []): string {
   const keyTriggers = agents
     .filter((a) => a.metadata.keyTrigger)
-    .map((a) => `- ${a.metadata.keyTrigger}`)
+    .map((a) => `- ${sanitizeMarkdownTableCell(a.metadata.keyTrigger ?? "")}`)
 
   if (keyTriggers.length === 0) return ""
 
@@ -90,7 +103,7 @@ export function buildToolSelectionTable(
   rows.push("|----------|------|-------------|")
 
   if (tools.length > 0) {
-    const toolsDisplay = formatToolsForPrompt(tools)
+    const toolsDisplay = sanitizeMarkdownTableCell(formatToolsForPrompt(tools))
     rows.push(`| ${toolsDisplay} | FREE | Not Complex, Scope Clear, No Implicit Assumptions |`)
   }
 
@@ -100,8 +113,9 @@ export function buildToolSelectionTable(
     .sort((a, b) => costOrder[a.metadata.cost] - costOrder[b.metadata.cost])
 
   for (const agent of sortedAgents) {
-    const shortDesc = agent.description.split(".")[0] || agent.description
-    rows.push(`| \`${agent.name}\` agent | ${agent.metadata.cost} | ${shortDesc} |`)
+    const safeAgentName = sanitizeMarkdownTableCell(agent.name)
+    const shortDesc = sanitizeMarkdownTableCell(truncateFirstSentence(agent.description))
+    rows.push(`| \`${safeAgentName}\` agent | ${agent.metadata.cost} | ${shortDesc} |`)
   }
 
   rows.push("")
@@ -123,8 +137,8 @@ Use it as a **peer tool**, not a fallback. Fire liberally.
 
 | Use Direct Tools | Use Explore Agent |
 |------------------|-------------------|
-${avoidWhen.map((w) => `| ${w} |  |`).join("\n")}
-${useWhen.map((w) => `|  | ${w} |`).join("\n")}`
+${avoidWhen.map((w) => `| ${sanitizeMarkdownTableCell(w)} |  |`).join("\n")}
+${useWhen.map((w) => `|  | ${sanitizeMarkdownTableCell(w)} |`).join("\n")}`
 }
 
 export function buildLibrarianSection(agents: AvailableAgent[]): string {
@@ -147,7 +161,7 @@ Search **external references** (docs, OSS, web). Fire proactively when unfamilia
 | | OSS implementation examples |
 
 **Trigger phrases** (fire librarian immediately):
-${useWhen.map((w) => `- "${w}"`).join("\n")}`
+${useWhen.map((w) => `- "${sanitizeMarkdownTableCell(w)}"`).join("\n")}`
 }
 
 export function buildDelegationTable(agents: AvailableAgent[]): string {
@@ -160,7 +174,10 @@ export function buildDelegationTable(agents: AvailableAgent[]): string {
 
   for (const agent of agents) {
     for (const trigger of agent.metadata.triggers) {
-      rows.push(`| ${trigger.domain} | \`${agent.name}\` | ${trigger.trigger} |`)
+      const safeDomain = sanitizeMarkdownTableCell(trigger.domain)
+      const safeAgentName = sanitizeMarkdownTableCell(agent.name)
+      const safeTrigger = sanitizeMarkdownTableCell(trigger.trigger)
+      rows.push(`| ${safeDomain} | \`${safeAgentName}\` | ${safeTrigger} |`)
     }
   }
 
@@ -171,13 +188,15 @@ export function buildCategorySkillsDelegationGuide(categories: AvailableCategory
   if (categories.length === 0 && skills.length === 0) return ""
 
   const categoryRows = categories.map((c) => {
-    const desc = c.description || c.name
-    return `| \`${c.name}\` | ${desc} |`
+    const safeName = sanitizeMarkdownTableCell(c.name)
+    const desc = sanitizeMarkdownTableCell(c.description || c.name)
+    return `| \`${safeName}\` | ${desc} |`
   })
 
   const skillRows = skills.map((s) => {
-    const desc = s.description.split(".")[0] || s.description
-    return `| \`${s.name}\` | ${desc} |`
+    const safeName = sanitizeMarkdownTableCell(s.name)
+    const desc = sanitizeMarkdownTableCell(truncateFirstSentence(s.description))
+    return `| \`${safeName}\` | ${desc} |`
   })
 
   return `### Category + Skills Delegation System
@@ -270,11 +289,11 @@ Oracle is a read-only, expensive, high-quality reasoning model for debugging and
 
 | Trigger | Action |
 |---------|--------|
-${useWhen.map((w) => `| ${w} | Oracle FIRST, then implement |`).join("\n")}
+${useWhen.map((w) => `| ${sanitizeMarkdownTableCell(w)} | Oracle FIRST, then implement |`).join("\n")}
 
 ### WHEN NOT to Consult:
 
-${avoidWhen.map((w) => `- ${w}`).join("\n")}
+${avoidWhen.map((w) => `- ${sanitizeMarkdownTableCell(w)}`).join("\n")}
 
 ### Usage Pattern:
 Briefly announce "Consulting Oracle for [reason]" before invocation.
@@ -324,8 +343,9 @@ export function buildUltraworkSection(
   if (categories.length > 0) {
     lines.push("**Categories** (for implementation tasks):")
     for (const cat of categories) {
-      const shortDesc = cat.description || cat.name
-      lines.push(`- \`${cat.name}\`: ${shortDesc}`)
+      const safeName = sanitizeMarkdownTableCell(cat.name)
+      const shortDesc = sanitizeMarkdownTableCell(cat.description || cat.name)
+      lines.push(`- \`${safeName}\`: ${shortDesc}`)
     }
     lines.push("")
   }
@@ -333,8 +353,9 @@ export function buildUltraworkSection(
   if (skills.length > 0) {
     lines.push("**Skills** (combine with categories - EVALUATE ALL for relevance):")
     for (const skill of skills) {
-      const shortDesc = skill.description.split(".")[0] || skill.description
-      lines.push(`- \`${skill.name}\`: ${shortDesc}`)
+      const safeName = sanitizeMarkdownTableCell(skill.name)
+      const shortDesc = sanitizeMarkdownTableCell(truncateFirstSentence(skill.description))
+      lines.push(`- \`${safeName}\`: ${shortDesc}`)
     }
     lines.push("")
   }
@@ -352,9 +373,10 @@ export function buildUltraworkSection(
 
     lines.push("**Agents** (for specialized consultation/exploration):")
     for (const agent of sortedAgents) {
-      const shortDesc = agent.description.split(".")[0] || agent.description
+      const safeName = sanitizeMarkdownTableCell(agent.name)
+      const shortDesc = sanitizeMarkdownTableCell(truncateFirstSentence(agent.description))
       const suffix = agent.name === "explore" || agent.name === "librarian" ? " (multiple)" : ""
-      lines.push(`- \`${agent.name}${suffix}\`: ${shortDesc}`)
+      lines.push(`- \`${safeName}${suffix}\`: ${shortDesc}`)
     }
   }
 

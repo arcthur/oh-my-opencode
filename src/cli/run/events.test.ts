@@ -192,6 +192,30 @@ describe("event handling", () => {
     expect(state.hasReceivedMeaningfulWork).toBe(false)
   })
 
+  it("message.updated with assistant role resets lastPartText for new message stream", async () => {
+    // #given - previous message streaming already left lastPartText state
+    const ctx = createMockContext("my-session")
+    const state = createEventState()
+    state.lastPartText = "stale previous message content"
+
+    const payload: EventPayload = {
+      type: "message.updated",
+      properties: {
+        info: { sessionID: "my-session", role: "assistant" },
+      },
+    }
+
+    const events = toAsyncIterable([payload])
+    const { processEvents } = await import("./events")
+
+    // #when
+    await processEvents(ctx, events, state)
+
+    // #then - next message should start text diffing from empty baseline
+    expect(state.lastPartText).toBe("")
+    expect(state.hasReceivedMeaningfulWork).toBe(true)
+  })
+
   it("tool.execute sets hasReceivedMeaningfulWork", async () => {
     // #given
     const ctx = createMockContext("my-session")
@@ -238,6 +262,32 @@ describe("event handling", () => {
 
     // #then - different session's tool call shouldn't count
     expect(state.hasReceivedMeaningfulWork).toBe(false)
+  })
+
+  it("tool.execute with circular input should not break event processing", async () => {
+    // #given
+    const ctx = createMockContext("my-session")
+    const state = createEventState()
+    const input: Record<string, unknown> = {}
+    input.self = input
+
+    const payload: EventPayload = {
+      type: "tool.execute",
+      properties: {
+        sessionID: "my-session",
+        name: "delegate_task",
+        input,
+      },
+    }
+
+    const events = toAsyncIterable([payload])
+    const { processEvents } = await import("./events")
+
+    // #when
+    await processEvents(ctx, events, state)
+
+    // #then
+    expect(state.hasReceivedMeaningfulWork).toBe(true)
   })
 
   it("session.status with busy type sets mainSessionIdle to false", async () => {

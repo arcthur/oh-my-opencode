@@ -218,6 +218,10 @@ ${truncated}
     statusNote = `
 
 > **Failed**: The task encountered an error. Check the last message for details.`
+  } else if (task.status === "interrupt") {
+    statusNote = `
+
+> **Interrupted**: The task was interrupted while sending or resuming the prompt. Check error details and retry if needed.`
   }
 
   const durationLabel = task.status === "pending" ? "Queued for" : "Duration"
@@ -564,8 +568,8 @@ export function createBackgroundOutput(manager: BackgroundOutputManager, client:
           return await formatTaskResult(task, client)
         }
 
-        // Error or cancelled: return status immediately
-        if (task.status === "error" || task.status === "cancelled") {
+        // Error, interrupted, or cancelled: return status immediately
+        if (task.status === "error" || task.status === "interrupt" || task.status === "cancelled") {
           return formatTaskStatus(task)
         }
 
@@ -589,7 +593,7 @@ export function createBackgroundOutput(manager: BackgroundOutputManager, client:
             return await formatTaskResult(currentTask, client)
           }
 
-          if (currentTask.status === "error" || currentTask.status === "cancelled") {
+          if (currentTask.status === "error" || currentTask.status === "interrupt" || currentTask.status === "cancelled") {
             return formatTaskStatus(currentTask)
           }
         }

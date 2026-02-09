@@ -7,6 +7,7 @@ import { getTimingConfig } from "./timing"
 import { parseModelString, getMessageDir, formatDuration, formatDetailedError } from "./helpers"
 import { resolveCategoryConfig } from "./categories"
 import { buildSystemContent } from "./prompt-builder"
+import { getSyncCompletionState } from "./sync-completion"
 import { findNearestMessageWithFields, findFirstMessageWithAgent } from "../../features/hook-message-injector"
 import { resolveMultipleSkillsAsync } from "../../features/opencode-skill-loader/skill-content"
 import { discoverSkills } from "../../features/opencode-skill-loader"
@@ -42,8 +43,31 @@ export interface ParentContext {
 }
 
 interface SessionMessage {
-  info?: { role?: string; time?: { created?: number }; agent?: string; model?: { providerID: string; modelID: string }; modelID?: string; providerID?: string }
+  info?: {
+    id?: string
+    role?: string
+    time?: { created?: number }
+    finish?: string
+    agent?: string
+    model?: { providerID: string; modelID: string; variant?: string }
+    modelID?: string
+    providerID?: string
+  }
   parts?: Array<{ type?: string; text?: string }>
+}
+
+async function getSessionStatusType(
+  client: OpencodeClient,
+  sessionID: string
+): Promise<string | undefined> {
+  const statusFn = (client.session as { status?: () => Promise<{ data?: unknown }> }).status
+  if (typeof statusFn !== "function") {
+    return undefined
+  }
+
+  const statusResult = await statusFn.call(client.session)
+  const allStatuses = (statusResult.data ?? {}) as Record<string, { type?: string }>
+  return allStatuses[sessionID]?.type
 }
 
 export async function resolveSkillContent(
@@ -240,7 +264,7 @@ export async function executeSyncContinuation(
       client
     )
 
-    await client.session.prompt({
+    await promptWithModelSuggestionRetry(client, {
       path: { id: args.session_id! },
       body: {
         ...(resumeAgent !== undefined ? { agent: resumeAgent } : {}),
@@ -270,11 +294,29 @@ export async function executeSyncContinuation(
   while (Date.now() - pollStart < 60000) {
     await new Promise(resolve => setTimeout(resolve, timing.POLL_INTERVAL_MS))
 
+    const sessionStatus = await getSessionStatusType(client, args.session_id!)
+    if (sessionStatus && sessionStatus !== "idle") {
+      stablePolls = 0
+      lastMsgCount = 0
+      continue
+    }
+
+    const messagesCheck = await client.session.messages({ path: { id: args.session_id! } })
+    const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as SessionMessage[]
+    const completionState = getSyncCompletionState(msgs)
+    if (completionState === "complete") {
+      break
+    }
+
+    if (completionState === "incomplete") {
+      stablePolls = 0
+      lastMsgCount = msgs.length
+      continue
+    }
+
     const elapsed = Date.now() - pollStart
     if (elapsed < timing.SESSION_CONTINUATION_STABILITY_MS) continue
 
-    const messagesCheck = await client.session.messages({ path: { id: args.session_id! } })
-    const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
     const currentMsgCount = msgs.length
 
     if (currentMsgCount > 0 && currentMsgCount === lastMsgCount) {
@@ -400,28 +442,36 @@ export async function executeUnstableAgentTask(
 
       await new Promise(resolve => setTimeout(resolve, timingCfg.POLL_INTERVAL_MS))
 
-      const statusResult = await client.session.status()
-      const allStatuses = (statusResult.data ?? {}) as Record<string, { type: string }>
-      const sessionStatus = allStatuses[sessionID]
+      const sessionStatus = await getSessionStatusType(client, sessionID)
 
-      if (sessionStatus && sessionStatus.type !== "idle") {
+      if (sessionStatus && sessionStatus !== "idle") {
         stablePolls = 0
         lastMsgCount = 0
         continue
       }
 
-      if (Date.now() - pollStart < timingCfg.MIN_STABILITY_TIME_MS) continue
-
       const messagesCheck = await client.session.messages({ path: { id: sessionID } })
-      const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
-      const currentMsgCount = msgs.length
+      const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as SessionMessage[]
+      const completionState = getSyncCompletionState(msgs)
+      if (completionState === "complete") {
+        break
+      }
 
-      if (currentMsgCount === lastMsgCount) {
-        stablePolls++
-        if (stablePolls >= timingCfg.STABILITY_POLLS_REQUIRED) break
-      } else {
+      if (completionState === "incomplete") {
         stablePolls = 0
-        lastMsgCount = currentMsgCount
+        lastMsgCount = msgs.length
+        continue
+      }
+
+      if (Date.now() - pollStart >= timingCfg.MIN_STABILITY_TIME_MS) {
+        const currentMsgCount = msgs.length
+        if (currentMsgCount === lastMsgCount) {
+          stablePolls++
+          if (stablePolls >= timingCfg.STABILITY_POLLS_REQUIRED) break
+        } else {
+          stablePolls = 0
+          lastMsgCount = currentMsgCount
+        }
       }
     }
 
@@ -690,22 +740,20 @@ export async function executeSyncTask(
       await new Promise(resolve => setTimeout(resolve, syncTiming.POLL_INTERVAL_MS))
       pollCount++
 
-      const statusResult = await client.session.status()
-      const allStatuses = (statusResult.data ?? {}) as Record<string, { type: string }>
-      const sessionStatus = allStatuses[sessionID]
+      const sessionStatus = await getSessionStatusType(client, sessionID)
 
       if (pollCount % 10 === 0) {
         log("[delegate_task] Poll status", {
           sessionID,
           pollCount,
           elapsed: Math.floor((Date.now() - pollStart) / 1000) + "s",
-          sessionStatus: sessionStatus?.type ?? "not_in_status",
+          sessionStatus: sessionStatus ?? "not_in_status",
           stablePolls,
           lastMsgCount,
         })
       }
 
-      if (sessionStatus && sessionStatus.type !== "idle") {
+      if (sessionStatus && sessionStatus !== "idle") {
         stablePolls = 0
         lastMsgCount = 0
         continue
@@ -717,13 +765,29 @@ export async function executeSyncTask(
       }
 
       const messagesCheck = await client.session.messages({ path: { id: sessionID } })
-      const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
-      const currentMsgCount = msgs.length
+      const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as SessionMessage[]
+      const completionState = getSyncCompletionState(msgs)
 
+      if (completionState === "complete") {
+        log("[delegate_task] Poll complete - terminal finish detected", { sessionID, pollCount })
+        break
+      }
+
+      if (completionState === "incomplete") {
+        stablePolls = 0
+        lastMsgCount = msgs.length
+        continue
+      }
+
+      const currentMsgCount = msgs.length
       if (currentMsgCount === lastMsgCount) {
         stablePolls++
         if (stablePolls >= syncTiming.STABILITY_POLLS_REQUIRED) {
-          log("[delegate_task] Poll complete - messages stable", { sessionID, pollCount, currentMsgCount })
+          log("[delegate_task] Poll complete - fallback message stability", {
+            sessionID,
+            pollCount,
+            currentMsgCount,
+          })
           break
         }
       } else {

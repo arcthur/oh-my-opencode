@@ -1,12 +1,11 @@
 import { createOpencode } from "@opencode-ai/sdk"
 import pc from "picocolors"
 import type { RunOptions, RunContext } from "./types"
-import { checkCompletionConditions } from "./completion"
 import { createEventState, processEvents, serializeError } from "./events"
 import type { OhMyOpenCodeConfig } from "../../config"
 import { loadPluginConfig } from "../../plugin-config"
+import { pollForCompletion } from "./poll-for-completion"
 
-const POLL_INTERVAL_MS = 500
 const DEFAULT_TIMEOUT_MS = 0
 const SESSION_CREATE_MAX_RETRIES = 3
 const SESSION_CREATE_RETRY_DELAY_MS = 1000
@@ -200,41 +199,11 @@ export async function run(options: RunOptions): Promise<number> {
       })
 
       console.log(pc.dim("Waiting for completion...\n"))
-
-      while (!abortController.signal.aborted) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-
-        if (!eventState.mainSessionIdle) {
-          continue
-        }
-
-        // Check if session errored - exit with failure if so
-        if (eventState.mainSessionError) {
-          console.error(pc.red(`\n\nSession ended with error: ${eventState.lastError}`))
-          console.error(pc.yellow("Check if tasks were completed before the error."))
-          cleanup()
-          process.exit(1)
-        }
-
-        // Guard against premature completion: don't check completion until the
-        // session has produced meaningful work (text output, tool call, or tool result).
-        // Without this, a session that goes busy->idle before the LLM responds
-        // would exit immediately because 0 tasks + 0 children = "complete".
-        if (!eventState.hasReceivedMeaningfulWork) {
-          continue
-        }
-
-        const shouldExit = await checkCompletionConditions(ctx)
-        if (shouldExit) {
-          console.log(pc.green("\n\nAll tasks completed."))
-          cleanup()
-          process.exit(0)
-        }
-      }
+      const exitCode = await pollForCompletion(ctx, eventState, abortController)
 
       await eventProcessor.catch(() => {})
       cleanup()
-      return 130
+      return exitCode
     } catch (err) {
       cleanup()
       throw err

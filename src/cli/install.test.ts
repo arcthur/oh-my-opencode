@@ -15,6 +15,8 @@ describe("install CLI - binary check behavior", () => {
   let originalEnv: string | undefined
   let isOpenCodeInstalledSpy: ReturnType<typeof spyOn>
   let getOpenCodeVersionSpy: ReturnType<typeof spyOn>
+  let originalStdinDescriptor: PropertyDescriptor | undefined
+  let originalStdoutDescriptor: PropertyDescriptor | undefined
 
   beforeEach(() => {
     // given temporary config directory
@@ -30,7 +32,12 @@ describe("install CLI - binary check behavior", () => {
 
     // Capture console output
     console.log = mockConsoleLog
+    console.error = mockConsoleError
     mockConsoleLog.mockClear()
+    mockConsoleError.mockClear()
+
+    originalStdinDescriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY")
+    originalStdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY")
   })
 
   afterEach(() => {
@@ -46,6 +53,17 @@ describe("install CLI - binary check behavior", () => {
 
     isOpenCodeInstalledSpy?.mockRestore()
     getOpenCodeVersionSpy?.mockRestore()
+
+    if (originalStdinDescriptor) {
+      Object.defineProperty(process.stdin, "isTTY", originalStdinDescriptor)
+    } else {
+      delete (process.stdin as { isTTY?: boolean }).isTTY
+    }
+    if (originalStdoutDescriptor) {
+      Object.defineProperty(process.stdout, "isTTY", originalStdoutDescriptor)
+    } else {
+      delete (process.stdout as { isTTY?: boolean }).isTTY
+    }
   })
 
   test("non-TUI mode: should show warning but continue when OpenCode binary not found", async () => {
@@ -147,5 +165,23 @@ describe("install CLI - binary check behavior", () => {
     const allCalls = mockConsoleLog.mock.calls.flat().join("\n")
     expect(allCalls).toContain("[OK]")
     expect(allCalls).toContain("OpenCode 1.0.200")
+  })
+
+  test("TUI mode: should fail fast when stdin/stdout are not TTY", async () => {
+    // #given
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true })
+    Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true })
+
+    const args: InstallArgs = {
+      tui: true,
+    }
+
+    // #when
+    const exitCode = await install(args)
+
+    // #then
+    expect(exitCode).toBe(1)
+    const allErrors = mockConsoleError.mock.calls.flat().join("\n")
+    expect(allErrors).toContain("requires a TTY")
   })
 })

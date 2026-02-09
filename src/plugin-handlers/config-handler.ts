@@ -156,7 +156,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       allDiscoveredSkills,
       ctx.client,
       undefined,
-      config.model as string | undefined
+      config.model as string | undefined,
+      new Set(pluginConfig.disabled_skills ?? [])
     );
 
     // Claude Code agents: Do NOT apply permission migration

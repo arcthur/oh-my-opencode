@@ -86,4 +86,10 @@ My skill
 $ARGUMENTS
 </user-request>`)
   })
+
+  it("resolves @path references to absolute paths", () => {
+    const result = wrapSkillTemplate("Use @scripts/run.ts and @data/config.json", "/skills/test")
+
+    expect(result).toContain("Use /skills/test/scripts/run.ts and /skills/test/data/config.json")
+  })
 })

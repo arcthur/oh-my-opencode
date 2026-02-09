@@ -1,3 +1,5 @@
+import { resolveSkillPathReferences } from "./skill-path-resolver"
+
 /**
  * Wraps command body content in the standard command template format.
  *
@@ -23,11 +25,13 @@ $ARGUMENTS
  * @returns Wrapped template string with skill-instruction tags
  */
 export function wrapSkillTemplate(body: string, baseDir: string): string {
+  const resolvedBody = resolveSkillPathReferences(body.trim(), baseDir)
+
   return `<skill-instruction>
 Base directory for this skill: ${baseDir}/
 File references (@path) in this skill are relative to this directory.
 
-${body.trim()}
+${resolvedBody}
 </skill-instruction>
 
 <user-request>

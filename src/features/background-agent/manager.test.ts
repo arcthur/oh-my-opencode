@@ -1981,3 +1981,57 @@ describe("BackgroundManager.checkAndInterruptStaleTasks", () => {
   })
 })
 
+describe("BackgroundManager.pollRunningTasks message parsing", () => {
+  test("should handle direct array response from session.messages", async () => {
+    // #given
+    const sessionID = "session-array-shape"
+    const task: BackgroundTask = {
+      id: "task-array-shape",
+      sessionID,
+      parentSessionID: "parent-session",
+      parentMessageID: "parent-message",
+      description: "Array message shape task",
+      prompt: "run",
+      agent: "explore",
+      status: "running",
+      startedAt: new Date(),
+      progress: {
+        toolCalls: 0,
+        lastUpdate: new Date(),
+      },
+    }
+
+    const client = {
+      session: {
+        status: async () => ({ data: { [sessionID]: { type: "running" } } }),
+        messages: async () => [
+          {
+            info: { role: "assistant" },
+            parts: [
+              { type: "tool_use", tool: "bash" },
+              { type: "text", text: "working" },
+            ],
+          },
+          {
+            info: { role: "user" },
+            parts: [{ type: "text", text: "continue" }],
+          },
+        ],
+        abort: async () => ({}),
+        prompt: async () => ({}),
+      },
+    }
+    const manager = new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
+    manager["state"].tasks.set(task.id, task)
+
+    // #when
+    await manager["pollRunningTasks"]()
+
+    // #then
+    expect(task.progress?.toolCalls).toBe(1)
+    expect(task.progress?.lastTool).toBe("bash")
+    expect(task.progress?.lastMessage).toBe("working")
+    expect(task.lastMsgCount).toBe(2)
+    manager.shutdown()
+  })
+})

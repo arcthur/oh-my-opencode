@@ -100,4 +100,49 @@ describe("background-agent spawner", () => {
     const createArgs = mockCreate.mock.calls[0]?.[0] as { query?: { directory?: string } } | undefined
     expect(createArgs?.query?.directory).toBe("/parent-dir")
   })
+
+  test("resumeTask should use model concurrency key when concurrencyGroup is missing", async () => {
+    // #given
+    const { resumeTask } = require("./spawner")
+
+    const acquire = mock(async () => {})
+    const concurrencyManager = { acquire }
+
+    const task = {
+      id: "bg_resume_model_key",
+      status: "completed",
+      description: "resume model key",
+      prompt: "test",
+      agent: "explore",
+      parentSessionID: "ses_parent",
+      parentMessageID: "msg_parent",
+      sessionID: "ses_child",
+      model: { providerID: "anthropic", modelID: "claude-opus-4-5" },
+    }
+
+    const client = {
+      session: {
+        prompt: mock(async () => ({})),
+      },
+    }
+
+    // #when
+    await resumeTask(
+      task,
+      {
+        sessionId: "ses_child",
+        prompt: "continue",
+        parentSessionID: "ses_parent",
+        parentMessageID: "msg_parent",
+      },
+      {
+        client,
+        concurrencyManager,
+        onTaskError: mock(() => {}),
+      }
+    )
+
+    // #then
+    expect(acquire).toHaveBeenCalledWith("anthropic/claude-opus-4-5")
+  })
 })

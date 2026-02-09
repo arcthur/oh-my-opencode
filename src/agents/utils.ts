@@ -165,6 +165,9 @@ function applyCategoryOverride(
   if (categoryConfig.thinking !== undefined) result.thinking = categoryConfig.thinking
   if (categoryConfig.top_p !== undefined) result.top_p = categoryConfig.top_p
   if (categoryConfig.maxTokens !== undefined) result.maxTokens = categoryConfig.maxTokens
+  if (categoryConfig.prompt_append && typeof result.prompt === "string") {
+    result.prompt = result.prompt + "\n" + categoryConfig.prompt_append
+  }
 
   return result as AgentConfig
 }
@@ -267,7 +270,8 @@ export async function createBuiltinAgents(
   discoveredSkills: LoadedSkill[] = [],
   _client?: unknown,
   browserProvider?: BrowserAutomationProvider,
-  uiSelectedModel?: string
+  uiSelectedModel?: string,
+  disabledSkills?: Set<string>
 ): Promise<Record<string, AgentConfig>> {
   const connectedProviders = readConnectedProvidersCache()
   // IMPORTANT: Do NOT pass client to fetchAvailableModels during plugin initialization.
@@ -291,7 +295,7 @@ export async function createBuiltinAgents(
     description: categories?.[name]?.description ?? CATEGORY_DESCRIPTIONS[name] ?? "General tasks",
   }))
 
-  const builtinSkills = createBuiltinSkills({ browserProvider })
+  const builtinSkills = createBuiltinSkills({ browserProvider, disabledSkills })
   const builtinSkillNames = new Set(builtinSkills.map((s) => s.name))
 
   const builtinAvailable: AvailableSkill[] = builtinSkills.map((skill) => ({
@@ -301,7 +305,7 @@ export async function createBuiltinAgents(
   }))
 
   const discoveredAvailable: AvailableSkill[] = discoveredSkills
-    .filter((s) => !builtinSkillNames.has(s.name))
+    .filter((s) => !builtinSkillNames.has(s.name) && !disabledSkills?.has(s.name))
     .map((skill) => ({
       name: skill.name,
       description: skill.definition.description ?? "",

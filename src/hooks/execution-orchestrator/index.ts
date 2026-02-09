@@ -1,5 +1,4 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { execSync } from "node:child_process"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 import { listTaskNodes } from "../../features/task-system"
 import { createWorkStateManager } from "../../features/work-state"
@@ -11,6 +10,7 @@ import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } 
 import { getMessageDir, isCallerSisyphus } from "../../shared/session-utils"
 import type { BackgroundManager } from "../../features/background-agent"
 import type { ContinuationIntent } from "../continuation-control"
+import { getGitDiffStats, type GitFileStat } from "./git-diff-stats"
 
 export const HOOK_NAME = "execution-orchestrator"
 
@@ -336,86 +336,6 @@ task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "c
 function extractSessionIdFromOutput(output: string): string {
   const match = output.match(/Session ID:\s*(ses_[a-zA-Z0-9]+)/)
   return match?.[1] ?? "<session_id>"
-}
-
-interface GitFileStat {
-  path: string
-  added: number
-  removed: number
-  status: "modified" | "added" | "deleted"
-}
-
-function isInsideGitWorkTree(directory: string): boolean {
-  try {
-    const result = execSync("git rev-parse --is-inside-work-tree", {
-      cwd: directory,
-      encoding: "utf-8",
-      timeout: 2000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim()
-    return result === "true"
-  } catch {
-    return false
-  }
-}
-
-function getGitDiffStats(directory: string): GitFileStat[] {
-  if (!isInsideGitWorkTree(directory)) {
-    return []
-  }
-
-  try {
-    const output = execSync("git diff --numstat HEAD", {
-      cwd: directory,
-      encoding: "utf-8",
-      timeout: 5000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim()
-
-    if (!output) return []
-
-    const statusOutput = execSync("git status --porcelain", {
-      cwd: directory,
-      encoding: "utf-8",
-      timeout: 5000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim()
-
-    const statusMap = new Map<string, "modified" | "added" | "deleted">()
-    for (const line of statusOutput.split("\n")) {
-      if (!line) continue
-      const status = line.substring(0, 2).trim()
-      const filePath = line.substring(3)
-      if (status === "A" || status === "??") {
-        statusMap.set(filePath, "added")
-      } else if (status === "D") {
-        statusMap.set(filePath, "deleted")
-      } else {
-        statusMap.set(filePath, "modified")
-      }
-    }
-
-    const stats: GitFileStat[] = []
-    for (const line of output.split("\n")) {
-      const parts = line.split("\t")
-      if (parts.length < 3) continue
-
-      const [addedStr, removedStr, path] = parts
-      const added = addedStr === "-" ? 0 : parseInt(addedStr, 10)
-      const removed = removedStr === "-" ? 0 : parseInt(removedStr, 10)
-
-      stats.push({
-        path,
-        added,
-        removed,
-        status: statusMap.get(path) ?? "modified",
-      })
-    }
-
-    return stats
-  } catch {
-    return []
-  }
 }
 
 function formatFileChanges(stats: GitFileStat[], notepadPath?: string): string {

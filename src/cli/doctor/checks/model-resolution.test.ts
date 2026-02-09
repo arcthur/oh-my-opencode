@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, spyOn, mock } from "bun:test"
+import { describe, it, expect } from "bun:test"
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 describe("model-resolution check", () => {
   describe("getModelResolutionInfo", () => {
@@ -163,6 +166,130 @@ describe("model-resolution check", () => {
       expect(result.details!.some((d) => d.includes("Categories:"))).toBe(true)
       // Should have legend
       expect(result.details!.some((d) => d.includes("user override"))).toBe(true)
+    })
+
+    it("shows cache path from XDG_CACHE_HOME when cache exists", async () => {
+      // #given
+      const tempCacheHome = mkdtempSync(join(tmpdir(), "omo-model-cache-"))
+      const opencodeCacheDir = join(tempCacheHome, "opencode")
+      const cacheFilePath = join(opencodeCacheDir, "models.json")
+      const originalXdgCacheHome = process.env.XDG_CACHE_HOME
+
+      mkdirSync(opencodeCacheDir, { recursive: true })
+      writeFileSync(
+        cacheFilePath,
+        JSON.stringify({
+          anthropic: {
+            models: {
+              "claude-opus-4-6": {},
+            },
+          },
+        })
+      )
+
+      try {
+        process.env.XDG_CACHE_HOME = tempCacheHome
+        const { checkModelResolution } = await import("./model-resolution")
+
+        // #when
+        const result = await checkModelResolution()
+
+        // #then
+        expect(result.details?.some((line) => line.includes(`Cache: ${cacheFilePath}`))).toBe(true)
+      } finally {
+        if (originalXdgCacheHome === undefined) {
+          delete process.env.XDG_CACHE_HOME
+        } else {
+          process.env.XDG_CACHE_HOME = originalXdgCacheHome
+        }
+        rmSync(tempCacheHome, { recursive: true, force: true })
+      }
+    })
+
+    it("treats JSONC-formatted models cache as valid cache", async () => {
+      // #given
+      const tempCacheHome = mkdtempSync(join(tmpdir(), "omo-model-cache-jsonc-"))
+      const opencodeCacheDir = join(tempCacheHome, "opencode")
+      const cacheFilePath = join(opencodeCacheDir, "models.json")
+      const originalXdgCacheHome = process.env.XDG_CACHE_HOME
+
+      mkdirSync(opencodeCacheDir, { recursive: true })
+      writeFileSync(
+        cacheFilePath,
+        `// cache comment
+{
+  "anthropic": {
+    "models": {
+      "claude-opus-4-6": {}
+    }
+  }
+}
+`
+      )
+
+      try {
+        process.env.XDG_CACHE_HOME = tempCacheHome
+        const { checkModelResolution } = await import("./model-resolution")
+
+        // #when
+        const result = await checkModelResolution()
+
+        // #then
+        expect(result.status).toBe("pass")
+        expect(result.details?.some((line) => line.includes("Providers in cache: 1"))).toBe(true)
+      } finally {
+        if (originalXdgCacheHome === undefined) {
+          delete process.env.XDG_CACHE_HOME
+        } else {
+          process.env.XDG_CACHE_HOME = originalXdgCacheHome
+        }
+        rmSync(tempCacheHome, { recursive: true, force: true })
+      }
+    })
+
+    it("reads user config from OPENCODE_CONFIG_DIR when project config is absent", async () => {
+      // #given
+      const originalCwd = process.cwd()
+      const originalConfigDir = process.env.OPENCODE_CONFIG_DIR
+      const tempProjectRoot = mkdtempSync(join(tmpdir(), "omo-model-project-"))
+      const tempConfigRoot = mkdtempSync(join(tmpdir(), "omo-model-config-"))
+      const userConfigPath = join(tempConfigRoot, "oh-my-opencode.json")
+
+      writeFileSync(
+        userConfigPath,
+        JSON.stringify(
+          {
+            agents: {
+              oracle: {
+                model: "openai/gpt-5.2",
+              },
+            },
+          },
+          null,
+          2
+        ) + "\n"
+      )
+
+      try {
+        process.chdir(tempProjectRoot)
+        process.env.OPENCODE_CONFIG_DIR = tempConfigRoot
+        const { checkModelResolution } = await import("./model-resolution")
+
+        // #when
+        const result = await checkModelResolution()
+
+        // #then
+        expect(result.details?.some((line) => line.includes("● oracle: openai/gpt-5.2"))).toBe(true)
+      } finally {
+        process.chdir(originalCwd)
+        if (originalConfigDir === undefined) {
+          delete process.env.OPENCODE_CONFIG_DIR
+        } else {
+          process.env.OPENCODE_CONFIG_DIR = originalConfigDir
+        }
+        rmSync(tempProjectRoot, { recursive: true, force: true })
+        rmSync(tempConfigRoot, { recursive: true, force: true })
+      }
     })
   })
 

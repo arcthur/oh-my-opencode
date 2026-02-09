@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from "node:fs"
 import {
   parseJsonc,
+  deepMerge,
   getOpenCodeConfigPaths,
   type OpenCodeBinaryType,
   type OpenCodeConfigPaths,
@@ -25,6 +26,9 @@ export function initConfigContext(binary: OpenCodeBinaryType, version: string | 
 
 export function getConfigContext(): ConfigContext {
   if (!configContext) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[config-context] getConfigContext() called before initConfigContext(); defaulting to CLI paths.")
+    }
     const paths = getOpenCodeConfigPaths({ binary: "opencode", version: null })
     configContext = { binary: "opencode", version: null, paths }
   }
@@ -100,7 +104,7 @@ function formatErrorWithSuggestion(err: unknown, context: string): string {
 
 export async function fetchLatestVersion(packageName: string): Promise<string | null> {
   try {
-    const res = await fetch(`https://registry.npmjs.org/${packageName}/latest`)
+    const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`)
     if (!res.ok) return null
     const data = await res.json() as { version: string }
     return data.version
@@ -155,6 +159,13 @@ type ConfigFormat = "json" | "jsonc" | "none"
 interface OpenCodeConfig {
   plugin?: string[]
   [key: string]: unknown
+}
+
+export function normalizePluginList(rawPluginValue: unknown): string[] {
+  if (!Array.isArray(rawPluginValue)) {
+    return []
+  }
+  return rawPluginValue.filter((item): item is string => typeof item === "string")
 }
 
 export function detectConfigFormat(): { format: ConfigFormat; path: string } {
@@ -243,7 +254,7 @@ export async function addPluginToOpenCodeConfig(currentVersion: string): Promise
     }
 
     const config = parseResult.config
-    const plugins = config.plugin ?? []
+    const plugins = normalizePluginList(config.plugin)
     const existingIndex = plugins.findIndex((p) => p === PACKAGE_NAME || p.startsWith(`${PACKAGE_NAME}@`))
 
     if (existingIndex !== -1) {
@@ -278,33 +289,6 @@ export async function addPluginToOpenCodeConfig(currentVersion: string): Promise
   } catch (err) {
     return { success: false, configPath: path, error: formatErrorWithSuggestion(err, "update opencode config") }
   }
-}
-
-function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-  const result = { ...target }
-
-  for (const key of Object.keys(source) as Array<keyof T>) {
-    const sourceValue = source[key]
-    const targetValue = result[key]
-
-    if (
-      sourceValue !== null &&
-      typeof sourceValue === "object" &&
-      !Array.isArray(sourceValue) &&
-      targetValue !== null &&
-      typeof targetValue === "object" &&
-      !Array.isArray(targetValue)
-    ) {
-      result[key] = deepMerge(
-        targetValue as Record<string, unknown>,
-        sourceValue as Record<string, unknown>
-      ) as T[keyof T]
-    } else if (sourceValue !== undefined) {
-      result[key] = sourceValue as T[keyof T]
-    }
-  }
-
-  return result
 }
 
 export function generateOmoConfig(installConfig: InstallConfig): Record<string, unknown> {
@@ -408,13 +392,17 @@ export async function addAuthPlugins(config: InstallConfig): Promise<ConfigMerge
     if (format !== "none") {
       const parseResult = parseConfigWithError(path)
       if (parseResult.error && !parseResult.config) {
-        existingConfig = {}
+        return {
+          success: false,
+          configPath: path,
+          error: `Failed to parse config file: ${parseResult.error}`,
+        }
       } else {
         existingConfig = parseResult.config
       }
     }
 
-    const plugins: string[] = existingConfig?.plugin ?? []
+    const plugins = normalizePluginList(existingConfig?.plugin)
 
     if (config.hasGemini) {
       const version = await fetchLatestVersion("opencode-antigravity-auth")
@@ -427,7 +415,28 @@ export async function addAuthPlugins(config: InstallConfig): Promise<ConfigMerge
 
 
     const newConfig = { ...(existingConfig ?? {}), plugin: plugins }
-    writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
+
+    if (format === "jsonc") {
+      const content = readFileSync(path, "utf-8")
+      const pluginArrayRegex = /"plugin"\s*:\s*\[([\s\S]*?)\]/
+      const match = content.match(pluginArrayRegex)
+
+      if (match) {
+        const formattedPlugins = plugins.map((p) => `"${p}"`).join(",\n    ")
+        const newContent = content.replace(
+          pluginArrayRegex,
+          `"plugin": [\n    ${formattedPlugins}\n  ]`
+        )
+        writeFileSync(path, newContent)
+      } else {
+        const inlinePlugins = plugins.map((p) => `"${p}"`).join(", ")
+        const newContent = content.replace(/(\{)/, `$1\n  "plugin": [${inlinePlugins}],`)
+        writeFileSync(path, newContent)
+      }
+    } else {
+      writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
+    }
+
     return { success: true, configPath: path }
   } catch (err) {
     return { success: false, configPath: path, error: formatErrorWithSuggestion(err, "add auth plugins to config") }
@@ -470,7 +479,7 @@ export async function runBunInstallWithDetails(): Promise<BunInstallResult> {
       return {
         success: false,
         timedOut: true,
-        error: `bun install timed out after ${BUN_INSTALL_TIMEOUT_SECONDS} seconds. Try running manually: cd ~/.config/opencode && bun i`,
+        error: `bun install timed out after ${BUN_INSTALL_TIMEOUT_SECONDS} seconds. Try running manually: cd ${getConfigDir()} && bun i`,
       }
     }
 
@@ -573,7 +582,11 @@ export function addProviderConfig(config: InstallConfig): ConfigMergeResult {
     if (format !== "none") {
       const parseResult = parseConfigWithError(path)
       if (parseResult.error && !parseResult.config) {
-        existingConfig = {}
+        return {
+          success: false,
+          configPath: path,
+          error: `Failed to parse config file: ${parseResult.error}`,
+        }
       } else {
         existingConfig = parseResult.config
       }
@@ -591,7 +604,62 @@ export function addProviderConfig(config: InstallConfig): ConfigMergeResult {
       newConfig.provider = providers
     }
 
-    writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
+    if (format === "jsonc") {
+      const content = readFileSync(path, "utf-8")
+      const providerJson = JSON.stringify(newConfig.provider, null, 2)
+        .split("\n")
+        .map((line, i) => (i === 0 ? line : `  ${line}`))
+        .join("\n")
+
+      const providerIdx = content.indexOf('"provider"')
+      if (providerIdx !== -1) {
+        const colonIdx = content.indexOf(":", providerIdx + '"provider"'.length)
+        const braceStart = colonIdx !== -1 ? content.indexOf("{", colonIdx) : -1
+        if (braceStart === -1) {
+          writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
+        } else {
+          let depth = 0
+          let braceEnd = braceStart
+          let inString = false
+          let escape = false
+          for (let i = braceStart; i < content.length; i++) {
+            const ch = content[i]
+            if (escape) {
+              escape = false
+              continue
+            }
+            if (ch === "\\") {
+              escape = true
+              continue
+            }
+            if (ch === '"') {
+              inString = !inString
+              continue
+            }
+            if (inString) continue
+            if (ch === "{") depth++
+            else if (ch === "}") {
+              depth--
+              if (depth === 0) {
+                braceEnd = i
+                break
+              }
+            }
+          }
+          const newContent =
+            content.slice(0, providerIdx) +
+            `"provider": ${providerJson}` +
+            content.slice(braceEnd + 1)
+          writeFileSync(path, newContent)
+        }
+      } else {
+        const newContent = content.replace(/(\{)/, `$1\n  "provider": ${providerJson},`)
+        writeFileSync(path, newContent)
+      }
+    } else {
+      writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
+    }
+
     return { success: true, configPath: path }
   } catch (err) {
     return { success: false, configPath: path, error: formatErrorWithSuggestion(err, "add provider config") }
@@ -647,7 +715,7 @@ export function detectCurrentConfig(): DetectedConfig {
   }
 
   const openCodeConfig = parseResult.config
-  const plugins = openCodeConfig.plugin ?? []
+  const plugins = normalizePluginList(openCodeConfig.plugin)
   result.isInstalled = plugins.some((p) => p.startsWith("oh-my-opencode"))
 
   if (!result.isInstalled) {

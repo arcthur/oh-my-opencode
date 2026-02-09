@@ -65,7 +65,9 @@ export async function validateSessionHasOutput(
       path: { id: sessionID },
     })
 
-    const messages = response.data ?? []
+    const messagesRaw =
+      isRecord(response) && "data" in response ? (response as { data?: unknown }).data : response
+    const messages = Array.isArray(messagesRaw) ? messagesRaw : []
 
     const hasAssistantOrToolMessage = messages.some(
       (m: { info?: { role?: string } }) =>
@@ -163,7 +165,7 @@ export async function notifyParentSession(
   ctx: ResultHandlerContext
 ): Promise<void> {
   const { client, state } = ctx
-  const duration = formatDuration(task.startedAt ?? new Date(), task.completedAt)
+  const duration = formatDuration(task.startedAt ?? task.completedAt ?? new Date(), task.completedAt)
   let parentSessionAborted = false
 
   log("[background-agent] notifyParentSession called for task:", task.id)
@@ -188,7 +190,14 @@ export async function notifyParentSession(
   const allComplete = !pendingSet || pendingSet.size === 0
   const remainingCount = pendingSet?.size ?? 0
 
-  const statusText = task.status === "completed" ? "COMPLETED" : "CANCELLED"
+  const statusText =
+    task.status === "completed"
+      ? "COMPLETED"
+      : task.status === "interrupt"
+        ? "INTERRUPTED"
+        : task.status === "error"
+          ? "ERROR"
+          : "CANCELLED"
   const errorInfo = task.error ? `\n**Error:** ${task.error}` : ""
 
   let notification: string

@@ -1,10 +1,25 @@
-export const websearch = {
-  type: "remote" as const,
-  url: "https://mcp.exa.ai/mcp?tools=web_search_exa",
-  enabled: true,
-  headers: process.env.EXA_API_KEY
-    ? { "x-api-key": process.env.EXA_API_KEY }
-    : undefined,
-  // Disable OAuth auto-detection - Exa uses API key header, not OAuth
-  oauth: false as const,
+type RemoteMcpConfig = {
+  type: "remote"
+  url: string
+  enabled: boolean
+  headers?: Record<string, string>
+  oauth?: false
 }
+
+const EXA_WEBSEARCH_MCP_URL = "https://mcp.exa.ai/mcp?tools=web_search_exa"
+
+export function createWebsearchConfig(): RemoteMcpConfig {
+  const exaApiKey = process.env.EXA_API_KEY
+
+  return {
+    type: "remote" as const,
+    url: exaApiKey
+      ? `${EXA_WEBSEARCH_MCP_URL}&exaApiKey=${encodeURIComponent(exaApiKey)}`
+      : EXA_WEBSEARCH_MCP_URL,
+    enabled: true,
+    // Disable OAuth auto-detection - Exa uses URL query auth for remote MCP
+    oauth: false as const,
+  }
+}
+
+export const websearch = createWebsearchConfig()
