@@ -44,9 +44,14 @@ export async function executeUserPromptSubmitHooks(
     return { block: false, modifiedParts, messages }
   }
 
+  const userInputText = ctx.parts
+    .filter((p) => p.type === "text" && p.text)
+    .map((p) => p.text ?? "")
+    .join("\n")
+
   if (
-    ctx.prompt.includes(USER_PROMPT_SUBMIT_TAG_OPEN) &&
-    ctx.prompt.includes(USER_PROMPT_SUBMIT_TAG_CLOSE)
+    userInputText.includes(USER_PROMPT_SUBMIT_TAG_OPEN) &&
+    userInputText.includes(USER_PROMPT_SUBMIT_TAG_CLOSE)
   ) {
     return { block: false, modifiedParts, messages }
   }

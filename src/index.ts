@@ -142,6 +142,7 @@ import {
   applyProviderEnvCompat,
 } from "./shared";
 import { filterDisabledTools } from "./shared/disabled-tools";
+import { safeCreateHook } from "./shared/safe-create-hook";
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./features/conditional-rules";
 import { DEFAULT_HANDOFF_CONFIG } from "./features/session-handoff";
 import { loadPluginConfig } from "./plugin-config";
@@ -231,6 +232,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const firstMessageVariantGate = createFirstMessageVariantGate();
   const isHookEnabled = (hookName: HookName) =>
     isRuntimeHookEnabled(disabledHooks, hookName);
+  const safeHookEnabled = pluginConfig.safe_hook_creation ?? true;
   const continuationControlConfig = deepMerge(
     DEFAULT_CONTINUATION_CONTROL_CONFIG,
     pluginConfig.continuation_control ?? {}
@@ -380,7 +382,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   }
 
   const commentChecker = isHookEnabled("comment-checker")
-    ? createCommentCheckerHooks(pluginConfig.comment_checker)
+    ? safeCreateHook("comment-checker", () => createCommentCheckerHooks(pluginConfig.comment_checker), { enabled: safeHookEnabled })
     : null;
   const toolOutputTruncator = isHookEnabled("tool-output-truncator")
     ? createToolOutputTruncatorHook(ctx, {
@@ -413,11 +415,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         nativeVersion: OPENCODE_NATIVE_AGENTS_INJECTION_VERSION,
       });
     } else {
-      directoryAgentsInjector = createDirectoryAgentsInjectorHook(ctx);
+      directoryAgentsInjector = safeCreateHook("directory-agents-injector", () => createDirectoryAgentsInjectorHook(ctx), { enabled: safeHookEnabled });
     }
   }
   const directoryReadmeInjector = isHookEnabled("directory-readme-injector")
-    ? createDirectoryReadmeInjectorHook(ctx)
+    ? safeCreateHook("directory-readme-injector", () => createDirectoryReadmeInjectorHook(ctx), { enabled: safeHookEnabled })
     : null;
   const emptyTaskResponseDetector = isHookEnabled("empty-task-response-detector")
     ? createEmptyTaskResponseDetectorHook(ctx)
@@ -452,14 +454,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     });
   }
   const rulesInjector = isHookEnabled("rules-injector")
-    ? createRulesInjectorHook(ctx)
+    ? safeCreateHook("rules-injector", () => createRulesInjectorHook(ctx), { enabled: safeHookEnabled })
     : null;
   const autoUpdateChecker = isHookEnabled("auto-update-checker")
-    ? createAutoUpdateCheckerHook(ctx, {
+    ? safeCreateHook("auto-update-checker", () => createAutoUpdateCheckerHook(ctx, {
         showStartupToast: isHookEnabled("startup-toast"),
         isSisyphusEnabled: pluginConfig.sisyphus_agent?.disabled !== true,
         autoUpdate: pluginConfig.auto_update ?? true,
-      })
+      }), { enabled: safeHookEnabled })
     : null;
   const keywordDetector = isHookEnabled("keyword-detector")
     ? createKeywordDetectorHook(ctx, contextCollector)

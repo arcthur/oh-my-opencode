@@ -511,8 +511,8 @@ export const NotificationConfigSchema = z.object({
 })
 
 export const GitMasterConfigSchema = z.object({
-  /** Add "Ultraworked with Sisyphus" footer to commit messages (default: true) */
-  commit_footer: z.boolean().default(true),
+  /** Add "Ultraworked with Sisyphus" footer to commit messages (default: true). Can be boolean or custom string. */
+  commit_footer: z.union([z.boolean(), z.string()]).default(true),
   /** Add "Co-authored-by: Sisyphus" trailer to commit messages (default: true) */
   include_co_authored_by: z.boolean().default(true),
 })
@@ -1127,6 +1127,10 @@ export const OhMyOpenCodeConfigSchema = z.object({
   tmux_parallel_agents: TmuxParallelAgentsConfigSchema.optional(),
   /** Sisyphus Tasks & Swarm configuration */
   sisyphus: SisyphusConfigSchema.optional(),
+  /** Timeout in ms for loadAllPluginComponents during config handler init (default: 10000, min: 1000) */
+  plugin_load_timeout_ms: z.number().min(1000).optional(),
+  /** Wrap hook creation in try/catch to prevent one failing hook from crashing the plugin (default: true) */
+  safe_hook_creation: z.boolean().optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>

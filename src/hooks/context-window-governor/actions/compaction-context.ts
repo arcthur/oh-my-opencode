@@ -15,7 +15,7 @@ When summarizing this session, you MUST include:
 5. Current Working State
 6. Environment & Tool Outputs Still Needed
 7. Remaining Tasks
-8. MUST NOT Do (Critical Constraints)
+8. Explicit Constraints (Verbatim Only — include ONLY constraints explicitly stated by the user or in AGENTS.md context. Quote verbatim, do NOT invent or paraphrase. If none exist, write "None")
 9. Important Context
 10. Agent Verification State
 

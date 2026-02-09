@@ -1,9 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { mkdirSync, writeFileSync, rmSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs"
 import { join } from "path"
-import { tmpdir } from "os"
+import { homedir, tmpdir } from "os"
 
 const TEST_DIR = join(tmpdir(), "mcp-loader-test-" + Date.now())
+
+function countUserLevelMcpServers(): number {
+  const claudeJsonPath = join(homedir(), ".claude.json")
+  if (!existsSync(claudeJsonPath)) return 0
+  try {
+    const config = JSON.parse(readFileSync(claudeJsonPath, "utf-8"))
+    if (!config?.mcpServers) return 0
+    return Object.entries(config.mcpServers as Record<string, { disabled?: boolean }>)
+      .filter(([, v]) => !v.disabled).length
+  } catch { return 0 }
+}
+
+const USER_MCP_COUNT = countUserLevelMcpServers()
 
 describe("getSystemMcpServerNames", () => {
   beforeEach(() => {
@@ -26,7 +39,7 @@ describe("getSystemMcpServerNames", () => {
 
       // then
       expect(names).toBeInstanceOf(Set)
-      expect(names.size).toBe(0)
+      expect(names.size).toBe(USER_MCP_COUNT)
     } finally {
       process.chdir(originalCwd)
     }
@@ -59,7 +72,7 @@ describe("getSystemMcpServerNames", () => {
       // then
       expect(names.has("playwright")).toBe(true)
       expect(names.has("sqlite")).toBe(true)
-      expect(names.size).toBe(2)
+      expect(names.size).toBe(2 + USER_MCP_COUNT)
     } finally {
       process.chdir(originalCwd)
     }

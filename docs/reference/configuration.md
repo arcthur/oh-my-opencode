@@ -84,6 +84,11 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 
 - `git_master`: git-master skill configuration (see [Git Master](#git-master)).
 
+### Resilience
+
+- `plugin_load_timeout_ms`: Timeout in ms for loading Claude Code plugins during config handler init (default: 10000, min: 1000).
+- `safe_hook_creation`: Wrap hook creation in try/catch to prevent one failing hook from crashing the plugin (default: true).
+
 ## Config File Locations
 
 Config file locations (priority order):

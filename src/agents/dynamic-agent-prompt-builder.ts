@@ -1,4 +1,5 @@
 import type { AgentPromptMetadata, BuiltinAgentName } from "./types"
+import { truncateDescription } from "../shared/truncate-description"
 
 export interface AvailableAgent {
   name: BuiltinAgentName
@@ -33,7 +34,7 @@ function sanitizeMarkdownTableCell(value: string): string {
 }
 
 function truncateFirstSentence(value: string): string {
-  return value.split(".")[0] || value
+  return truncateDescription(value)
 }
 
 export function categorizeTools(toolNames: string[]): AvailableTool[] {

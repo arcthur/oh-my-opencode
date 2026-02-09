@@ -606,27 +606,39 @@ export class BackgroundManager {
       if (!info || typeof info.id !== "string") return
       const sessionID = info.id
 
-      const task = this.state.findBySession(sessionID)
-      if (!task) return
-
-      if (task.status === "running") {
-        task.status = "cancelled"
-        task.completedAt = new Date()
-        task.error = "Session deleted"
+      const tasksToCancel = new Map<string, BackgroundTask>()
+      const directTask = this.state.findBySession(sessionID)
+      if (directTask) {
+        tasksToCancel.set(directTask.id, directTask)
+      }
+      for (const descendant of this.state.getAllDescendantTasks(sessionID)) {
+        tasksToCancel.set(descendant.id, descendant)
       }
 
-      if (task.concurrencyKey) {
-        this.concurrencyManager.release(task.concurrencyKey)
-        task.concurrencyKey = undefined
+      if (tasksToCancel.size === 0) return
+
+      for (const task of tasksToCancel.values()) {
+        if (task.status === "running" || task.status === "pending") {
+          task.status = "cancelled"
+          task.completedAt = new Date()
+          task.error = "Session deleted"
+        }
+
+        if (task.concurrencyKey) {
+          this.concurrencyManager.release(task.concurrencyKey)
+          task.concurrencyKey = undefined
+        }
+        this.releaseParallelLease(task, "cancelled", {
+          reason: "session_deleted",
+        })
+        this.state.clearCompletionTimer(task.id)
+        this.state.cleanupPendingByParent(task)
+        this.state.removeTask(task.id)
+        this.state.clearNotificationsForTask(task.id)
+        if (task.sessionID) {
+          unmarkSubagentSession(task.sessionID)
+        }
       }
-      this.releaseParallelLease(task, "cancelled", {
-        reason: "session_deleted",
-      })
-      this.state.clearCompletionTimer(task.id)
-      this.state.cleanupPendingByParent(task)
-      this.state.removeTask(task.id)
-      this.state.clearNotificationsForTask(task.id)
-      unmarkSubagentSession(sessionID)
     }
   }
 

@@ -102,19 +102,39 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       }
     }
 
-    const pluginComponents = (pluginConfig.claude_code?.plugins ?? true)
-      ? await loadAllPluginComponents({
-          enabledPluginsOverride: pluginConfig.claude_code?.plugins_override,
-        })
-      : {
-          commands: {},
-          skills: {},
-          agents: {},
-          mcpServers: {},
-          hooksConfigs: [],
-          plugins: [],
-          errors: [],
-        };
+    const emptyPluginDefaults = {
+      commands: {} as Record<string, unknown>,
+      skills: {} as Record<string, unknown>,
+      agents: {} as Record<string, unknown>,
+      mcpServers: {} as Record<string, unknown>,
+      hooksConfigs: [] as { hooks?: Record<string, unknown> }[],
+      plugins: [] as { name: string; version: string }[],
+      errors: [] as { pluginKey: string; installPath: string; error: string }[],
+    };
+
+    let pluginComponents: typeof emptyPluginDefaults;
+    const pluginsEnabled = pluginConfig.claude_code?.plugins ?? true;
+
+    if (pluginsEnabled) {
+      const timeoutMs = pluginConfig.plugin_load_timeout_ms ?? 10000;
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Plugin loading timed out after ${timeoutMs}ms`)), timeoutMs)
+        );
+        pluginComponents = await Promise.race([
+          loadAllPluginComponents({
+            enabledPluginsOverride: pluginConfig.claude_code?.plugins_override,
+          }),
+          timeoutPromise,
+        ]) as typeof emptyPluginDefaults;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log("[config-handler] Plugin loading failed", { error: errorMessage });
+        pluginComponents = emptyPluginDefaults;
+      }
+    } else {
+      pluginComponents = emptyPluginDefaults;
+    }
 
     if (pluginComponents.plugins.length > 0) {
       log(`Loaded ${pluginComponents.plugins.length} Claude Code plugins`, {
