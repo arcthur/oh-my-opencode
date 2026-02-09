@@ -52,6 +52,7 @@ interface SessionMessage {
     model?: { providerID: string; modelID: string; variant?: string }
     modelID?: string
     providerID?: string
+    variant?: string
   }
   parts?: Array<{ type?: string; text?: string }>
 }
@@ -128,9 +129,10 @@ export function resolveParentContext(ctx: ToolContextWithMetadata): ParentContex
 export async function resolveContinuationContext(
   sessionID: string,
   client: OpencodeClient
-): Promise<{ agent?: string; model?: { providerID: string; modelID: string } }> {
+): Promise<{ agent?: string; model?: { providerID: string; modelID: string; variant?: string }; variant?: string }> {
   let resumeAgent: string | undefined
-  let resumeModel: { providerID: string; modelID: string } | undefined
+  let resumeModel: { providerID: string; modelID: string; variant?: string } | undefined
+  let resumeVariant: string | undefined
 
   try {
     const messagesResp = await client.session.messages({ path: { id: sessionID } })
@@ -144,6 +146,9 @@ export async function resolveContinuationContext(
         resumeModel = info.model ?? (info.providerID && info.modelID
           ? { providerID: info.providerID, modelID: info.modelID }
           : undefined)
+        if (!resumeVariant && info?.variant) {
+          resumeVariant = info.variant
+        }
       }
       if (resumeAgent && resumeModel) {
         break
@@ -165,11 +170,15 @@ export async function resolveContinuationContext(
         modelID: resumeMessage.model.modelID,
       }
     }
+    if (!resumeVariant && resumeMessage?.model?.variant) {
+      resumeVariant = resumeMessage.model.variant
+    }
   }
 
   return {
     agent: resumeAgent,
     model: resumeModel,
+    variant: resumeVariant,
   }
 }
 
@@ -259,7 +268,7 @@ export async function executeSyncContinuation(
   })
 
   try {
-    const { agent: resumeAgent, model: resumeModel } = await resolveContinuationContext(
+    const { agent: resumeAgent, model: resumeModel, variant: resumeVariant } = await resolveContinuationContext(
       args.session_id!,
       client
     )
@@ -269,6 +278,7 @@ export async function executeSyncContinuation(
       body: {
         ...(resumeAgent !== undefined ? { agent: resumeAgent } : {}),
         ...(resumeModel !== undefined ? { model: resumeModel } : {}),
+        ...(resumeVariant !== undefined ? { variant: resumeVariant } : {}),
         tools: {
           ...(resumeAgent ? getAgentToolRestrictions(resumeAgent) : {}),
           task: false,

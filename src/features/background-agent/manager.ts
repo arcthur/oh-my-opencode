@@ -57,6 +57,7 @@ export class BackgroundManager {
   private onShutdown?: () => void
   private state: TaskStateManager
   private leaseHeartbeatTimers = new Map<string, ReturnType<typeof setInterval>>()
+  private notificationQueueByParent = new Map<string, Promise<void>>()
 
   constructor(
     ctx: PluginInput,
@@ -248,7 +249,9 @@ export class BackgroundManager {
       })
 
       this.state.markForNotification(existingTask)
-      notifyParentSession(existingTask, this.getResultHandlerContext()).catch(err => {
+      this.enqueueNotificationForParent(existingTask.parentSessionID, () =>
+        notifyParentSession(existingTask, this.getResultHandlerContext())
+      ).catch(err => {
         log("[background-agent] Failed to notify on error:", err)
       })
     }
@@ -332,7 +335,9 @@ export class BackgroundManager {
           item.task.error = "Global parallel slots exhausted (background admission timeout)"
           item.task.completedAt = new Date()
           this.state.markForNotification(item.task)
-          await notifyParentSession(item.task, this.getResultHandlerContext()).catch((err) => {
+          await this.enqueueNotificationForParent(item.task.parentSessionID, () =>
+            notifyParentSession(item.task, this.getResultHandlerContext())
+          ).catch((err) => {
             log("[background-agent] Failed to notify parent after global slot timeout", {
               taskId: item.task.id,
               error: String(err),
@@ -358,7 +363,9 @@ export class BackgroundManager {
             reason: "start_task_failed",
           })
           this.state.markForNotification(item.task)
-          await notifyParentSession(item.task, this.getResultHandlerContext()).catch((err) => {
+          await this.enqueueNotificationForParent(item.task.parentSessionID, () =>
+            notifyParentSession(item.task, this.getResultHandlerContext())
+          ).catch((err) => {
             log("[background-agent] Failed to notify parent after start error", {
               taskId: item.task.id,
               error: String(err),
@@ -821,7 +828,9 @@ export class BackgroundManager {
       log(`[background-agent] Task ${task.id} interrupted: stale timeout`)
 
       try {
-        await notifyParentSession(task, this.getResultHandlerContext())
+        await this.enqueueNotificationForParent(task.parentSessionID, () =>
+          notifyParentSession(task, this.getResultHandlerContext())
+        )
       } catch (err) {
         log("[background-agent] Error in notifyParentSession for stale task:", { taskId: task.id, error: err })
       }
@@ -1009,8 +1018,33 @@ export class BackgroundManager {
 
     this.state.clear()
     this.concurrencyManager.clear()
+    this.notificationQueueByParent.clear()
     this.unregisterProcessCleanup()
     log("[background-agent] Shutdown complete")
+  }
+
+  private enqueueNotificationForParent(
+    parentSessionID: string | undefined,
+    operation: () => Promise<void>
+  ): Promise<void> {
+    if (!parentSessionID) {
+      return operation()
+    }
+
+    const previous = this.notificationQueueByParent.get(parentSessionID) ?? Promise.resolve()
+    const current = previous
+      .catch(() => {})
+      .then(operation)
+
+    this.notificationQueueByParent.set(parentSessionID, current)
+
+    void current.finally(() => {
+      if (this.notificationQueueByParent.get(parentSessionID) === current) {
+        this.notificationQueueByParent.delete(parentSessionID)
+      }
+    }).catch(() => {})
+
+    return current
   }
 }
 
