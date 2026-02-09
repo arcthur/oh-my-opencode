@@ -115,11 +115,7 @@ Runtime wiring is validated at startup (`schema ↔ registry ↔ order` consiste
 Hooks are executed as event-scoped runtime nodes and ordered by `EVENT_TOTAL_ORDER`.
 Later hooks observe the **post-mutation** state from earlier hooks (e.g., modified tool args).
 
-Runtime modes:
-
-- `experimental.hook_runtime_v2.enabled=false`: legacy execution path (still built from the same node list)
-- `experimental.hook_runtime_v2.mode="shadow"`: executes legacy path, compares against runtime order, logs mismatches
-- `experimental.hook_runtime_v2.mode="enforce"`: runtime dispatcher order is authoritative
+Runtime dispatcher uses the ordered runtime-node graph defined in `src/hooks/runtime/pipeline-order.ts`.
 
 Failure policy defaults:
 
@@ -204,27 +200,36 @@ Execution order (high-level):
 8. Governance post-tool processing (if enabled)
 9. User memory
 10. Org memory
-11. Preemptive compaction (if enabled)
-12. Context window monitor (if enabled)
-13. Comment checker (if enabled)
-14. Directory AGENTS injector (if enabled)
-15. Directory README injector (if enabled)
-16. Rules injector (if enabled)
-17. Empty-task response detector (if enabled)
-18. `delegation-nudge-agent-usage` (if enabled)
-19. `delegation-nudge-category-skill` (if enabled)
-20. Interactive bash session (if enabled)
-21. `edit-failure-guidance` (if enabled)
-22. `delegation-failure-guidance` (if enabled)
-23. execution-orchestrator hook (if enabled)
-24. Task resume info (always wired)
-25. Session handoff (if enabled)
-26. Swarm agent (if enabled)
+11. Context-window-governor (if enabled; warning / preemptive / recovery arbitration)
+12. Comment checker (if enabled)
+13. Directory AGENTS injector (if enabled)
+14. Directory README injector (if enabled)
+15. Rules injector (if enabled)
+16. Empty-task response detector (if enabled)
+17. `delegation-nudge-agent-usage` (if enabled)
+18. `delegation-nudge-category-skill` (if enabled)
+19. Interactive bash session (if enabled)
+20. `edit-failure-guidance` (if enabled)
+21. `delegation-failure-guidance` (if enabled)
+22. execution-orchestrator hook (if enabled)
+23. Task resume info (always wired)
+24. Session handoff (if enabled)
+25. Swarm agent (if enabled)
 
 ### `event`
 
 The generic OpenCode `event` stream is used to drive “Stop-like” behavior and background lifecycle management.
 Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes: continuation stop guard, update checker, Claude Code bridge, notifications, planning/lifecycle hooks, orchestrators, plus internal core session-state and session-state-repair nodes.
+
+`session-state-repair` recoverable classes currently include:
+
+- `tool_result_missing` (with revert fallback when tool_result injection is rejected)
+- thinking-block ordering/disabled violations
+- `assistant_prefill_unsupported`
+
+Notes:
+- `session-state-repair` is wired as an internal runtime node on `event(type="session.error")`, not as a standalone OpenCode hook surface.
+- For `assistant_prefill_unsupported`, the runtime sends a best-effort `continue` for the main session to unstick the conversation.
 
 ### `experimental.chat.messages.transform`
 

@@ -1701,7 +1701,24 @@
             "max_attempts": 2,
             "initial_delay_ms": 2000,
             "max_delay_ms": 30000,
-            "toast_cooldown_ms": 30000
+            "toast_cooldown_ms": 30000,
+            "aggressive_output_truncation": {
+              "enabled": true,
+              "target_ratio": 0.8,
+              "chars_per_token": 4,
+              "max_outputs": 20,
+              "min_output_chars": 500,
+              "keep_recent_turns": 2,
+              "protected_tools": [
+                "task",
+                "task_update",
+                "task_get",
+                "lsp_rename",
+                "session_read",
+                "session_write",
+                "session_search"
+              ]
+            }
           },
           "type": "object",
           "properties": {
@@ -1728,8 +1745,200 @@
               "type": "number",
               "minimum": 0,
               "maximum": 300000
+            },
+            "aggressive_output_truncation": {
+              "default": {
+                "enabled": true,
+                "target_ratio": 0.8,
+                "chars_per_token": 4,
+                "max_outputs": 20,
+                "min_output_chars": 500,
+                "keep_recent_turns": 2,
+                "protected_tools": [
+                  "task",
+                  "task_update",
+                  "task_get",
+                  "lsp_rename",
+                  "session_read",
+                  "session_write",
+                  "session_search"
+                ]
+              },
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "target_ratio": {
+                  "default": 0.8,
+                  "type": "number",
+                  "minimum": 0.5,
+                  "maximum": 0.99
+                },
+                "chars_per_token": {
+                  "default": 4,
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 16
+                },
+                "max_outputs": {
+                  "default": 20,
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 200
+                },
+                "min_output_chars": {
+                  "default": 500,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 500000
+                },
+                "keep_recent_turns": {
+                  "default": 2,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 20
+                },
+                "protected_tools": {
+                  "default": [
+                    "task",
+                    "task_update",
+                    "task_get",
+                    "lsp_rename",
+                    "session_read",
+                    "session_write",
+                    "session_search"
+                  ],
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
+        },
+        "dynamic_pruning": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "notification": {
+              "default": "minimal",
+              "type": "string",
+              "enum": [
+                "off",
+                "minimal",
+                "detailed"
+              ]
+            },
+            "recovery_target_ratio": {
+              "default": 0.9,
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 1
+            },
+            "chars_per_token": {
+              "default": 4,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "skip_summarize_if_recovered": {
+              "default": true,
+              "type": "boolean"
+            },
+            "turn_protection": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "turns": {
+                  "default": 3,
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 20
+                }
+              }
+            },
+            "protected_tools": {
+              "default": [
+                "task",
+                "task_update",
+                "task_get",
+                "lsp_rename",
+                "session_read",
+                "session_write",
+                "session_search"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "strategies": {
+              "type": "object",
+              "properties": {
+                "deduplication": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "default": true,
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "stale_tool_outputs": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "default": true,
+                      "type": "boolean"
+                    },
+                    "keep_recent_turns": {
+                      "default": 6,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 50
+                    },
+                    "min_output_chars": {
+                      "default": 1200,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 500000
+                    },
+                    "max_outputs": {
+                      "default": 6,
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 500
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "session_state_repair": {
+      "type": "object",
+      "properties": {
+        "auto_resume": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tool_output_truncator": {
+      "type": "object",
+      "properties": {
+        "truncate_all_tool_outputs": {
+          "type": "boolean"
         }
       }
     },
@@ -1738,20 +1947,6 @@
       "properties": {
         "custom_prompt": {
           "type": "string"
-        }
-      }
-    },
-    "experimental": {
-      "type": "object",
-      "properties": {
-        "aggressive_truncation": {
-          "type": "boolean"
-        },
-        "auto_resume": {
-          "type": "boolean"
-        },
-        "truncate_all_tool_outputs": {
-          "type": "boolean"
         }
       }
     },

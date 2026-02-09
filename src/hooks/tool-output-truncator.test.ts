@@ -152,7 +152,7 @@ describe("createToolOutputTruncatorHook", () => {
             truncateSync: mock(() => ({ result: "", truncated: false })),
           })
           hook = createToolOutputTruncatorHook({} as never, {
-            experimental: { truncate_all_tool_outputs: true },
+            config: { truncate_all_tool_outputs: true },
           })
 
           const input = createInput("Read")

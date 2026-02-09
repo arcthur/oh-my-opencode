@@ -864,3 +864,75 @@ describe("latest-only removed config keys", () => {
     }
   })
 })
+
+describe("context window governor dynamic pruning schema", () => {
+  test("accepts context_window_governor.dynamic_pruning", () => {
+    // given
+    const config = {
+      context_window_governor: {
+        recovery: {
+          aggressive_output_truncation: {
+            enabled: true,
+            target_ratio: 0.82,
+            chars_per_token: 4,
+            max_outputs: 12,
+            min_output_chars: 200,
+            keep_recent_turns: 1,
+            protected_tools: ["task_update"],
+          },
+        },
+        dynamic_pruning: {
+          enabled: true,
+          recovery_target_ratio: 0.88,
+          chars_per_token: 3,
+          skip_summarize_if_recovered: true,
+          protected_tools: ["task_update"],
+          turn_protection: {
+            enabled: true,
+            turns: 2,
+          },
+          strategies: {
+            deduplication: { enabled: true },
+            stale_tool_outputs: {
+              enabled: true,
+              keep_recent_turns: 5,
+              min_output_chars: 256,
+              max_outputs: 4,
+            },
+          },
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+  })
+
+})
+
+describe("session_state_repair and tool_output_truncator schema", () => {
+  test("accepts explicit top-level configs without experimental wrapper", () => {
+    // given
+    const config = {
+      session_state_repair: {
+        auto_resume: true,
+      },
+      tool_output_truncator: {
+        truncate_all_tool_outputs: true,
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.session_state_repair?.auto_resume).toBe(true)
+      expect(result.data.tool_output_truncator?.truncate_all_tool_outputs).toBe(true)
+    }
+  })
+})

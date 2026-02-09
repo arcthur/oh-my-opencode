@@ -349,7 +349,7 @@ OpenCode runtime wiring uses OpenCode lifecycle events. For source of truth, see
 | **directory-agents-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Auto-injects AGENTS.md when reading files. Walks from file to project root, collecting all AGENTS.md files. **Deprecated for OpenCode 1.1.37+** - Auto-disabled when native AGENTS.md injection is available. |
 | **directory-readme-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Auto-injects README.md for directory context. |
 | **rules-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Injects rules from `.claude/rules/` when conditions match. Supports globs and alwaysApply. |
-| **context-window-governor** | `event`, `tool.execute.after`, `experimental.session.compacting` | Unified context window governance: warnings, preemptive summarize, hard-limit recovery, and compaction-time context injection. |
+| **context-window-governor** | `event`, `tool.execute.after`, `experimental.session.compacting` | Unified context window governance: warnings, preemptive summarize, hard-limit recovery (`dynamic_pruning` -> `aggressive_output_truncation` -> summarize fallback), and compaction-time context injection. |
 
 #### Productivity & Control
 
@@ -376,7 +376,7 @@ OpenCode runtime wiring uses OpenCode lifecycle events. For source of truth, see
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **session-state-repair** | `event` (internal `session.error` path) | Recovers from recoverable session errors (missing tool results, thinking-block issues, empty messages). |
+| **session-state-repair** | `event` (internal `session.error` path) | Recovers from recoverable session errors (`tool_result_missing`, thinking-block ordering/disabled violations, `assistant_prefill_unsupported`). Includes `tool_result_missing` -> revert fallback when `tool_result` injection is rejected by the API. |
 
 #### Truncation & Context Management
 

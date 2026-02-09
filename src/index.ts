@@ -259,6 +259,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const contextWindowGovernor = isHookEnabled("context-window-governor")
     ? createContextWindowGovernorHook(ctx, {
         modelCacheState,
+        taskConfig: pluginConfig.sisyphus ? { sisyphus: pluginConfig.sisyphus } : undefined,
         warningRatio: pluginConfig.context_window_governor?.warning_ratio,
         preemptiveRatio: pluginConfig.context_window_governor?.preemptive_ratio,
         limitRatio: pluginConfig.context_window_governor?.limit_ratio,
@@ -272,12 +273,92 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               maxDelayMs: pluginConfig.context_window_governor.recovery.max_delay_ms,
               toastCooldownMs:
                 pluginConfig.context_window_governor.recovery.toast_cooldown_ms,
+              aggressiveOutputTruncation: {
+                enabled:
+                  pluginConfig.context_window_governor.recovery
+                    .aggressive_output_truncation?.enabled ?? true,
+                targetRatio:
+                  pluginConfig.context_window_governor.recovery
+                    .aggressive_output_truncation?.target_ratio ?? 0.8,
+                charsPerToken:
+                  pluginConfig.context_window_governor.recovery
+                    .aggressive_output_truncation?.chars_per_token ?? 4,
+                maxOutputs:
+                  pluginConfig.context_window_governor.recovery
+                    .aggressive_output_truncation?.max_outputs ?? 20,
+                minOutputChars:
+                  pluginConfig.context_window_governor.recovery
+                    .aggressive_output_truncation?.min_output_chars ?? 500,
+                keepRecentTurns:
+                  pluginConfig.context_window_governor.recovery
+                    .aggressive_output_truncation?.keep_recent_turns ?? 2,
+                protectedTools:
+                  pluginConfig.context_window_governor.recovery
+                    .aggressive_output_truncation?.protected_tools ?? [
+                    "task",
+                    "task_update",
+                    "task_get",
+                    "lsp_rename",
+                    "session_read",
+                    "session_write",
+                    "session_search",
+                  ],
+              },
+            }
+          : undefined,
+        dynamicPruning: pluginConfig.context_window_governor?.dynamic_pruning
+          ? {
+              enabled: pluginConfig.context_window_governor.dynamic_pruning.enabled,
+              notification:
+                pluginConfig.context_window_governor.dynamic_pruning.notification,
+              recoveryTargetRatio:
+                pluginConfig.context_window_governor.dynamic_pruning
+                  .recovery_target_ratio,
+              charsPerToken:
+                pluginConfig.context_window_governor.dynamic_pruning.chars_per_token,
+              skipSummarizeIfRecovered:
+                pluginConfig.context_window_governor.dynamic_pruning
+                  .skip_summarize_if_recovered,
+              protectedTools:
+                pluginConfig.context_window_governor.dynamic_pruning.protected_tools,
+              turnProtection: {
+                enabled:
+                  pluginConfig.context_window_governor.dynamic_pruning
+                    .turn_protection?.enabled ?? true,
+                turns:
+                  pluginConfig.context_window_governor.dynamic_pruning
+                    .turn_protection?.turns ?? 3,
+              },
+              strategies: {
+                deduplication: {
+                  enabled:
+                    pluginConfig.context_window_governor.dynamic_pruning
+                      .strategies?.deduplication?.enabled ?? true,
+                },
+                staleToolOutputs: {
+                  enabled:
+                    pluginConfig.context_window_governor.dynamic_pruning
+                      .strategies?.stale_tool_outputs?.enabled ?? true,
+                  keepRecentTurns:
+                    pluginConfig.context_window_governor.dynamic_pruning
+                      .strategies?.stale_tool_outputs
+                      ?.keep_recent_turns ?? 6,
+                  minOutputChars:
+                    pluginConfig.context_window_governor.dynamic_pruning
+                      .strategies?.stale_tool_outputs
+                      ?.min_output_chars ?? 1200,
+                  maxOutputs:
+                    pluginConfig.context_window_governor.dynamic_pruning
+                      .strategies?.stale_tool_outputs
+                      ?.max_outputs ?? 6,
+                },
+              },
             }
           : undefined,
       })
     : null;
   const sessionStateRepair = isHookEnabled("session-state-repair")
-    ? createSessionStateRepairHook(ctx, { experimental: pluginConfig.experimental })
+    ? createSessionStateRepairHook(ctx, { config: pluginConfig.session_state_repair })
     : null;
   
   // Check for conflicting notification plugins before creating session-notification
@@ -303,7 +384,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
   const toolOutputTruncator = isHookEnabled("tool-output-truncator")
     ? createToolOutputTruncatorHook(ctx, {
-        experimental: pluginConfig.experimental,
+        config: pluginConfig.tool_output_truncator,
       })
     : null;
   const silentToolOutput = isHookEnabled("silent-tool-output") && pluginConfig.silent_tool_output

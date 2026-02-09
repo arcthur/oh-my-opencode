@@ -1,4 +1,4 @@
-import type { ContextWindowGovernorConfig } from "./types"
+import type { ContextWindowGovernorConfig, ContextWindowGovernorConfigOverride } from "./types"
 
 export const DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG: ContextWindowGovernorConfig = {
   warningRatio: 0.7,
@@ -11,11 +11,59 @@ export const DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG: ContextWindowGovernorConfig
     initialDelayMs: 2000,
     maxDelayMs: 30_000,
     toastCooldownMs: 30_000,
+    aggressiveOutputTruncation: {
+      enabled: true,
+      targetRatio: 0.8,
+      charsPerToken: 4,
+      maxOutputs: 20,
+      minOutputChars: 500,
+      keepRecentTurns: 2,
+      protectedTools: [
+        "task",
+        "task_update",
+        "task_get",
+        "lsp_rename",
+        "session_read",
+        "session_write",
+        "session_search",
+      ],
+    },
+  },
+  dynamicPruning: {
+    enabled: false,
+    notification: "minimal",
+    recoveryTargetRatio: 0.9,
+    charsPerToken: 4,
+    skipSummarizeIfRecovered: true,
+    protectedTools: [
+      "task",
+      "task_update",
+      "task_get",
+      "lsp_rename",
+      "session_read",
+      "session_write",
+      "session_search",
+    ],
+    turnProtection: {
+      enabled: true,
+      turns: 3,
+    },
+    strategies: {
+      deduplication: {
+        enabled: true,
+      },
+      staleToolOutputs: {
+        enabled: true,
+        keepRecentTurns: 6,
+        minOutputChars: 1200,
+        maxOutputs: 6,
+      },
+    },
   },
 }
 
 export function resolveGovernorConfig(
-  override?: Partial<ContextWindowGovernorConfig>
+  override?: ContextWindowGovernorConfigOverride
 ): ContextWindowGovernorConfig {
   return {
     warningRatio:
@@ -32,6 +80,35 @@ export function resolveGovernorConfig(
     recovery: {
       ...DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.recovery,
       ...override?.recovery,
+      aggressiveOutputTruncation: {
+        ...DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.recovery.aggressiveOutputTruncation,
+        ...override?.recovery?.aggressiveOutputTruncation,
+        protectedTools:
+          override?.recovery?.aggressiveOutputTruncation?.protectedTools ??
+          DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.recovery.aggressiveOutputTruncation
+            .protectedTools,
+      },
+    },
+    dynamicPruning: {
+      ...DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.dynamicPruning,
+      ...override?.dynamicPruning,
+      protectedTools:
+        override?.dynamicPruning?.protectedTools ??
+        DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.dynamicPruning.protectedTools,
+      turnProtection: {
+        ...DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.dynamicPruning.turnProtection,
+        ...override?.dynamicPruning?.turnProtection,
+      },
+      strategies: {
+        deduplication: {
+          ...DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.dynamicPruning.strategies.deduplication,
+          ...override?.dynamicPruning?.strategies?.deduplication,
+        },
+        staleToolOutputs: {
+          ...DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.dynamicPruning.strategies.staleToolOutputs,
+          ...override?.dynamicPruning?.strategies?.staleToolOutputs,
+        },
+      },
     },
   }
 }

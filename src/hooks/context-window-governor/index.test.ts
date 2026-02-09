@@ -32,7 +32,8 @@ function createCtx(overrides?: {
             })
           ),
         summarize: overrides?.summarize ?? mock(() => Promise.resolve()),
-        prompt_async: mock(() => Promise.resolve()),
+        promptAsync: mock(() => Promise.resolve()),
+        prompt: mock(() => Promise.resolve()),
       },
       tui: {
         showToast: overrides?.showToast ?? mock(() => Promise.resolve()),
@@ -224,12 +225,21 @@ describe("context-window-governor hook", () => {
       })
     }
 
+    // Recovery runs asynchronously on session.error; wait for the first toast to land.
+    const toastDeadline = Date.now() + 1000
+    while (showToast.mock.calls.length < 1) {
+      if (Date.now() > toastDeadline) {
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
     // #then
     expect(summarize).toHaveBeenCalledTimes(0)
     expect(showToast).toHaveBeenCalledTimes(1)
   })
 
-  test("runs recovery on session.error then session.idle", async () => {
+  test("runs recovery on session.error (session.idle remains a fallback)", async () => {
     // #given
     const summarize = mock(() => Promise.resolve())
     const hook = createContextWindowGovernorHook(createCtx({ summarize }))
@@ -244,6 +254,14 @@ describe("context-window-governor hook", () => {
         },
       },
     })
+
+    const summarizeDeadline = Date.now() + 1000
+    while (summarize.mock.calls.length < 1) {
+      if (Date.now() > summarizeDeadline) {
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
 
     await hook.event({
       event: {

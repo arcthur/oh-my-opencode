@@ -1,25 +1,19 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { createOpencodeClient } from "@opencode-ai/sdk"
-import type { ExperimentalConfig } from "../../config"
+import type { SessionStateRepairConfig } from "../../config"
 import {
-  findEmptyMessages,
-  findEmptyMessageByIndex,
   findMessageByIndexNeedingThinking,
-  findMessagesWithEmptyTextParts,
   findMessagesWithOrphanThinking,
   findMessagesWithThinkingBlocks,
-  findMessagesWithThinkingOnly,
-  injectTextPart,
   prependThinkingPart,
   readParts,
-  replaceEmptyTextParts,
   stripThinkingParts,
 } from "./storage"
 import type { MessageData, ResumeConfig } from "./types"
 import { log } from "../../shared/logger"
 
 export interface SessionStateRepairOptions {
-  experimental?: ExperimentalConfig
+  config?: SessionStateRepairConfig
 }
 
 type Client = ReturnType<typeof createOpencodeClient>
@@ -28,6 +22,7 @@ type RecoveryErrorType =
   | "tool_result_missing"
   | "thinking_block_order"
   | "thinking_disabled_violation"
+  | "assistant_prefill_unsupported"
   | null
 
 interface MessageInfo {
@@ -125,6 +120,13 @@ function extractMessageIndex(error: unknown): number | null {
 
 export function detectErrorType(error: unknown): RecoveryErrorType {
   const message = getErrorMessage(error)
+
+  if (
+    message.includes("assistant message prefill") ||
+    message.includes("conversation must end with a user message")
+  ) {
+    return "assistant_prefill_unsupported"
+  }
 
   // IMPORTANT: Check thinking_block_order BEFORE tool_result_missing
   // because Anthropic's extended thinking error messages contain "tool_use" and "tool_result"
@@ -283,82 +285,20 @@ async function recoverThinkingDisabledViolation(
   return anySuccess
 }
 
-const PLACEHOLDER_TEXT = "[user interrupted]"
-
-async function recoverEmptyContentMessage(
-  _client: Client,
-  sessionID: string,
-  failedAssistantMsg: MessageData,
-  _directory: string,
-  error: unknown
-): Promise<boolean> {
-  const targetIndex = extractMessageIndex(error)
-  const failedID = failedAssistantMsg.info?.id
-  let anySuccess = false
-
-  const messagesWithEmptyText = findMessagesWithEmptyTextParts(sessionID)
-  for (const messageID of messagesWithEmptyText) {
-    if (replaceEmptyTextParts(messageID, PLACEHOLDER_TEXT)) {
-      anySuccess = true
-    }
-  }
-
-  const thinkingOnlyIDs = findMessagesWithThinkingOnly(sessionID)
-  for (const messageID of thinkingOnlyIDs) {
-    if (injectTextPart(sessionID, messageID, PLACEHOLDER_TEXT)) {
-      anySuccess = true
-    }
-  }
-
-  if (targetIndex !== null) {
-    const targetMessageID = findEmptyMessageByIndex(sessionID, targetIndex)
-    if (targetMessageID) {
-      if (replaceEmptyTextParts(targetMessageID, PLACEHOLDER_TEXT)) {
-        return true
-      }
-      if (injectTextPart(sessionID, targetMessageID, PLACEHOLDER_TEXT)) {
-        return true
-      }
-    }
-  }
-
-  if (failedID) {
-    if (replaceEmptyTextParts(failedID, PLACEHOLDER_TEXT)) {
-      return true
-    }
-    if (injectTextPart(sessionID, failedID, PLACEHOLDER_TEXT)) {
-      return true
-    }
-  }
-
-  const emptyMessageIDs = findEmptyMessages(sessionID)
-  for (const messageID of emptyMessageIDs) {
-    if (replaceEmptyTextParts(messageID, PLACEHOLDER_TEXT)) {
-      anySuccess = true
-    }
-    if (injectTextPart(sessionID, messageID, PLACEHOLDER_TEXT)) {
-      anySuccess = true
-    }
-  }
-
-  return anySuccess
-}
-
 // NOTE: fallbackRevertStrategy was removed (2025-12-08)
 // Reason: Function was defined but never called - no error recovery paths used it.
 // All error types have dedicated recovery functions (recoverToolResultMissing,
-// recoverThinkingBlockOrder, recoverThinkingDisabledViolation, recoverEmptyContentMessage).
+// recoverThinkingBlockOrder, recoverThinkingDisabledViolation).
 
 export interface SessionStateRepairHook {
   handleSessionRecovery: (info: MessageInfo) => Promise<boolean>
-  isRecoverableError: (error: unknown) => boolean
   setOnAbortCallback: (callback: (sessionID: string) => void) => void
   setOnRecoveryCompleteCallback: (callback: (sessionID: string) => void) => void
 }
 
 export function createSessionStateRepairHook(ctx: PluginInput, options?: SessionStateRepairOptions): SessionStateRepairHook {
   const processingErrors = new Set<string>()
-  const experimental = options?.experimental
+  const config = options?.config
   let onAbortCallback: ((sessionID: string) => void) | null = null
   let onRecoveryCompleteCallback: ((sessionID: string) => void) | null = null
 
@@ -368,10 +308,6 @@ export function createSessionStateRepairHook(ctx: PluginInput, options?: Session
 
   const setOnRecoveryCompleteCallback = (callback: (sessionID: string) => void): void => {
     onRecoveryCompleteCallback = callback
-  }
-
-  const isRecoverableError = (error: unknown): boolean => {
-    return detectErrorType(error) !== null
   }
 
   const handleSessionRecovery = async (info: MessageInfo): Promise<boolean> => {
@@ -392,7 +328,7 @@ export function createSessionStateRepairHook(ctx: PluginInput, options?: Session
         onAbortCallback(sessionID)  // Mark recovering BEFORE abort
       }
 
-      await ctx.client.session.abort({ path: { id: sessionID } }).catch(() => {})
+      await ctx.client.session.abort({ path: { id: sessionID } }).catch(() => undefined)
 
       const messagesResp = await ctx.client.session.messages({
         path: { id: sessionID },
@@ -409,11 +345,13 @@ export function createSessionStateRepairHook(ctx: PluginInput, options?: Session
         tool_result_missing: "Tool Crash Recovery",
         thinking_block_order: "Thinking Block Recovery",
         thinking_disabled_violation: "Thinking Strip Recovery",
+        assistant_prefill_unsupported: "Prefill Error Recovery",
       }
       const toastMessages: Record<RecoveryErrorType & string, string> = {
         tool_result_missing: "Injecting cancelled tool results...",
         thinking_block_order: "Fixing message structure...",
         thinking_disabled_violation: "Stripping thinking blocks...",
+        assistant_prefill_unsupported: "Sending 'Continue' to recover...",
       }
 
       await ctx.client.tui
@@ -425,7 +363,7 @@ export function createSessionStateRepairHook(ctx: PluginInput, options?: Session
             duration: 3000,
           },
         })
-        .catch(() => {})
+        .catch(() => undefined)
 
       let success = false
 
@@ -433,18 +371,20 @@ export function createSessionStateRepairHook(ctx: PluginInput, options?: Session
         success = await recoverToolResultMissing(ctx.client, sessionID, ctx.directory, failedMsg)
       } else if (errorType === "thinking_block_order") {
         success = await recoverThinkingBlockOrder(ctx.client, sessionID, failedMsg, ctx.directory, info.error)
-        if (success && experimental?.auto_resume) {
+        if (success && config?.auto_resume) {
           const lastUser = findLastUserMessage(msgs ?? [])
           const resumeConfig = extractResumeConfig(lastUser, sessionID)
           await resumeSession(ctx.client, resumeConfig)
         }
       } else if (errorType === "thinking_disabled_violation") {
         success = await recoverThinkingDisabledViolation(ctx.client, sessionID, failedMsg)
-        if (success && experimental?.auto_resume) {
+        if (success && config?.auto_resume) {
           const lastUser = findLastUserMessage(msgs ?? [])
           const resumeConfig = extractResumeConfig(lastUser, sessionID)
           await resumeSession(ctx.client, resumeConfig)
         }
+      } else if (errorType === "assistant_prefill_unsupported") {
+        success = true
       }
 
       return success
@@ -463,7 +403,6 @@ export function createSessionStateRepairHook(ctx: PluginInput, options?: Session
 
   return {
     handleSessionRecovery,
-    isRecoverableError,
     setOnAbortCallback,
     setOnRecoveryCompleteCallback,
   }

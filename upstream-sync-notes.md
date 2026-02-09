@@ -1,6 +1,6 @@
 # Upstream Sync Notes (Fork Policy + Sync Anchors)
 
-> Last updated: 2026-02-06  
+> Last updated: 2026-02-09  
 > Fork branch: `dev` @ `9fcee7f5` *(worktree contains uncommitted sync work)*  
 > Upstream baseline: `dev` @ `368ac310` *(local clone: `../oh-my-opencode-upstream`)*  
 > merge-base: `66fd761a`  
@@ -65,7 +65,7 @@ Policy keywords used below:
 | Swarm coordination | *(none)* | `src/features/sisyphus-swarm/` | FORK_ONLY | 2026-02-03 | Keep fork. |
 | Task storage & distribution | `src/features/claude-tasks/`, `src/tools/task/`, `src/hooks/task-reminder/` | `src/features/sisyphus-tasks/` + `src/features/work-state/` | FORK_OWNED | 2026-02-03 | Never merge `claude-tasks` or `task_*` tools. If we need Claude Code TodoWrite compatibility, build an adapter on top of `sisyphus-tasks` (do not reintroduce upstream storage). |
 | Tmux automation | `src/features/tmux-subagent/`, `src/shared/tmux/` | `tmux-parallel-agents` hook + `src/features/sisyphus-swarm/tmux` (and config `tmux_parallel_agents`) | FORK_OWNED | 2026-02-03 | Always delete upstream `tmux-subagent` + `shared/tmux` on sync. Do not re-add the upstream `tmux` config schema key. |
-| Context window recovery hook naming | `anthropic-context-window-limit-recovery` (hook) | `context-window-limit-recovery` (hook) | FORK_OVERRIDE | 2026-02-03 | Keep fork hook name and behavior. If upstream evolves the recovery logic, port fixes into the fork hook without reverting the name. |
+| Context-window governance architecture | `context-window-monitor` + `preemptive-compaction` + `anthropic-context-window-limit-recovery` + `compaction-context-injector` | `context-window-governor` + `session-state-repair` (+ `silent-tool-output` pre-noise reduction) | FORK_OWNED | 2026-02-09 | Keep unified governor as the canonical runtime owner. Sync upstream by semantic mapping (warn/preemptive/recovery/compaction-inject/session-repair), not by restoring legacy hook names. |
 | Upstream babysitter hook | `src/hooks/unstable-agent-babysitter/` | *(none)* | DROP | 2026-02-03 | Keep removed. Only re-add via an explicit decision if we adopt its behavior. |
 | No-op hook names (upstream schema/docs only) | `grep-output-truncator`, `tasks-todowrite-disabler` | *(removed from schema/docs; filtered in migration)* | IGNORE_NOOP | 2026-02-03 | Keep removed to avoid “phantom hooks”. Re-evaluate only if upstream ships a real implementation. |
 | Docs-only legacy mentions | `background-compaction`, `empty-message-sanitizer` | *(removed from docs)* | IGNORE_NOOP | 2026-02-03 | Keep removed to avoid misleading configuration guidance. |
@@ -117,10 +117,11 @@ bun run build:schema
 | Date | Upstream baseline | merge-base | Summary |
 |------|-------------------|------------|---------|
 | 2026-02-03 | `1e587c55` | `66fd761a` | Drop upstream `tmux-subagent`/`claude-tasks`/`unstable-agent-babysitter`; remove upstream schema/docs no-op hook names; keep fork-owned replacements (`work-state`, `sisyphus-tasks`, `sisyphus-swarm`, governance/memory/multi-plan). |
-| 2026-02-04 | `1e587c55` | `66fd761a` | Wire compaction context injection (`experimental.session.compacting` + `compaction-context-injector`) and Claude Code PreCompact; align context-window compaction hooks; add hook-name migration for renamed upstream recovery hook; complete Atlas `tool.execute.before` enforcement wiring and harden `tool.execute.after`. |
+| 2026-02-04 | `1e587c55` | `66fd761a` | Historical milestone: initial compaction lifecycle wiring and context-window sync. This entry is superseded by 2026-02-09 governor consolidation notes (unified `context-window-governor` + `session-state-repair`). |
 | 2026-02-05 | `1e587c55` | `66fd761a` | Align tool-layer robustness: restore builtin slashcommand discovery (respecting `disabled_commands`), re-add look-at model-suggestion retry path with fork-compatible agent matching, and restore LSP binary lookup via OpenCode data-dir `bin/` path. |
 | 2026-02-05 | `617d7f4f` | `66fd761a` | Sync upstream/dev follow-ups: tolerate mixed provider-models cache formats (string[] vs object[] metadata), port Windows-safe LSP spawning (Node child_process) + open-file didChange behavior, and suppress background-agent parent notification retries when parent session is aborted. |
 | 2026-02-06 | `368ac310` | `66fd761a` | Reviewed **all 56 commits** in `617d7f4f..368ac310`; ported fork-safe fixes (`81a2317`, `b7f7cb4`, `b8f15af`, `bc782ca`, `3be722b`, `3c32ae0`, `6b560eb`, `53537a9` partial, `aec5624` adapted to `execution-orchestrator`, `3a0d7e8`, `60bbeb7`, `d8b29da`); applied the model upgrade wave (Opus 4.6 + GPT-5.3-Codex + config migration + `anthropic-effort`); still skipped fork-boundary task-tool migration chain. |
+| 2026-02-09 | `368ac310` | `66fd761a` | Re-audited context-management sync against local upstream clone and corrected stale notes: fork now treats `context-window-governor` + `session-state-repair` as canonical context stack, with upstream semantics mapped into unified recovery (`dynamic_pruning` -> `aggressive_output_truncation` -> summarize fallback), in-flight dedup/pruning fast path, compaction-time context injection, and `assistant_prefill_unsupported` + `tool_result_missing` repair coverage. |
 
 ### 2026-02-03 Addendum (File-by-File Review + Link Validation)
 
@@ -158,18 +159,19 @@ bun run build:schema
   - Parse Manus `## Phases` table rows for progress + phase utilities.
   - Treat Manus `blocked` phases as non-actionable completion for `getPlanProgress()` (prevents Atlas auto-continuation loops when all remaining work is blocked).
 
-### 2026-02-04 Addendum (Compaction Pipeline + Hook Chain Completion)
+### 2026-02-04 Addendum (Compaction Pipeline + Hook Chain Completion, superseded)
 
 - `src/index.ts`: Completed `experimental.session.compacting` wiring:
   - Runs Claude Code `PreCompact` hooks (if `output.context` is available) to inject extra compaction context.
-  - Runs fork `compaction-context-injector` to enforce structured compaction summaries as a continuity checklist.
-  - Uses best-effort provider/model inference from recent assistant messages (fallback to Anthropic defaults) for accurate injection metadata.
-- `src/index.ts`: Hardened `tool.execute.after` against undefined output (parity with upstream issue #1035 guard) and aligned ordering: `preemptiveCompaction` runs before `contextWindowMonitor`.
-- `src/hooks/compaction-context-injector/*`: Enabled as the single source of truth for compaction guidance (structured summary sections), invoked from `experimental.session.compacting`.
-- `src/hooks/context-window-limit-recovery/*`: Confirmed equivalent role to upstream `anthropic-context-window-limit-recovery` with fork naming (`context-window-limit-recovery`), while retaining fork-specific phases (Dynamic Context Pruning + handoff suggestion). Stabilized executor tests via fake timers.
-- `src/shared/migration.ts`: Added hook-name migration for upstream configs: `anthropic-context-window-limit-recovery` → `context-window-limit-recovery` (for `disabled_hooks` backward compatibility).
-- `src/hooks/context-window-monitor.ts`: Kept fork-accurate context-limit labeling (`200K` vs `1M`) and added OH-MY-OPENCODE system directive prefix (`CONTEXT_WINDOW_MONITOR`) to prevent keyword-detector triggers.
-- `src/hooks/preemptive-compaction.ts`: Aligned default compaction threshold with upstream (`0.78`), while preserving fork override via `experimental.preemptive_compaction_threshold`.
+  - Runs fork `context-window-governor` compaction context injector (structured continuity checklist + TaskGraph snapshot).
+  - Compaction-time injection is model-agnostic; provider/model inference is only used by the governor probe to choose recovery summarize identity and resolve best-effort token limits.
+- `src/index.ts`: Hardened `tool.execute.after` against undefined output (parity with upstream issue #1035 guard) and moved context-window logic under one owner (`context-window-governor`), replacing the old split `preemptive/context-monitor/recovery` chain.
+- `src/hooks/context-window-governor/*`: Canonical context-window owner in fork:
+  - warning + preemptive compaction thresholds
+  - token-limit recovery (`dynamic_pruning` -> `aggressive_output_truncation` -> summarize fallback)
+  - compaction-time context injection via `experimental.session.compacting`
+  - in-flight recovery dedup/pruning fast path when token-limit errors recur during compaction
+- `src/hooks/session-state-repair/*`: Canonical session error repair hook (including `assistant_prefill_unsupported` and `tool_result_missing` revert fallback); paired with governor for continuity after hard errors.
 - `src/shared/session-utils.ts`: Implemented best-effort agent/orchestrator detection via in-memory session-agent map OR message-storage fallback; added `isCallerAtlas()` helper for durable Atlas detection.
 - `src/hooks/atlas/index.ts` + `src/index.ts`: Switched Atlas detection to shared `isCallerAtlas()` (de-duplicated message-dir logic) and wired `atlasHook["tool.execute.before"]` so orchestrator protocol (Write/Edit warnings + single-task directive injection) is enforced preflight.
 - `src/hooks/prometheus-md-only/*`: FORK_OVERRIDE. Keep fork checklist/reminder text (no Metis/Momus references) while preserving upstream path-allowlist validation and read-only constraints.
@@ -184,8 +186,8 @@ bun run build:schema
 
 ### 2026-02-05 Addendum (Hook Wiring Fixes)
 
-- `src/index.ts`: Preemptive compaction now respects `disabled_hooks` (`preemptive-compaction`) in addition to `experimental.preemptive_compaction`, and `BackgroundManager` now receives `background_task` config at construction time. `createAtlasHook()` now receives the `backgroundManager` instance so Atlas continuation injection correctly suppresses itself while background tasks are running.
-- `src/shared/migration.ts` + `src/shared/migration.test.ts`: Stop filtering `preemptive-compaction` from `disabled_hooks` during migration (it is a supported hook in this fork); keep filtering truly removed/no-op hook names; add regression coverage for the upstream hook rename (`anthropic-context-window-limit-recovery` → `context-window-limit-recovery`).
+- `src/index.ts`: Unified the old preemptive/monitor/recovery hook chain under `context-window-governor` and kept `BackgroundManager` config wiring intact. `createAtlasHook()` receives `backgroundManager` so Atlas continuation injection suppresses itself while background tasks are running.
+- Hook-name migration note (historical): the old `preemptive-compaction` and `context-window-limit-recovery` compatibility path is no longer the active strategy after governor consolidation; syncs should target the unified hook directly.
 
 ### 2026-02-05 Addendum (Prometheus Prompt Alignment)
 
@@ -212,7 +214,7 @@ bun run build:schema
 - `src/features/hook-message-injector/*`: Runtime aligned; fork keeps test-only path override helpers (`setOpenCodeStorageDirForTesting`) to prevent writing to real user data during tests.
 - `src/features/claude-code-*-loader/*`: Runtime aligned; fork keeps shared utilities (`wrap*Template`, `formatScopedDescription`, `get*Directories`, `to*Record`) for maintainability without changing behavior.
 - `src/features/opencode-skill-loader/*`: Fork refactor centralizes parsing (`skill-builder` + `mcp-parser`) while preserving upstream conventions (SKILL.md + `{dir}.md`, frontmatter + `mcp.json` MCP config, allowed-tools parsing, model-source sanitization).
-- `src/config/schema.ts`: Re-added `preemptive-compaction` to `HookNameSchema`, restored background concurrency `0 => Infinity` compatibility, aligned compaction-threshold documentation to `0.78`, and kept upstream reasoning-effort compatibility (`xhigh`).
+- `src/config/schema.ts`: Hook surface is now consolidated around `context-window-governor` (legacy split context hooks are not runtime names in this fork); background concurrency `0 => Infinity` compatibility and upstream reasoning-effort compatibility (`xhigh`) remain aligned.
 
 ### 2026-02-05 Addendum (Config + Model/Agent Resolution)
 
@@ -245,6 +247,27 @@ bun run build:schema
   - `start-work.ts` / `stop-continuation.ts`: reference fork `work-state` (`.sisyphus/work.yaml`) instead of upstream `boulder-state` (`.sisyphus/boulder.json`).
   - `init-deep.ts`: `delegate_task(...)` examples follow this fork’s required tool args (not upstream shorthand) to prevent invalid calls.
   - `cartography.ts`: fork-only command retained.
+
+### 2026-02-09 Addendum (Context Management Re-audit)
+
+- Scope: full upstream/fork re-audit focused on context lifecycle (`tool.execute.after`, `event`, `experimental.session.compacting`) and recovery branches.
+- Canonical fork architecture:
+  - `context-window-governor`: warning, preemptive compaction, token-limit recovery arbitration, compaction-time context injection.
+  - `session-state-repair`: recoverable session errors (`tool_result_missing`, thinking structure, `assistant_prefill_unsupported`).
+  - `silent-tool-output` + `tool-output-truncator`: daily output-noise suppression and token-safety shaping.
+- Upstream parity verified and integrated in unified form:
+  - DCP-style pruning (`dynamic_pruning`) plus dedup/stale strategies.
+  - Aggressive truncation before summarize fallback (`aggressive_output_truncation`).
+  - In-flight recovery fast path when token-limit errors recur during recovery (pruning applied immediately).
+  - `assistant_prefill_unsupported` branch restored in session repair, with best-effort main-session `continue` to unstick the conversation.
+  - `tool_result_missing` fallback enhanced to `session.revert` when tool-result injection is rejected.
+  - Non-empty-content summarize failure now auto-repairs empty assistant text blocks and retries summarize once.
+- Config normalization (fork-owned):
+  - Removed plugin-level `experimental` wrapper for these controls.
+  - `auto_resume` now lives under `session_state_repair`.
+  - `truncate_all_tool_outputs` now lives under `tool_output_truncator`.
+- Intentional divergence (documented, not regression):
+  - No legacy split hooks (`context-window-monitor`, `preemptive-compaction`, `anthropic-context-window-limit-recovery`, `compaction-context-injector`) in runtime.
 
 ---
 
@@ -284,8 +307,7 @@ Audit metrics (fork vs local upstream clone, excluding `docs/`, `dist/`, `node_m
 ### Hooks — `tool.execute.after` chain (implemented in `src/index.ts`)
 
 - ✅ `src/hooks/tool-output-truncator.ts`: Aligned.
-- ⚠️ `src/hooks/preemptive-compaction.ts`: FORK_OVERRIDE (keeps config override + shared context-limit helpers).
-- ⚠️ `src/hooks/context-window-monitor.ts`: FORK_OVERRIDE (keeps fork-accurate limit labeling and directive prefix).
+- ✅ `src/hooks/context-window-governor/*`: Unified fork-owned replacement for upstream `preemptive-compaction` + `context-window-monitor` + `anthropic-context-window-limit-recovery` + `compaction-context-injector`.
 - ✅ `src/hooks/empty-task-response-detector.ts`: Aligned.
 - ⚠️ `src/hooks/delegation-nudge-agent-usage/*`: FORK_OVERRIDE (keep fork-accurate `delegate_task(...)` examples).
 - ✅ `src/hooks/delegation-nudge-category-skill/*`: Runtime aligned; tests now cover session-agent state (no dependency on `input.agent`).
@@ -298,7 +320,8 @@ Audit metrics (fork vs local upstream clone, excluding `docs/`, `dist/`, `node_m
 ### Hooks — lifecycle/event chain (implemented in `src/index.ts`)
 
 - ✅ `src/hooks/auto-update-checker/*`: Aligned (fork keeps `constants.ts` clean by dropping upstream unused `node:fs` import).
-- ⚠️ `src/hooks/context-window-limit-recovery/*`: FORK_OVERRIDE (renamed from upstream `anthropic-context-window-limit-recovery`). Runtime role is equivalent (auto-recover on token limit), with fork-only extensions (Dynamic Context Pruning + handoff suggestion). `src/shared/migration.ts` provides backward-compatible hook-name migration.
+- ✅ `src/hooks/context-window-governor/*`: Handles event-side token-limit recovery and compaction arbitration. Equivalent upstream semantics are ported as one chain: dynamic pruning -> aggressive truncation -> summarize fallback.
+- ✅ `src/hooks/session-state-repair/*`: Handles recoverable session errors (`tool_result_missing`, thinking block violations, `assistant_prefill_unsupported`) and now complements governor for stable continuation.
 - ✅ `src/hooks/todo-auto-continuation.ts` (+ tests): Aligned; supports stop-continuation integration (`isContinuationStopped`, `cancelAllCountdowns`, compaction-aware agent resolution).
 - ⛔ Upstream-only hooks intentionally excluded: `src/hooks/task-reminder/`, `src/hooks/unstable-agent-babysitter/` (DROP per fork policy).
 

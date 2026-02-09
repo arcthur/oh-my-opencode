@@ -337,7 +337,6 @@ export interface RuntimeAssemblyContext {
   }
 
   sessionStateRepair?: {
-    isRecoverableError: (error: unknown) => boolean
     handleSessionRecovery: (messageInfo: {
       id?: string
       role: "assistant"

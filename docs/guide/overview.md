@@ -137,9 +137,6 @@ Here's a real-world config for a user with **Claude, OpenAI, Gemini, and Z.ai** 
     // Override categories for cost optimization
     "quick": { "model": "opencode/gpt-5-nano" },
     "unspecified-low": { "model": "zai-coding-plan/glm-4.7" }
-  },
-  "experimental": {
-    "aggressive_truncation": true
   }
 }
 ```

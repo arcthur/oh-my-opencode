@@ -29,7 +29,6 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 ### Meta / wiring
 
 - `$schema`: Optional JSON schema URL for editor autocomplete.
-- `experimental`: Experimental feature toggles (see [Experimental](#experimental)).
 - `auto_update`: Controls whether `auto-update-checker` performs automatic install or notification-only mode (see [Auto Update](#auto-update)).
 
 ### Disable / hide surfaces
@@ -65,6 +64,8 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 
 - `context_budget`: Shared context injection token budget (see [Context Budget](#context-budget)).
 - `context_window_governor`: Token-limit warning/compaction/recovery policy (see [Context Window Governor](#context-window-governor)).
+- `session_state_repair`: Session error recovery behavior controls (see [Session State Repair](#session-state-repair)).
+- `tool_output_truncator`: Tool output truncation behavior controls (see [Tool Output Truncator](#tool-output-truncator)).
 - `silent_tool_output`: Tool output shaping config (requires `silent-tool-output` hook; see `docs/reference/hooks.md`).
 - `repo_overview`: Repository overview injection config (requires `repo-overview-injector` hook; see `docs/reference/hooks.md`).
 - `runtime_tracker`: Tool runtime tracking config (requires `runtime-tracker` hook; see `docs/reference/hooks.md`).
@@ -913,6 +914,12 @@ Example:
 
 `context-window-governor` is the single source of truth for context window warnings, preemptive compaction, hard-limit recovery, and compaction-time context injection (best-effort via `experimental.session.compacting`).
 
+Recovery chain (current implementation):
+
+1. Optional dynamic pruning (`dynamic_pruning`) to remove duplicate/stale historical tool outputs.
+2. Optional aggressive output truncation (`recovery.aggressive_output_truncation`) to trim large tool outputs toward a target ratio.
+3. Fallback summarize (`session.summarize(auto=true)`) with bounded retries/backoff.
+
 Configure it via the top-level `context_window_governor` block:
 
 ```jsonc
@@ -927,7 +934,53 @@ Configure it via the top-level `context_window_governor` block:
       "max_attempts": 2,
       "initial_delay_ms": 2000,
       "max_delay_ms": 30000,
-      "toast_cooldown_ms": 30000
+      "toast_cooldown_ms": 30000,
+      "aggressive_output_truncation": {
+        "enabled": true,
+        "target_ratio": 0.8,
+        "chars_per_token": 4,
+        "max_outputs": 20,
+        "min_output_chars": 500,
+        "keep_recent_turns": 2,
+        "protected_tools": [
+          "task",
+          "task_update",
+          "task_get",
+          "lsp_rename",
+          "session_read",
+          "session_write",
+          "session_search"
+        ]
+      }
+    },
+    "dynamic_pruning": {
+      "enabled": true,
+      "notification": "minimal",
+      "recovery_target_ratio": 0.9,
+      "chars_per_token": 4,
+      "skip_summarize_if_recovered": true,
+      "turn_protection": {
+        "enabled": true,
+        "turns": 3
+      },
+      "protected_tools": [
+        "task",
+        "task_update",
+        "task_get",
+        "lsp_rename",
+        "session_read",
+        "session_write",
+        "session_search"
+      ],
+      "strategies": {
+        "deduplication": { "enabled": true },
+        "stale_tool_outputs": {
+          "enabled": true,
+          "keep_recent_turns": 6,
+          "min_output_chars": 1200,
+          "max_outputs": 6
+        }
+      }
     }
   }
 }
@@ -944,6 +997,26 @@ Configure it via the top-level `context_window_governor` block:
 | `recovery.initial_delay_ms` | `2000` | Initial retry backoff after a failed recovery attempt |
 | `recovery.max_delay_ms` | `30000` | Maximum retry backoff for recovery attempts |
 | `recovery.toast_cooldown_ms` | `30000` | Minimum time between recovery toasts for the same session |
+| `recovery.aggressive_output_truncation.enabled` | `true` | Enables aggressive output truncation before summarize fallback |
+| `recovery.aggressive_output_truncation.target_ratio` | `0.8` | Recovery target usage ratio for aggressive truncation |
+| `recovery.aggressive_output_truncation.chars_per_token` | `4` | Estimator used to convert chars removed to token savings |
+| `recovery.aggressive_output_truncation.max_outputs` | `20` | Max number of tool outputs to truncate per recovery attempt |
+| `recovery.aggressive_output_truncation.min_output_chars` | `500` | Ignore tool outputs smaller than this threshold |
+| `recovery.aggressive_output_truncation.keep_recent_turns` | `2` | Protect most recent turns from aggressive truncation |
+| `recovery.aggressive_output_truncation.protected_tools` | task/LSP/session tools | Tool allowlist that must not be truncated |
+| `dynamic_pruning.enabled` | `false` | Enables dynamic context pruning in recovery path |
+| `dynamic_pruning.notification` | `minimal` | Toast verbosity: `off` / `minimal` / `detailed` |
+| `dynamic_pruning.recovery_target_ratio` | `0.9` | If projected usage drops below this ratio, summarize can be skipped |
+| `dynamic_pruning.chars_per_token` | `4` | Estimator used for projected token savings |
+| `dynamic_pruning.skip_summarize_if_recovered` | `true` | Skip summarize when pruning projection reaches target |
+| `dynamic_pruning.turn_protection.enabled` | `true` | Enable recent-turn protection for pruning |
+| `dynamic_pruning.turn_protection.turns` | `3` | Number of latest turns to protect |
+| `dynamic_pruning.protected_tools` | task/LSP/session tools | Tool allowlist that must not be pruned |
+| `dynamic_pruning.strategies.deduplication.enabled` | `true` | Enables duplicate-tool-output pruning |
+| `dynamic_pruning.strategies.stale_tool_outputs.enabled` | `true` | Enables stale large-output pruning |
+| `dynamic_pruning.strategies.stale_tool_outputs.keep_recent_turns` | `6` | Additional recent-turn protection for stale pruning |
+| `dynamic_pruning.strategies.stale_tool_outputs.min_output_chars` | `1200` | Minimum output size to consider stale-pruning |
+| `dynamic_pruning.strategies.stale_tool_outputs.max_outputs` | `6` | Maximum stale outputs pruned per recovery pass |
 
 ## MCPs
 
@@ -986,38 +1059,40 @@ Add LSP servers via the `lsp` option in `~/.config/opencode/oh-my-opencode.json`
 
 Each server supports: `command`, `extensions`, `priority`, `env`, `initialization`, `disabled`.
 
-## Experimental
+## Session State Repair
 
-Opt-in experimental features that may change or be removed in future versions. Use with caution.
+`session_state_repair` configures the `session-state-repair` hook behavior.
 
-```json
+```jsonc
 {
-  "experimental": {
-    "truncate_all_tool_outputs": true,
-    "aggressive_truncation": true,
-    "auto_resume": true,
-    "hook_runtime_v2": {
-      "enabled": true,
-      "mode": "shadow"
-    }
+  "session_state_repair": {
+    "auto_resume": true
   }
 }
 ```
 
-| Option                      | Default | Description                                                                                                                                                                                   |
-| --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `truncate_all_tool_outputs` | `false` | Truncates ALL tool outputs instead of just whitelisted tools (Grep, Glob, LSP, AST-grep). Tool output truncator is enabled by default - disable via `disabled_hooks`.                         |
-| `aggressive_truncation`     | `false` | When token limit is exceeded, aggressively truncates tool outputs to fit within limits. More aggressive than the default truncation behavior. Falls back to summarize/revert if insufficient. |
-| `auto_resume`               | `false` | Automatically resumes session after successful recovery from thinking block errors or thinking disabled violations. Extracts the last user message and continues.                             |
-| `hook_runtime_v2.enabled` | `false` | Enables Hook Runtime V2 dispatcher. `false`: legacy path. `true`: use runtime mode below. |
-| `hook_runtime_v2.mode` | `shadow` | `shadow`: execute legacy path and log runtime-order mismatch. `enforce`: runtime dispatcher order is authoritative. |
+| Option | Default | Description |
+| ------ | ------- | ----------- |
+| `auto_resume` | `false` | Automatically resumes after successful thinking-related recovery (thinking order / thinking disabled). |
 
-**Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
+Note:
+- `assistant_prefill_unsupported` recovery sends a best-effort `continue` for the main session (independent of `auto_resume`).
 
-Runtime V2 failure-policy defaults:
+## Tool Output Truncator
 
-- `tool.execute.before`: fail-closed
-- `event`, `tool.execute.after`, `chat.message`, `experimental.session.compacting`: fail-open
+`tool_output_truncator` configures `tool-output-truncator` behavior.
+
+```jsonc
+{
+  "tool_output_truncator": {
+    "truncate_all_tool_outputs": true
+  }
+}
+```
+
+| Option | Default | Description |
+| ------ | ------- | ----------- |
+| `truncate_all_tool_outputs` | `false` | Truncates all tool outputs instead of only the built-in high-risk tool allowlist. |
 
 ## Session Handoff
 

@@ -1,6 +1,7 @@
 import { log } from "../../../shared"
 import type { RuntimeExecutionNode } from "../types"
 import type { RuntimeAssemblyContext } from "./types"
+import { detectErrorType } from "../../session-state-repair"
 
 export function buildEventNodes(
   context: RuntimeAssemblyContext,
@@ -313,7 +314,8 @@ export function buildEventNodes(
         const sessionID = props?.sessionID as string | undefined
         const error = props?.error
 
-        if (!context.sessionStateRepair?.isRecoverableError(error)) {
+        const errorType = detectErrorType(error)
+        if (!errorType) {
           return
         }
 
@@ -326,14 +328,19 @@ export function buildEventNodes(
 
         const recovered = await context.sessionStateRepair?.handleSessionRecovery(messageInfo)
 
-        if (recovered && sessionID && sessionID === context.getMainSessionID?.()) {
+        if (
+          recovered &&
+          errorType === "assistant_prefill_unsupported" &&
+          sessionID &&
+          sessionID === context.getMainSessionID?.()
+        ) {
           await context.client?.session
             .prompt({
               path: { id: sessionID },
               body: { parts: [{ type: "text", text: "continue" }] },
               query: { directory: context.directory ?? process.cwd() },
             })
-            .catch(() => {})
+            .catch(() => undefined)
         }
       },
     })

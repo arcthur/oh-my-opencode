@@ -9,7 +9,7 @@ You want long-running sessions to remain stable and coherent:
 - Token-limit errors should recover automatically without compaction races.
 - Compaction should preserve the information that matters (goals, decisions, current state, and "do not repeat" failures).
 
-This document explains the current, wired chain: unified monitoring + preemptive compaction + hard-limit recovery + compaction-time context injection.
+This document explains the current, wired chain: unified monitoring + preemptive compaction + hard-limit recovery (dynamic pruning -> aggressive truncation -> summarize fallback) + compaction-time context injection.
 
 ## End-to-End Flow
 
@@ -17,7 +17,9 @@ This document explains the current, wired chain: unified monitoring + preemptive
 flowchart TD
   U["User messages + tool calls accumulate context"] --> GOV["context-window-governor"]
   GOV -->|Warn| TOOL["Continue normal execution"]
-  GOV -->|Preemptive/Recovery| SUM["session.summarize(auto=true)"]
+  GOV -->|Preemptive| SUM["session.summarize(auto=true)"]
+  GOV -->|Recovery: prune/truncate/summarize| REC["Recovery pipeline"]
+  REC --> SUM
   SUM --> EVT["session.compacted event"]
   EVT --> TOOL
 
@@ -55,6 +57,8 @@ src/hooks/context-window-governor/
     warn.ts                # Tool-output reminder injection
     preemptive.ts          # session.summarize(auto=true)
     recovery.ts            # session.summarize(auto=true) + token-limit parsing
+    dynamic-pruning.ts     # Dedup/stale pruning for recovery path
+    aggressive-output-truncation.ts # Aggressive tool-output trimming toward target ratio
     compaction-context.ts  # compaction-time context injection prompt
 ```
 
@@ -124,6 +128,15 @@ Recovery uses bounded retries with exponential backoff:
 
 To avoid UI spam, recovery toasts are throttled by `toast_cooldown_ms`.
 
+Recovery execution order:
+
+1. Dynamic pruning (optional; one-time per recovery request)
+2. Aggressive output truncation (optional; can run across retries)
+3. Summarize fallback with bounded retries/backoff
+4. If summarize fails with `non-empty content`, auto-repair empty assistant text blocks and retry summarize once
+
+When dynamic pruning or aggressive truncation reclaims enough headroom, summarize is skipped and the runtime is asked to resume the previous prompt (best effort via `session.promptAsync({ auto: true })`, with a `continue` fallback when unsupported).
+
 ## Configuration
 
 Configure the governor via the top-level `context_window_governor` block:
@@ -140,7 +153,25 @@ Configure the governor via the top-level `context_window_governor` block:
       "max_attempts": 2,
       "initial_delay_ms": 2000,
       "max_delay_ms": 30000,
-      "toast_cooldown_ms": 30000
+      "toast_cooldown_ms": 30000,
+      "aggressive_output_truncation": {
+        "enabled": true,
+        "target_ratio": 0.8,
+        "chars_per_token": 4,
+        "max_outputs": 20,
+        "min_output_chars": 500,
+        "keep_recent_turns": 2
+      }
+    },
+    "dynamic_pruning": {
+      "enabled": true,
+      "notification": "minimal",
+      "recovery_target_ratio": 0.9,
+      "skip_summarize_if_recovered": true,
+      "turn_protection": {
+        "enabled": true,
+        "turns": 3
+      }
     }
   }
 }
@@ -171,12 +202,14 @@ The injected prompt requires the compaction summary to include:
 
 This improves continuity after compaction by making omissions visible.
 
+If Sisyphus TaskGraph is enabled and an active selector exists, the governor also injects a compact `[TaskGraph Snapshot]` (counts + prioritized incomplete tasks). This is the fork-native equivalent of compaction todo preservation and is safer for persistent task state.
+
 ## Trade-offs and Limitations
 
 1. **Metadata dependence**: usage sampling relies on the last assistant message having `providerID` and token fields.
 2. **Limit resolution is best-effort**: when provider/model metadata is missing, the governor falls back to provider defaults.
 3. **Experimental compaction surface**: compaction-time injection depends on `experimental.session.compacting` being emitted by the runtime.
-4. **Summarization is lossy**: compaction is performed via `session.summarize(auto=true)`, so summary quality matters.
+4. **Summarization is lossy**: fallback compaction is performed via `session.summarize(auto=true)`, so summary quality matters.
 
 ## Troubleshooting
 

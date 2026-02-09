@@ -237,10 +237,53 @@ export const CommentCheckerConfigSchema = z.object({
   custom_prompt: z.string().optional(),
 })
 
-export const ExperimentalConfigSchema = z.object({
-  aggressive_truncation: z.boolean().optional(),
+export const DynamicContextPruningConfigSchema = z.object({
+  /** Enable dynamic context pruning for context-window-governor recovery path */
+  enabled: z.boolean().default(false),
+  /** Notification level for pruning actions */
+  notification: z.enum(["off", "minimal", "detailed"]).default("minimal"),
+  /** Target ratio after pruning. If projected usage is below this value, summarize can be skipped. */
+  recovery_target_ratio: z.number().min(0.5).max(1).default(0.9),
+  /** Estimated chars-per-token used for pruning impact estimation */
+  chars_per_token: z.number().min(1).max(16).default(4),
+  /** Skip summarize when pruning projection reaches recovery_target_ratio */
+  skip_summarize_if_recovered: z.boolean().default(true),
+  /** Keep the latest N message turns protected from pruning */
+  turn_protection: z.object({
+    enabled: z.boolean().default(true),
+    turns: z.number().min(1).max(20).default(3),
+  }).optional(),
+  /** Tools that should never be pruned */
+  protected_tools: z.array(z.string()).default([
+    "task",
+    "task_update",
+    "task_get",
+    "lsp_rename",
+    "session_read",
+    "session_write",
+    "session_search",
+  ]),
+  /** Pruning strategy toggles */
+  strategies: z.object({
+    deduplication: z.object({
+      enabled: z.boolean().default(true),
+    }).optional(),
+    stale_tool_outputs: z.object({
+      enabled: z.boolean().default(true),
+      keep_recent_turns: z.number().min(0).max(50).default(6),
+      min_output_chars: z.number().min(0).max(500_000).default(1200),
+      max_outputs: z.number().min(1).max(500).default(6),
+    }).optional(),
+  }).optional(),
+})
+
+export const SessionStateRepairConfigSchema = z.object({
+  /** Automatically resumes session after successful thinking-related recovery. */
   auto_resume: z.boolean().optional(),
-  /** Truncate all tool outputs, not just whitelisted tools (default: false). Tool output truncator is enabled by default - disable via disabled_hooks. */
+})
+
+export const ToolOutputTruncatorConfigSchema = z.object({
+  /** Truncate all tool outputs, not just whitelisted tools (default: false). */
   truncate_all_tool_outputs: z.boolean().optional(),
 })
 
@@ -249,6 +292,39 @@ export const ContextWindowGovernorRecoveryConfigSchema = z.object({
   initial_delay_ms: z.number().min(0).max(60_000).default(2000),
   max_delay_ms: z.number().min(0).max(300_000).default(30_000),
   toast_cooldown_ms: z.number().min(0).max(300_000).default(30_000),
+  aggressive_output_truncation: z.object({
+    enabled: z.boolean().default(true),
+    target_ratio: z.number().min(0.5).max(0.99).default(0.8),
+    chars_per_token: z.number().min(1).max(16).default(4),
+    max_outputs: z.number().min(1).max(200).default(20),
+    min_output_chars: z.number().min(0).max(500_000).default(500),
+    keep_recent_turns: z.number().min(0).max(20).default(2),
+    protected_tools: z.array(z.string()).default([
+      "task",
+      "task_update",
+      "task_get",
+      "lsp_rename",
+      "session_read",
+      "session_write",
+      "session_search",
+    ]),
+  }).default({
+    enabled: true,
+    target_ratio: 0.8,
+    chars_per_token: 4,
+    max_outputs: 20,
+    min_output_chars: 500,
+    keep_recent_turns: 2,
+    protected_tools: [
+      "task",
+      "task_update",
+      "task_get",
+      "lsp_rename",
+      "session_read",
+      "session_write",
+      "session_search",
+    ],
+  }),
 })
 
 export const ContextWindowGovernorConfigSchema = z.object({
@@ -262,7 +338,25 @@ export const ContextWindowGovernorConfigSchema = z.object({
     initial_delay_ms: 2000,
     max_delay_ms: 30000,
     toast_cooldown_ms: 30000,
+    aggressive_output_truncation: {
+      enabled: true,
+      target_ratio: 0.8,
+      chars_per_token: 4,
+      max_outputs: 20,
+      min_output_chars: 500,
+      keep_recent_turns: 2,
+      protected_tools: [
+        "task",
+        "task_update",
+        "task_get",
+        "lsp_rename",
+        "session_read",
+        "session_write",
+        "session_search",
+      ],
+    },
   }),
+  dynamic_pruning: DynamicContextPruningConfigSchema.optional(),
 })
 
 export const SkillSourceSchema = z.union([
@@ -1005,8 +1099,9 @@ export const OhMyOpenCodeConfigSchema = z.object({
   claude_code: ClaudeCodeConfigSchema.optional(),
   sisyphus_agent: SisyphusAgentConfigSchema.optional(),
   context_window_governor: ContextWindowGovernorConfigSchema.optional(),
+  session_state_repair: SessionStateRepairConfigSchema.optional(),
+  tool_output_truncator: ToolOutputTruncatorConfigSchema.optional(),
   comment_checker: CommentCheckerConfigSchema.optional(),
-  experimental: ExperimentalConfigSchema.optional(),
   auto_update: z.boolean().optional(),
   skills: SkillsConfigSchema.optional(),
   ralph_loop: RalphLoopConfigSchema.optional(),
@@ -1050,7 +1145,9 @@ export type BuiltinCommandName = z.infer<typeof BuiltinCommandNameSchema>
 export type BuiltinSkillName = z.infer<typeof BuiltinSkillNameSchema>
 export type SisyphusAgentConfig = z.infer<typeof SisyphusAgentConfigSchema>
 export type CommentCheckerConfig = z.infer<typeof CommentCheckerConfigSchema>
-export type ExperimentalConfig = z.infer<typeof ExperimentalConfigSchema>
+export type SessionStateRepairConfig = z.infer<typeof SessionStateRepairConfigSchema>
+export type ToolOutputTruncatorConfig = z.infer<typeof ToolOutputTruncatorConfigSchema>
+export type DynamicContextPruningConfig = z.infer<typeof DynamicContextPruningConfigSchema>
 export type ContextWindowGovernorConfig = z.infer<typeof ContextWindowGovernorConfigSchema>
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>

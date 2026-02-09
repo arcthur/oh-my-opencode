@@ -74,5 +74,71 @@ describe("session-state-repair", () => {
       body: { messageID: failedMessageID },
     })
   })
-})
 
+  test("assistant_prefill_unsupported is treated as recoverable and succeeds without prompt/revert", async () => {
+    // #given
+    const sessionID = "session-prefill"
+    const failedMessageID = "msg-prefill"
+
+    let abortCalls = 0
+    let promptCalls = 0
+    let revertCalls = 0
+
+    const failedMsg = {
+      info: {
+        id: failedMessageID,
+        role: "assistant",
+        sessionID,
+      },
+      parts: [
+        {
+          type: "text",
+          text: "partial output",
+        },
+      ],
+    }
+
+    const ctx = {
+      directory: "/tmp/test",
+      client: {
+        tui: {
+          showToast: async () => ({}),
+        },
+        session: {
+          abort: async () => {
+            abortCalls++
+            return {}
+          },
+          messages: async () => ({ data: [failedMsg] }),
+          prompt: async () => {
+            promptCalls++
+            return {}
+          },
+          revert: async () => {
+            revertCalls++
+            return {}
+          },
+        },
+      },
+    } as never
+
+    const hook = createSessionStateRepairHook(ctx)
+
+    // #when
+    const recovered = await hook.handleSessionRecovery({
+      id: failedMessageID,
+      role: "assistant",
+      sessionID,
+      error: {
+        message:
+          "This model does not support assistant message prefill. The conversation must end with a user message.",
+      },
+    })
+
+    // #then
+    expect(recovered).toBe(true)
+    expect(abortCalls).toBe(1)
+    expect(promptCalls).toBe(0)
+    expect(revertCalls).toBe(0)
+  })
+})
