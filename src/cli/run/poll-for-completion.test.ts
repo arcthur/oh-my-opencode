@@ -136,6 +136,27 @@ describe("pollForCompletion", () => {
     expect(result).toBe(1)
   })
 
+  it("returns 1 on session error even when not idle", async () => {
+    //#given — error must not be masked by idle/tool gates
+    spyOn(console, "log").mockImplementation(() => {})
+    spyOn(console, "error").mockImplementation(() => {})
+    const ctx = createMockContext()
+    const eventState = createEventState()
+    eventState.mainSessionIdle = false
+    eventState.mainSessionError = true
+    eventState.lastError = "Fatal error while busy"
+    const abortController = new AbortController()
+
+    //#when
+    const result = await pollForCompletion(ctx, eventState, abortController, {
+      pollIntervalMs: 10,
+      requiredConsecutive: 3,
+    })
+
+    //#then
+    expect(result).toBe(1)
+  })
+
   it("returns 130 when aborted", async () => {
     //#given
     spyOn(console, "log").mockImplementation(() => {})

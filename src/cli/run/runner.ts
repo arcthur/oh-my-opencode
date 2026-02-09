@@ -6,7 +6,7 @@ import type { OhMyOpenCodeConfig } from "../../config"
 import { loadPluginConfig } from "../../plugin-config"
 import { pollForCompletion } from "./poll-for-completion"
 
-const DEFAULT_TIMEOUT_MS = 0
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const SESSION_CREATE_MAX_RETRIES = 3
 const SESSION_CREATE_RETRY_DELAY_MS = 1000
 const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus"] as const

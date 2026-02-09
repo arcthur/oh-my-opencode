@@ -317,4 +317,60 @@ describe("event handling", () => {
     // #then
     expect(state.mainSessionIdle).toBe(false)
   })
+
+  it("session.status with idle type sets mainSessionIdle to true", async () => {
+    // #given
+    const ctx = createMockContext("my-session")
+    const state: EventState = {
+      mainSessionIdle: false,
+      mainSessionError: false,
+      lastError: null,
+      lastOutput: "",
+      lastPartText: "",
+      currentTool: null,
+      hasReceivedMeaningfulWork: false,
+    }
+
+    const payload: EventPayload = {
+      type: "session.status",
+      properties: { sessionID: "my-session", status: { type: "idle" } },
+    }
+
+    const events = toAsyncIterable([payload])
+    const { processEvents } = await import("./events")
+
+    // #when
+    await processEvents(ctx, events, state)
+
+    // #then
+    expect(state.mainSessionIdle).toBe(true)
+  })
+
+  it("session.status ignores events from different sessions", async () => {
+    // #given
+    const ctx = createMockContext("my-session")
+    const state: EventState = {
+      mainSessionIdle: true,
+      mainSessionError: false,
+      lastError: null,
+      lastOutput: "",
+      lastPartText: "",
+      currentTool: null,
+      hasReceivedMeaningfulWork: false,
+    }
+
+    const payload: EventPayload = {
+      type: "session.status",
+      properties: { sessionID: "other-session", status: { type: "busy" } },
+    }
+
+    const events = toAsyncIterable([payload])
+    const { processEvents } = await import("./events")
+
+    // #when
+    await processEvents(ctx, events, state)
+
+    // #then
+    expect(state.mainSessionIdle).toBe(true)
+  })
 })

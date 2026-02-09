@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from "node:fs"
+import { modify, applyEdits } from "jsonc-parser"
 import {
   parseJsonc,
   deepMerge,
@@ -606,56 +607,22 @@ export function addProviderConfig(config: InstallConfig): ConfigMergeResult {
 
     if (format === "jsonc") {
       const content = readFileSync(path, "utf-8")
-      const providerJson = JSON.stringify(newConfig.provider, null, 2)
-        .split("\n")
-        .map((line, i) => (i === 0 ? line : `  ${line}`))
-        .join("\n")
+      copyFileSync(path, `${path}.bak`)
 
-      const providerIdx = content.indexOf('"provider"')
-      if (providerIdx !== -1) {
-        const colonIdx = content.indexOf(":", providerIdx + '"provider"'.length)
-        const braceStart = colonIdx !== -1 ? content.indexOf("{", colonIdx) : -1
-        if (braceStart === -1) {
-          writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
-        } else {
-          let depth = 0
-          let braceEnd = braceStart
-          let inString = false
-          let escape = false
-          for (let i = braceStart; i < content.length; i++) {
-            const ch = content[i]
-            if (escape) {
-              escape = false
-              continue
-            }
-            if (ch === "\\") {
-              escape = true
-              continue
-            }
-            if (ch === '"') {
-              inString = !inString
-              continue
-            }
-            if (inString) continue
-            if (ch === "{") depth++
-            else if (ch === "}") {
-              depth--
-              if (depth === 0) {
-                braceEnd = i
-                break
-              }
-            }
-          }
-          const newContent =
-            content.slice(0, providerIdx) +
-            `"provider": ${providerJson}` +
-            content.slice(braceEnd + 1)
-          writeFileSync(path, newContent)
-        }
-      } else {
-        const newContent = content.replace(/(\{)/, `$1\n  "provider": ${providerJson},`)
-        writeFileSync(path, newContent)
+      const providerValue = (newConfig.provider ?? {}) as Record<string, unknown>
+      const edits = modify(content, ["provider"], providerValue, {
+        formattingOptions: { tabSize: 2, insertSpaces: true },
+      })
+      const newContent = applyEdits(content, edits)
+
+      try {
+        parseJsonc(newContent)
+      } catch {
+        writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
+        return { success: true, configPath: path }
       }
+
+      writeFileSync(path, newContent)
     } else {
       writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
     }
