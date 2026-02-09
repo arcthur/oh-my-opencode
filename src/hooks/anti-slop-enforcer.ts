@@ -1,4 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import { appendBudgetedOutput } from "../features/context-budget"
 import { log } from "../shared/logger"
 
 const HOOK_NAME = "anti-slop-enforcer"
@@ -144,7 +145,14 @@ export function createAntiSlopEnforcerHook(
     warningBlock.push("Fix these issues before proceeding.")
     warningBlock.push("─".repeat(50))
 
-    output.output += warningBlock.join("\n")
+    appendBudgetedOutput({
+      output,
+      sessionID: input.sessionID,
+      source: HOOK_NAME,
+      id: `${input.callID}:slop-warning`,
+      priority: "high",
+      content: warningBlock.join("\n"),
+    })
 
     log(`[${HOOK_NAME}] Detected ${violations.length} slop patterns`, {
       sessionID: input.sessionID,

@@ -1,4 +1,5 @@
 import { executePostToolGovernance } from "../../../features/governance"
+import { appendBudgetedOutput } from "../../../features/context-budget"
 import type { ToolExecuteInput } from "../../../shared/hook-types"
 import { log } from "../../../shared"
 import type { RuntimeExecutionNode } from "../types"
@@ -113,11 +114,25 @@ export function buildToolExecuteAfterNodes(
           })
 
           if (govResult.warnings.length > 0) {
-            output.output = `${output.output}\n\n${govResult.warnings.join("\n")}`
+            appendBudgetedOutput({
+              output,
+              sessionID: input.sessionID,
+              source: "governance-post-tool",
+              id: `${input.callID}:governance-warnings`,
+              priority: "high",
+              content: `\n\n${govResult.warnings.join("\n")}`,
+            })
           }
 
           if (govResult.systemMessage) {
-            output.output = `${output.output}\n\n${govResult.systemMessage}`
+            appendBudgetedOutput({
+              output,
+              sessionID: input.sessionID,
+              source: "governance-post-tool",
+              id: `${input.callID}:governance-system-message`,
+              priority: "high",
+              content: `\n\n${govResult.systemMessage}`,
+            })
           }
 
           if (govResult.checkpointCreated) {

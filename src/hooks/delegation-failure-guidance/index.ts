@@ -1,4 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import { appendBudgetedOutput } from "../../features/context-budget"
 
 export interface DelegateTaskErrorPattern {
   pattern: string
@@ -129,7 +130,14 @@ export function createDelegationFailureGuidanceHook(_ctx: PluginInput) {
       const errorInfo = detectDelegateTaskError(output.output)
       if (errorInfo) {
         const guidance = buildRetryGuidance(errorInfo)
-        output.output += `\n${guidance}`
+        appendBudgetedOutput({
+          output,
+          sessionID: input.sessionID,
+          source: "delegation-failure-guidance",
+          id: `${input.callID}:delegate-failure-guidance`,
+          priority: "high",
+          content: `\n${guidance}`,
+        })
       }
     },
   }

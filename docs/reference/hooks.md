@@ -237,7 +237,20 @@ This experimental lifecycle surface is used for message-level transforms, includ
 
 ### Context Budget Gating
 
-All hooks that inject context into tool output, chat messages, delegate prompts, or synthetic messages are gated by a shared `ContextBudgetArbiter` singleton (`src/features/context-budget/`). Each injection call goes through `arbiter.decide()`, which enforces total budget, per-source limits, per-channel limits, and priority-based overflow. See `docs/reference/configuration.md` § Context Budget for user-facing config.
+All model-visible context additions are gated by a shared `ContextBudgetArbiter` singleton (`src/features/context-budget/`).
+
+Injection paths:
+
+- `ContextCollector.register()` (messages-transform path)
+- `injectHookMessage()` (synthetic-message path)
+- `appendBudgetedOutput()` (tool-output/chat-message/delegate-prompt/session-prompt append path)
+- `pushBudgetedContext()` (`experimental.session.compacting` context arrays)
+- `injectBudgetedPrompt()` (`delegate-prompt` rewrites on `tool.execute.before`)
+- Direct `arbiter.decide()` for hook-local flows that need custom pre/post handling
+
+Runtime guardrail: `src/features/context-budget/raw-output-append-guard.test.ts` prevents raw `output.output += ...` style appends in guarded hook surfaces so budgeted append helpers remain the default.
+
+See `docs/reference/configuration.md` § Context Budget for user-facing config.
 
 ### `experimental.session.compacting`
 

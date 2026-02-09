@@ -779,7 +779,7 @@ You can always override automatic selection in `oh-my-opencode.json`:
 
 ## Context Budget
 
-All context injection hooks share a unified token budget governed by a single `ContextBudgetArbiter` singleton (`src/features/context-budget/`). This prevents any one hook from starving others.
+All model-visible context injection/append hooks share a unified token budget governed by a single `ContextBudgetArbiter` singleton (`src/features/context-budget/`). This prevents any one hook from starving others.
 
 ```json
 {
@@ -807,10 +807,11 @@ All context injection hooks share a unified token budget governed by a single `C
 | `source_limits` | — | Per-source token caps (e.g., `"codemap-injector": 600`) |
 | `channel_limits` | — | Per-channel token caps. Channels: `messages-transform`, `tool-output`, `chat-message`, `delegate-prompt`, `synthetic-message`, `session-prompt` |
 
-**Injection channels** route through the arbiter via two paths:
+**Injection channels** route through the arbiter via three paths:
 
 1. **`ContextCollector.register()`** → `arbiter.decide()` — used by `planning-with-files`, `claude-code-hooks`
-2. **Direct `arbiter.decide()`** — used by `rules-injector`, `directory-agents/readme`, `repo-overview`, `codemap-injector`, `keyword-detector`, `context-manifest-injector`, `conditional-rules`, `hook-message-injector`, `delegation-nudge-category-skill`
+2. **`appendBudgetedOutput()` / `pushBudgetedContext()` / `injectBudgetedPrompt()`** — used by tool-output guidance/instruction hooks, compaction-context writers, and delegate-prompt injectors such as `anti-slop-enforcer`, `comment-checker`, `runtime-tracker`, `edit/delegation failure guidance`, `context-window-governor`, `task-resume-info`, `execution-orchestrator`, `prometheus-md-only`, `sisyphus-junior-notepad`, `claude-code-hooks(PreCompact)`
+3. **Direct `arbiter.decide()`** — used by hooks with custom composition flows such as `rules-injector`, `directory-agents/readme`, `repo-overview`, `codemap-injector`, `keyword-detector`, `context-manifest-injector`, `conditional-rules`, `hook-message-injector`, `delegation-nudge-category-skill`
 
 Budget counters reset at the start of each user turn via `beginTurn()`.
 

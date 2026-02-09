@@ -1,4 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import { injectBudgetedPrompt } from "../../features/context-budget"
 import { isCallerOrchestrator } from "../../shared/session-utils"
 import { log } from "../../shared/logger"
 import { HOOK_NAME, NOTEPAD_DIRECTIVE } from "./constants"
@@ -49,7 +50,14 @@ export function createSisyphusJuniorNotepadHook(_ctx: PluginInput) {
       }
 
       // 6. Prepend directive
-      output.args.prompt = NOTEPAD_DIRECTIVE + prompt
+      injectBudgetedPrompt({
+        output: { args: output.args },
+        sessionID: input.sessionID,
+        source: HOOK_NAME,
+        id: `${input.callID ?? "unknown"}:notepad-directive`,
+        priority: "high",
+        content: NOTEPAD_DIRECTIVE,
+      })
 
       // 7. Log injection
       log(`[${HOOK_NAME}] Injected notepad directive to delegate_task`, {

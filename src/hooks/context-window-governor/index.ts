@@ -461,7 +461,7 @@ export function createContextWindowGovernorHook(
     }
 
     if (signal.shouldWarn) {
-      appendContextWindowWarning(output, snapshot)
+      appendContextWindowWarning(input.sessionID, output, snapshot)
     }
 
     if (!signal.shouldPreemptiveCompact) {

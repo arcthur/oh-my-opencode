@@ -1,6 +1,7 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { RuntimeTrackerConfig, RuntimeStats, ToolRuntime } from "./types"
 import { DEFAULT_CONFIG } from "./types"
+import { appendBudgetedOutput } from "../../features/context-budget"
 import { log } from "../../shared/logger"
 
 interface ToolExecuteInput {
@@ -156,9 +157,23 @@ export function createRuntimeTrackerHook(ctx: PluginInput, userConfig?: Partial<
         const toolStats = stats[input.tool]
 
         if (toolStats && toolStats.callCount >= 2) {
-          output.output += `\n\n[Runtime: ${formatDuration(duration)} - Tool "${input.tool}" averaged ${formatDuration(toolStats.avgDuration)} over ${toolStats.callCount} calls. Consider optimizing or caching.]`
+          appendBudgetedOutput({
+            output,
+            sessionID: input.sessionID,
+            source: "runtime-tracker",
+            id: `${input.callID}:runtime-hint-avg`,
+            priority: "low",
+            content: `\n\n[Runtime: ${formatDuration(duration)} - Tool "${input.tool}" averaged ${formatDuration(toolStats.avgDuration)} over ${toolStats.callCount} calls. Consider optimizing or caching.]`,
+          })
         } else {
-          output.output += `\n\n[Runtime: ${formatDuration(duration)} - This tool call was slow.]`
+          appendBudgetedOutput({
+            output,
+            sessionID: input.sessionID,
+            source: "runtime-tracker",
+            id: `${input.callID}:runtime-hint-single`,
+            priority: "low",
+            content: `\n\n[Runtime: ${formatDuration(duration)} - This tool call was slow.]`,
+          })
         }
 
         lastHintTime.set(hintKey, now)

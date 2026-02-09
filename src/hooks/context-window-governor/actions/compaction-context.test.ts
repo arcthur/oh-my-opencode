@@ -6,6 +6,7 @@ import { tmpdir } from "node:os"
 import type { OhMyOpenCodeConfig } from "../../../config"
 import { createTaskNode, transitionTaskNode } from "../../../features/task-system"
 import { createWorkStateManager } from "../../../features/work-state"
+import { contextBudgetArbiter } from "../../../features/context-budget"
 import { injectCompactionContext } from "./compaction-context"
 
 describe("compaction-context", () => {
@@ -14,6 +15,7 @@ describe("compaction-context", () => {
   let taskConfig: Partial<Pick<OhMyOpenCodeConfig, "sisyphus">>
 
   beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
     workspace = join(tmpdir(), `compaction-context-${randomUUID()}`)
     taskStorage = join(workspace, "task-graph")
     mkdirSync(taskStorage, { recursive: true })
@@ -28,6 +30,7 @@ describe("compaction-context", () => {
   })
 
   afterEach(() => {
+    contextBudgetArbiter.resetForTesting()
     if (existsSync(workspace)) {
       rmSync(workspace, { recursive: true, force: true })
     }
@@ -158,5 +161,25 @@ describe("compaction-context", () => {
     expect(snapshot).toContain(`source=plan, scope=plan, container_id=${planID}`)
     expect(snapshot).toContain(planTask.id)
     expect(snapshot).not.toContain(sessionTask.id)
+  })
+
+  test("drops compaction context when session-prompt budget is exhausted", () => {
+    // #given
+    contextBudgetArbiter.setBudgetConfig({
+      total_budget: 0,
+      reserved_budget: 0,
+      overflow_strategy: "drop-low-priority",
+    })
+    const output = { context: [] as string[] }
+
+    // #when
+    injectCompactionContext(output, {
+      sessionID: "ses_budget_exhausted",
+      directory: workspace,
+      taskConfig,
+    })
+
+    // #then
+    expect(output.context).toEqual([])
   })
 })

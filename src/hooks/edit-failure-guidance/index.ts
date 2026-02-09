@@ -1,4 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import { appendBudgetedOutput } from "../../features/context-budget"
 
 /**
  * Known Edit tool error patterns that indicate the AI made a mistake
@@ -50,7 +51,14 @@ export function createEditFailureGuidanceHook(_ctx: PluginInput) {
       )
 
       if (hasEditError) {
-        output.output += `\n${EDIT_ERROR_REMINDER}`
+        appendBudgetedOutput({
+          output,
+          sessionID: input.sessionID,
+          source: "edit-failure-guidance",
+          id: `${input.callID}:edit-failure-guidance`,
+          priority: "high",
+          content: `\n${EDIT_ERROR_REMINDER}`,
+        })
       }
     },
   }

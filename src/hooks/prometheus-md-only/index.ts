@@ -11,6 +11,7 @@ import {
   PROMETHEUS_WORKFLOW_REMINDER,
 } from "./constants"
 import { findNearestMessageWithFields, findFirstMessageWithAgent, MESSAGE_STORAGE } from "../../features/hook-message-injector"
+import { injectBudgetedPrompt } from "../../features/context-budget"
 import { getSessionAgent } from "../../features/claude-code-session-state"
 import { log } from "../../shared/logger"
 import { SYSTEM_DIRECTIVE_PREFIX } from "../../shared/system-directive"
@@ -100,7 +101,14 @@ export function createPrometheusMdOnlyHook(ctx: PluginInput) {
       if (TASK_TOOLS.includes(toolName)) {
         const prompt = output.args.prompt as string | undefined
         if (prompt && !prompt.includes(SYSTEM_DIRECTIVE_PREFIX)) {
-          output.args.prompt = PLANNING_CONSULT_WARNING + prompt
+          injectBudgetedPrompt({
+            output: { args: output.args },
+            sessionID: input.sessionID,
+            source: HOOK_NAME,
+            id: `${input.callID}:planning-consult-warning`,
+            priority: "high",
+            content: PLANNING_CONSULT_WARNING,
+          })
           log(`[${HOOK_NAME}] Injected read-only planning warning to ${toolName}`, {
             sessionID: input.sessionID,
             tool: toolName,

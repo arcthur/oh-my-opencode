@@ -83,7 +83,7 @@ Notes:
 
 - **Session-scoped state**: `Map<sessionID, Set<string>>` for tracking per-session
 - **Conditional execution**: Check `input.tool` before processing
-- **Output modification**: `output.output += "\n${REMINDER}"` to append context
+- **Output modification**: use `appendBudgetedOutput(...)` for model-visible append text
 - **Async state**: Use promises for CLI path resolution, cache results
 
 ## ANTI-PATTERNS

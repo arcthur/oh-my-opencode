@@ -9,6 +9,7 @@ import {
   setOpenCodeStorageDirForTesting,
   resetOpenCodeStorageDirForTesting,
 } from "../../features/hook-message-injector"
+import { contextBudgetArbiter } from "../../features/context-budget"
 import { SYSTEM_DIRECTIVE_PREFIX } from "../../shared/system-directive"
 import { clearSessionAgent } from "../../features/claude-code-session-state"
 
@@ -40,9 +41,11 @@ describe("prometheus-md-only", () => {
 
   beforeEach(() => {
     setOpenCodeStorageDirForTesting(TEST_STORAGE_DIR)
+    contextBudgetArbiter.resetForTesting()
   })
 
   afterEach(() => {
+    contextBudgetArbiter.resetForTesting()
     clearSessionAgent(TEST_SESSION_ID)
     if (testMessageDir) {
       try {

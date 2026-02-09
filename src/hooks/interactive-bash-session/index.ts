@@ -1,4 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin";
+import { appendBudgetedOutput } from "../../features/context-budget";
 import {
   loadInteractiveBashSessionState,
   saveInteractiveBashSessionState,
@@ -239,7 +240,14 @@ export function createInteractiveBashSessionHook(ctx: PluginInput) {
         Array.from(state.tmuxSessions),
       );
       if (reminder) {
-        output.output += reminder;
+        appendBudgetedOutput({
+          output,
+          sessionID,
+          source: "interactive-bash-session",
+          id: `${input.callID}:session-reminder`,
+          priority: "normal",
+          content: reminder,
+        });
       }
     }
   };

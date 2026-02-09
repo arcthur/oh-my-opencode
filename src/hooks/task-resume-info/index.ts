@@ -1,3 +1,5 @@
+import { appendBudgetedOutput } from "../../features/context-budget"
+
 const TARGET_TOOLS = ["task", "Task", "task_tool", "delegate_task"]
 
 const SESSION_ID_PATTERNS = [
@@ -27,7 +29,18 @@ export function createTaskResumeInfoHook() {
      const sessionId = extractSessionId(output.output)
      if (!sessionId) return
 
-     output.output = output.output.trimEnd() + `\n\nto continue: delegate_task(description="Continue task", session_id="${sessionId}", load_skills=[], run_in_background=false, prompt="...")`
+     const mergedOutput = { output: output.output.trimEnd() }
+     const decision = appendBudgetedOutput({
+       output: mergedOutput,
+       sessionID: input.sessionID,
+       source: "task-resume-info",
+       id: `${input.callID}:task-resume-info`,
+       priority: "high",
+       content: `\n\nto continue: delegate_task(description="Continue task", session_id="${sessionId}", load_skills=[], run_in_background=false, prompt="...")`,
+     })
+     if (decision.accepted) {
+       output.output = mergedOutput.output
+     }
    }
 
    return {

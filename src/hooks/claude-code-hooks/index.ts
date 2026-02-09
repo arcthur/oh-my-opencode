@@ -27,6 +27,7 @@ import { cacheToolInput, getToolInput } from "./tool-input-cache"
 import { appendTranscriptEntry, getTranscriptPath } from "./transcript"
 import type { PluginConfig } from "./types"
 import { log, isHookDisabled } from "../../shared"
+import { appendBudgetedOutput, pushBudgetedContext } from "../../features/context-budget"
 import type { ContextCollector } from "../../features/context-injector"
 
 const sessionFirstMessageProcessed = new Set<string>()
@@ -64,7 +65,16 @@ export function createClaudeCodeHooksHook(
           hookName: result.hookName,
           elapsedMs: result.elapsedMs,
         })
-        output.context.push(...result.context)
+        for (const [index, contextEntry] of result.context.entries()) {
+          pushBudgetedContext({
+            output,
+            sessionID: input.sessionID,
+            source: "claude-code-hooks:pre-compact",
+            id: `${result.hookName ?? "unknown"}:${index}`,
+            priority: "high",
+            content: contextEntry,
+          })
+        }
       }
     },
 
@@ -285,11 +295,25 @@ export function createClaudeCodeHooksHook(
         }
 
         if (result.warnings && result.warnings.length > 0) {
-          output.output = `${output.output}\n\n${result.warnings.join("\n")}`
+          appendBudgetedOutput({
+            output,
+            sessionID: input.sessionID,
+            source: "claude-code-hooks",
+            id: `${input.callID}:post-tool-warnings`,
+            priority: "high",
+            content: `\n\n${result.warnings.join("\n")}`,
+          })
         }
 
         if (result.message) {
-          output.output = `${output.output}\n\n${result.message}`
+          appendBudgetedOutput({
+            output,
+            sessionID: input.sessionID,
+            source: "claude-code-hooks",
+            id: `${input.callID}:post-tool-message`,
+            priority: "high",
+            content: `\n\n${result.message}`,
+          })
         }
 
         if (result.hookName) {

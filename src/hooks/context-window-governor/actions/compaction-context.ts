@@ -2,6 +2,7 @@ import { createSystemDirective, SystemDirectiveTypes } from "../../../shared/sys
 import type { OhMyOpenCodeConfig } from "../../../config"
 import { listIncompleteTasks, listTaskNodes, type TaskSummary } from "../../../features/task-system"
 import { resolveActiveTaskSelector } from "../../../features/work-state"
+import { pushBudgetedContext } from "../../../features/context-budget"
 
 const COMPACTION_CONTEXT_PROMPT = `${createSystemDirective(SystemDirectiveTypes.COMPACTION_CONTEXT)}
 
@@ -148,10 +149,19 @@ export function injectCompactionContext(
   if (!output || !Array.isArray(output.context)) {
     return
   }
+  if (!options?.sessionID) {
+    return
+  }
+  pushBudgetedContext({
+    output,
+    sessionID: options.sessionID,
+    source: "context-window-governor:compaction-context",
+    id: "compaction-context-prompt",
+    priority: "high",
+    content: COMPACTION_CONTEXT_PROMPT,
+  })
 
-  output.context.push(COMPACTION_CONTEXT_PROMPT)
-
-  if (!options?.sessionID || !options.directory) {
+  if (!options.directory) {
     return
   }
 
@@ -161,6 +171,13 @@ export function injectCompactionContext(
     taskConfig: options.taskConfig,
   })
   if (taskSnapshot) {
-    output.context.push(taskSnapshot)
+    pushBudgetedContext({
+      output,
+      sessionID: options.sessionID,
+      source: "context-window-governor:compaction-context",
+      id: "compaction-context-task-snapshot",
+      priority: "high",
+      content: taskSnapshot,
+    })
   }
 }

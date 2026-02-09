@@ -4,6 +4,7 @@ import type { OhMyOpenCodeConfig } from "../../config/schema"
 import { listTaskNodes } from "../../features/task-system"
 import { createWorkStateManager } from "../../features/work-state"
 import { getMainSessionID, isSubagentSession } from "../../features/claude-code-session-state"
+import { appendBudgetedOutput, injectBudgetedPrompt } from "../../features/context-budget"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
@@ -850,6 +851,11 @@ export function createExecutionOrchestratorHook(
       input: { tool: string; sessionID?: string; callID?: string },
       output: { args: Record<string, unknown>; message?: string }
     ): Promise<void> => {
+      const sessionID = input.sessionID
+      if (!sessionID) {
+        return
+      }
+
       if (!isExecutionModeSession(input.sessionID)) {
         return
       }
@@ -857,7 +863,7 @@ export function createExecutionOrchestratorHook(
       if (input.tool === "task" || input.tool === "Task") {
         output.message = (output.message || "") + EXECUTION_MODE_TASK_WARNING
         log(`[${HOOK_NAME}] Blocked direct task usage in execution mode`, {
-          sessionID: input.sessionID,
+          sessionID,
         })
         throw new Error(EXECUTION_MODE_TASK_BLOCK_ERROR)
       }
@@ -873,7 +879,7 @@ export function createExecutionOrchestratorHook(
           const warning = ORCHESTRATOR_DELEGATION_REQUIRED.replace("$FILE_PATH", filePath)
           output.message = (output.message || "") + warning
           log(`[${HOOK_NAME}] Injected delegation warning for direct file modification`, {
-            sessionID: input.sessionID,
+            sessionID,
             tool: input.tool,
             filePath,
           })
@@ -886,9 +892,16 @@ export function createExecutionOrchestratorHook(
         const prompt = output.args.prompt as string | undefined
         enforceExecutionModeDelegatePrompt(prompt)
         if (prompt && !prompt.includes(SYSTEM_DIRECTIVE_PREFIX)) {
-          output.args.prompt = `<system-reminder>${SINGLE_TASK_DIRECTIVE}</system-reminder>\n` + prompt
+          injectBudgetedPrompt({
+            output: { args: output.args },
+            sessionID,
+            source: "execution-orchestrator",
+            id: `${input.callID ?? "unknown"}:single-task-directive`,
+            priority: "critical",
+            content: `<system-reminder>${SINGLE_TASK_DIRECTIVE}</system-reminder>\n`,
+          })
           log(`[${HOOK_NAME}] Injected single-task directive to delegate_task`, {
-            sessionID: input.sessionID,
+            sessionID,
           })
         }
       }
@@ -902,13 +915,16 @@ export function createExecutionOrchestratorHook(
       if (!output) {
         return
       }
+      if (!input.sessionID) {
+        return
+      }
 
       const isExecutionMode = isExecutionModeSession(input.sessionID)
       const outputStr = output.output && typeof output.output === "string" ? output.output : ""
       const workState = workStateManager.load()
 
       // === Protocol handling (for any session with active work) ===
-      if (workState && input.sessionID && isExecutionMode) {
+      if (workState && isExecutionMode) {
         // 3-strike protocol: detect errors
         if (threeStrikeProtocol) {
           const isError = outputStr.startsWith("❌") ||
@@ -925,7 +941,14 @@ export function createExecutionOrchestratorHook(
             }
             guidance += `\n</three-strike-protocol>`
 
-            output.output = outputStr + guidance
+            appendBudgetedOutput({
+              output,
+              sessionID: input.sessionID,
+              source: "execution-orchestrator",
+              id: `${input.callID}:three-strike-guidance`,
+              priority: "critical",
+              content: guidance,
+            })
             log(`[${HOOK_NAME}] 3-strike: ${strikes} strikes`, { tool: input.tool, sessionID: input.sessionID })
           }
         }
@@ -946,7 +969,14 @@ ${count} research operations completed. Update your notepad or findings section 
 This helps maintain context across sessions and prevents knowledge loss.
 </two-action-rule>`
 
-            output.output = (output.output || "") + reminder
+            appendBudgetedOutput({
+              output,
+              sessionID: input.sessionID,
+              source: "execution-orchestrator",
+              id: `${input.callID}:two-action-reminder`,
+              priority: "high",
+              content: reminder,
+            })
             log(`[${HOOK_NAME}] 2-action rule reminder`, { count, sessionID: input.sessionID })
           }
         }
@@ -966,7 +996,14 @@ This helps maintain context across sessions and prevents knowledge loss.
           filePath = output.metadata?.filePath as string | undefined
         }
         if (filePath && !isSisyphusPath(filePath)) {
-          output.output = (output.output || "") + DIRECT_WORK_REMINDER
+          appendBudgetedOutput({
+            output,
+            sessionID: input.sessionID,
+            source: "execution-orchestrator",
+            id: `${input.callID}:direct-work-reminder`,
+            priority: "critical",
+            content: DIRECT_WORK_REMINDER,
+          })
           log(`[${HOOK_NAME}] Direct work reminder appended`, {
             sessionID: input.sessionID,
             tool: input.tool,
@@ -1004,7 +1041,7 @@ This helps maintain context across sessions and prevents knowledge loss.
 
         const progress = computeWorkProgress(currentWorkState.plan_id)
 
-        if (input.sessionID && !currentWorkState.session_ids.includes(input.sessionID)) {
+        if (!currentWorkState.session_ids.includes(input.sessionID)) {
           workStateManager.appendSessionId(input.sessionID)
           log(`[${HOOK_NAME}] Appended session to work`, {
             sessionID: input.sessionID,
@@ -1014,8 +1051,14 @@ This helps maintain context across sessions and prevents knowledge loss.
 
         // Preserve original subagent response - critical for debugging failed tasks
         const originalResponse = output.output
-
-        output.output = `
+        const outputPrefixBuffer = { output: "" }
+        appendBudgetedOutput({
+          output: outputPrefixBuffer,
+          sessionID: input.sessionID,
+          source: "execution-orchestrator",
+          id: `${input.callID}:delegate-output-prefix`,
+          priority: "high",
+          content: `
 ## SUBAGENT WORK COMPLETED
 
 ${fileChanges}
@@ -1024,7 +1067,22 @@ ${fileChanges}
 
 **Subagent Response:**
 
-${originalResponse}
+`,
+        })
+
+        const outputCore =
+          outputPrefixBuffer.output.length > 0
+            ? `${outputPrefixBuffer.output}${originalResponse}`
+            : originalResponse
+        output.output = outputCore
+
+        appendBudgetedOutput({
+          output,
+          sessionID: input.sessionID,
+          source: "execution-orchestrator",
+          id: `${input.callID}:delegate-output-reminder`,
+          priority: "critical",
+          content: `
 
 <system-reminder>
 ${buildOrchestratorReminder(
@@ -1033,7 +1091,8 @@ ${buildOrchestratorReminder(
   { total: progress.total, completed: progress.completed },
   subagentSessionId
 )}
-</system-reminder>`
+</system-reminder>`,
+        })
 
         log(`[${HOOK_NAME}] Output transformed for execution mode`, {
           plan: currentWorkState.plan_id,

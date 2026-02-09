@@ -1,4 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin";
+import { appendBudgetedOutput } from "../../features/context-budget";
 import {
   loadAgentUsageState,
   saveAgentUsageState,
@@ -77,7 +78,14 @@ export function createDelegationNudgeAgentUsageHook(_ctx: PluginInput) {
       return;
     }
 
-    output.output += REMINDER_MESSAGE;
+    appendBudgetedOutput({
+      output,
+      sessionID,
+      source: "delegation-nudge-agent-usage",
+      id: `${input.callID}:agent-usage-reminder`,
+      priority: "normal",
+      content: REMINDER_MESSAGE,
+    });
     state.reminderCount++;
     state.updatedAt = Date.now();
     saveAgentUsageState(state);

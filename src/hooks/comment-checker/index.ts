@@ -1,6 +1,7 @@
 import type { PendingCall } from "./types"
 import { runCommentChecker, getCommentCheckerPath, startBackgroundInit, type HookInput } from "./cli"
 import type { CommentCheckerConfig } from "../../config/schema"
+import { appendBudgetedOutput } from "../../features/context-budget"
 
 import * as fs from "fs"
 import { existsSync } from "fs"
@@ -164,7 +165,14 @@ async function processWithCli(
   
   if (result.hasComments && result.message) {
     debugLog("CLI detected comments, appending message")
-    output.output += `\n\n${result.message}`
+    appendBudgetedOutput({
+      output,
+      sessionID: input.sessionID,
+      source: "comment-checker",
+      id: `${input.callID}:comment-checker`,
+      priority: "high",
+      content: `\n\n${result.message}`,
+    })
   } else {
     debugLog("CLI: no comments detected")
   }

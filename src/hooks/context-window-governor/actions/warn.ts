@@ -1,3 +1,4 @@
+import { appendBudgetedOutput } from "../../../features/context-budget"
 import { formatContextLimit } from "../../../shared/context-limits"
 import { createSystemDirective, SystemDirectiveTypes } from "../../../shared/system-directive"
 import type { ContextWindowSnapshot } from "../types"
@@ -15,6 +16,7 @@ Complete your work thoroughly and methodically.`
 }
 
 export function appendContextWindowWarning(
+  sessionID: string,
   output: { output: string },
   snapshot: ContextWindowSnapshot
 ): void {
@@ -23,5 +25,12 @@ export function appendContextWindowWarning(
   const usedTokens = snapshot.usedInputCacheTokens.toLocaleString()
   const limitTokens = snapshot.limitTokens.toLocaleString()
 
-  output.output += `\n\n${buildReminder(snapshot)}\n[Context Status: ${usedPct}% used (${usedTokens}/${limitTokens} tokens), ${remainingPct}% remaining]`
+  appendBudgetedOutput({
+    output,
+    sessionID,
+    source: "context-window-governor",
+    id: "context-window-warning",
+    priority: "high",
+    content: `\n\n${buildReminder(snapshot)}\n[Context Status: ${usedPct}% used (${usedTokens}/${limitTokens} tokens), ${remainingPct}% remaining]`,
+  })
 }
