@@ -59,7 +59,7 @@ Policy keywords used below:
 | User memory (embeddings) | *(none)* | `src/features/user-memory/` | FORK_ONLY | 2026-02-03 | Keep fork. |
 | Org/team memory | *(none)* | `src/features/org-memory/` | FORK_ONLY | 2026-02-03 | Keep fork. |
 | Conditional rules | *(none)* | `src/features/conditional-rules/` | FORK_ONLY | 2026-02-03 | Keep fork. |
-| Multi-plan pipeline | *(none)* | `src/features/multi-plan/`, `src/tools/multi-plan/`, `src/agents/plan-synthesizer.ts` | FORK_ONLY | 2026-02-03 | Keep fork. |
+| Planning review pipeline (legacy, removed 2026-02-10) | *(none)* | *(removed from runtime; replaced by Metis/Momus planning chain)* | FORK_ONLY | 2026-02-03 | Historical note only. |
 | Planning-with-files workflow | *(none)* | `src/features/planning-with-files/`, `src/hooks/planning-with-files/` | FORK_ONLY | 2026-02-03 | Keep fork. |
 | Work state (project execution state) | `src/features/boulder-state/` | `src/features/work-state/` | FORK_OWNED | 2026-02-03 | Do not reintroduce `boulder-state`. Port ideas selectively if needed, but keep `work-state` as the canonical state system. |
 | Swarm coordination | *(none)* | `src/features/sisyphus-swarm/` | FORK_ONLY | 2026-02-03 | Keep fork. |
@@ -116,7 +116,7 @@ bun run build:schema
 
 | Date | Upstream baseline | merge-base | Summary |
 |------|-------------------|------------|---------|
-| 2026-02-03 | `1e587c55` | `66fd761a` | Drop upstream `tmux-subagent`/`claude-tasks`/`unstable-agent-babysitter`; remove upstream schema/docs no-op hook names; keep fork-owned replacements (`work-state`, `sisyphus-tasks`, `sisyphus-swarm`, governance/memory/multi-plan). |
+| 2026-02-03 | `1e587c55` | `66fd761a` | Drop upstream `tmux-subagent`/`claude-tasks`/`unstable-agent-babysitter`; remove upstream schema/docs no-op hook names; keep fork-owned replacements (`work-state`, `sisyphus-tasks`, `sisyphus-swarm`, governance/memory/planning stack). |
 | 2026-02-04 | `1e587c55` | `66fd761a` | Historical milestone: initial compaction lifecycle wiring and context-window sync. This entry is superseded by 2026-02-09 governor consolidation notes (unified `context-window-governor` + `session-state-repair`). |
 | 2026-02-05 | `1e587c55` | `66fd761a` | Align tool-layer robustness: restore builtin slashcommand discovery (respecting `disabled_commands`), re-add look-at model-suggestion retry path with fork-compatible agent matching, and restore LSP binary lookup via OpenCode data-dir `bin/` path. |
 | 2026-02-05 | `617d7f4f` | `66fd761a` | Sync upstream/dev follow-ups: tolerate mixed provider-models cache formats (string[] vs object[] metadata), port Windows-safe LSP spawning (Node child_process) + open-file didChange behavior, and suppress background-agent parent notification retries when parent session is aborted. |
@@ -125,9 +125,9 @@ bun run build:schema
 
 ### 2026-02-03 Addendum (File-by-File Review + Link Validation)
 
-- `src/agents/*`: Do NOT reintroduce upstream `metis/momus`; the fork’s planning capability is covered by `multi-plan` + `plan-synthesizer` (see `docs/multi-model-planning-guide.md`).
+- `src/agents/*`: Historical note (superseded). Current fork planning chain uses `metis` + `prometheus` + `momus`.
 - `src/agents/utils.ts`: Fixed a broken override path where `skills` injection via agent overrides did not affect the final resolved prompt; added regression coverage to ensure config overrides are actually applied.
-- `src/tools/delegate-task/constants.ts`: Do NOT merge upstream’s Momus-gated mega prompt; instead, port the underlying intent (dependency/parallelism analysis + category/skills recommendations) in a fork-aligned minimal form consistent with the multi-plan philosophy (minimal back-and-forth, explicit assumptions).
+- `src/tools/delegate-task/constants.ts`: Do NOT merge upstream’s oversized plan prompt wholesale; port intent only (dependency/parallelism analysis + category/skills recommendations) in a fork-aligned minimal form (minimal back-and-forth, explicit assumptions).
 - `src/tools/delegate-task/tools.ts`: Clarified that `run_in_background` is REQUIRED to prevent missing-arg tool-call failures.
 - `src/tools/call-omo-agent/*`: Kept `<task_metadata>` (background outputs include `session_id`) to preserve stable continuation flows; updated tool description to state `session_id` is not supported in background mode and recommend continuing via `delegate_task(session_id=...)`.
 - `src/hooks/atlas/index.ts`: Ported upstream-safe orchestration improvements without reintroducing `boulder-state`; fixed background-task output handling (`Background task continued`), and made `session_id` continuation extraction robust (supports `<task_metadata>`).
@@ -153,7 +153,7 @@ bun run build:schema
 - `src/hooks/continuation-stop-guard/*`: Fully aligned with upstream (no fork-specific divergence). Verified it cancels continuation mechanisms early in `chat.message` to prevent auto-continue loops when the user explicitly opts out.
 - `src/hooks/ralph-loop/*`: Fully aligned with upstream. Verified completion detection prefers transcript JSONL (skips `type: "user"` to avoid false positives, issue #622), falls back to the session-messages API, and uses message-file fallback to preserve agent/model context for `session.prompt` when the API is unavailable.
 - `src/hooks/delegation-nudge-category-skill/*`: Ported upstream behavior (track delegatable tool calls; inject after 3 calls only if no delegation tools were used; reset on session delete/compaction). FORK_OVERRIDE: keep fork-specific `delegate_task(...)` example text in the reminder so it matches this fork’s required tool args (notably `prompt`).
-- `src/hooks/planning-with-files/index.ts`: Fork-only (no upstream equivalent). Reviewed end-to-end hook chain (ContextCollector injection + multi_plan structured result parsing) and removed dead code (unused imports/locals) to keep the workflow minimal and non-redundant.
+- `src/hooks/planning-with-files/index.ts`: Fork-only (no upstream equivalent). Reviewed end-to-end hook chain (ContextCollector injection + planning-file protocols) and removed dead code (unused imports/locals) to keep the workflow minimal and non-redundant.
 - `src/features/work-state/manager.ts`: Improved Manus compatibility for fork-owned `work-state`:
   - Derive `plan_name` from the plan directory when `active_plan` is `*/task_plan.md` (fixes Atlas plan naming).
   - Parse Manus `## Phases` table rows for progress + phase utilities.
@@ -174,7 +174,7 @@ bun run build:schema
 - `src/hooks/session-state-repair/*`: Canonical session error repair hook (including `assistant_prefill_unsupported` and `tool_result_missing` revert fallback); paired with governor for continuity after hard errors.
 - `src/shared/session-utils.ts`: Implemented best-effort agent/orchestrator detection via in-memory session-agent map OR message-storage fallback; added `isCallerAtlas()` helper for durable Atlas detection.
 - `src/hooks/atlas/index.ts` + `src/index.ts`: Switched Atlas detection to shared `isCallerAtlas()` (de-duplicated message-dir logic) and wired `atlasHook["tool.execute.before"]` so orchestrator protocol (Write/Edit warnings + single-task directive injection) is enforced preflight.
-- `src/hooks/prometheus-md-only/*`: FORK_OVERRIDE. Keep fork checklist/reminder text (no Metis/Momus references) while preserving upstream path-allowlist validation and read-only constraints.
+- `src/hooks/prometheus-md-only/*`: FORK_OVERRIDE. Keep fork checklist/reminder text while preserving upstream path-allowlist validation and read-only constraints.
 - `src/hooks/delegation-validate-decision/index.ts`: Fork-only (no upstream equivalent). Validates presence of `<delegation-decision>` JSON block before `delegate_task`, injecting warnings for missing/suboptimal decisions.
 - `src/hooks/sisyphus-junior-notepad/*`: FORK_OVERRIDE. Only inject notepad context when delegation will spawn Sisyphus-Junior (category-based or explicit `subagent_type="sisyphus-junior"`), reducing noise and token overhead.
 - `src/hooks/delegation-nudge-agent-usage/constants.ts`: FORK_OVERRIDE. Keep fork-specific `delegate_task(...)` arg examples (required args) to avoid invalid tool calls, otherwise upstream-identical behavior.
@@ -197,7 +197,7 @@ bun run build:schema
 ### 2026-02-05 Addendum (delegate_task Dispatch Review)
 
 - `src/tools/delegate-task/categories.ts`: Minor upstream parity refactor: always uses `resolveModel(...)` for model resolution (no local normalization helper), preserving the priority chain (user override → category default → system default).
-- `src/tools/delegate-task/constants.ts`: Reviewed upstream’s expanded “plan agent prepend” (dependency graph + parallel execution waves + full skills evaluation) and intentionally kept the fork’s lighter protocol (explicit assumptions + minimal back-and-forth + schema-correct tool examples) to match fork multi-plan philosophy and avoid forced interview loops.
+- `src/tools/delegate-task/constants.ts`: Reviewed upstream’s expanded “plan agent prepend” (dependency graph + parallel execution waves + full skills evaluation) and intentionally kept the fork’s lighter protocol (explicit assumptions + minimal back-and-forth + schema-correct tool examples) to avoid forced interview loops.
 - `src/tools/call-omo-agent/constants.ts` + `src/tools/call-omo-agent/tools.ts`: Reviewed upstream’s simplifications and intentionally kept fork behavior:
   - `session_id` is sync-only (background mode rejects it).
   - Background output includes `<task_metadata> session_id: ... </task_metadata>` for `task-resume-info` continuation support.
@@ -218,7 +218,7 @@ bun run build:schema
 
 ### 2026-02-05 Addendum (Config + Model/Agent Resolution)
 
-- `src/plugin-handlers/config-handler.ts` + `src/plugin-handlers/config-handler.test.ts`: Synced upstream config assembly and hardened edge-cases (core-agent ordering, plan-agent demotion fix, builtin-agent overwrite prevention, MCP merge order). Preserved fork semantics: Prometheus multi-model arrays for multi-plan (first model used for the Prometheus agent), Prometheus model priority `agents.prometheus.model` → category model → fallbackChain → `config.model` (system default, not UI override), and Sisyphus-Junior delegation remains denied (defense-in-depth).
+- `src/plugin-handlers/config-handler.ts` + `src/plugin-handlers/config-handler.test.ts`: Synced upstream config assembly and hardened edge-cases (core-agent ordering, plan-agent demotion fix, builtin-agent overwrite prevention, MCP merge order). Current semantics: Prometheus single-model override, model priority `agents.prometheus.model` → category model → fallbackChain → `config.model` (system default, not UI override), and Sisyphus-Junior delegation remains denied (defense-in-depth).
 - `src/shared/model-resolver.ts` + `src/shared/model-resolver.test.ts`: Ported upstream wrapper around `resolveModelPipeline` (UI selection + config override + category-default + fallbackChain + optional system default), including the full upstream test suite (availability-based + connected-provider-cache paths).
 - `src/shared/agent-tool-restrictions.ts`: Inlined case-insensitive restrictions lookup (drop `findCaseInsensitive` import) to match upstream semantics and reduce dependency surface.
 - `src/shared/model-resolution-pipeline.ts`: Kept fork-only result type name (`ModelResolutionPipelineResult`) to avoid barrel export conflicts with `src/shared/model-resolver.ts` (`ModelResolutionResult`).
@@ -229,7 +229,7 @@ bun run build:schema
 
 ### 2026-02-05 Addendum (CLI Install Model Fallback)
 
-- `src/cli/model-fallback.ts` + `src/cli/model-fallback.test.ts` + `src/cli/__snapshots__/model-fallback.test.ts.snap`: Synced upstream model fallback generator to use `src/shared/model-requirements.ts` as the single source of truth (provider availability mapping incl. Kimi; `requiresAnyModel`/`requiresModel` gating; category downgrade `unspecified-high` → `unspecified-low` when not Max plan; explore/sisyphus/hephaestus special cases). Snapshots updated to reflect the fork’s agent set (no Metis/Momus; includes `plan-synthesizer`).
+- `src/cli/model-fallback.ts` + `src/cli/model-fallback.test.ts` + `src/cli/__snapshots__/model-fallback.test.ts.snap`: Synced upstream model fallback generator to use `src/shared/model-requirements.ts` as the single source of truth (provider availability mapping incl. Kimi; `requiresAnyModel`/`requiresModel` gating; category downgrade `unspecified-high` → `unspecified-low` when not Max plan; explore/sisyphus/hephaestus special cases). Snapshots now reflect the current fork agent set (`metis` and `momus` included).
 
 ### 2026-02-05 Addendum (CLI Config Manager)
 
@@ -328,19 +328,19 @@ Audit metrics (fork vs local upstream clone, excluding `docs/`, `dist/`, `node_m
 ### Next diffs to review (not yet fully documented in this file)
 
 - ✅ Prometheus Phase 2/3 plan prompts reviewed: `src/agents/prometheus/plan-generation.ts`, `src/agents/prometheus/high-accuracy-mode.ts`, `src/agents/prometheus/plan-template.ts`, `src/agents/prometheus/identity-constraints.ts`
-  - No Metis/Momus reintroduced; multi-plan routing (`multi_plan`) + debate semantics preserved; examples remain schema-correct for this fork.
+  - Current fork planning flow is Metis → Prometheus → Momus; examples remain schema-correct for this fork.
 - ✅ Orchestrator prompts reviewed: `src/agents/atlas/*`
   - All `delegate_task(...)` examples updated to this fork’s required args; no boulder-state language reintroduced.
 - ✅ Primary agent prompt reviewed: `src/agents/sisyphus.ts`
   - Delegation decision protocol matches `src/hooks/delegation-validate-decision/`; examples remain schema-correct.
 - ✅ Agent registry + prompt builder reviewed: `src/agents/utils.ts`, `src/agents/types.ts`, `src/agents/index.ts`, `src/agents/dynamic-agent-prompt-builder.ts`
-  - Fork agent set is consistent (no Metis/Momus; includes `plan-synthesizer`); override schema supports multi-model Prometheus + category/skills/mode.
+  - Fork agent set is consistent (Metis/Momus included); override schema supports category/skills/mode.
 
 ### 2026-02-05 Addendum (Final Low-Blast Review)
 
 - ✅ `src/agents/sisyphus-junior.test.ts`: Fork-expanded coverage retained (system default model + disable semantics); confirms delegation permission boundaries remain intact while `task` stays blocked and delegation remains scoped.
 - ✅ `src/agents/utils.test.ts`: Rewrote to be deterministic (spy-based stubbing for model availability + connected provider cache), porting upstream coverage (gating, category expansion, deadlock prevention) while keeping fork-specific assertions (`uiSelectedModel` priority, skill injection, agent-browser gating).
-- ✅ `src/agents/AGENTS.md`: Updated to reflect the fork’s agent set and layout (no Metis/Momus; Prometheus is `src/agents/prometheus/*`; includes Sisyphus-Junior + Plan-Synthesizer) and to document model resolution + tool restrictions accurately.
+- ✅ `src/agents/AGENTS.md`: Updated to reflect the fork’s agent set and layout (Prometheus is `src/agents/prometheus/*`; includes Sisyphus-Junior + Metis + Momus) and to document model resolution + tool restrictions accurately.
 - ✅ `src/hooks/delegation-validate-decision/index.ts`: Hardened `session.messages()` payload handling (`{ data }` vs array) and added regression coverage.
 - ✅ `src/hooks/sisyphus-junior-notepad/index.ts`: Now requires `sessionID` + non-empty `prompt` before injecting, preventing accidental mutation of invalid tool calls; keeps the fork’s “inject only for Sisyphus-Junior executions” policy.
 - ✅ `src/hooks/atlas/index.ts` + `src/hooks/atlas/index.test.ts`: Fixed background-task detection to match fork `delegate_task` output (`Background task continued`) so Atlas does not transform/append verification reminders for background launches/continuations; added regression tests for undefined `tool.execute.after` output guard and background continuation outputs; `delegate_task` single-task directive is now prepended for stronger enforcement; reminder copy now references the actual `active_plan` path and uses Markdown checkbox syntax (`- [ ]` → `- [x]`) to remove ambiguity (including Manus-style plans).
@@ -389,7 +389,7 @@ Decision tags:
 | `b8d7723` | `SKIPPED_DIVERGENCE` | Hephaestus autonomy prompt strategy intentionally diverges in fork; mixed commit not split. |
 | `f468eff` | `SKIPPED_META` | PR merge commit only. |
 | `2224183` | `SKIPPED_DIVERGENCE` | Dead-code deletion conflicts with fork usage (`getModelLimit` still referenced). |
-| `11d0005` | `PORTED_PARTIAL` | Model upgrade wave applied in fork runtime (Opus 4.6 priority); fork topology preserved (Plan-Synthesizer, no Metis/Momus). |
+| `11d0005` | `PORTED_PARTIAL` | Model upgrade wave applied in fork runtime (Opus 4.6 priority); historical topology note (superseded by current Metis/Momus chain). |
 | `e450e4f` | `SKIPPED_META` | PR merge commit only. |
 | `04576c3` | `SKIPPED_META` | CLA signature only. |
 | `b8f15af` | `PORTED` | Hephaestus gating switched to provider-connectivity semantics (not single-model presence). |
@@ -508,7 +508,7 @@ Recommended migration sequence for this fork (model chain only):
 
 Fork boundary reminders for this chain:
 - Do **not** reintroduce upstream-only deprecated systems while applying model upgrades (`boulder-state`, `claude-tasks`, `task` tool chain, `tmux-subagent`, etc.).
-- Preserve fork agent topology (`plan-synthesizer` instead of metis/momus) when porting tests or prompt text.
+- Preserve current fork agent topology (`metis`/`momus`) when porting tests or prompt text.
 
 ### 2026-02-06 Addendum (Model Upgrade Chain Applied in Fork Runtime)
 
@@ -527,7 +527,7 @@ Applied as one migration wave (runtime + tests/snapshots + schema):
   - wired via `src/hooks/index.ts`, `src/config/schema.ts`, `src/index.ts` (`chat.params`)
 - Synced schema artifact:
   - `assets/oh-my-opencode.schema.json`
-- Updated affected test suites/snapshots to match fork-adapted runtime behavior (including `plan-synthesizer` topology and no deprecated subsystem reintroduction).
+- Updated affected test suites/snapshots to match fork-adapted runtime behavior (including Metis/Momus topology and no deprecated subsystem reintroduction).
 
 ### 2026-02-06 Addendum (Commit Coverage Machine Check)
 

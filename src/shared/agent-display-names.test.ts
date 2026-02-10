@@ -64,8 +64,8 @@ describe("getAgentDisplayName", () => {
     // when getAgentDisplayName called
     const result = getAgentDisplayName(configKey)
 
-    // then returns Plan-Synthesizer display name (metis/momus migrated)
-    expect(result).toBe("Plan-Synthesizer (Multi-plan Synthesis)")
+    // then returns Metis display name (Pre-planning consultant agent)
+    expect(result).toBe("Metis (Pre-Planning Consultant)")
   })
 
   it("returns display name for momus", () => {
@@ -75,19 +75,8 @@ describe("getAgentDisplayName", () => {
     // when getAgentDisplayName called
     const result = getAgentDisplayName(configKey)
 
-    // then returns Plan-Synthesizer display name (metis/momus migrated)
-    expect(result).toBe("Plan-Synthesizer (Multi-plan Synthesis)")
-  })
-
-  it("returns display name for plan-synthesizer", () => {
-    // given config key "plan-synthesizer"
-    const configKey = "plan-synthesizer"
-
-    // when getAgentDisplayName called
-    const result = getAgentDisplayName(configKey)
-
-    // then returns Plan-Synthesizer display name
-    expect(result).toBe("Plan-Synthesizer (Multi-plan Synthesis)")
+    // then returns Momus display name (Plan reviewer agent)
+    expect(result).toBe("Momus (Plan Reviewer)")
   })
 
   it("returns display name for hephaestus", () => {
@@ -153,9 +142,8 @@ describe("AGENT_DISPLAY_NAMES", () => {
       sisyphus: "Sisyphus (Ultraworker)",
       prometheus: "Prometheus (Plan Builder)",
       "sisyphus-junior": "Sisyphus-Junior",
-      "plan-synthesizer": "Plan-Synthesizer (Multi-plan Synthesis)",
-      metis: "Plan-Synthesizer (Multi-plan Synthesis)",
-      momus: "Plan-Synthesizer (Multi-plan Synthesis)",
+      metis: "Metis (Pre-Planning Consultant)",
+      momus: "Momus (Plan Reviewer)",
       hephaestus: "Hephaestus (Autonomous Deep Worker)",
       oracle: "oracle",
       librarian: "librarian",

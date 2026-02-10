@@ -33,7 +33,6 @@ import {
   createStartWorkHook,
   createExecutionOrchestratorHook,
   createPrometheusMdOnlyHook,
-  createMultiPlanTriggerHook,
   createPlanningWithFilesHook,
   createSilentToolOutputHook,
   createRepoOverviewInjectorHook,
@@ -115,7 +114,6 @@ import {
   discoverCommandsSync,
   sessionExists,
   createDelegateTask,
-  createMultiPlanTool,
   createSwarmTool,
   createTaskGraphTools,
   interactive_bash,
@@ -601,16 +599,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createWriteExistingFileGuardHook(ctx)
     : null;
 
-  // Get Prometheus model config (string or array for multi-plan)
-  const prometheusModel = pluginConfig.agents?.prometheus?.model as string | string[] | undefined;
-
-  const multiPlanTrigger = isHookEnabled("multi-plan-trigger")
-    ? createMultiPlanTriggerHook({
-        model: prometheusModel,
-        pipelineConfig: pluginConfig.multi_plan_pipeline,
-      })
-    : null;
-
   const taskAutoContinuationEnabled = isHookEnabled("task-auto-continuation");
 
   const planningWithFiles = isHookEnabled("planning-with-files") && pluginConfig.planning_with_files?.enabled
@@ -831,12 +819,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createDelegationNudgeCategorySkillHook(ctx, availableSkills)
     : null;
 
-  const multiPlanTool = createMultiPlanTool({
-    ctx,
-    backgroundManager,
-    model: prometheusModel,
-    pipelineConfig: pluginConfig.multi_plan_pipeline,
-  });
   const swarmTool = createSwarmTool({
     directory: ctx.directory,
     config: pluginConfig,
@@ -948,7 +930,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     autoSlashCommand: optional(autoSlashCommand),
     startWork: optional(startWork),
     swarmFromPlan: optional(swarmFromPlan),
-    multiPlanTrigger: optional(multiPlanTrigger),
     planningWithFiles: optional(planningWithFiles),
     preCompletionVerification: optional(preCompletionVerification),
     continuationStopGuard: optional(continuationStopGuard),
@@ -1001,7 +982,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ...taskGraphTools,
     look_at: lookAt,
     delegate_task: delegateTask,
-    multi_plan: multiPlanTool,
     swarm: swarmTool,
     skill: skillTool,
     skill_mcp: skillMcpTool,

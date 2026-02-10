@@ -36,7 +36,8 @@ The built-in agent names surfaced by configuration (`BuiltinAgentNameSchema`) ar
 - `librarian` (docs and research)
 - `explore` (codebase exploration)
 - `multimodal-looker` (image/PDF inspection)
-- `plan-synthesizer` (plan review/synthesis)
+- `metis` (pre-planning analysis)
+- `momus` (plan review)
 
 Contract:
 
@@ -49,7 +50,7 @@ Contract:
 In addition to the built-in set above, the runtime agent table can include “derived” or “compatibility” agents that are produced by the config handler:
 
 - `sisyphus-junior`: a focused executor used by `delegate_task({ category: ... })`.
-- `prometheus`: the plan agent used for the multi-model planning pipeline.
+- `prometheus`: the strategic plan agent used in the Metis → Prometheus → Momus pipeline.
 - `OpenCode-Builder`: an optional builder agent (enabled via `sisyphus_agent.default_builder_enabled`).
 - `build` / `plan`: OpenCode default agent slots that may be demoted or replaced depending on configuration.
 
@@ -110,7 +111,7 @@ See `src/plugin-handlers/config-handler.ts`.
 
 ## Planning Pipeline Note
 
-This fork’s planning pipeline uses `multi_plan` and `plan-synthesizer` rather than upstream “planning reviewer” agents.
+The planning pipeline uses Metis (pre-planning consultant) for intent classification and scope analysis, Prometheus for plan generation, and Momus (plan reviewer) for blocking-issue verification.
 
 ## See Also
 

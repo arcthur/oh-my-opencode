@@ -10,7 +10,8 @@ describe("Agent Config Integration", () => {
         "sisyphus",
         "hephaestus",
         "prometheus",
-        "plan-synthesizer",
+        "metis",
+        "momus",
         "oracle",
         "librarian",
         "explore",
@@ -24,7 +25,8 @@ describe("Agent Config Integration", () => {
       expect(displayNames).toContain("Sisyphus (Ultraworker)")
       expect(displayNames).toContain("Hephaestus (Autonomous Deep Worker)")
       expect(displayNames).toContain("Prometheus (Plan Builder)")
-      expect(displayNames).toContain("Plan-Synthesizer (Multi-plan Synthesis)")
+      expect(displayNames).toContain("Metis (Pre-Planning Consultant)")
+      expect(displayNames).toContain("Momus (Plan Reviewer)")
       expect(displayNames).toContain("oracle")
       expect(displayNames).toContain("librarian")
       expect(displayNames).toContain("explore")
@@ -76,7 +78,8 @@ describe("Agent Config Integration", () => {
       const expectedAgents = [
         "sisyphus",
         "prometheus",
-        "plan-synthesizer",
+        "metis",
+        "momus",
         "hephaestus",
         "oracle",
         "librarian",

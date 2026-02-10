@@ -13,7 +13,7 @@ Each agent has:
 - Sisyphus, Prometheus
 
 **Subagents**:
-- Hephaestus, Oracle, Librarian, Explore, Multimodal-Looker, Plan-Synthesizer, Sisyphus-Junior
+- Hephaestus, Oracle, Librarian, Explore, Multimodal-Looker, Metis, Momus, Sisyphus-Junior
 
 ## STRUCTURE
 
@@ -27,8 +27,13 @@ agents/
 ├── explore.ts                  # Fast contextual grep
 ├── multimodal-looker.ts        # Media analyzer (Gemini 3 Flash)
 ├── prometheus/                 # Prometheus system prompt (brainstorm/interview/plan/QA)
-├── plan-synthesizer.ts         # Multi-plan synthesis (Metis+Momus consolidated in this fork)
+├── metis.ts                    # Pre-planning consultant (intent classification, AI-slop detection)
+├── momus.ts                    # Plan reviewer (blocking-issue verification, executability check)
 ├── hephaestus.ts               # Autonomous deep worker (GPT 5.3 Codex)
+├── agent-builder.ts            # Agent build pipeline (factory invocation, category/skill expansion)
+├── env-context.ts              # OmO-specific environment context (time, timezone, locale)
+├── custom-agent-summaries.ts   # Custom agent summary parsing and metadata building
+├── builtin-agents/             # Modular agent creation infrastructure
 ├── types.ts                    # AgentOverrideConfig, AgentPromptMetadata, AgentFactory
 ├── utils.ts                    # createBuiltinAgents(), model resolution, category/skill expansion
 └── index.ts                    # builtinAgents export
@@ -47,7 +52,8 @@ The exact fallback chains are defined in `src/shared/model-requirements.ts`.
 | librarian | `zai-coding-plan/glm-4.7` | 0.1 | Fallback: `opencode/glm-4.7-free`. |
 | explore | `github-copilot/grok-code-fast-1` | 0.1 | Fast contextual grep; fallback chain prefers cheap models. |
 | multimodal-looker | `google/gemini-3-flash` | 0.1 | Read-only / media analysis. |
-| plan-synthesizer | `anthropic/claude-opus-4-6` | 0.1 | Replaces Metis+Momus in this fork. |
+| Metis | `anthropic/claude-opus-4-6` | 0.3 | Pre-planning consultant; intent classification, AI-slop detection. |
+| Momus | `openai/gpt-5.2` | 0.1 | Plan reviewer; blocking-issue verification, practical executability check. |
 | Sisyphus-Junior | `anthropic/claude-sonnet-4-5` | 0.1 | Category-spawned executor; denies `task`, `delegate_task` is research-scoped (explore/librarian only). |
 
 ## HOW TO ADD
@@ -66,6 +72,8 @@ The exact fallback chains are defined in `src/shared/model-requirements.ts`.
 | librarian | write, edit, task, delegate_task |
 | explore | write, edit, task, delegate_task |
 | multimodal-looker | Allowlist: read only |
+| metis | write, edit, task (delegate_task limited to explore/librarian) |
+| momus | write, edit, task, delegate_task |
 | Sisyphus-Junior | task *(delegate_task is research-scoped: explore/librarian only)* |
 
 ## PATTERNS

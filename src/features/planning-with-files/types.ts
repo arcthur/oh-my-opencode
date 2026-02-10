@@ -19,7 +19,6 @@ export interface PlanningWithFilesConfig {
   stop_verification: boolean
   reread_trigger_tools: string[]
   action_count_tools: string[]
-  auto_from_multi_plan: boolean
 }
 
 export const DEFAULT_PLANNING_CONFIG: PlanningWithFilesConfig = {
@@ -31,5 +30,4 @@ export const DEFAULT_PLANNING_CONFIG: PlanningWithFilesConfig = {
   stop_verification: true,
   reread_trigger_tools: ["Write", "Edit", "Bash", "NotebookEdit"],
   action_count_tools: ["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"],
-  auto_from_multi_plan: true,
 }

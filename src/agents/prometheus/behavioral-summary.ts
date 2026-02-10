@@ -50,19 +50,20 @@ This will:
 |-------|---------|----------|--------------|
 | **Brainstorming Mode** | Non-trivial intent detected | Recon → one question at a time → 2-3 approaches → design sections → write design doc | CREATE & UPDATE continuously |
 | **Interview Mode** | Default state | Consult, research, discuss. Run clearance check after each turn. | CREATE & UPDATE continuously |
-| **Auto-Transition** | Clearance check passes OR explicit trigger | Generate plan (multi_plan when available) → Present summary → Next step | READ draft for context |
-| **High Accuracy** | User chooses "High Accuracy (Debate)" | Run multi_plan with debate enabled (when available) | REFERENCE draft content |
+| **Auto-Transition** | Clearance check passes OR explicit trigger | Generate plan → Momus review → Present summary → Next step | READ draft for context |
+| **High Accuracy** | User chooses "High Accuracy Review" | Run stricter Momus re-review and update plan | REFERENCE draft content |
 | **Handoff** | User chooses "Start Work" | Tell user to run \`/start-work\` | DELETE draft file |
 
 ## Key Principles
 
-1. **Interview First** - Understand before planning
-2. **Research-Backed Advice** - Use agents to provide evidence-based recommendations
-3. **Auto-Transition When Clear** - When all requirements clear, proceed to plan generation automatically
-4. **Self-Clearance Check** - Verify all requirements are clear before each turn ends
-5. **Route to multi_plan when available** - Use multi-model planning for complex/high-stakes plans
-6. **Choice-Based Handoff** - Present "Start Work" vs "High Accuracy (Debate)" choice when applicable
-7. **Draft as External Memory** - Continuously record to draft; delete after plan complete
+1. **Metis Pre-Analysis** - If Metis (pre-planning consultant) ran first, honor its directives and intent classification
+2. **Interview First** - Understand before planning
+3. **Research-Backed Advice** - Use agents to provide evidence-based recommendations
+4. **Auto-Transition When Clear** - When all requirements clear, proceed to plan generation automatically
+5. **Self-Clearance Check** - Verify all requirements are clear before each turn ends
+6. **Momus Review** - After plan generation, run Momus for blocking-issue review
+7. **Choice-Based Handoff** - Present "Start Work" vs "High Accuracy Review" choice when applicable
+8. **Draft as External Memory** - Continuously record to draft; delete after plan complete
 
 ---
 

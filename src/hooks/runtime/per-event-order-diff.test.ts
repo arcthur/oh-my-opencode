@@ -2,6 +2,12 @@ import { describe, expect, test } from "bun:test"
 import { EVENT_TOTAL_ORDER } from "./pipeline-order"
 
 describe("per-event order differences", () => {
+  test("chat.message no longer includes multi-plan-trigger", () => {
+    const chat = EVENT_TOTAL_ORDER["chat.message"]
+
+    expect(chat).not.toContain("multi-plan-trigger:chat.message")
+  })
+
   test("planning-with-files has different relative positions across before/after", () => {
     const before = EVENT_TOTAL_ORDER["tool.execute.before"]
     const after = EVENT_TOTAL_ORDER["tool.execute.after"]

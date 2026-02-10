@@ -1,7 +1,7 @@
 /**
  * Prometheus Plan Generation
  *
- * Phase 2: Plan generation triggers, multi_plan routing,
+ * Phase 2: Plan generation, Momus review routing,
  * gap classification, and summary format.
  */
 
@@ -42,9 +42,9 @@ For non-trivial work, you MUST NOT enter plan generation until Brainstorming is 
 \`\`\`typescript
 // IMMEDIATELY upon Phase 2 entry - NO EXCEPTIONS
 task_create({ title: "plan-1 Choose plan name + assemble full planning context", scope: "session" })
-task_create({ title: "plan-2 If multi-model configured: run multi_plan (debate optional)", scope: "session" })
-task_create({ title: "plan-3 Else: generate work plan to .sisyphus/plans/{name}.md", scope: "session" })
-task_create({ title: "plan-4 Generate context manifest to .sisyphus/context-manifests/{name}.md", scope: "session" })
+task_create({ title: "plan-2 Generate work plan to .sisyphus/plans/{name}.md", scope: "session" })
+task_create({ title: "plan-3 Generate context manifest to .sisyphus/context-manifests/{name}.md", scope: "session" })
+task_create({ title: "plan-4 Run Momus plan review and apply blocking fixes", scope: "session" })
 task_create({ title: "plan-5 Self-review: classify gaps (critical/minor/ambiguous)", scope: "session" })
 task_create({ title: "plan-6 Present summary with auto-resolved items and decisions needed", scope: "session" })
 task_create({ title: "plan-7 If decisions needed: wait for user, update plan", scope: "session" })
@@ -53,54 +53,56 @@ task_create({ title: "plan-8 Guide user to /start-work", scope: "session" })
 
 **WHY THIS IS CRITICAL:**
 - User sees exactly what steps remain
-- Prevents skipping crucial steps like routing and self-review
+- Prevents skipping crucial steps like review and self-check
 - Creates accountability for each phase
 - Enables recovery if session is interrupted
 
 **WORKFLOW:**
-1. Phase 2 entered → **IMMEDIATELY** register tasks (plan-1 through plan-7)
+1. Phase 2 entered → **IMMEDIATELY** register tasks (plan-1 through plan-8)
 2. Mark plan-1 as \`in_progress\` → Pick plan name and assemble full context
-3. If multi-model planning is available: Mark plan-2 as \`in_progress\` → Call \`multi_plan\`
-4. Else: Mark plan-3 as \`in_progress\` → Generate plan directly and write to \`.sisyphus/plans/{name}.md\`
-5. Mark plan-4 as \`in_progress\` → Generate context manifest and write to \`.sisyphus/context-manifests/{name}.md\`
+3. Mark plan-2 as \`in_progress\` → Generate plan and write to \`.sisyphus/plans/{name}.md\`
+4. Mark plan-3 as \`in_progress\` → Generate context manifest and write to \`.sisyphus/context-manifests/{name}.md\`
+5. Mark plan-4 as \`in_progress\` → Run Momus review and apply blocking fixes
 6. Mark plan-5 as \`in_progress\` → Self-review and classify gaps
 7. Mark plan-6 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
 8. Mark plan-7 as \`in_progress\` → If decisions needed, wait for user and update plan
 9. Mark plan-8 as \`in_progress\` → Guide user to \`/start-work\`
-9. NEVER skip a task. NEVER proceed without updating status.
+10. NEVER skip a task. NEVER proceed without updating status.
 
-## Plan Generation Routing (MANDATORY)
+## Plan Generation Path (Single Source of Truth)
 
-You have TWO possible plan generation paths.
-
-### Path A: Multi-Model Planning (Preferred when available)
-
-If 2+ models are configured for Prometheus planning, call \`multi_plan\`.
-This tool orchestrates parallel plan generation + Plan Synthesizer critique/synthesis and writes:
-- \`.sisyphus/plans/{name}-{model}.md\` (individual plans)
-- \`.sisyphus/plan-reviews/{name}-comparison.md\` (comparison + conflicts)
-- \`.sisyphus/plans/{name}.md\` (final unified plan)
-
-\`\`\`typescript
-multi_plan({
-  planId: "{name}",
-  context: "{full interview context + decisions}",
-  debate: false
-})
-\`\`\`
-
-**If user explicitly requests high accuracy**: set \`debate: true\`.
-
-### Path B: Single-Model Planning
-
-If multi-model planning is NOT configured (or \`multi_plan\` returns an error), generate the plan directly:
-1. Use the plan template and interview context
+Generate the plan directly:
+1. Use the plan template and full interview context
 2. Write to \`.sisyphus/plans/{name}.md\`
-3. Then continue with self-review and summary
+3. Generate context manifest at \`.sisyphus/context-manifests/{name}.md\`
+4. Continue to Momus review and self-review
+
+## Post-Generation: Momus Review (Recommended)
+
+After generating the plan:
+1. Invoke Momus to review the plan for blocking issues
+\`\`\`typescript
+delegate_task(description="Review plan for blocking issues", subagent_type="momus", load_skills=[], run_in_background=false, prompt="Review .sisyphus/plans/{name}.md for executability, missing dependencies, and unsafe assumptions")
+\`\`\`
+2. If Momus returns [OKAY] → proceed to summary
+3. If Momus returns [REJECT] → address blocking issues, update plan, and re-run Momus once
+
+**Skip Momus review** only for trivial/simple plans or if user explicitly requests skipping review.
+
+## High Accuracy Review (Optional)
+
+If user asks for high accuracy:
+1. Run one additional Momus review pass with stricter checklist:
+   - missing edge cases
+   - dependency ordering issues
+   - unverifiable acceptance criteria
+   - rollout/rollback blind spots
+2. Apply fixes in \`.sisyphus/plans/{name}.md\`
+3. Reconfirm with Momus before handoff
 
 ## Post-Generation: Summarize for the User
 
-After generating the plan (either path), **DO NOT restart the interview**. Instead:
+After generating and reviewing the plan, **DO NOT restart the interview**. Instead:
 1. Read the final plan file
 2. Classify gaps (critical/minor/ambiguous)
 3. Present a structured summary and next step
@@ -109,12 +111,9 @@ After generating the plan (either path), **DO NOT restart the interview**. Inste
 \`\`\`
 ## Plan Generated: {plan-name}
 
-**Mode**: Single-model | Multi-model (N models) [Debate: ON/OFF]
-
 **Generated Files:**
 - Final Plan: \`.sisyphus/plans/{name}.md\`
 - Context Manifest: \`.sisyphus/context-manifests/{name}.md\`
-- Comparison Report (multi-model only): \`.sisyphus/plan-reviews/{name}-comparison.md\`
 
 **Key Decisions Made:**
 - [Decision 1]: [Brief rationale]
@@ -222,8 +221,8 @@ Question({
         description: "Execute now with /start-work. Plan looks solid."
       },
       {
-        label: "High Accuracy (Debate)",
-        description: "If multi-model planning is configured, re-run multi_plan with debate enabled for maximum scrutiny (slower / more cost)."
+        label: "High Accuracy Review",
+        description: "Run one additional Momus verification pass before handoff (slower, stricter)."
       }
     ]
   }]
@@ -232,7 +231,7 @@ Question({
 
 **Based on user choice:**
 - **Start Work** → Guide to \`/start-work\`
-- **High Accuracy (Debate)** → Only if multi-model planning is available: run \`multi_plan\` with \`debate: true\` (PHASE 3)
+- **High Accuracy Review** → Run stricter Momus re-review, apply fixes, then guide to \`/start-work\`
 
 ---
 `

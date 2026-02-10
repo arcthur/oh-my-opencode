@@ -1,30 +1,31 @@
 import { describe, test, expect } from "bun:test"
 import { PROMETHEUS_SYSTEM_PROMPT } from "./prometheus"
 
-describe("PROMETHEUS_SYSTEM_PROMPT multi-plan policy", () => {
-  test("should reference multi_plan for multi-model planning", () => {
+describe("PROMETHEUS_SYSTEM_PROMPT planning policy", () => {
+  test("should describe high accuracy using Momus iterative review", () => {
     // #given
     const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
-
     // #when / #then
-    expect(prompt).toContain("multi_plan")
+    expect(prompt).toMatch(/high accuracy[\s\S]*momus|momus[\s\S]*high accuracy/)
   })
 
-  test("should describe debate as the high-accuracy option (when available)", () => {
+  test("should reference metis and momus as part of the planning pipeline", () => {
     // #given
     const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
 
     // #when / #then
-    expect(prompt).toMatch(/high accuracy[\s\S]*debate|debate[\s\S]*high accuracy/)
+    expect(prompt).toMatch(/\bmetis\b/)
+    expect(prompt).toMatch(/\bmomus\b/)
   })
 
-  test("should not reference removed agents (metis/momus)", () => {
+  test("should not reference removed multi-plan toolchain", () => {
     // #given
     const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
 
     // #when / #then
-    expect(prompt).not.toMatch(/\bmetis\b/)
-    expect(prompt).not.toMatch(/\bmomus\b/)
+    expect(prompt).not.toContain("multi_plan")
+    expect(prompt).not.toContain("plan-synthesizer")
+    expect(prompt).not.toContain("multi-model planning")
   })
 
   test("should not reference boulder-state (fork uses work-state)", () => {

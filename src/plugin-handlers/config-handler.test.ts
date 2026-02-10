@@ -577,16 +577,16 @@ describe("Prometheus direct override priority over category", () => {
 })
 
 describe("Fork-only behavior", () => {
-  test("prometheus model array uses the first element for the agent model", async () => {
+  test("prometheus model array is ignored for runtime safety", async () => {
     // #given
-    const pluginConfig: OhMyOpenCodeConfig = {
+    const pluginConfig = {
       sisyphus_agent: { planner_enabled: true },
       agents: {
         prometheus: {
           model: ["openai/gpt-5.2", "anthropic/claude-opus-4-6"],
         },
       },
-    }
+    } as unknown as OhMyOpenCodeConfig
     const config: Record<string, unknown> = {
       model: "anthropic/claude-opus-4-6",
       agent: {},
@@ -606,7 +606,7 @@ describe("Fork-only behavior", () => {
     // #then
     const agentConfig = config.agent as Record<string, { model?: unknown }>
     expect(agentConfig.prometheus).toBeDefined()
-    expect(agentConfig.prometheus.model).toBe("openai/gpt-5.2")
+    expect(agentConfig.prometheus.model).toBe("anthropic/claude-opus-4-6")
   })
 
   test("config.agent should not override builtin agent definitions", async () => {

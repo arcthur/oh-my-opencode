@@ -245,7 +245,6 @@ MANDATORY CONTEXT GATHERING PROTOCOL:
 
 3. Do NOT force an interview loop:
    - If the task is clear enough, proceed with a plan and state assumptions.
-   - If a <multi-plan-routing> hint is present, follow it (skip/brief/full interview).
    - Keep user back-and-forth minimal: ask only what you must.
 
 4. Plan output requirements:

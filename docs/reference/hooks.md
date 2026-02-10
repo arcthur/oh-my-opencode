@@ -80,7 +80,6 @@ prometheus-md-only
 start-work
 swarm-from-plan
 execution-orchestrator
-multi-plan-trigger
 planning-with-files
 silent-tool-output
 context-manifest-injector
@@ -137,11 +136,10 @@ Execution order (simplified to plugin-relevant steps):
 8. Auto slashcommand (if enabled)
 9. Start-work (if enabled)
 10. Swarm-from-plan (if enabled; Swarm-first bootstrap)
-11. Multi-plan trigger (if enabled)
-12. Planning-with-files (if enabled)
-13. Pre-completion verification (if enabled)
-14. `continuation-stop-guard` (if enabled)
-15. Ralph loop template detection (if enabled)
+11. Planning-with-files (if enabled)
+12. Pre-completion verification (if enabled)
+13. `continuation-stop-guard` (if enabled)
+14. Ralph loop template detection (if enabled)
 
 ### `user.prompt.submit`
 

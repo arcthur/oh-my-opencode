@@ -35,17 +35,12 @@ export function applyCategoryOverride(
   return result as AgentConfig
 }
 
-function extractSingleModel(model: string | string[]): string {
-  return Array.isArray(model) ? model[0] : model
-}
-
 export function mergeAgentConfig(base: AgentConfig, override: AgentOverrideConfig): AgentConfig {
   const migratedOverride = migrateAgentConfig(override as Record<string, unknown>) as AgentOverrideConfig
   const { prompt_append, model, ...rest } = migratedOverride
-  const normalizedModel = model === undefined ? undefined : extractSingleModel(model)
   const merged = deepMerge(
     base,
-    { ...rest, ...(normalizedModel ? { model: normalizedModel } : {}) } as Partial<AgentConfig>,
+    { ...rest, ...(model ? { model } : {}) } as Partial<AgentConfig>,
   )
 
   if (prompt_append && merged.prompt) {

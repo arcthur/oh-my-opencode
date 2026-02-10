@@ -42,7 +42,6 @@ export { createQuestionLabelTruncatorHook } from "./question-label-truncator";
 export { createDelegationBlockSubagentQuestionHook } from "./delegation-block-subagent-question";
 export { createWriteExistingFileGuardHook } from "./write-existing-file-guard";
 export { createContinuationStopGuardHook, type ContinuationStopGuard } from "./continuation-stop-guard";
-export { createMultiPlanTriggerHook, type MultiPlanTriggerHookOptions } from "./multi-plan-trigger";
 export { createPlanningWithFilesHook, type PlanningWithFilesHookOptions } from "./planning-with-files";
 export { createSilentToolOutputHook } from "./silent-tool-output";
 export { createContextManifestInjectorHook } from "./context-manifest-injector";

@@ -53,12 +53,12 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 
 - `background_task`: Background task concurrency limits (see [Background Tasks](#background-tasks)).
 - `parallel_runtime`: Shared global admission control across background and swarm (see [Parallel Runtime](#parallel-runtime)).
-- `multi_plan_pipeline`: Multi-plan pipeline behavior controls (see [Multi-Plan Pipeline](#multi-plan-pipeline)).
 - `ralph_loop`: Ralph loop opt-in config for `/ralph-loop` and `/ulw-loop` (see [Ralph Loop](#ralph-loop)).
 - `planning_with_files`: Persistent planning filesystem feature (see [Planning with Files](#planning-with-files)).
 - `continuation_control`: Single-writer continuation arbitration configuration (see [Continuation Control](#continuation-control)).
 - `sisyphus`: Sisyphus Tasks & Swarm configuration (see [Sisyphus](#sisyphus)).
 - `tmux_parallel_agents`: Auto-create tmux windows/worktrees for background agents (see [Tmux Parallel Agents](#tmux-parallel-agents)).
+- `multi_plan_pipeline`: Removed in latest-only mode and rejected by schema.
 
 ### Context / memory / governance
 
@@ -167,7 +167,7 @@ Example:
 
 ```json
 {
-  "disabled_tools": ["interactive_bash", "multi_plan"]
+  "disabled_tools": ["interactive_bash"]
 }
 ```
 
@@ -247,29 +247,7 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available built-in agents: `sisyphus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `plan-synthesizer`, `hephaestus`
-
-## Multi-Plan Pipeline
-
-Unified configuration for multi-model planning routing and synthesizer verification behavior:
-
-```jsonc
-{
-  "multi_plan_pipeline": {
-    "auto_complexity_detection": true,
-    "smart_skip_interview": true,
-    "deep_verification": true,
-    "adhd_detection": true
-  }
-}
-```
-
-| Field | Default | Description |
-|------|---------|-------------|
-| `auto_complexity_detection` | `true` | Adds per-message complexity routing hints for planners (`single_model` vs `multi_model`) |
-| `smart_skip_interview` | `true` | Adds per-message clarity hints (`skip` / `brief` / `full`) |
-| `deep_verification` | `true` | Plan Synthesizer Phase 3 deep verification toggle |
-| `adhd_detection` | `true` | Plan Synthesizer ADHD-omission scan toggle |
+Available built-in agents: `sisyphus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `hephaestus`
 
 ## Built-in Skills
 
@@ -344,8 +322,9 @@ When enabled (default), Sisyphus provides a powerful orchestrator with optional 
 - **Sisyphus**: Primary orchestrator agent (Claude Opus 4.6)
 - **OpenCode-Builder**: OpenCode's default build agent, renamed due to SDK limitations (disabled by default)
 - **Prometheus**: OpenCode's default plan agent with work-planner methodology (enabled by default)
-- **plan-synthesizer**: Multi-model plan arbiter that critiques and synthesizes competing plans
-- **Sisyphus-Junior**: Focused executor used in multi-plan generation/rebuttals; cannot delegate implementation
+- **Metis**: Pre-planning consultant that analyzes requests for hidden intentions, ambiguities, and AI failure points
+- **Momus**: Plan reviewer that verifies plan executability and catches blocking issues
+- **Sisyphus-Junior**: Focused executor; cannot delegate implementation
 
 **Configuration Options:**
 
@@ -397,28 +376,14 @@ You can also customize Sisyphus agents like other agents:
     "prometheus": {
       "model": "openai/gpt-5.2"
     },
-    "plan-synthesizer": {
+    "metis": {
       "model": "anthropic/claude-opus-4-6"
+    },
+    "momus": {
+      "model": "openai/gpt-5.2"
     },
     "sisyphus-junior": {
       "model": "anthropic/claude-sonnet-4-5"
-    }
-  }
-}
-```
-
-For **multi-model planning**, you can set `agents.prometheus.model` to a `string[]` (2-5 models). Prometheus will use the **first** entry as its own runtime model, and the full array will be used for the multi-plan pipeline.
-
-**Example: Enable multi-model planning via `agents.prometheus.model` array:**
-
-```jsonc
-{
-  "agents": {
-    "prometheus": {
-      "model": [
-        "anthropic/claude-opus-4-6",
-        "openai/gpt-5.2"
-      ]
     }
   }
 }
@@ -726,7 +691,8 @@ Model selection has two layers:
 | `explore` | `github-copilot:grok-code-fast-1` → `anthropic/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
 | `multimodal-looker` | `google/github-copilot/opencode:gemini-3-flash` → `openai/github-copilot/opencode:gpt-5.2` → `zai-coding-plan:glm-4.6v` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `anthropic/github-copilot/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
 | `prometheus` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro` |
-| `plan-synthesizer` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro` |
+| `metis` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
+| `momus` | `openai/github-copilot/opencode:gpt-5.2(medium)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
 
 Runtime constraints:
 - `sisyphus` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
@@ -1231,7 +1197,14 @@ Use `session_handoff.reference` for `@session:` behavior:
 }
 ```
 
-Top-level `session_reference` is not supported in latest-only mode.
+## Latest-only Removed Keys
+
+These keys are intentionally removed and rejected by schema validation:
+
+- Top-level `session_reference`
+- Top-level `multi_plan_pipeline`
+- `sisyphus.tasks.claude_code_compat`
+- `governance.budget_monitor.gc_threshold`
 
 ## Environment Variables
 

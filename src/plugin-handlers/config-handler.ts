@@ -258,7 +258,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           pluginConfig.agents?.["prometheus"] as
             | (Record<string, unknown> & {
                 category?: string
-                model?: string | string[]
+                model?: string
                 variant?: string
                 reasoningEffort?: string
                 textVerbosity?: string
@@ -288,11 +288,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           connectedProviders: connectedProviders ?? undefined,
         });
 
-        // Multi-plan may configure `agents.prometheus.model` as an array.
-        // Prometheus agent itself must use a single model string, so we use the first element.
-        const overrideModel = Array.isArray(prometheusOverride?.model)
-          ? prometheusOverride.model[0]
-          : prometheusOverride?.model;
+        const overrideModel =
+          typeof prometheusOverride?.model === "string"
+            ? prometheusOverride.model
+            : undefined;
 
         const currentModel = config.model as string | undefined;
         const modelResolution = resolveModelPipeline({
@@ -345,7 +344,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           const { category: _category, model: _model, prompt_append, ...restOverride } =
             prometheusOverride as Record<string, unknown> & {
               category?: string
-              model?: string | string[]
+              model?: string
               prompt_append?: string
             };
           const merged = { ...prometheusBase, ...restOverride };

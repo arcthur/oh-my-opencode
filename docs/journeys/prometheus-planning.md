@@ -43,7 +43,7 @@ src/agents/prometheus/
 ├── brainstorming-mode.ts    # Phase 0: Design validation (Superpowers-inspired)
 ├── interview-mode.ts        # Phase 1: Intent classification, interview strategies
 ├── plan-generation.ts       # Phase 2: Clearance check, plan triggers
-├── high-accuracy-mode.ts    # Phase 3: Multi-model debate (optional)
+├── high-accuracy-mode.ts    # Phase 3: Momus iterative review (optional)
 ├── plan-template.ts         # Work plan structure template
 └── behavioral-summary.ts    # Summary and cleanup rules
 ```
@@ -149,7 +149,7 @@ Auto-triggers when clearance check passes.
 
 ### Phase 3: High Accuracy Mode (Optional)
 
-Multi-model planning with debate for critical decisions.
+Momus iterative review for stricter executability checks.
 
 **When to use:**
 - High-stakes architectural decisions
@@ -243,7 +243,7 @@ OpenCode's Prometheus is inspired by [Superpowers brainstorming](https://github.
 | YAGNI challenge | Yes | Yes |
 | Recon first | No | Yes (explore/librarian) |
 | Research intent handling | No | Yes (modified flow) |
-| Multi-model debate | No | Yes (high accuracy mode) |
+| High-accuracy review loop | No | Yes (Momus iterative review) |
 | Design/Plan separation | design.md → plan.md | .sisyphus/designs/ → .sisyphus/plans/ |
 | Test strategy decision | No | Yes (mandatory for Build/Refactor) |
 | Agent-Executed QA | No | Yes (zero human intervention) |
@@ -251,5 +251,5 @@ OpenCode's Prometheus is inspired by [Superpowers brainstorming](https://github.
 ## Related Docs
 
 - [Orchestration Guide](../guide/orchestration.md) - How agents work together
-- [Multi-Model Planning](./multi-model-planning.md) - High accuracy mode details
+- [Planning to Execution](./planning-to-execution.md) - End-to-end planning pipeline
 - [Category and Skills Guide](../guide/category-and-skills.md) - Task delegation

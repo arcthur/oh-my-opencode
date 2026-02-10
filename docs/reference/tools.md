@@ -31,7 +31,6 @@ The Oh-My-OpenCode plugin registers the following tools (in addition to any tool
 | Tool name | Implementation | Purpose |
 |---|---|---|
 | `delegate_task` | `src/tools/delegate-task/` | Delegate work to a subagent (sync or background) with optional skill injection. Supports research-scoped mode for explore/librarian-only access. |
-| `multi_plan` | `src/tools/multi-plan/` | Multi-model planning orchestration (Prometheus) |
 | `swarm` | `src/tools/swarm.ts` | Sisyphus Swarm orchestration entrypoint |
 | `look_at` | `src/tools/look-at/` | Assistive “inspect” tool (used by multimodal workflows) |
 
@@ -193,18 +192,6 @@ Filters:
 - `ready_only`
 - `include_completed` (default false)
 - `state`
-
-## Contract: `multi_plan`
-
-`multi_plan` orchestrates multi-model planning and writes files under `.sisyphus/`.
-
-### Machine-parsable marker
-
-On success, the tool output **MUST** include a single JSON blob wrapped by:
-
-- `[MULTI_PLAN_RESULT]{...}[/MULTI_PLAN_RESULT]`
-
-Downstream hooks (e.g., planning-with-files) MAY parse this marker to auto-create plan artifacts.
 
 ## Tool I/O Shaping (Hook Interactions)
 

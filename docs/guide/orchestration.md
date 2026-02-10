@@ -40,12 +40,12 @@ Oh-My-OpenCode solves this by clearly separating two roles:
 
 ```mermaid
 flowchart TD
-    User[User Request] --> Prometheus
+    User[User Request] --> Metis
 
     subgraph Planning Phase
-        Prometheus["Prometheus<br>Planner"] --> MultiPlan["multi_plan tool<br>(optional)"]
-        MultiPlan --> Synth["Plan Synthesizer<br>(plan-synthesizer)"]
-        Synth --> Prometheus
+        Metis["Metis<br>(Pre-Planning)"] --> Prometheus["Prometheus<br>Planner"]
+        Prometheus --> Momus["Momus<br>(Plan Review)"]
+        Momus --> Prometheus
         Prometheus --> PlanDraft[".sisyphus/plans/{planId}.md"]
         Prometheus --> ManifestFile[".sisyphus/context-manifests/{planId}.md"]
     end
@@ -104,10 +104,10 @@ task_snapshot:
 - **Constraint**: **READ-ONLY**. Can only create/modify markdown files within `.sisyphus/` directory.
 - **Characteristic**: Never writes code directly, focuses solely on "how to do it".
 
-### Multi-Model Planning (Optional)
-- **Tool**: `multi_plan`
-- **Role**: Parallel plan generation + synthesis for complex/high-stakes planning
-- **Mechanism**: Multiple models generate plans → Plan Synthesizer compares/conflict-resolves → unified final plan
+### Pre-Planning and Review (Metis → Prometheus → Momus)
+- **Metis**: Pre-planning consultant that analyzes requests for hidden intentions, ambiguities, and AI failure points
+- **Prometheus**: Strategic planner that generates detailed work plans
+- **Momus**: Plan reviewer that verifies plan executability and catches blocking issues
 
 ### Sisyphus (Orchestrator)
 - **Model**: `anthropic/claude-opus-4-6` (Extended Thinking 32k)
@@ -128,9 +128,10 @@ Prometheus starts in **interview mode** by default. Instead of immediately creat
 ### Phase 2: Plan Generation
 When the user requests "Make it a plan", plan generation begins.
 
-1. **Optional multi_plan**: For complex work, Prometheus may call `multi_plan` to generate a stronger plan.
-2. **Plan Creation**: Writes a plan draft to `.sisyphus/plans/{planId}.md` and a context manifest to `.sisyphus/context-manifests/{planId}.md`.
-3. **Handoff**: Once plan creation is complete, guides user to use `/start-work` command.
+1. **Pre-planning (Metis)**: Metis analyzes the request for hidden intentions, ambiguities, and scope.
+2. **Plan Creation**: Prometheus writes a plan draft to `.sisyphus/plans/{planId}.md` and a context manifest to `.sisyphus/context-manifests/{planId}.md`.
+3. **Plan Review (Momus)**: Momus verifies plan executability and catches blocking issues.
+4. **Handoff**: Once plan creation is complete, guides user to use `/start-work` command.
 
 ### Phase 3: Execution
 When the user enters `/start-work`, the execution phase begins.

@@ -17,7 +17,6 @@ exports[`EVENT_TOTAL_ORDER parity matches baseline event ordering snapshot 1`] =
     "auto-slash-command:chat.message",
     "start-work:chat.message",
     "swarm-from-plan:chat.message",
-    "multi-plan-trigger:chat.message",
     "planning-with-files:chat.message",
     "pre-completion-verification:chat.message",
     "continuation-stop-guard:chat.message",

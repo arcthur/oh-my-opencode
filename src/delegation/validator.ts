@@ -51,7 +51,7 @@ function suggestBetterAgent(taskType: TaskType): string | undefined {
     debugging: "explore first, then oracle if 2+ attempts failed",
     refactoring: "direct implementation or delegate via category",
     documentation: "delegate via category with writing skill",
-    architecture: "oracle or multi_plan for complex planning",
+    architecture: "oracle first, then Prometheus planning review with Metis/Momus if needed",
     research: "librarian",
   }
   return suggestions[taskType]

@@ -31,7 +31,6 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "start-work", events: ["chat.message"] },
   { name: "swarm-from-plan", events: ["chat.message"] },
   { name: "execution-orchestrator", events: ["event", "tool.execute.before", "tool.execute.after"] },
-  { name: "multi-plan-trigger", events: ["chat.message"] },
   { name: "planning-with-files", events: ["chat.message", "tool.execute.before", "tool.execute.after", "event"] },
   { name: "silent-tool-output", events: ["tool.execute.before", "tool.execute.after"] },
   { name: "context-manifest-injector", events: ["tool.execute.before"] },

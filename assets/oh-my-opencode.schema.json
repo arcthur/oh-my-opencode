@@ -28,8 +28,9 @@
           "librarian",
           "explore",
           "multimodal-looker",
-          "plan-synthesizer",
-          "hephaestus"
+          "hephaestus",
+          "metis",
+          "momus"
         ]
       }
     },
@@ -91,7 +92,6 @@
           "start-work",
           "swarm-from-plan",
           "execution-orchestrator",
-          "multi-plan-trigger",
           "planning-with-files",
           "silent-tool-output",
           "context-manifest-injector",
@@ -766,18 +766,7 @@
           "type": "object",
           "properties": {
             "model": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "maxItems": 5,
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              ]
+              "type": "string"
             },
             "variant": {
               "type": "string"
@@ -1403,7 +1392,133 @@
             }
           }
         },
-        "plan-synthesizer": {
+        "metis": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string"
+            },
+            "variant": {
+              "type": "string"
+            },
+            "category": {
+              "type": "string"
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "top_p": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "prompt_append": {
+              "type": "string"
+            },
+            "tools": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "boolean"
+              }
+            },
+            "disable": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "subagent",
+                "primary",
+                "all"
+              ]
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "permission": {
+              "type": "object",
+              "properties": {
+                "edit": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "bash": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "ask",
+                        "allow",
+                        "deny"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                          "ask",
+                          "allow",
+                          "deny"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "webfetch": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "doom_loop": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "external_directory": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "momus": {
           "type": "object",
           "properties": {
             "model": {
@@ -2278,12 +2393,11 @@
           "items": {
             "type": "string"
           }
-        },
-        "auto_from_multi_plan": {
-          "default": true,
-          "type": "boolean"
         }
       }
+    },
+    "multi_plan_pipeline": {
+      "not": {}
     },
     "silent_tool_output": {
       "type": "object",
@@ -2646,27 +2760,6 @@
           "type": "number",
           "minimum": 0,
           "maximum": 200
-        }
-      }
-    },
-    "multi_plan_pipeline": {
-      "type": "object",
-      "properties": {
-        "auto_complexity_detection": {
-          "default": true,
-          "type": "boolean"
-        },
-        "smart_skip_interview": {
-          "default": true,
-          "type": "boolean"
-        },
-        "deep_verification": {
-          "default": true,
-          "type": "boolean"
-        },
-        "adhd_detection": {
-          "default": true,
-          "type": "boolean"
         }
       }
     },

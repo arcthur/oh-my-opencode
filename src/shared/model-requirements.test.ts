@@ -114,22 +114,6 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(primary.variant).toBe("max")
   })
 
-  test("plan-synthesizer has valid fallbackChain with claude-opus-4-6 as primary", () => {
-    // given - plan-synthesizer agent requirement
-    const planSynthesizer = AGENT_MODEL_REQUIREMENTS["plan-synthesizer"]
-
-    // when - accessing plan-synthesizer requirement
-    // then - fallbackChain exists with claude-opus-4-6 as first entry
-    expect(planSynthesizer).toBeDefined()
-    expect(planSynthesizer.fallbackChain).toBeArray()
-    expect(planSynthesizer.fallbackChain.length).toBeGreaterThan(0)
-
-    const primary = planSynthesizer.fallbackChain[0]
-    expect(primary.model).toBe("claude-opus-4-6")
-    expect(primary.providers[0]).toBe("anthropic")
-    expect(primary.variant).toBe("max")
-  })
-
   test("hephaestus requires openai/github-copilot/opencode provider", () => {
     // #given - hephaestus agent requirement
     const hephaestus = AGENT_MODEL_REQUIREMENTS["hephaestus"]
@@ -141,8 +125,8 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(hephaestus.requiresModel).toBeUndefined()
   })
 
-  test("all 10 builtin agents have valid fallbackChain arrays", () => {
-    // #given - list of 10 agent names
+  test("all 9 builtin agents have valid fallbackChain arrays", () => {
+    // #given - list of 9 agent names
     const expectedAgents = [
       "sisyphus",
       "hephaestus",
@@ -151,7 +135,6 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
       "explore",
       "multimodal-looker",
       "prometheus",
-      "plan-synthesizer",
       "metis",
       "momus",
     ]
@@ -160,7 +143,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     const definedAgents = Object.keys(AGENT_MODEL_REQUIREMENTS)
 
     // #then - all agents present with valid fallbackChain
-    expect(definedAgents).toHaveLength(10)
+    expect(definedAgents).toHaveLength(9)
     for (const agent of expectedAgents) {
       const requirement = AGENT_MODEL_REQUIREMENTS[agent]
       expect(requirement).toBeDefined()

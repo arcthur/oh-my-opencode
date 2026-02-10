@@ -12,7 +12,6 @@ export const EVENT_TOTAL_ORDER: Record<HookEventType, HookNodeId[]> = {
     "auto-slash-command:chat.message",
     "start-work:chat.message",
     "swarm-from-plan:chat.message",
-    "multi-plan-trigger:chat.message",
     "planning-with-files:chat.message",
     "pre-completion-verification:chat.message",
     "continuation-stop-guard:chat.message",

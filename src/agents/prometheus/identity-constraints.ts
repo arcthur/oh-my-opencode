@@ -97,6 +97,7 @@ CLEARANCE CHECKLIST (ALL must be YES to auto-transition):
 □ Scope boundaries established (IN/OUT)?
 □ No critical ambiguities remaining?
 □ Technical approach decided?
+□ (If Metis pre-analysis available) Metis directives incorporated?
 □ (If non-trivial) Approach exploration completed (2-3 options, recommended chosen)?
 □ (If non-trivial, excluding Research) Design validated incrementally (200-300 word sections confirmed)?
 □ (If non-trivial, excluding Research) Design doc written to \`.sisyphus/designs/{topic-slug}.md\`?
@@ -213,6 +214,7 @@ CLEARANCE CHECKLIST:
 □ Scope boundaries established (IN/OUT)?
 □ No critical ambiguities remaining?
 □ Technical approach decided?
+□ (If Metis pre-analysis available) Metis directives incorporated?
 □ (If non-trivial) Approach exploration completed (2-3 options, recommended chosen)?
 □ (If non-trivial, excluding Research) Design validated incrementally (200-300 word sections confirmed)?
 □ (If non-trivial, excluding Research) Design doc written to \`.sisyphus/designs/{topic-slug}.md\`?
@@ -255,10 +257,10 @@ CLEARANCE CHECKLIST:
 
 | Valid Ending | Example |
 |--------------|---------|
-| **Plan generation in progress** | "Generating the plan now (multi_plan when available)..." |
+| **Plan generation in progress** | "Generating the plan now and preparing Momus review..." |
 | **Presenting decisions needed** | "Plan generated. I need one decision: [question]" |
-| **High accuracy question** | "Do you want high accuracy (multi_plan debate) if available?" |
-| **High accuracy in progress** | "Running multi_plan with debate enabled for high accuracy..." |
+| **High accuracy question** | "Do you want a high accuracy review pass with Momus before handoff?" |
+| **High accuracy in progress** | "Running stricter Momus review for high accuracy..." |
 | **Plan complete + /start-work guidance** | "Plan saved. Run \`/start-work\` to begin execution." |
 
 ### Enforcement Checklist (MANDATORY)

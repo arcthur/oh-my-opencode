@@ -22,8 +22,9 @@ export const BuiltinAgentNameSchema = z.enum([
   "librarian",
   "explore",
   "multimodal-looker",
-  "plan-synthesizer",
   "hephaestus",
+  "metis",
+  "momus",
 ])
 
 export const BuiltinSkillNameSchema = z.enum([
@@ -53,8 +54,9 @@ export const OverridableAgentNameSchema = z.enum([
   "librarian",
   "explore",
   "multimodal-looker",
-  "plan-synthesizer",
   "hephaestus",
+  "metis",
+  "momus",
 ])
 
 export const AgentNameSchema = BuiltinAgentNameSchema
@@ -90,7 +92,6 @@ export const HookNameSchema = z.enum([
   "start-work",
   "swarm-from-plan",
   "execution-orchestrator",
-  "multi-plan-trigger",
   "planning-with-files",
   "silent-tool-output",
   "context-manifest-injector",
@@ -123,7 +124,7 @@ export const BuiltinCommandNameSchema = z.enum([
 ])
 
 export const AgentOverrideConfigSchema = z.object({
-  /** Model specification - single model string (arrays are only supported for Prometheus multi-plan) */
+  /** Model specification - single model string */
   model: z.string().optional(),
   variant: z.string().optional(),
   /** Category name to inherit model and other settings from CategoryConfig */
@@ -145,41 +146,19 @@ export const AgentOverrideConfigSchema = z.object({
   permission: AgentPermissionSchema.optional(),
 })
 
-/** Prometheus override supports multi-model `model` arrays for multi-plan */
-export const PrometheusOverrideConfigSchema = AgentOverrideConfigSchema.extend({
-  model: z.union([z.string(), z.array(z.string()).max(5)]).optional(),
-})
-
-/** Multi-Plan Pipeline Configuration
- * Controls the unified planning pipeline that integrates:
- * - Intent classification (migrated from Metis)
- * - Deep verification (migrated from Momus)
- * - Complexity-based routing
- * - Smart interview skipping
- */
-export const MultiPlanPipelineConfigSchema = z.object({
-  /** Enable automatic complexity detection for single vs multi-model routing (default: true) */
-  auto_complexity_detection: z.boolean().default(true),
-  /** Enable smart interview skipping based on request clarity (default: true) */
-  smart_skip_interview: z.boolean().default(true),
-  /** Enable deep file verification in Plan Synthesizer (default: true) */
-  deep_verification: z.boolean().default(true),
-  /** Enable ADHD-omission detection in Plan Synthesizer (default: true) */
-  adhd_detection: z.boolean().default(true),
-})
-
 export const AgentOverridesSchema = z.object({
   build: AgentOverrideConfigSchema.optional(),
   plan: AgentOverrideConfigSchema.optional(),
   sisyphus: AgentOverrideConfigSchema.optional(),
   "sisyphus-junior": AgentOverrideConfigSchema.optional(),
   "OpenCode-Builder": AgentOverrideConfigSchema.optional(),
-  prometheus: PrometheusOverrideConfigSchema.optional(),
+  prometheus: AgentOverrideConfigSchema.optional(),
   oracle: AgentOverrideConfigSchema.optional(),
   librarian: AgentOverrideConfigSchema.optional(),
   explore: AgentOverrideConfigSchema.optional(),
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
-  "plan-synthesizer": AgentOverrideConfigSchema.optional(),
+  metis: AgentOverrideConfigSchema.optional(),
+  momus: AgentOverrideConfigSchema.optional(),
 })
 
 export const ClaudeCodeConfigSchema = z.object({
@@ -535,8 +514,6 @@ export const PlanningWithFilesConfigSchema = z.object({
   reread_trigger_tools: z.array(z.string()).optional(),
   /** Tools that count toward the 2-action rule */
   action_count_tools: z.array(z.string()).optional(),
-  /** Auto-create planning files from multi-plan results (default: true) */
-  auto_from_multi_plan: z.boolean().default(true),
 })
 
 /** Continuation control configuration - single-writer arbitration for idle continuation prompts */
@@ -1111,12 +1088,13 @@ export const OhMyOpenCodeConfigSchema = z.object({
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
   planning_with_files: PlanningWithFilesConfigSchema.optional(),
+  /** Removed in latest-only mode: multi-plan pipeline has been fully deleted */
+  multi_plan_pipeline: z.never().optional(),
   silent_tool_output: SilentToolOutputConfigSchema.optional(),
   repo_overview: RepoOverviewConfigSchema.optional(),
   runtime_tracker: RuntimeTrackerConfigSchema.optional(),
   user_memory: UserMemoryConfigSchema.optional(),
   org_memory: OrgMemoryConfigSchema.optional(),
-  multi_plan_pipeline: MultiPlanPipelineConfigSchema.optional(),
   context_budget: ContextBudgetConfigSchema.optional(),
   governance: GovernanceConfigSchema.optional(),
   /** Conditional rules configuration for path-sensitive rule injection */
@@ -1167,7 +1145,6 @@ export type RepoOverviewConfig = z.infer<typeof RepoOverviewConfigSchema>
 export type RuntimeTrackerConfig = z.infer<typeof RuntimeTrackerConfigSchema>
 export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>
 export type OrgMemoryConfig = z.infer<typeof OrgMemoryConfigSchema>
-export type MultiPlanPipelineConfig = z.infer<typeof MultiPlanPipelineConfigSchema>
 export type ContextBudgetConfig = z.infer<typeof ContextBudgetConfigSchema>
 export type HybridWeightsConfig = z.infer<typeof HybridWeightsConfigSchema>
 export type EmbeddingConfigOverride = z.infer<typeof EmbeddingConfigOverrideSchema>

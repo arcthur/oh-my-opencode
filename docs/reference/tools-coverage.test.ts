@@ -17,7 +17,6 @@ describe("docs/reference tools coverage", () => {
       "task_transition",
       "look_at",
       "delegate_task",
-      "multi_plan",
       "swarm",
       "skill",
       "skill_mcp",

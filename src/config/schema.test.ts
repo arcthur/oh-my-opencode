@@ -3,6 +3,7 @@ import {
   AgentOverrideConfigSchema,
   BuiltinCategoryNameSchema,
   CategoryConfigSchema,
+  HookNameSchema,
   OhMyOpenCodeConfigSchema,
   SessionReferenceConfigSchema,
 } from "./schema"
@@ -336,7 +337,7 @@ describe("repo_overview schema", () => {
 
 describe("AgentOverrideConfigSchema", () => {
   describe("model field", () => {
-    test("rejects model as array (only Prometheus supports multi-model)", () => {
+    test("rejects model as array", () => {
       // given
       const config = { model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"] }
 
@@ -542,8 +543,8 @@ describe("AgentOverrideConfigSchema", () => {
   })
 })
 
-describe("Prometheus multi-model planning config", () => {
-  test("accepts agents.prometheus.model as string[] (2-5)", () => {
+describe("legacy multi-plan config cleanup", () => {
+  test("rejects agents.prometheus.model as string[]", () => {
     // given
     const config = {
       agents: {
@@ -557,22 +558,37 @@ describe("Prometheus multi-model planning config", () => {
     const result = OhMyOpenCodeConfigSchema.safeParse(config)
 
     // then
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.agents?.prometheus?.model).toEqual([
-        "anthropic/claude-opus-4-5",
-        "openai/gpt-5.2",
-      ])
-    }
+    expect(result.success).toBe(false)
   })
 
-  test("rejects model array for non-Prometheus agents", () => {
+  test("rejects model array for non-prometheus agents", () => {
     // given
     const config = {
       agents: {
         sisyphus: {
           model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
         },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+  })
+
+  test("does not expose multi-plan-trigger hook name", () => {
+    // then
+    expect(HookNameSchema.options).not.toContain("multi-plan-trigger")
+  })
+
+  test("rejects legacy multi_plan_pipeline config", () => {
+    // given
+    const config = {
+      multi_plan_pipeline: {
+        auto_complexity_detection: true,
+        smart_skip_interview: true,
       },
     }
 

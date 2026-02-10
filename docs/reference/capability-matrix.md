@@ -11,7 +11,6 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 | Capability | Start Here (Journey/Research) | Contract Reference | Primary Code Entry |
 |---|---|---|---|
 | Planning → execution | `docs/journeys/planning-to-execution.md` | `docs/reference/tools.md`, `docs/reference/agents.md`, `docs/reference/hooks.md` | `src/hooks/execution-orchestrator/`, `src/tools/delegate-task/` |
-| Multi-model planning | `docs/journeys/multi-model-planning.md` | `docs/reference/tools.md`, `docs/reference/artifacts-and-paths.md` | `src/tools/multi-plan/`, `src/features/multi-plan/` |
 | Planning with files | `docs/journeys/planning-with-files.md` | `docs/reference/artifacts-and-paths.md`, `docs/reference/hooks.md` | `src/hooks/planning-with-files/` |
 | TaskGraph lifecycle | `docs/journeys/planning-to-execution.md` | `docs/reference/task-graph.md`, `docs/reference/tools.md`, `docs/reference/artifacts-and-paths.md` | `src/features/task-system/`, `src/tools/task-graph/` |
 | Background tasks | `docs/journeys/background-and-parallelism.md` | `docs/reference/tools.md` | `src/features/background-agent/`, `src/tools/background-task/` |

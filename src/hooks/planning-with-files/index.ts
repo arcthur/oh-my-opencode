@@ -76,14 +76,6 @@ function extractToolError(output: { output: string }): string | null {
   return null
 }
 
-function extractPlanId(toolArgs: unknown): string | null {
-  if (typeof toolArgs !== "object" || toolArgs === null) return null
-  const obj = toolArgs as Record<string, unknown>
-  const rawPlanId = obj.planId
-  if (typeof rawPlanId !== "string" || !rawPlanId.trim()) return null
-  return sanitizePathSegment(rawPlanId.trim()) ?? null
-}
-
 async function seedPlanTasksIfMissing(
   cwd: string,
   planId: string,
@@ -114,20 +106,6 @@ async function seedPlanTasksIfMissing(
     })
   } catch {
     // Best effort seeding. Runtime behavior falls back to manual task_create.
-  }
-}
-
-/**
- * Parse structured result from multi_plan tool output.
- * Format: [MULTI_PLAN_RESULT]{"status":"success","planId":"..."}[/MULTI_PLAN_RESULT]
- */
-function parseMultiPlanResult(output: string): { status: string; planId?: string } | null {
-  const match = output.match(/\[MULTI_PLAN_RESULT\]([\s\S]*?)\[\/MULTI_PLAN_RESULT\]/)
-  if (!match) return null
-  try {
-    return JSON.parse(match[1]) as { status: string; planId?: string }
-  } catch {
-    return null
   }
 }
 
@@ -320,46 +298,6 @@ export function createPlanningWithFilesHook(
     const toolArgs = toolArgsByCallID.get(input.callID)
     toolArgsByCallID.delete(input.callID)
     const filePath = extractFilePath(toolArgs)
-    const normalizedTool = input.tool.toLowerCase()
-
-    // Auto-create planning files after a successful multi_plan run.
-    if (config.auto_from_multi_plan && normalizedTool === "multi_plan") {
-      const structuredResult = parseMultiPlanResult(output.output)
-      const isSuccess = structuredResult?.status === "success" || output.output.trim().startsWith("✅")
-
-      const planIdFromResult = structuredResult?.planId
-        ? sanitizePathSegment(structuredResult.planId)
-        : null
-      const planIdFromArgs = extractPlanId(toolArgs)
-      const planId = planIdFromResult ?? planIdFromArgs
-
-      if (isSuccess && planId) {
-        activePlanBySessionID.set(input.sessionID, planId)
-        const planDir = getPlanDir(ctx.directory, planId, config)
-        const planPath = path.join(planDir, "plan.md")
-        const ledgerPath = path.join(planDir, "ledger.yaml")
-        const findingsPath = path.join(planDir, "findings.md")
-        const progressPath = path.join(planDir, "progress.md")
-        const alreadyInitialized =
-          fs.existsSync(planPath) && fs.existsSync(ledgerPath) && fs.existsSync(findingsPath) && fs.existsSync(progressPath)
-
-        if (!alreadyInitialized) {
-          await initializePlan(ctx.directory, planId, planId, config)
-        }
-
-        collector.register(input.sessionID, {
-          id: "auto-from-multi-plan",
-          source: "planning-with-files",
-          priority: "high",
-          content: `<planning-with-files-auto-from-multi-plan plan_id="${planId}">
-Planning files initialized at \`.sisyphus/plans/${planId}/\`.
-</planning-with-files-auto-from-multi-plan>`,
-          metadata: { planId, created: !alreadyInitialized },
-        })
-
-        ensureActiveWorkState(planId, input.sessionID)
-      }
-    }
 
     const planId = await resolveActivePlan(input.sessionID)
     if (!planId) return

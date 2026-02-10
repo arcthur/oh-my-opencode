@@ -6,7 +6,6 @@ import { createOracleAgent, ORACLE_PROMPT_METADATA } from "./oracle"
 import { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
 import { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
 import { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "./multimodal-looker"
-import { createPlanSynthesizerAgent, planSynthesizerPromptMetadata } from "./plan-synthesizer"
 import { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
 import { createMetisAgent, metisPromptMetadata } from "./metis"
 import { createMomusAgent, momusPromptMetadata } from "./momus"
@@ -33,7 +32,6 @@ const agentSources: Record<BuiltinAgentName, AgentSource> = {
   librarian: createLibrarianAgent,
   explore: createExploreAgent,
   "multimodal-looker": createMultimodalLookerAgent,
-  "plan-synthesizer": createPlanSynthesizerAgent,
   metis: createMetisAgent,
   momus: createMomusAgent,
 }
@@ -43,7 +41,6 @@ const agentMetadata: Partial<Record<BuiltinAgentName, AgentPromptMetadata>> = {
   librarian: LIBRARIAN_PROMPT_METADATA,
   explore: EXPLORE_PROMPT_METADATA,
   "multimodal-looker": MULTIMODAL_LOOKER_PROMPT_METADATA,
-  "plan-synthesizer": planSynthesizerPromptMetadata,
   hephaestus: HEPHAESTUS_PROMPT_METADATA,
   metis: metisPromptMetadata,
   momus: momusPromptMetadata,

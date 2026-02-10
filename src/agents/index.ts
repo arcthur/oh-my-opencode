@@ -7,7 +7,6 @@ export { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
 export { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
 
 export { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "./multimodal-looker"
-export { createPlanSynthesizerAgent } from "./plan-synthesizer"
 export { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
 export { createMetisAgent, metisPromptMetadata } from "./metis"
 export { createMomusAgent, momusPromptMetadata } from "./momus"

@@ -77,7 +77,6 @@ export type BuiltinAgentName =
   | "librarian"
   | "explore"
   | "multimodal-looker"
-  | "plan-synthesizer"
   | "metis"
   | "momus"
 
@@ -88,8 +87,8 @@ export type OverridableAgentName =
 export type AgentName = BuiltinAgentName
 
 export type AgentOverrideConfig = Partial<Omit<AgentConfig, 'model'>> & {
-  /** Model specification - string for single model, array for multi-model planning (Prometheus only) */
-  model?: string | string[]
+  /** Model specification - single model string */
+  model?: string
   /** Category name to inherit model and other settings from CategoryConfig */
   category?: string
   /** Skill names to inject into agent prompt */

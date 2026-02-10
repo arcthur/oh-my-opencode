@@ -10,8 +10,8 @@
  *
  * Transition to PLAN GENERATION mode when:
  * - User says "Make it into a work plan!" or "Save it as a file"
- * - If multi-model planning is configured (2+ models), uses the multi_plan tool
- * - High accuracy = multi_plan with debate enabled (when available)
+ * - Generates plan + context manifest in .sisyphus/
+ * - High accuracy = stricter Momus iterative review
  *
  * Can write .md files only (enforced by prometheus-md-only hook).
  */

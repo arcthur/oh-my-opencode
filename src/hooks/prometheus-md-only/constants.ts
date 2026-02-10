@@ -46,7 +46,7 @@ Before writing a plan to \`.sisyphus/plans/*.md\`, confirm:
 - Recon done (codebase/docs) and approach chosen (2-3 options for non-trivial work)
 - If non-trivial: design validated incrementally and design doc written to \`.sisyphus/designs/*.md\`
 - Test/verification strategy defined (what to run, what to check)
-- If high accuracy requested: consider multi-model planning + synthesis (Plan Synthesizer)
+- If high accuracy requested: run additional Momus review iterations before handoff
 
 After writing the plan:
 

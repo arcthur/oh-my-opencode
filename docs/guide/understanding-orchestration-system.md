@@ -24,8 +24,8 @@ flowchart TB
     subgraph Planning["Planning Layer (Human + Prometheus)"]
         User[("User")]
         Prometheus["Prometheus<br/>(Planner)<br/>Claude Opus 4.6"]
-        MultiPlan["multi_plan<br/>(Multi-Model Planning)<br/>Tool"]
-        Synth["Plan Synthesizer<br/>(plan-synthesizer)<br/>Opus-class"]
+        Metis["Metis<br/>(Pre-Planning)<br/>Claude Opus 4.6"]
+        Momus["Momus<br/>(Plan Review)<br/>GPT-5.2"]
     end
     
     subgraph Execution["Execution Layer (Orchestrator)"]
@@ -44,9 +44,9 @@ flowchart TB
     Prometheus -->|"Interview"| User
     Prometheus -->|"Generate plan draft"| PlanDraft[".sisyphus/plans/{planId}.md<br/>(planner output)"]
     Prometheus -->|"Generate context manifest"| Manifest[".sisyphus/context-manifests/{planId}.md"]
-    Prometheus -->|"Complex plan?"| MultiPlan
-    MultiPlan -->|"Compare + Synthesize"| Synth
-    Synth -->|"Unified plan + report"| Prometheus
+    Metis -->|"Pre-planning analysis"| Prometheus
+    Prometheus -->|"Plan review"| Momus
+    Momus -->|"Verified plan"| Prometheus
     
     User -->|"/start-work"| Orchestrator
     Orchestrator --> WorkState[".sisyphus/work.yaml<br/>(STATE SSOT)"]
@@ -71,7 +71,7 @@ flowchart TB
 
 ---
 
-## Layer 1: Planning (Prometheus + Multi-Model Planning)
+## Layer 1: Planning (Metis → Prometheus → Momus)
 
 ### Prometheus: Your Strategic Consultant
 
@@ -98,13 +98,11 @@ stateDiagram-v2
         Check: ✓ Test strategy confirmed?
     }
     
-    PlanGeneration --> MultiPlanDecision: Complex plan?
-    MultiPlanDecision --> MultiPlanRun: Call multi_plan (optional)
-    MultiPlanRun --> WritePlan: Use unified plan output
-    WritePlan --> HighAccuracyChoice: Present to user
-    
-    HighAccuracyChoice --> MultiPlanRun: User wants high accuracy (debate mode)
-    HighAccuracyChoice --> Done: User accepts plan
+    PlanGeneration --> MetisAnalysis: Metis pre-planning analysis
+    MetisAnalysis --> WritePlan: Prometheus generates plan
+    WritePlan --> MomusReview: Momus reviews plan
+    MomusReview --> WritePlan: Blocking issues found
+    MomusReview --> Done: Plan verified
     
     Done --> [*]: Guide to /start-work
 ```
@@ -120,15 +118,12 @@ Prometheus adapts its interview style based on what you're doing:
 | **Mid-sized Task** | Guardrails - exact boundaries | "What must NOT be included? Hard constraints?" |
 | **Architecture** | Strategic - long-term impact | "Expected lifespan? Scale requirements?" |
 
-### Multi-Model Planning: Deep Verification and Synthesis
+### Metis and Momus: Pre-Planning and Review
 
-For complex or high-accuracy planning, Prometheus can call `multi_plan` to:
+The planning pipeline uses two additional agents alongside Prometheus:
 
-- Generate multiple independent plans in parallel
-- Compare and score them (clarity/verification/context/big picture)
-- Run optional deep verification (file reference audit, execution simulation)
-- Resolve conflicts and synthesize one unified final plan
-- Optionally run a debate round (rebuttals) for maximum scrutiny
+- **Metis** (pre-planning): Analyzes requests for hidden intentions, ambiguities, and AI failure points before Prometheus begins planning
+- **Momus** (plan review): Verifies plan executability and catches blocking issues with a practical focus after Prometheus generates the plan
 
 ---
 

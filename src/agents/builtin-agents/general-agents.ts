@@ -64,7 +64,7 @@ export function collectPendingBuiltinAgents(input: {
     const isPrimaryAgent = isFactory(source) && source.mode === "primary"
     const resolution = applyModelResolution({
       uiSelectedModel: (isPrimaryAgent && !typedOverride?.model) ? uiSelectedModel : undefined,
-      userModel: typedOverride?.model ? (Array.isArray(typedOverride.model) ? typedOverride.model[0] : typedOverride.model) : undefined,
+      userModel: typedOverride?.model,
       categoryDefaultModel: typedOverride?.category ? mergedCategories[typedOverride.category]?.model : undefined,
       requirement,
       availableModels,

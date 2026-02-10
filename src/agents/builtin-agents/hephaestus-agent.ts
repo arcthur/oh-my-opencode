@@ -48,7 +48,7 @@ export function maybeCreateHephaestusConfig(input: {
   if (!hasRequiredProvider) return undefined
 
   let hephaestusResolution = applyModelResolution({
-    userModel: hephaestusOverride?.model ? (Array.isArray(hephaestusOverride.model) ? hephaestusOverride.model[0] : hephaestusOverride.model) : undefined,
+    userModel: hephaestusOverride?.model,
     categoryDefaultModel: hephaestusOverride?.category ? mergedCategories[hephaestusOverride.category]?.model : undefined,
     requirement: hephaestusRequirement,
     availableModels,

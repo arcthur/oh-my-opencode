@@ -9,10 +9,11 @@ This journey maps the end-to-end chain: plan generation → plan selection → (
 
 ```mermaid
 flowchart TD
-  U["User request"] --> PG["Plan generation (Prometheus / multi_plan)"]
-  PG --> PS["Plan synthesis (plan-synthesizer)"]
+  U["User request"] --> MT["Pre-planning analysis (Metis)"]
+  MT --> PG["Plan generation (Prometheus)"]
+  PG --> MO["Plan review (Momus)"]
 
-  PS --> ART["Write plan draft + context manifest → .sisyphus/"]
+  MO --> ART["Write plan draft + context manifest → .sisyphus/"]
   ART --> SW["Start execution (/start-work or start-work hook)"]
   SW --> MIG["Migrate plan draft → .sisyphus/plans/<planId>/plan.md\nCreate/Update .sisyphus/work.yaml"]
 
@@ -46,20 +47,18 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 ## Recommended Reading Order
 
 1. Planning concepts: `docs/journeys/prometheus-planning.md`
-2. Multi-model planning: `docs/journeys/multi-model-planning.md`
-3. Planning with files: `docs/journeys/planning-with-files.md`
-4. Orchestration: `docs/guide/orchestration.md`
-5. Deterministic delegation context: `docs/journeys/context-packs-and-manifests.md`
-6. Feature catalog: `docs/guide/features.md`
+2. Planning with files: `docs/journeys/planning-with-files.md`
+3. Orchestration: `docs/guide/orchestration.md`
+4. Deterministic delegation context: `docs/journeys/context-packs-and-manifests.md`
+5. Feature catalog: `docs/guide/features.md`
 
 ## Where to Look in Code
 
 - Orchestrator hook: `src/hooks/execution-orchestrator/`
 - Start-work bootstrap: `src/hooks/start-work/`
 - Planning-with-files hook: `src/hooks/planning-with-files/`
-- Multi-plan trigger: `src/hooks/multi-plan-trigger/`
-- Multi-plan tool: `src/tools/multi-plan/`
- - Plan synthesis agent: `src/agents/plan-synthesizer.ts`
+- Pre-planning agent: `src/agents/metis.ts`
+- Plan review agent: `src/agents/momus.ts`
 
 ## Execution Chain (Code Is Source of Truth)
 

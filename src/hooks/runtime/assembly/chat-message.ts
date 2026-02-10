@@ -181,15 +181,6 @@ export function buildChatMessageNodes(
     })
   }
 
-  if (context.multiPlanTrigger?.["chat.message"]) {
-    nodes.push({
-      id: "multi-plan-trigger:chat.message",
-      invoke: async () => {
-        await context.multiPlanTrigger?.["chat.message"]?.(input, output)
-      },
-    })
-  }
-
   if (context.planningWithFiles?.["chat.message"]) {
     nodes.push({
       id: "planning-with-files:chat.message",

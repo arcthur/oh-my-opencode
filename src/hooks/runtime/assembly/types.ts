@@ -185,10 +185,6 @@ export interface RuntimeAssemblyContext {
     ["chat.message"]?: ChatMessageHandler
   }
 
-  multiPlanTrigger?: {
-    ["chat.message"]?: ChatMessageHandler
-  }
-
   planningWithFiles?: {
     ["chat.message"]?: ChatMessageHandler
     ["tool.execute.before"]?: ToolExecuteBeforeHandler

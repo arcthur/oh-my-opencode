@@ -49,7 +49,7 @@ export function maybeCreateSisyphusConfig(input: {
 
   let sisyphusResolution = applyModelResolution({
     uiSelectedModel: sisyphusOverride?.model ? undefined : uiSelectedModel,
-    userModel: sisyphusOverride?.model ? (Array.isArray(sisyphusOverride.model) ? sisyphusOverride.model[0] : sisyphusOverride.model) : undefined,
+    userModel: sisyphusOverride?.model,
     requirement: sisyphusRequirement,
     availableModels,
     systemDefaultModel,

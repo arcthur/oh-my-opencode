@@ -101,8 +101,7 @@ Enable in `.opencode/oh-my-opencode.json`:
     "two_action_rule": true,
     "three_strike_protocol": true,
     "auto_reread": true,
-    "stop_verification": true,
-    "auto_from_multi_plan": true
+    "stop_verification": true
   }
 }
 ```
@@ -119,7 +118,6 @@ Enable in `.opencode/oh-my-opencode.json`:
 | `three_strike_protocol` | `true` | Structured error handling with escalation |
 | `auto_reread` | `true` | Re-read task_plan before Write/Edit/Bash/NotebookEdit |
 | `stop_verification` | `true` | Block stopping if phases are incomplete |
-| `auto_from_multi_plan` | `true` | Auto-create planning files from multi-plan results |
 | `reread_trigger_tools` | `["Write", "Edit", "Bash", "NotebookEdit"]` | Tools that trigger plan.md injection |
 | `action_count_tools` | `["Read", "WebFetch", "WebSearch", "Glob", "Grep", "Task"]` | Tools counted for 2-action rule |
 
@@ -420,16 +418,6 @@ Initialization is idempotent: existing planning files are not overwritten; re-ru
 ### Completing Work
 
 Ensure all phases are `complete` or `blocked` before stopping.
-
-## Integration with Multi-Plan
-
-When `auto_from_multi_plan: true`, after a successful `multi_plan` tool run completes:
-
-1. Planning files are initialized at `.sisyphus/plans/{planId}/` (if missing)
-2. `plan.md` starts from the default template (edit freely)
-3. The unified plan remains the source of truth for detailed task breakdown; planning-with-files focuses on persistence, error tracking, and lightweight phase gating
-
-This enables seamless transition from planning to execution with full tracking.
 
 ## File Templates
 

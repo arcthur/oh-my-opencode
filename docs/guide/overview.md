@@ -52,7 +52,7 @@ For complex or critical tasks, press **Tab** to switch to Prometheus mode.
 
 1. **Prometheus interviews you** - Acts as your personal consultant, asking clarifying questions while researching your codebase to understand exactly what you need.
 
-2. **Plan generation** - Based on the interview, Prometheus generates a detailed work plan with tasks, acceptance criteria, and guardrails. For complex planning, it can optionally use `multi_plan` (multi-model planning) to produce a stronger plan.
+2. **Plan generation** - Metis analyzes the request, Prometheus generates a detailed work plan with tasks, acceptance criteria, and guardrails, and Momus reviews the plan for executability.
 
 3. **Run `/start-work`** - The Sisyphus Execution Mode takes over:
    - Distributes tasks to specialized sub-agents
