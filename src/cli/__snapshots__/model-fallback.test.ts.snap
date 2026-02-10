@@ -13,6 +13,12 @@ exports[`generateModelConfig no providers available returns ULTIMATE_FALLBACK fo
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
+    "metis": {
+      "model": "opencode/glm-4.7-free",
+    },
+    "momus": {
+      "model": "opencode/glm-4.7-free",
+    },
     "multimodal-looker": {
       "model": "opencode/glm-4.7-free",
     },
@@ -64,6 +70,14 @@ exports[`generateModelConfig single native provider uses Claude models when only
     },
     "librarian": {
       "model": "anthropic/claude-sonnet-4-5",
+    },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
     },
     "multimodal-looker": {
       "model": "anthropic/claude-haiku-4-5",
@@ -119,6 +133,14 @@ exports[`generateModelConfig single native provider uses Claude models with isMa
     },
     "librarian": {
       "model": "anthropic/claude-sonnet-4-5",
+    },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
     },
     "multimodal-looker": {
       "model": "anthropic/claude-haiku-4-5",
@@ -180,6 +202,14 @@ exports[`generateModelConfig single native provider uses OpenAI models when only
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
+    "metis": {
+      "model": "openai/gpt-5.2",
+      "variant": "high",
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "variant": "medium",
+    },
     "multimodal-looker": {
       "model": "openai/gpt-5.2",
     },
@@ -240,6 +270,14 @@ exports[`generateModelConfig single native provider uses OpenAI models with isMa
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
+    "metis": {
+      "model": "openai/gpt-5.2",
+      "variant": "high",
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "variant": "medium",
+    },
     "multimodal-looker": {
       "model": "openai/gpt-5.2",
     },
@@ -296,6 +334,14 @@ exports[`generateModelConfig single native provider uses Gemini models when only
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
+    "metis": {
+      "model": "google/gemini-3-pro",
+      "variant": "high",
+    },
+    "momus": {
+      "model": "google/gemini-3-pro",
+      "variant": "high",
+    },
     "multimodal-looker": {
       "model": "google/gemini-3-flash",
     },
@@ -347,6 +393,14 @@ exports[`generateModelConfig single native provider uses Gemini models with isMa
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
+    },
+    "metis": {
+      "model": "google/gemini-3-pro",
+      "variant": "high",
+    },
+    "momus": {
+      "model": "google/gemini-3-pro",
+      "variant": "high",
     },
     "multimodal-looker": {
       "model": "google/gemini-3-flash",
@@ -403,6 +457,14 @@ exports[`generateModelConfig all native providers uses preferred models from fal
     },
     "librarian": {
       "model": "anthropic/claude-sonnet-4-5",
+    },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "variant": "medium",
     },
     "multimodal-looker": {
       "model": "google/gemini-3-flash",
@@ -469,6 +531,14 @@ exports[`generateModelConfig all native providers uses preferred models with isM
     },
     "librarian": {
       "model": "anthropic/claude-sonnet-4-5",
+    },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "variant": "medium",
     },
     "multimodal-looker": {
       "model": "google/gemini-3-flash",
@@ -537,6 +607,14 @@ exports[`generateModelConfig fallback providers uses OpenCode Zen models when on
     "librarian": {
       "model": "opencode/glm-4.7-free",
     },
+    "metis": {
+      "model": "opencode/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "opencode/gpt-5.2",
+      "variant": "medium",
+    },
     "multimodal-looker": {
       "model": "opencode/gemini-3-flash",
     },
@@ -602,6 +680,14 @@ exports[`generateModelConfig fallback providers uses OpenCode Zen models with is
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
+    },
+    "metis": {
+      "model": "opencode/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "opencode/gpt-5.2",
+      "variant": "medium",
     },
     "multimodal-looker": {
       "model": "opencode/gemini-3-flash",
@@ -670,6 +756,14 @@ exports[`generateModelConfig fallback providers uses GitHub Copilot models when 
     "librarian": {
       "model": "github-copilot/claude-sonnet-4.5",
     },
+    "metis": {
+      "model": "github-copilot/claude-opus-4.6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "github-copilot/gpt-5.2",
+      "variant": "medium",
+    },
     "multimodal-looker": {
       "model": "github-copilot/gemini-3-flash-preview",
     },
@@ -736,6 +830,14 @@ exports[`generateModelConfig fallback providers uses GitHub Copilot models with 
     "librarian": {
       "model": "github-copilot/claude-sonnet-4.5",
     },
+    "metis": {
+      "model": "github-copilot/claude-opus-4.6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "github-copilot/gpt-5.2",
+      "variant": "medium",
+    },
     "multimodal-looker": {
       "model": "github-copilot/gemini-3-flash-preview",
     },
@@ -799,6 +901,12 @@ exports[`generateModelConfig fallback providers uses ZAI model for librarian whe
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
+    "metis": {
+      "model": "opencode/glm-4.7-free",
+    },
+    "momus": {
+      "model": "opencode/glm-4.7-free",
+    },
     "multimodal-looker": {
       "model": "zai-coding-plan/glm-4.6v",
     },
@@ -847,6 +955,12 @@ exports[`generateModelConfig fallback providers uses ZAI model for librarian wit
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
+    },
+    "metis": {
+      "model": "opencode/glm-4.7-free",
+    },
+    "momus": {
+      "model": "opencode/glm-4.7-free",
     },
     "multimodal-looker": {
       "model": "zai-coding-plan/glm-4.6v",
@@ -900,6 +1014,14 @@ exports[`generateModelConfig mixed provider scenarios uses Claude + OpenCode Zen
     },
     "librarian": {
       "model": "opencode/glm-4.7-free",
+    },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "opencode/gpt-5.2",
+      "variant": "medium",
     },
     "multimodal-looker": {
       "model": "opencode/gemini-3-flash",
@@ -967,6 +1089,14 @@ exports[`generateModelConfig mixed provider scenarios uses OpenAI + Copilot comb
     "librarian": {
       "model": "github-copilot/claude-sonnet-4.5",
     },
+    "metis": {
+      "model": "github-copilot/claude-opus-4.6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "variant": "medium",
+    },
     "multimodal-looker": {
       "model": "github-copilot/gemini-3-flash-preview",
     },
@@ -1029,6 +1159,14 @@ exports[`generateModelConfig mixed provider scenarios uses Claude + ZAI combinat
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
     "multimodal-looker": {
       "model": "zai-coding-plan/glm-4.6v",
     },
@@ -1083,6 +1221,14 @@ exports[`generateModelConfig mixed provider scenarios uses Gemini + Claude combi
     },
     "librarian": {
       "model": "anthropic/claude-sonnet-4-5",
+    },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
     },
     "multimodal-looker": {
       "model": "google/gemini-3-flash",
@@ -1145,6 +1291,14 @@ exports[`generateModelConfig mixed provider scenarios uses all fallback provider
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
+    },
+    "metis": {
+      "model": "github-copilot/claude-opus-4.6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "github-copilot/gpt-5.2",
+      "variant": "medium",
     },
     "multimodal-looker": {
       "model": "github-copilot/gemini-3-flash-preview",
@@ -1212,6 +1366,14 @@ exports[`generateModelConfig mixed provider scenarios uses all providers togethe
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
     },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "variant": "medium",
+    },
     "multimodal-looker": {
       "model": "google/gemini-3-flash",
     },
@@ -1277,6 +1439,14 @@ exports[`generateModelConfig mixed provider scenarios uses all providers with is
     },
     "librarian": {
       "model": "zai-coding-plan/glm-4.7",
+    },
+    "metis": {
+      "model": "anthropic/claude-opus-4-6",
+      "variant": "max",
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "variant": "medium",
     },
     "multimodal-looker": {
       "model": "google/gemini-3-flash",

@@ -629,7 +629,7 @@ describe("Deadlock prevention - fetchAvailableModels must not receive client", (
 
     try {
       // #when
-      await createBuiltinAgents([], {}, undefined, TEST_DEFAULT_MODEL, undefined, undefined, [], mockClient)
+      await createBuiltinAgents([], {}, undefined, TEST_DEFAULT_MODEL, undefined, undefined, [], undefined)
 
       // #then
       expect(fetchSpy).toHaveBeenCalled()

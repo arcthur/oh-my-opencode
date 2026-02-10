@@ -178,7 +178,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       pluginConfig.categories,
       pluginConfig.git_master,
       allDiscoveredSkills,
-      ctx.client,
+      undefined,
       undefined,
       config.model as string | undefined,
       new Set(pluginConfig.disabled_skills ?? [])

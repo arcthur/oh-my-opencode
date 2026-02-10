@@ -2225,7 +2225,14 @@
       "properties": {
         "commit_footer": {
           "default": true,
-          "type": "boolean"
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
         "include_co_authored_by": {
           "default": true,
@@ -3399,6 +3406,13 @@
           }
         }
       }
+    },
+    "plugin_load_timeout_ms": {
+      "type": "number",
+      "minimum": 1000
+    },
+    "safe_hook_creation": {
+      "type": "boolean"
     }
   }
 }

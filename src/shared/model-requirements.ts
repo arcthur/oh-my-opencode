@@ -21,7 +21,6 @@ export type ModelRequirement = {
  * - `requiresProvider`: Agent only activates when one of required providers is connected
  * - `fallbackChain`: Ordered list of model preferences with provider constraints
  *
- * Note: We removed metis/momus agents in our fork - they are not included here.
  */
 export const AGENT_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   sisyphus: {
@@ -86,6 +85,22 @@ export const AGENT_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
       { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-opus-4-6", variant: "max" },
       { providers: ["openai", "github-copilot", "opencode"], model: "gpt-5.2", variant: "high" },
       { providers: ["google", "github-copilot", "opencode"], model: "gemini-3-pro" },
+    ],
+  },
+  metis: {
+    fallbackChain: [
+      { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-opus-4-6", variant: "max" },
+      { providers: ["kimi-for-coding"], model: "k2p5" },
+      { providers: ["opencode"], model: "kimi-k2.5-free" },
+      { providers: ["openai", "github-copilot", "opencode"], model: "gpt-5.2", variant: "high" },
+      { providers: ["google", "github-copilot", "opencode"], model: "gemini-3-pro", variant: "high" },
+    ],
+  },
+  momus: {
+    fallbackChain: [
+      { providers: ["openai", "github-copilot", "opencode"], model: "gpt-5.2", variant: "medium" },
+      { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-opus-4-6", variant: "max" },
+      { providers: ["google", "github-copilot", "opencode"], model: "gemini-3-pro", variant: "high" },
     ],
   },
 }

@@ -9,6 +9,8 @@ export { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
 export { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "./multimodal-looker"
 export { createPlanSynthesizerAgent } from "./plan-synthesizer"
 export { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
+export { createMetisAgent, metisPromptMetadata } from "./metis"
+export { createMomusAgent, momusPromptMetadata } from "./momus"
 export {
   PROMETHEUS_SYSTEM_PROMPT,
   PROMETHEUS_PERMISSION,
@@ -20,3 +22,8 @@ export {
   PROMETHEUS_PLAN_TEMPLATE,
   PROMETHEUS_BEHAVIORAL_SUMMARY,
 } from "./prometheus"
+
+export { buildAgent, isFactory } from "./agent-builder"
+export type { AgentSource } from "./agent-builder"
+export { createEnvContext } from "./env-context"
+export { parseRegisteredAgentSummaries, buildCustomAgentMetadata } from "./custom-agent-summaries"
