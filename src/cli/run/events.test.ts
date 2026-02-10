@@ -83,6 +83,7 @@ describe("createEventState", () => {
     expect(state.lastPartText).toBe("")
     expect(state.currentTool).toBe(null)
     expect(state.hasReceivedMeaningfulWork).toBe(false)
+    expect(state.messageCount).toBe(0)
   })
 })
 
@@ -168,6 +169,7 @@ describe("event handling", () => {
 
     // #then
     expect(state.hasReceivedMeaningfulWork).toBe(true)
+    expect(state.messageCount).toBe(1)
   })
 
   it("message.updated with user role does not set hasReceivedMeaningfulWork", async () => {
@@ -190,6 +192,7 @@ describe("event handling", () => {
 
     // #then - user role should not count as meaningful work
     expect(state.hasReceivedMeaningfulWork).toBe(false)
+    expect(state.messageCount).toBe(0)
   })
 
   it("message.updated with assistant role resets lastPartText for new message stream", async () => {
@@ -301,6 +304,7 @@ describe("event handling", () => {
       lastPartText: "",
       currentTool: null,
       hasReceivedMeaningfulWork: false,
+      messageCount: 0,
     }
 
     const payload: EventPayload = {
@@ -329,6 +333,7 @@ describe("event handling", () => {
       lastPartText: "",
       currentTool: null,
       hasReceivedMeaningfulWork: false,
+      messageCount: 0,
     }
 
     const payload: EventPayload = {
@@ -357,6 +362,7 @@ describe("event handling", () => {
       lastPartText: "",
       currentTool: null,
       hasReceivedMeaningfulWork: false,
+      messageCount: 0,
     }
 
     const payload: EventPayload = {

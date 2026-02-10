@@ -1,14 +1,16 @@
-import { createOpencode } from "@opencode-ai/sdk"
 import pc from "picocolors"
 import type { RunOptions, RunContext } from "./types"
 import { createEventState, processEvents, serializeError } from "./events"
 import type { OhMyOpenCodeConfig } from "../../config"
 import { loadPluginConfig } from "../../plugin-config"
 import { pollForCompletion } from "./poll-for-completion"
+import { createServerConnection } from "./server-connection"
+import { resolveSession } from "./session-resolver"
+import { createJsonOutputManager } from "./json-output"
+import { executeOnCompleteHook } from "./on-complete-hook"
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
-const SESSION_CREATE_MAX_RETRIES = 3
-const SESSION_CREATE_RETRY_DELAY_MS = 1000
+const DEFAULT_SERVER_HOSTNAME = "127.0.0.1"
 const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus"] as const
 const DEFAULT_AGENT = "sisyphus"
 
@@ -40,6 +42,13 @@ const pickFallbackAgent = (config: OhMyOpenCodeConfig): string => {
     }
   }
   return DEFAULT_AGENT
+}
+
+const parseEnvPort = (rawPort?: string): number | undefined => {
+  if (!rawPort) return undefined
+  const parsed = Number.parseInt(rawPort, 10)
+  if (Number.isNaN(parsed)) return undefined
+  return parsed
 }
 
 export const resolveRunAgent = (
@@ -76,24 +85,26 @@ export const resolveRunAgent = (
 }
 
 export async function run(options: RunOptions): Promise<number> {
-  // Set CLI run mode environment variable before any config loading
-  // This signals to config-handler to deny Question tool (no TUI to answer)
+  // In CLI run mode there is no TUI for question tool prompts.
   process.env.OPENCODE_CLI_RUN_MODE = "true"
 
+  const startTime = Date.now()
   const {
     message,
     directory = process.cwd(),
     timeout = DEFAULT_TIMEOUT_MS,
   } = options
+
+  const jsonManager = options.json ? createJsonOutputManager() : null
+  if (jsonManager) {
+    jsonManager.redirectToStderr()
+  }
+
   const pluginConfig = loadPluginConfig(directory, { command: "run" })
   const resolvedAgent = resolveRunAgent(options, pluginConfig)
-
-  console.log(pc.cyan("Starting opencode server..."))
-
   const abortController = new AbortController()
   let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-  // timeout=0 means no timeout (run until completion)
   if (timeout > 0) {
     timeoutId = setTimeout(() => {
       console.log(pc.yellow("\nTimeout reached. Aborting..."))
@@ -102,23 +113,19 @@ export async function run(options: RunOptions): Promise<number> {
   }
 
   try {
-    // Support custom OpenCode server port via environment variable
-    // This allows Open Agent and other orchestrators to run multiple
-    // concurrent missions without port conflicts
-    const serverPort = process.env.OPENCODE_SERVER_PORT
-      ? parseInt(process.env.OPENCODE_SERVER_PORT, 10)
-      : undefined
-    const serverHostname = process.env.OPENCODE_SERVER_HOSTNAME || undefined
+    const resolvedPort = options.port ?? parseEnvPort(process.env.OPENCODE_SERVER_PORT)
+    const resolvedHostname = process.env.OPENCODE_SERVER_HOSTNAME || DEFAULT_SERVER_HOSTNAME
 
-    const { client, server } = await createOpencode({
+    const { client, cleanup: serverCleanup } = await createServerConnection({
+      port: resolvedPort,
+      attach: options.attach,
       signal: abortController.signal,
-      ...(serverPort && !isNaN(serverPort) ? { port: serverPort } : {}),
-      ...(serverHostname ? { hostname: serverHostname } : {}),
+      hostname: resolvedHostname,
     })
 
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId)
-      server.close()
+      serverCleanup()
     }
 
     process.on("SIGINT", () => {
@@ -128,51 +135,10 @@ export async function run(options: RunOptions): Promise<number> {
     })
 
     try {
-      // Retry session creation with exponential backoff
-      // Server might not be fully ready even after "listening" message
-      let sessionID: string | undefined
-      let lastError: unknown
-
-      for (let attempt = 1; attempt <= SESSION_CREATE_MAX_RETRIES; attempt++) {
-        const sessionRes = await client.session.create({
-          body: { title: "oh-my-opencode run" },
-        })
-
-        if (sessionRes.error) {
-          lastError = sessionRes.error
-          console.error(pc.yellow(`Session create attempt ${attempt}/${SESSION_CREATE_MAX_RETRIES} failed:`))
-          console.error(pc.dim(`  Error: ${serializeError(sessionRes.error)}`))
-
-          if (attempt < SESSION_CREATE_MAX_RETRIES) {
-            const delay = SESSION_CREATE_RETRY_DELAY_MS * attempt
-            console.log(pc.dim(`  Retrying in ${delay}ms...`))
-            await new Promise((resolve) => setTimeout(resolve, delay))
-            continue
-          }
-        }
-
-        sessionID = sessionRes.data?.id
-        if (sessionID) {
-          break
-        }
-
-        // No error but also no session ID - unexpected response
-        lastError = new Error(`Unexpected response: ${JSON.stringify(sessionRes, null, 2)}`)
-        console.error(pc.yellow(`Session create attempt ${attempt}/${SESSION_CREATE_MAX_RETRIES}: No session ID returned`))
-
-        if (attempt < SESSION_CREATE_MAX_RETRIES) {
-          const delay = SESSION_CREATE_RETRY_DELAY_MS * attempt
-          console.log(pc.dim(`  Retrying in ${delay}ms...`))
-          await new Promise((resolve) => setTimeout(resolve, delay))
-        }
-      }
-
-      if (!sessionID) {
-        console.error(pc.red("Failed to create session after all retries"))
-        console.error(pc.dim(`Last error: ${serializeError(lastError)}`))
-        cleanup()
-        return 1
-      }
+      const sessionID = await resolveSession({
+        client,
+        sessionId: options.sessionId,
+      })
 
       console.log(pc.dim(`Session: ${sessionID}`))
 
@@ -203,17 +169,42 @@ export async function run(options: RunOptions): Promise<number> {
 
       await eventProcessor.catch(() => {})
       cleanup()
+
+      const durationMs = Date.now() - startTime
+
+      if (options.onComplete) {
+        await executeOnCompleteHook({
+          command: options.onComplete,
+          sessionId: sessionID,
+          exitCode,
+          durationMs,
+          messageCount: eventState.messageCount,
+          silenceStdout: options.json === true,
+        })
+      }
+
+      if (jsonManager) {
+        jsonManager.emitResult({
+          sessionId: sessionID,
+          success: exitCode === 0,
+          durationMs,
+          messageCount: eventState.messageCount,
+          summary: eventState.lastPartText.slice(0, 200) || "Run completed",
+        })
+      }
+
       return exitCode
-    } catch (err) {
+    } catch (error) {
       cleanup()
-      throw err
+      throw error
     }
-  } catch (err) {
+  } catch (error) {
     if (timeoutId) clearTimeout(timeoutId)
-    if (err instanceof Error && err.name === "AbortError") {
+    if (jsonManager) jsonManager.restore()
+    if (error instanceof Error && error.name === "AbortError") {
       return 130
     }
-    console.error(pc.red(`Error: ${serializeError(err)}`))
+    console.error(pc.red(`Error: ${serializeError(error)}`))
     return 1
   }
 }

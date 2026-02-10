@@ -67,9 +67,16 @@ Options:
 | `-a, --agent <name>` | Agent override (`Sisyphus`, `Hephaestus`, `Prometheus`, etc.) |
 | `-d, --directory <path>` | Working directory for the prompt call |
 | `-t, --timeout <ms>` | Timeout in milliseconds (default: **30 minutes**; set `0` to disable) |
+| `-p, --port <port>` | Preferred server port (if occupied, auto-attach to that server) |
+| `--attach <url>` | Attach to an existing OpenCode server URL |
+| `--session-id <id>` | Resume an existing session ID instead of creating a new one |
+| `--on-complete <command>` | Run a shell command after completion |
+| `--json` | Emit a structured JSON result to stdout |
 
 Notes:
 - Messages that begin with `-` are accepted (unknown options are passed through). If your shell treats them as flags, prefix the message with `--` to be explicit.
+- `--port` and `--attach` are mutually exclusive.
+- In CLI run mode, newly created sessions deny `question` permissions by default.
 
 ## 5. `get-local-version`
 

@@ -1,11 +1,30 @@
 import type { OpencodeClient } from "@opencode-ai/sdk"
 import type { OhMyOpenCodeConfig } from "../../config"
+export type { OpencodeClient }
 
 export interface RunOptions {
   message: string
   agent?: string
   directory?: string
   timeout?: number
+  port?: number
+  attach?: string
+  onComplete?: string
+  json?: boolean
+  sessionId?: string
+}
+
+export interface ServerConnection {
+  client: OpencodeClient
+  cleanup: () => void
+}
+
+export interface RunResult {
+  sessionId: string
+  success: boolean
+  durationMs: number
+  messageCount: number
+  summary: string
 }
 
 export interface RunContext {
@@ -14,6 +33,13 @@ export interface RunContext {
   directory: string
   abortController: AbortController
   taskConfig?: Partial<OhMyOpenCodeConfig>
+}
+
+export interface Todo {
+  id: string
+  content: string
+  status: string
+  priority: string
 }
 
 export interface SessionStatus {
