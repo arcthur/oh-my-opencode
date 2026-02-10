@@ -16,6 +16,8 @@ export interface TaskProgress {
 
 export interface BackgroundTask {
   id: string
+  /** Optional task correlation id injected by tmux hook for deterministic window/worktree mapping. */
+  tmuxTaskId?: string
   sessionID?: string
   parentSessionID: string
   parentMessageID: string
@@ -53,6 +55,8 @@ export interface BackgroundTask {
 }
 
 export interface LaunchInput {
+  /** Optional task correlation id injected by tmux hook for deterministic window/worktree mapping. */
+  tmuxTaskId?: string
   description: string
   prompt: string
   agent: string

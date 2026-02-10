@@ -183,6 +183,8 @@ Execution order (high-level):
 Note:
 - `tmux-parallel-agents` is a workspace/process orchestration hook (worktree/window lifecycle and rescue UX).
 - Global concurrency admission is provided by `parallel_runtime`, not by this hook.
+- `tmux-parallel-agents` uses tmux metadata (`@omo_*`) in `event(session.created/deleted/idle)` for recovery and cleanup, and manages lifecycle by stable `window_id/pane_id`.
+- On background-task paths, the hook prioritizes precise mapping via internal correlation (`__tmux_task_id` -> `BackgroundTask.tmuxTaskId`), then falls back to title/FIFO matching when needed.
 
 ### `tool.execute.after`
 

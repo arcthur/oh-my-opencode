@@ -70,3 +70,10 @@ The `tmux-parallel-agents` hook is a pure infrastructure layer (windows, worktre
 - Treat \`worktree.auto_cleanup=true\` as potentially destructive (forced removal). Keep it off unless you are confident background sessions never leave uncommitted changes.
 - Always verify pane content before sending rescue keys; approvals are easy to misfire when an agent is mid-command.
 - If you already have a custom \`parallel-agents\` skill installed in `.opencode/skills/` or `~/.claude/skills/`, it will override the built-in \`parallel-agents\` skill with the same name.
+
+## Implementation Consistency Notes
+
+- The current implementation treats tmux as a recoverable projection layer: window state is persisted through tmux window options (`@omo_*`, `@workmux_status`).
+- Background tasks prefer session mapping via internal correlation key (`__tmux_task_id`) to avoid misbinding under same-parent concurrency; if unavailable, matching falls back to title/FIFO.
+- Window close/status operations use stable `window_id/pane_id`, reducing accidental closes under window reordering (for example with `renumber-windows`).
+- `session.deleted` performs orphan-window recovery by scanning `@omo_session_id` (best effort), and plugin shutdown uses unified cleanup to converge remaining state.

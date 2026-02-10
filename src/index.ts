@@ -568,7 +568,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const taskResumeInfo = createTaskResumeInfoHook();
 
+  let tmuxParallelAgents: ReturnType<typeof createTmuxParallelAgentsHook> | null = null;
   const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task, {
+    onShutdown: () => {
+      tmuxParallelAgents?.cleanup();
+    },
     parallelRuntimeConfig: pluginConfig.parallel_runtime ?? { enabled: true },
     taskConfig: pluginConfig,
   });
@@ -666,8 +670,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   // Tmux parallel agents: auto-create tmux windows for background tasks
   // Integrates with BackgroundManager lifecycle for visual monitoring
-  const tmuxParallelAgents = isHookEnabled("tmux-parallel-agents") && pluginConfig.tmux_parallel_agents?.enabled
-    ? createTmuxParallelAgentsHook(ctx, pluginConfig.tmux_parallel_agents)
+  tmuxParallelAgents = isHookEnabled("tmux-parallel-agents") && pluginConfig.tmux_parallel_agents?.enabled
+    ? createTmuxParallelAgentsHook(ctx, pluginConfig.tmux_parallel_agents, {
+        resolveTaskIdBySessionID: (sessionID: string) =>
+          backgroundManager.findBySession(sessionID)?.tmuxTaskId,
+      })
     : null;
 
   // Swarm agent: auto-initialize worker when running with OPENCODE_SWARM_* env vars

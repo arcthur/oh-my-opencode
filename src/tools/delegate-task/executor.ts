@@ -71,6 +71,15 @@ async function getSessionStatusType(
   return allStatuses[sessionID]?.type
 }
 
+function resolveInternalStringArg(args: DelegateTaskArgs, key: "__worktree_path" | "__tmux_task_id"): string | undefined {
+  const value = (args as unknown as Record<string, unknown>)[key]
+  if (typeof value !== "string") {
+    return undefined
+  }
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : undefined
+}
+
 export async function resolveSkillContent(
   skills: string[],
   options: {
@@ -389,9 +398,11 @@ export async function executeUnstableAgentTask(
   actualModel: string | undefined
 ): Promise<string> {
   const { manager, client } = executorCtx
+  const tmuxTaskId = resolveInternalStringArg(args, "__tmux_task_id")
 
   try {
     const task = await manager.launch({
+      tmuxTaskId,
       description: args.description,
       prompt: args.prompt,
       agent: agentToUse,
@@ -548,13 +559,11 @@ export async function executeBackgroundTask(
   const { manager } = executorCtx
 
   try {
-    const worktreePathRaw = (args as unknown as { __worktree_path?: unknown }).__worktree_path
-    const worktreeDirectory =
-      typeof worktreePathRaw === "string" && worktreePathRaw.trim().length > 0
-        ? worktreePathRaw
-        : undefined
+    const worktreeDirectory = resolveInternalStringArg(args, "__worktree_path")
+    const tmuxTaskId = resolveInternalStringArg(args, "__tmux_task_id")
 
     const task = await manager.launch({
+      tmuxTaskId,
       description: args.description,
       prompt: args.prompt,
       agent: agentToUse,

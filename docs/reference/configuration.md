@@ -578,6 +578,15 @@ Enablement contract:
 - The `tmux-parallel-agents` hook MUST be enabled (not present in `disabled_hooks`), and
 - `tmux_parallel_agents.enabled` MUST be `true`.
 
+Runtime behavior notes (aligned with the current implementation):
+
+- After window creation, lifecycle operations use stable tmux identifiers (`window_id` / `pane_id`) instead of relying only on window index, reducing mis-targeting when `renumber-windows` is enabled.
+- The hook persists window metadata: `@workmux_status`, `@omo_task_id`, `@omo_session_id`, `@omo_branch` (and optional `@omo_worktree`) for status updates and recovery.
+- In `delegate_task(run_in_background=true)`, an internal correlation key `__tmux_task_id` is injected. `BackgroundManager` persists this key and returns it on `session.created` for precise tmux mapping.
+- If precise mapping is unavailable, the hook falls back to parent-session queue + title matching + FIFO for backward compatibility.
+- On `session.deleted`, if the in-memory mapping is missing, orphan windows are scanned and recovered by `@omo_session_id` (best effort).
+- On plugin shutdown, `BackgroundManager.onShutdown` triggers tmux hook `cleanup()` to converge remaining windows and pending state.
+
 Example:
 
 ```jsonc

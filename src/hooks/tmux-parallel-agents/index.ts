@@ -1,10 +1,34 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { execSync } from "node:child_process"
-import { existsSync, copyFileSync, symlinkSync, mkdirSync, rmSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { existsSync, copyFileSync, symlinkSync, mkdirSync } from "node:fs"
 import { join, basename, dirname } from "node:path"
 import { log } from "../../shared/logger"
 
 export const HOOK_NAME = "tmux-parallel-agents"
+
+interface CommandOptions {
+  cwd?: string
+  timeout?: number
+  stdio?: "ignore" | "pipe" | "inherit"
+}
+
+function runCommand(command: string, args: string[], options?: CommandOptions): string {
+  const output = execFileSync(command, args, {
+    cwd: options?.cwd,
+    timeout: options?.timeout,
+    stdio: options?.stdio ?? "pipe",
+    encoding: "utf8",
+  })
+  return typeof output === "string" ? output.trim() : ""
+}
+
+function runTmux(args: string[], options?: CommandOptions): string {
+  return runCommand("tmux", args, options)
+}
+
+function runGit(args: string[], options?: CommandOptions): string {
+  return runCommand("git", args, options)
+}
 
 /**
  * Check if we're running inside a tmux session
@@ -18,7 +42,7 @@ function isInsideTmux(): boolean {
  */
 function hasTmuxBinary(): boolean {
   try {
-    execSync("which tmux", { stdio: "ignore" })
+    runCommand("which", ["tmux"], { stdio: "ignore" })
     return true
   } catch {
     return false
@@ -30,7 +54,7 @@ function hasTmuxBinary(): boolean {
  */
 function isGitRepo(dir: string): boolean {
   try {
-    execSync("git rev-parse --git-dir", { cwd: dir, stdio: "ignore" })
+    runGit(["rev-parse", "--git-dir"], { cwd: dir, stdio: "ignore" })
     return true
   } catch {
     return false
@@ -43,7 +67,7 @@ function isGitRepo(dir: string): boolean {
 function getCurrentSession(): string | null {
   if (!isInsideTmux()) return null
   try {
-    return execSync("tmux display-message -p '#S'", { encoding: "utf8" }).trim()
+    return runTmux(["display-message", "-p", "#S"])
   } catch {
     return null
   }
@@ -93,8 +117,7 @@ function detectStatus(content: string): "error" | "waiting" | "working" | "done"
  */
 function capturePaneContent(target: string, lines = 50): string | null {
   try {
-    return execSync(`tmux capture-pane -t "${target}" -p -S -${lines}`, {
-      encoding: "utf8",
+    return runTmux(["capture-pane", "-t", target, "-p", "-S", `-${lines}`], {
       timeout: 5000,
     })
   } catch {
@@ -107,7 +130,7 @@ function capturePaneContent(target: string, lines = 50): string | null {
  */
 function sendKeys(target: string, keys: string): boolean {
   try {
-    execSync(`tmux send-keys -t "${target}" "${keys}"`, { timeout: 5000 })
+    runTmux(["send-keys", "-t", target, keys], { timeout: 5000 })
     return true
   } catch {
     return false
@@ -141,6 +164,8 @@ export interface TmuxParallelAgentsConfig {
 }
 
 interface SessionInfo {
+  windowId: string
+  windowIndex: string
   windowName: string
   paneTarget: string
   taskId: string
@@ -148,6 +173,36 @@ interface SessionInfo {
   branchName: string
   worktreePath: string | null
   createdAt: Date
+}
+
+export interface TmuxParallelAgentsHook {
+  "tool.execute.before": (
+    input: { tool: string; sessionID?: string },
+    output: { args: Record<string, unknown> }
+  ) => Promise<void>
+  event: (input: {
+    type?: string
+    event?: { type: string; properties?: Record<string, unknown> }
+  }) => Promise<void>
+  getActiveWindows: () => Map<string, SessionInfo>
+  triggerRescue: () => void
+  cleanup: () => void
+  listWorktrees: () => Array<{ taskId: string; branch: string; path: string | null }>
+}
+
+export interface TmuxParallelAgentsDependencies {
+  resolveTaskIdBySessionID?: (sessionID: string) => string | undefined
+}
+
+function createDisabledHook(): TmuxParallelAgentsHook {
+  return {
+    "tool.execute.before": async () => {},
+    event: async () => {},
+    getActiveWindows: () => new Map(),
+    triggerRescue: () => {},
+    cleanup: () => {},
+    listWorktrees: () => [],
+  }
 }
 
 /**
@@ -172,25 +227,21 @@ interface SessionInfo {
  */
 export function createTmuxParallelAgentsHook(
   ctx: PluginInput,
-  config?: TmuxParallelAgentsConfig
-) {
+  config?: TmuxParallelAgentsConfig,
+  dependencies?: TmuxParallelAgentsDependencies
+): TmuxParallelAgentsHook {
   // Skip if not in tmux or tmux not available
   if (!isInsideTmux() || !hasTmuxBinary()) {
     log(`[${HOOK_NAME}] Disabled: not in tmux or tmux binary not found`)
-    return {
-      "tool.execute.before": async () => {},
-      event: async () => {},
-    }
+    return createDisabledHook()
   }
 
-  const sessionName = getCurrentSession()
-  if (!sessionName) {
+  const detectedSessionName = getCurrentSession()
+  if (!detectedSessionName) {
     log(`[${HOOK_NAME}] Disabled: could not determine tmux session`)
-    return {
-      "tool.execute.before": async () => {},
-      event: async () => {},
-    }
+    return createDisabledHook()
   }
+  const sessionName: string = detectedSessionName
 
   const projectDir = ctx.directory
   const projectName = basename(projectDir)
@@ -246,10 +297,9 @@ export function createTmuxParallelAgentsHook(
       }
 
       // Create worktree with new branch
-      execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
+      runGit(["worktree", "add", "-b", branchName, worktreePath], {
         cwd: projectDir,
         timeout: 30000,
-        stdio: "pipe",
       })
 
       log(`[${HOOK_NAME}] Created worktree`, { branchName, worktreePath })
@@ -302,17 +352,15 @@ export function createTmuxParallelAgentsHook(
 
     try {
       // Remove worktree
-      execSync(`git worktree remove "${worktreePath}" --force`, {
+      runGit(["worktree", "remove", worktreePath, "--force"], {
         cwd: projectDir,
         timeout: 30000,
-        stdio: "pipe",
       })
 
       // Delete branch
-      execSync(`git branch -D "${branchName}"`, {
+      runGit(["branch", "-D", branchName], {
         cwd: projectDir,
         timeout: 5000,
-        stdio: "pipe",
       })
 
       log(`[${HOOK_NAME}] Removed worktree and branch`, { branchName, worktreePath })
@@ -324,6 +372,61 @@ export function createTmuxParallelAgentsHook(
   /**
    * Create a tmux window for a background task
    */
+  function listTmuxWindows(): Array<{ id: string; index: string; name: string }> {
+    try {
+      const output = runTmux(["list-windows", "-t", sessionName, "-F", "#{window_id}:#I:#W"], {
+        timeout: 5000,
+      })
+      return output
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const firstSeparator = line.indexOf(":")
+          if (firstSeparator === -1) return null
+          const secondSeparator = line.indexOf(":", firstSeparator + 1)
+          if (secondSeparator === -1) return null
+          return {
+            id: line.slice(0, firstSeparator),
+            index: line.slice(firstSeparator + 1, secondSeparator),
+            name: line.slice(secondSeparator + 1),
+          }
+        })
+        .filter((window): window is { id: string; index: string; name: string } => window !== null)
+    } catch {
+      return []
+    }
+  }
+
+  function setWindowOption(target: string, option: string, value: string): void {
+    runTmux(["set-option", "-w", "-t", target, option, value], {
+      timeout: 5000,
+      stdio: "ignore",
+    })
+  }
+
+  function getWindowOption(target: string, option: string): string | null {
+    try {
+      const output = runTmux(["show-options", "-w", "-v", "-t", target, option], {
+        timeout: 5000,
+      })
+      return output.length > 0 ? output : null
+    } catch {
+      return null
+    }
+  }
+
+  function findWindowBySessionId(sessionID: string): { id: string; index: string; name: string } | null {
+    const windows = listTmuxWindows()
+    for (const window of windows) {
+      const optionValue = getWindowOption(window.id, "@omo_session_id")
+      if (optionValue === sessionID) {
+        return window
+      }
+    }
+    return null
+  }
+
   function createWindow(
     taskId: string,
     description: string,
@@ -334,35 +437,61 @@ export function createTmuxParallelAgentsHook(
     const slug = slugify(description)
     const windowName = `wm-${slug}-${taskId.slice(0, 6)}`
     const workDir = worktreePath || projectDir
+    let createdWindowId: string | null = null
 
     try {
       // Create new window in the appropriate directory
-      execSync(`tmux new-window -n "${windowName}" -c "${workDir}" -d`, { timeout: 5000 })
-
-      // Get window index
-      const windowIndex = execSync(
-        `tmux list-windows -F '#I:#W' | grep '${windowName}' | cut -d: -f1`,
-        { encoding: "utf8", timeout: 5000 }
-      ).trim()
-
-      const paneTarget = `${sessionName}:${windowIndex}.1`
-
-      // Set status icon window option
-      execSync(
-        `tmux set-option -t "${sessionName}:${windowName}" @workmux_status "${statusIcons.working}"`,
-        { timeout: 5000 }
+      const createdWindowInfo = runTmux(
+        [
+          "new-window",
+          "-t",
+          sessionName,
+          "-n",
+          windowName,
+          "-c",
+          workDir,
+          "-d",
+          "-P",
+          "-F",
+          "#{window_id}:#I:#{pane_id}",
+        ],
+        {
+          timeout: 5000,
+          stdio: "pipe",
+        }
       )
 
-      // Display task info in the pane
-      execSync(`tmux send-keys -t "${paneTarget}" "# Task: ${description}" Enter`, { timeout: 5000 })
-      execSync(`tmux send-keys -t "${paneTarget}" "# Session: ${agentSessionID}" Enter`, { timeout: 5000 })
-      if (worktreePath) {
-        execSync(`tmux send-keys -t "${paneTarget}" "# Branch: ${branchName}" Enter`, { timeout: 5000 })
-        execSync(`tmux send-keys -t "${paneTarget}" "# Worktree: ${worktreePath}" Enter`, { timeout: 5000 })
+      const [windowId, windowIndex, paneId] = createdWindowInfo.split(":")
+      if (!windowId || !windowIndex || !paneId) {
+        throw new Error(`Invalid tmux new-window output: ${createdWindowInfo}`)
       }
-      execSync(`tmux send-keys -t "${paneTarget}" "# Waiting for agent output..." Enter`, { timeout: 5000 })
+      createdWindowId = windowId
+      const windowTarget = windowId
+      const paneTarget = paneId
+
+      // Set status/metadata options for robust recovery and observability.
+      setWindowOption(windowTarget, "@workmux_status", statusIcons.working)
+      setWindowOption(windowTarget, "@omo_task_id", taskId)
+      setWindowOption(windowTarget, "@omo_session_id", agentSessionID)
+      setWindowOption(windowTarget, "@omo_branch", branchName)
+      if (worktreePath) {
+        setWindowOption(windowTarget, "@omo_worktree", worktreePath)
+      }
+
+      // Display task info in the pane
+      runTmux(["send-keys", "-t", paneTarget, `# Task: ${description}`, "Enter"], { timeout: 5000 })
+      runTmux(["send-keys", "-t", paneTarget, `# Session: ${agentSessionID}`, "Enter"], { timeout: 5000 })
+      if (worktreePath) {
+        runTmux(["send-keys", "-t", paneTarget, `# Branch: ${branchName}`, "Enter"], { timeout: 5000 })
+        runTmux(["send-keys", "-t", paneTarget, `# Worktree: ${worktreePath}`, "Enter"], { timeout: 5000 })
+      }
+      runTmux(["send-keys", "-t", paneTarget, "# Waiting for agent output...", "Enter"], {
+        timeout: 5000,
+      })
 
       const info: SessionInfo = {
+        windowId,
+        windowIndex,
         windowName,
         paneTarget,
         taskId,
@@ -377,6 +506,16 @@ export function createTmuxParallelAgentsHook(
       log(`[${HOOK_NAME}] Created window`, { windowName, paneTarget, taskId, worktreePath })
       return info
     } catch (error) {
+      if (createdWindowId) {
+        try {
+          runTmux(["kill-window", "-t", createdWindowId], {
+            timeout: 5000,
+            stdio: "ignore",
+          })
+        } catch {
+          // Best-effort rollback; ignore secondary cleanup failure.
+        }
+      }
       log(`[${HOOK_NAME}] Failed to create window`, { error, taskId })
       return null
     }
@@ -388,10 +527,7 @@ export function createTmuxParallelAgentsHook(
   function updateWindowStatus(info: SessionInfo, status: string): void {
     const icon = statusIcons[status as keyof typeof statusIcons] ?? ""
     try {
-      execSync(
-        `tmux set-option -t "${sessionName}:${info.windowName}" @workmux_status "${icon}"`,
-        { timeout: 5000 }
-      )
+      setWindowOption(info.windowId, "@workmux_status", icon)
     } catch {
       // Window may have been closed
     }
@@ -405,7 +541,10 @@ export function createTmuxParallelAgentsHook(
     if (!info) return
 
     try {
-      execSync(`tmux kill-window -t "${sessionName}:${info.windowName}" 2>/dev/null`, { timeout: 5000 })
+      runTmux(["kill-window", "-t", info.windowId], {
+        timeout: 5000,
+        stdio: "ignore",
+      })
     } catch {
       // Window may already be closed
     }
@@ -417,6 +556,10 @@ export function createTmuxParallelAgentsHook(
 
     activeWindows.delete(taskId)
     log(`[${HOOK_NAME}] Closed window`, { windowName: info.windowName, taskId })
+
+    if (activeWindows.size === 0) {
+      stopRescuePolling()
+    }
   }
 
   /**
@@ -462,10 +605,20 @@ export function createTmuxParallelAgentsHook(
   }
 
   type PendingWorktreeInfo = {
+    taskId: string
     branchName: string
     worktreePath: string | null
     description: string
     createdAt: number
+  }
+
+  function matchesPendingTitle(pendingDescription: string, sessionTitle: string): boolean {
+    const normalizedDescription = pendingDescription.trim()
+    const normalizedTitle = sessionTitle.trim()
+    return (
+      normalizedDescription === normalizedTitle ||
+      `Background: ${normalizedDescription}` === normalizedTitle
+    )
   }
 
   // Store pending worktree info for session.created mapping.
@@ -500,6 +653,22 @@ export function createTmuxParallelAgentsHook(
     }
   }
 
+  function consumePendingWorktreeByTaskId(taskId: string): PendingWorktreeInfo | null {
+    for (const [key, queue] of pendingWorktrees) {
+      const index = queue.findIndex((pending) => pending.taskId === taskId)
+      if (index === -1) continue
+      const pending = queue[index]!
+      queue.splice(index, 1)
+      if (queue.length === 0) {
+        pendingWorktrees.delete(key)
+      } else {
+        pendingWorktrees.set(key, queue)
+      }
+      return pending
+    }
+    return null
+  }
+
   return {
     /**
      * Hook into delegate_task to create worktree for background tasks
@@ -526,7 +695,7 @@ export function createTmuxParallelAgentsHook(
       // Store for session.created mapping (with timestamp for TTL cleanup)
       const sessionIdHint = input.sessionID || "unknown"
       const queue = pendingWorktrees.get(sessionIdHint) ?? []
-      queue.push({ branchName, worktreePath, description, createdAt: Date.now() })
+      queue.push({ taskId, branchName, worktreePath, description, createdAt: Date.now() })
       pendingWorktrees.set(sessionIdHint, queue)
 
       // If worktree was created, modify the working directory in args
@@ -535,6 +704,7 @@ export function createTmuxParallelAgentsHook(
         ;(output.args as Record<string, unknown>).__worktree_path = worktreePath
         ;(output.args as Record<string, unknown>).__worktree_branch = branchName
       }
+      ;(output.args as Record<string, unknown>).__tmux_task_id = taskId
 
       log(`[${HOOK_NAME}] Prepared background task`, {
         taskId,
@@ -563,38 +733,59 @@ export function createTmuxParallelAgentsHook(
         if (!sessionInfo?.id || !sessionInfo.parentID) return // Only for subagents
 
         const title = sessionInfo.title || "Background task"
-        const taskId = sessionInfo.id.slice(0, 8)
+        const resolvedTaskId = dependencies?.resolveTaskIdBySessionID?.(sessionInfo.id)
+        let taskId = resolvedTaskId || sessionInfo.id.slice(0, 8)
 
         // Check for pending worktree from tool.execute.before
         let worktreePath: string | null = null
         let branchName = `wm/${slugify(title)}-${taskId}`
+        const pendingByTaskId =
+          resolvedTaskId && resolvedTaskId.length > 0
+            ? consumePendingWorktreeByTaskId(resolvedTaskId)
+            : null
 
-        // Consume queued pending worktree entry by parent session first.
-        const parentQueue = pendingWorktrees.get(sessionInfo.parentID)
-        if (parentQueue && parentQueue.length > 0) {
-          const pending = parentQueue.shift()!
-          worktreePath = pending.worktreePath
-          branchName = pending.branchName
-          if (parentQueue.length === 0) {
-            pendingWorktrees.delete(sessionInfo.parentID)
-          } else {
-            pendingWorktrees.set(sessionInfo.parentID, parentQueue)
-          }
-        } else {
-          // Fallback by description for legacy/best-effort matching.
-          for (const [key, queue] of pendingWorktrees) {
-            const index = queue.findIndex((pending) => pending.description === title)
-            if (index === -1) continue
-            const pending = queue[index]!
-            queue.splice(index, 1)
+        if (pendingByTaskId) {
+          taskId = pendingByTaskId.taskId
+          worktreePath = pendingByTaskId.worktreePath
+          branchName = pendingByTaskId.branchName
+        }
+
+        if (!pendingByTaskId) {
+          // Consume queued pending worktree entry by parent session first.
+          const parentQueue = pendingWorktrees.get(sessionInfo.parentID)
+          if (parentQueue && parentQueue.length > 0) {
+            const matchedIndex = parentQueue.findIndex((pending) =>
+              matchesPendingTitle(pending.description, title)
+            )
+            const pending =
+              matchedIndex >= 0
+                ? parentQueue.splice(matchedIndex, 1)[0]!
+                : parentQueue.shift()!
+            taskId = pending.taskId
             worktreePath = pending.worktreePath
             branchName = pending.branchName
-            if (queue.length === 0) {
-              pendingWorktrees.delete(key)
+            if (parentQueue.length === 0) {
+              pendingWorktrees.delete(sessionInfo.parentID)
             } else {
-              pendingWorktrees.set(key, queue)
+              pendingWorktrees.set(sessionInfo.parentID, parentQueue)
             }
-            break
+          } else {
+            // Fallback by description for legacy/best-effort matching.
+            for (const [key, queue] of pendingWorktrees) {
+              const index = queue.findIndex((pending) => matchesPendingTitle(pending.description, title))
+              if (index === -1) continue
+              const pending = queue[index]!
+              queue.splice(index, 1)
+              taskId = pending.taskId
+              worktreePath = pending.worktreePath
+              branchName = pending.branchName
+              if (queue.length === 0) {
+                pendingWorktrees.delete(key)
+              } else {
+                pendingWorktrees.set(key, queue)
+              }
+              break
+            }
           }
         }
 
@@ -624,17 +815,37 @@ export function createTmuxParallelAgentsHook(
         const sessionInfo = props?.info as { id?: string } | undefined
         if (!sessionInfo?.id) return
 
+        let scheduledCleanup = false
         for (const [taskId, info] of activeWindows) {
           if (info.sessionID === sessionInfo.id) {
             // Keep window for a bit to show final status
-            setTimeout(() => closeWindow(taskId), 5000)
+            const delayedClose = setTimeout(() => closeWindow(taskId), 5000)
+            delayedClose.unref?.()
+            scheduledCleanup = true
             break
           }
         }
 
-        // Stop polling if no active windows
-        if (activeWindows.size === 0) {
-          stopRescuePolling()
+        if (!scheduledCleanup) {
+          const recoveredWindow = findWindowBySessionId(sessionInfo.id)
+          if (recoveredWindow) {
+            try {
+              runTmux(["kill-window", "-t", recoveredWindow.id], {
+                timeout: 5000,
+                stdio: "ignore",
+              })
+              log(`[${HOOK_NAME}] Recovered orphan tmux window by session id`, {
+                sessionID: sessionInfo.id,
+                windowIndex: recoveredWindow.index,
+                windowId: recoveredWindow.id,
+              })
+            } catch (error) {
+              log(`[${HOOK_NAME}] Failed to recover orphan tmux window`, {
+                sessionID: sessionInfo.id,
+                error,
+              })
+            }
+          }
         }
       }
     },

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach, spyOn, mock } from "bun:test"
 import { DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS, CATEGORY_DESCRIPTIONS, isPlanAgent, PLAN_AGENT_NAMES } from "./constants"
 import { resolveCategoryConfig } from "./tools"
 import type { CategoryConfig } from "../../config/schema"
@@ -375,6 +375,60 @@ describe("sisyphus-task", () => {
       
       // then proceeds without error - uses fallback chain
       expect(result).not.toContain("oh-my-opencode requires a default model")
+    }, { timeout: 10000 })
+
+    test("forwards internal __tmux_task_id to background launch input", async () => {
+      // #given
+      const { createDelegateTask } = require("./tools")
+      const launchMock = mock(async () => ({
+        id: "task-123",
+        status: "pending",
+        description: "Test task",
+        agent: "sisyphus-junior",
+        sessionID: "test-session",
+      }))
+      const mockManager = { launch: launchMock }
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({}) },
+        provider: { list: async () => ({ data: { connected: ["openai"] } }) },
+        model: { list: async () => ({ data: [{ provider: "openai", id: "gpt-5.3-codex" }] }) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+          status: async () => ({ data: {} }),
+        },
+      }
+
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+      })
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+
+      // #when
+      await tool.execute(
+        {
+          description: "Test task",
+          prompt: "Do something",
+          category: "quick",
+          run_in_background: true,
+          load_skills: [],
+          __tmux_task_id: "tmux-correlation-1",
+        },
+        toolContext
+      )
+
+      // #then
+      expect(launchMock).toHaveBeenCalledTimes(1)
+      const launchInput = launchMock.mock.calls[0]?.[0] as { tmuxTaskId?: string } | undefined
+      expect(launchInput?.tmuxTaskId).toBe("tmux-correlation-1")
     }, { timeout: 10000 })
 
     test("returns clear error when no model can be resolved", async () => {

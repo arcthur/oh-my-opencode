@@ -15,6 +15,7 @@ export interface SpawnerContext {
 export function createTask(input: LaunchInput): BackgroundTask {
   return {
     id: `bg_${crypto.randomUUID().slice(0, 8)}`,
+    tmuxTaskId: input.tmuxTaskId,
     status: "pending",
     queuedAt: new Date(),
     description: input.description,
