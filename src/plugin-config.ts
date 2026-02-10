@@ -1,6 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
-import { OhMyOpenCodeConfigSchema, type OhMyOpenCodeConfig } from "./config";
+import {
+  CURRENT_CONFIG_VERSION,
+  type OhMyOpenCodeConfig,
+  validateStrictOhMyOpenCodeConfig,
+} from "./config";
 import {
   log,
   deepMerge,
@@ -14,34 +18,29 @@ export function loadConfigFromPath(
   configPath: string,
   ctx: unknown
 ): OhMyOpenCodeConfig | null {
+  if (!fs.existsSync(configPath)) {
+    return null;
+  }
+
   try {
-    if (fs.existsSync(configPath)) {
-      const content = fs.readFileSync(configPath, "utf-8");
-      const rawConfig = parseJsonc<Record<string, unknown>>(content);
+    const content = fs.readFileSync(configPath, "utf-8");
+    const rawConfig = parseJsonc<Record<string, unknown>>(content);
+    const result = validateStrictOhMyOpenCodeConfig(rawConfig)
 
-      const result = OhMyOpenCodeConfigSchema.safeParse(rawConfig);
-
-      if (!result.success) {
-        const errorMsg = result.error.issues
-          .map((i) => `${i.path.join(".")}: ${i.message}`)
-          .join(", ");
-        log(`Config validation error in ${configPath}:`, result.error.issues);
-        addConfigLoadError({
-          path: configPath,
-          error: `Validation error: ${errorMsg}`,
-        });
-        return null;
-      }
-
-      log(`Config loaded from ${configPath}`, { agents: result.data.agents });
-      return result.data;
+    if (!result.success) {
+      const errorMsg = result.errors.join(", ")
+      log(`Config validation error in ${configPath}:`, result.errors);
+      throw new Error(`Invalid config ${configPath}: ${errorMsg}`);
     }
+
+    log(`Config loaded from ${configPath}`, { agents: result.data.agents });
+    return result.data;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     log(`Error loading config from ${configPath}:`, err);
     addConfigLoadError({ path: configPath, error: errorMsg });
+    throw new Error(`Failed to load config ${configPath}: ${errorMsg}`);
   }
-  return null;
 }
 
 export function mergeConfigs(
@@ -110,7 +109,7 @@ export function loadPluginConfig(
 
   // Load user config first (base)
   let config: OhMyOpenCodeConfig =
-    loadConfigFromPath(userConfigPath, ctx) ?? {};
+    loadConfigFromPath(userConfigPath, ctx) ?? { config_version: CURRENT_CONFIG_VERSION };
 
   // Override with project config
   const projectConfig = loadConfigFromPath(projectConfigPath, ctx);

@@ -28,6 +28,7 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 
 ### Meta / wiring
 
+- `config_version`: **Required**. Must equal current runtime version (`1` as of this release).
 - `$schema`: Optional JSON schema URL for editor autocomplete.
 - `auto_update`: Controls whether `auto-update-checker` performs automatic install or notification-only mode (see [Auto Update](#auto-update)).
 
@@ -104,6 +105,7 @@ Schema autocomplete supported:
 
 ```json
 {
+  "config_version": 1,
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json"
 }
 ```
@@ -121,6 +123,7 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
 
 ```jsonc
 {
+  "config_version": 1,
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
 
   /* Agent overrides - customize models for specific tasks */

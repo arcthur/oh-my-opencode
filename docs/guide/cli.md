@@ -48,6 +48,7 @@ bunx oh-my-opencode install --no-tui \
 Notes:
 - In `--no-tui` mode, `--claude`, `--gemini`, and `--copilot` are required.
 - `--skip-auth` skips post-install auth hints only; it does not disable providers.
+- Installer-generated plugin config always writes `config_version: 1` and strict mode expects the same.
 
 ## 4. `run <message>`
 

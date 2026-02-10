@@ -7,6 +7,29 @@ import {
   OhMyOpenCodeConfigSchema,
   SessionReferenceConfigSchema,
 } from "./schema"
+import { CURRENT_CONFIG_VERSION } from "./version"
+
+function withVersion(config: Record<string, unknown>): Record<string, unknown> {
+  return {
+    config_version: CURRENT_CONFIG_VERSION,
+    ...config,
+  }
+}
+
+describe("config_version requirement", () => {
+  test("rejects config without config_version", () => {
+    // given
+    const config = {
+      disabled_mcps: ["context7"],
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+  })
+})
 
 describe("disabled_mcps schema", () => {
   test("should accept built-in MCP names", () => {
@@ -16,7 +39,7 @@ describe("disabled_mcps schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -32,7 +55,7 @@ describe("disabled_mcps schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -48,7 +71,7 @@ describe("disabled_mcps schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -64,7 +87,7 @@ describe("disabled_mcps schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -80,7 +103,7 @@ describe("disabled_mcps schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -91,7 +114,7 @@ describe("disabled_mcps schema", () => {
     const config = {}
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -107,7 +130,7 @@ describe("disabled_mcps schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -126,7 +149,7 @@ describe("disabled_mcps schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -176,7 +199,7 @@ describe("user_memory schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -221,7 +244,7 @@ describe("user_memory schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -242,7 +265,7 @@ describe("user_memory schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -263,7 +286,7 @@ describe("user_memory schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -285,7 +308,7 @@ describe("disabled_skills schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -308,7 +331,7 @@ describe("disabled_skills schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -325,7 +348,7 @@ describe("repo_overview schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -555,7 +578,7 @@ describe("legacy multi-plan config cleanup", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -572,7 +595,7 @@ describe("legacy multi-plan config cleanup", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -593,7 +616,7 @@ describe("legacy multi-plan config cleanup", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -616,7 +639,7 @@ describe("org_memory schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -635,7 +658,7 @@ describe("org_memory schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -698,7 +721,7 @@ describe("Sisyphus-Junior agent override", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -720,7 +743,7 @@ describe("Sisyphus-Junior agent override", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -745,7 +768,7 @@ describe("Sisyphus-Junior agent override", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -789,7 +812,7 @@ describe("continuation_control schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -818,7 +841,7 @@ describe("continuation_control schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -846,7 +869,7 @@ describe("latest-only removed config keys", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -869,7 +892,7 @@ describe("latest-only removed config keys", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(false)
@@ -921,7 +944,7 @@ describe("context window governor dynamic pruning schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)
@@ -942,7 +965,7 @@ describe("session_state_repair and tool_output_truncator schema", () => {
     }
 
     // when
-    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
     expect(result.success).toBe(true)

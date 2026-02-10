@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { AnyMcpNameSchema, McpNameSchema } from "../mcp/types"
+import { CURRENT_CONFIG_VERSION } from "./version"
 
 const PermissionValue = z.enum(["ask", "allow", "deny"])
 
@@ -1061,6 +1062,8 @@ export const DEFAULT_SESSION_HANDOFF_CONFIG = SessionHandoffConfigSchema.parse({
 export const DEFAULT_SESSION_REFERENCE_CONFIG = SessionReferenceConfigSchema.parse({})
 
 export const OhMyOpenCodeConfigSchema = z.object({
+  /** Required config schema/runtime version. Must equal CURRENT_CONFIG_VERSION. */
+  config_version: z.literal(CURRENT_CONFIG_VERSION),
   $schema: z.string().optional(),
   /** Default agent name for `oh-my-opencode run` (env: OPENCODE_DEFAULT_AGENT) */
   default_run_agent: z.string().optional(),

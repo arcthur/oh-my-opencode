@@ -18,6 +18,11 @@ export {
   GovernanceConfigSchema,
   GovernanceToolCriticalitySchema,
 } from "./schema"
+export { CURRENT_CONFIG_VERSION } from "./version"
+export {
+  validateStrictOhMyOpenCodeConfig,
+  type StrictConfigValidationResult,
+} from "./strict-config-validation"
 
 export type {
   OhMyOpenCodeConfig,

@@ -2,6 +2,7 @@ import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test"
 
 import { ANTIGRAVITY_PROVIDER_CONFIG, getPluginNameWithVersion, fetchNpmDistTags, generateOmoConfig } from "./config-manager"
 import type { InstallConfig } from "./types"
+import { CURRENT_CONFIG_VERSION } from "../config/version"
 
 describe("getPluginNameWithVersion", () => {
   const originalFetch = globalThis.fetch
@@ -240,6 +241,26 @@ describe("config-manager ANTIGRAVITY_PROVIDER_CONFIG", () => {
 })
 
 describe("generateOmoConfig - model fallback system", () => {
+  test("always sets current config_version", () => {
+    // #given
+    const config: InstallConfig = {
+      hasClaude: true,
+      isMax20: false,
+      hasOpenAI: false,
+      hasGemini: false,
+      hasCopilot: false,
+      hasOpencodeZen: false,
+      hasZaiCodingPlan: false,
+      hasKimiForCoding: false,
+    }
+
+    // #when
+    const result = generateOmoConfig(config)
+
+    // #then
+    expect(result.config_version).toBe(CURRENT_CONFIG_VERSION)
+  })
+
   test("generates native sonnet models when Claude standard subscription", () => {
     // #given user has Claude standard subscription (not max20)
     const config: InstallConfig = {

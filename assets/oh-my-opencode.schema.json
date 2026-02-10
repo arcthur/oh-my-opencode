@@ -5,6 +5,10 @@
   "description": "Configuration schema for oh-my-opencode plugin",
   "type": "object",
   "properties": {
+    "config_version": {
+      "type": "number",
+      "const": 1
+    },
     "$schema": {
       "type": "string"
     },
@@ -3507,5 +3511,8 @@
     "safe_hook_creation": {
       "type": "boolean"
     }
-  }
+  },
+  "required": [
+    "config_version"
+  ]
 }

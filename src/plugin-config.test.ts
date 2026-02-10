@@ -1,6 +1,57 @@
-import { describe, expect, it } from "bun:test";
-import { mergeConfigs } from "./plugin-config";
-import type { OhMyOpenCodeConfig } from "./config";
+import { describe, expect, it, afterEach } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { CURRENT_CONFIG_VERSION, type OhMyOpenCodeConfig } from "./config";
+import { loadConfigFromPath, loadPluginConfig, mergeConfigs } from "./plugin-config";
+
+function withVersion(config: Omit<OhMyOpenCodeConfig, "config_version">): OhMyOpenCodeConfig {
+  return {
+    config_version: CURRENT_CONFIG_VERSION,
+    ...config,
+  };
+}
+
+describe("config loading strictness", () => {
+  let tempDir: string | null = null;
+  const originalConfigDir = process.env.OPENCODE_CONFIG_DIR;
+
+  afterEach(() => {
+    if (tempDir) {
+      rmSync(tempDir, { recursive: true, force: true });
+      tempDir = null;
+    }
+    if (originalConfigDir === undefined) {
+      delete process.env.OPENCODE_CONFIG_DIR;
+    } else {
+      process.env.OPENCODE_CONFIG_DIR = originalConfigDir;
+    }
+  });
+
+  it("throws when config_version is missing in existing config", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "omo-config-test-"));
+    const configPath = join(tempDir, "oh-my-opencode.json");
+    writeFileSync(configPath, JSON.stringify({ agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2));
+
+    expect(() => loadConfigFromPath(configPath, {})).toThrow("config_version");
+  });
+
+  it("throws when project config exists but invalid", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "omo-project-config-test-"));
+    process.env.OPENCODE_CONFIG_DIR = join(tempDir, "user");
+    mkdirSync(process.env.OPENCODE_CONFIG_DIR, { recursive: true });
+
+    const projectRoot = join(tempDir, "project");
+    const projectConfigDir = join(projectRoot, ".opencode");
+    mkdirSync(projectConfigDir, { recursive: true });
+    writeFileSync(
+      join(projectConfigDir, "oh-my-opencode.json"),
+      JSON.stringify({ agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2),
+    );
+
+    expect(() => loadPluginConfig(projectRoot, {})).toThrow("config_version");
+  });
+});
 
 describe("mergeConfigs", () => {
   describe("categories merging", () => {
@@ -9,7 +60,7 @@ describe("mergeConfigs", () => {
     // then should deep merge categories, not override completely
 
     it("should deep merge categories from base and override", () => {
-      const base = {
+      const base = withVersion({
         categories: {
           general: {
             model: "openai/gpt-5.2",
@@ -19,9 +70,9 @@ describe("mergeConfigs", () => {
             model: "anthropic/claude-haiku-4-5",
           },
         },
-      } as OhMyOpenCodeConfig;
+      });
 
-      const override = {
+      const override = withVersion({
         categories: {
           general: {
             temperature: 0.3,
@@ -30,7 +81,7 @@ describe("mergeConfigs", () => {
             model: "google/gemini-3-pro-preview",
           },
         },
-      } as unknown as OhMyOpenCodeConfig;
+      }) as unknown as OhMyOpenCodeConfig;
 
       const result = mergeConfigs(base, override);
 
@@ -45,15 +96,15 @@ describe("mergeConfigs", () => {
     });
 
     it("should preserve base categories when override has no categories", () => {
-      const base: OhMyOpenCodeConfig = {
+      const base: OhMyOpenCodeConfig = withVersion({
         categories: {
           general: {
             model: "openai/gpt-5.2",
           },
         },
-      };
+      });
 
-      const override: OhMyOpenCodeConfig = {};
+      const override: OhMyOpenCodeConfig = withVersion({});
 
       const result = mergeConfigs(base, override);
 
@@ -61,15 +112,15 @@ describe("mergeConfigs", () => {
     });
 
     it("should use override categories when base has no categories", () => {
-      const base: OhMyOpenCodeConfig = {};
+      const base: OhMyOpenCodeConfig = withVersion({});
 
-      const override: OhMyOpenCodeConfig = {
+      const override: OhMyOpenCodeConfig = withVersion({
         categories: {
           general: {
             model: "openai/gpt-5.2",
           },
         },
-      };
+      });
 
       const result = mergeConfigs(base, override);
 
@@ -79,18 +130,18 @@ describe("mergeConfigs", () => {
 
   describe("existing behavior preservation", () => {
     it("should deep merge agents", () => {
-      const base: OhMyOpenCodeConfig = {
+      const base: OhMyOpenCodeConfig = withVersion({
         agents: {
           oracle: { model: "openai/gpt-5.2" },
         },
-      };
+      });
 
-      const override: OhMyOpenCodeConfig = {
+      const override: OhMyOpenCodeConfig = withVersion({
         agents: {
           oracle: { temperature: 0.5 },
           explore: { model: "anthropic/claude-haiku-4-5" },
         },
-      };
+      });
 
       const result = mergeConfigs(base, override);
 
@@ -100,13 +151,13 @@ describe("mergeConfigs", () => {
     });
 
     it("should merge disabled arrays without duplicates", () => {
-      const base: OhMyOpenCodeConfig = {
+      const base: OhMyOpenCodeConfig = withVersion({
         disabled_hooks: ["comment-checker", "think-mode"],
-      };
+      });
 
-      const override: OhMyOpenCodeConfig = {
+      const override: OhMyOpenCodeConfig = withVersion({
         disabled_hooks: ["think-mode", "session-state-repair"],
-      };
+      });
 
       const result = mergeConfigs(base, override);
 

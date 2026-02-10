@@ -8,9 +8,11 @@ import {
   fetchLatestVersion,
   initConfigContext,
   resetConfigContext,
+  writeOmoConfig,
 } from "./config-manager"
 import { parseJsonc } from "../shared"
 import type { InstallConfig } from "./types"
+import { CURRENT_CONFIG_VERSION } from "../config/version"
 
 const BASE_INSTALL_CONFIG: InstallConfig = {
   hasClaude: false,
@@ -164,5 +166,66 @@ describe("config-manager upstream sync behaviors", () => {
     // #then
     expect(result.success).toBe(false)
     expect(result.error).toContain("Failed to parse config file")
+  })
+
+  test("writeOmoConfig preserves fork-specific config blocks", () => {
+    // #given
+    const omoConfigPath = join(tempDir, "oh-my-opencode.json")
+    writeFileSync(
+      omoConfigPath,
+      `{
+  "config_version": ${CURRENT_CONFIG_VERSION},
+  "context_budget": {
+    "total_budget": 3210
+  },
+  "governance": {
+    "enabled": true
+  }
+}
+`,
+    )
+
+    // #when
+    const result = writeOmoConfig({
+      ...BASE_INSTALL_CONFIG,
+      hasClaude: true,
+    })
+
+    // #then
+    expect(result.success).toBe(true)
+    const merged = parseJsonc<{
+      context_budget?: { total_budget?: number }
+      governance?: { enabled?: boolean }
+      agents?: Record<string, unknown>
+    }>(readFileSync(omoConfigPath, "utf-8"))
+    expect(merged.context_budget?.total_budget).toBe(3210)
+    expect(merged.governance?.enabled).toBe(true)
+    expect(merged.agents).toBeDefined()
+  })
+
+  test("writeOmoConfig fails when existing config is missing config_version", () => {
+    // #given
+    const omoConfigPath = join(tempDir, "oh-my-opencode.json")
+    writeFileSync(
+      omoConfigPath,
+      `{
+  "agents": {
+    "oracle": {
+      "model": "openai/gpt-5.2"
+    }
+  }
+}
+`,
+    )
+
+    // #when
+    const result = writeOmoConfig({
+      ...BASE_INSTALL_CONFIG,
+      hasClaude: true,
+    })
+
+    // #then
+    expect(result.success).toBe(false)
+    expect(result.error).toContain("config_version")
   })
 })
