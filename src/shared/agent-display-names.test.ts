@@ -46,6 +46,17 @@ describe("getAgentDisplayName", () => {
     expect(result).toBe("Prometheus (Plan Builder)")
   })
 
+  it("returns display name for atlas", () => {
+    // given config key "atlas"
+    const configKey = "atlas"
+
+    // when getAgentDisplayName called
+    const result = getAgentDisplayName(configKey)
+
+    // then returns Atlas display name
+    expect(result).toBe("Atlas (Execution Orchestrator)")
+  })
+
   it("returns display name for sisyphus-junior", () => {
     // given config key "sisyphus-junior"
     const configKey = "sisyphus-junior"
@@ -140,6 +151,7 @@ describe("AGENT_DISPLAY_NAMES", () => {
     // given expected mappings
     const expectedMappings = {
       sisyphus: "Sisyphus (Ultraworker)",
+      atlas: "Atlas (Execution Orchestrator)",
       prometheus: "Prometheus (Plan Builder)",
       "sisyphus-junior": "Sisyphus-Junior",
       metis: "Metis (Pre-Planning Consultant)",

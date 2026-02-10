@@ -14,7 +14,7 @@ import {
   categorizeTools,
 } from "./dynamic-agent-prompt-builder"
 
-const MODE: AgentMode = "subagent"
+const MODE: AgentMode = "primary"
 
 const HEPHAESTUS_DESCRIPTION =
   "Autonomous Deep Worker - goal-oriented execution with GPT 5.2 Codex. Explores thoroughly before acting, uses explore/librarian agents for comprehensive context, completes tasks end-to-end. Inspired by AmpCode deep mode. (Hephaestus - OhMyOpenCode)"

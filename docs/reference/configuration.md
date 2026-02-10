@@ -250,7 +250,7 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available built-in agents: `sisyphus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `hephaestus`
+Available built-in agents: `sisyphus`, `atlas`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `hephaestus`
 
 ## Built-in Skills
 
@@ -688,6 +688,7 @@ Model selection has two layers:
 | Agent | Runtime fallback chain |
 |---|---|
 | `sisyphus` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `zai-coding-plan:glm-4.7` → `opencode:glm-4.7-free` |
+| `atlas` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
 | `hephaestus` | `openai/github-copilot/opencode:gpt-5.3-codex(medium)` |
 | `oracle` | `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` |
 | `librarian` | `zai-coding-plan:glm-4.7` → `opencode:glm-4.7-free` → `anthropic/github-copilot/opencode:claude-sonnet-4-5` |
@@ -699,6 +700,7 @@ Model selection has two layers:
 
 Runtime constraints:
 - `sisyphus` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
+- `atlas` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
 - `hephaestus` requires provider connectivity: `openai` or `github-copilot` or `opencode`.
 
 #### Category chains

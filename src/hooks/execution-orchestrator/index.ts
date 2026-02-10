@@ -1,13 +1,13 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 import { listTaskNodes } from "../../features/task-system"
-import { createWorkStateManager } from "../../features/work-state"
+import { createWorkStateManager, type WorkExecutor, type WorkState } from "../../features/work-state"
 import { getMainSessionID, isSubagentSession } from "../../features/claude-code-session-state"
 import { appendBudgetedOutput, injectBudgetedPrompt } from "../../features/context-budget"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
-import { getMessageDir, isCallerSisyphus } from "../../shared/session-utils"
+import { getMessageDir, resolveExecutionOwnership } from "../../shared/session-utils"
 import type { BackgroundManager } from "../../features/background-agent"
 import type { ContinuationIntent } from "../continuation-control"
 import { getGitDiffStats, type GitFileStat } from "./git-diff-stats"
@@ -52,9 +52,10 @@ You should NOT:
 ---
 `
 
-const WORK_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
+const WORK_CONTINUATION_PROMPTS: Record<WorkExecutor, string> = {
+  sisyphus: `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
 
-You have an active work plan with incomplete tasks. Continue working.
+You are Sisyphus in execution mode with an active plan. Continue working.
 
 RULES:
 - Proceed without asking for permission
@@ -67,7 +68,32 @@ RULES:
 Plan file: \`{PLAN_PATH}\`
 
 TaskGraph scope: \`plan\`
-TaskGraph container_id: \`{PLAN_NAME}\``
+TaskGraph container_id: \`{PLAN_NAME}\``,
+  atlas: `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
+
+ATLAS EXECUTION CONTINUATION
+
+You are Atlas, the execution orchestrator for this plan.
+Continue deterministic execution using work state + TaskGraph SSOT.
+
+RULES:
+- Proceed without asking for permission
+- Select the next ready task with \`task_list\` (scope=plan)
+- Advance state with \`task_transition\` (\`open -> in_progress -> completed\`)
+- Delegate implementation work and verify every result
+- Do not stop until TaskGraph has no remaining tasks
+- If blocked, record the blocker and continue with another ready task
+
+Plan file: \`{PLAN_PATH}\`
+
+TaskGraph scope: \`plan\`
+TaskGraph container_id: \`{PLAN_NAME}\``,
+}
+
+const EXECUTION_AGENT_LABEL: Record<WorkExecutor, string> = {
+  sisyphus: "Sisyphus",
+  atlas: "Atlas",
+}
 
 const VERIFICATION_REMINDER = `**MANDATORY: WHAT YOU MUST DO RIGHT NOW**
 
@@ -117,7 +143,7 @@ const ORCHESTRATOR_DELEGATION_REQUIRED = `
 
 **STOP. YOU ARE VIOLATING ORCHESTRATOR PROTOCOL.**
 
-You (Sisyphus in Execution Mode) are attempting to directly modify a file outside \`.sisyphus/\`.
+You ($EXECUTOR_NAME in Execution Mode) are attempting to directly modify a file outside \`.sisyphus/\`.
 
 **Path attempted:** $FILE_PATH
 
@@ -487,10 +513,10 @@ export function createExecutionOrchestratorHook(
     return state
   }
 
-  function isExecutionModeSession(sessionID?: string): boolean {
+  function isExecutionModeSession(sessionID?: string, stateFromCaller?: WorkState | null): boolean {
     if (!sessionID) return false
 
-    const workState = workStateManager.load()
+    const workState = stateFromCaller ?? workStateManager.load()
     if (!workState) return false
 
     if (!workState.session_ids.includes(sessionID)) return false
@@ -498,11 +524,22 @@ export function createExecutionOrchestratorHook(
     const progress = computeWorkProgress(workState.plan_id)
     if (progress.isComplete) return false
 
-    return isCallerSisyphus(sessionID)
+    const ownership = resolveExecutionOwnership(sessionID, workState.executor)
+    if (ownership === "mismatched") {
+      return false
+    }
+    if (ownership === "unknown") {
+      log(`[${HOOK_NAME}] Execution ownership unresolved; falling back to work-state`, {
+        sessionID,
+        executor: workState.executor,
+      })
+    }
+    return true
   }
 
   async function injectContinuation(
     sessionID: string,
+    executor: WorkExecutor,
     planId: string,
     planPath: string,
     remaining: number,
@@ -519,7 +556,8 @@ export function createExecutionOrchestratorHook(
       return
     }
 
-    const prompt = WORK_CONTINUATION_PROMPT
+    const promptTemplate = WORK_CONTINUATION_PROMPTS[executor]
+    const prompt = promptTemplate
       .replace(/{PLAN_NAME}/g, planId)
       .replace(/{PLAN_PATH}/g, planPath) +
       (total === 0
@@ -527,7 +565,7 @@ export function createExecutionOrchestratorHook(
         : `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`)
 
     try {
-      log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planId, remaining })
+      log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planId, remaining, executor })
 
       const attemptAt = Date.now()
       let model: { providerID: string; modelID: string } | undefined
@@ -564,7 +602,7 @@ export function createExecutionOrchestratorHook(
         source: "execution-orchestrator",
         reason: `work_remaining:${remaining}/${total}`,
         prompt: {
-          agent: "sisyphus",
+          agent: executor,
           ...(model !== undefined ? { model } : {}),
           ...(variant !== undefined ? { variant } : {}),
           text: prompt,
@@ -596,7 +634,7 @@ export function createExecutionOrchestratorHook(
             return
           }
           state.promptFailureCount = 0
-          log(`[${HOOK_NAME}] Work continuation injected`, { sessionID })
+          log(`[${HOOK_NAME}] Work continuation injected`, { sessionID, executor })
         },
       })
     } catch (err) {
@@ -681,7 +719,7 @@ export function createExecutionOrchestratorHook(
           return
         }
 
-        if (!isExecutionModeSession(sessionID)) {
+        if (!isExecutionModeSession(sessionID, workState)) {
           log(`[${HOOK_NAME}] Skipped: session is not in execution mode`, { sessionID })
           return
         }
@@ -700,6 +738,7 @@ export function createExecutionOrchestratorHook(
 
         await injectContinuation(
           sessionID,
+          workState.executor,
           workState.plan_id,
           workState.execution_plan_path,
           progress.remaining,
@@ -792,11 +831,15 @@ export function createExecutionOrchestratorHook(
       if (WRITE_EDIT_TOOLS.includes(input.tool)) {
         const filePath = (output.args.filePath ?? output.args.path ?? output.args.file) as string | undefined
         if (filePath && !isSisyphusPath(filePath)) {
+          const activeState = workStateManager.load()
+          const executorName = activeState ? EXECUTION_AGENT_LABEL[activeState.executor] : "Execution Orchestrator"
           // Store filePath for use in tool.execute.after
           if (input.callID) {
             pendingFilePaths.set(input.callID, filePath)
           }
-          const warning = ORCHESTRATOR_DELEGATION_REQUIRED.replace("$FILE_PATH", filePath)
+          const warning = ORCHESTRATOR_DELEGATION_REQUIRED
+            .replace("$FILE_PATH", filePath)
+            .replace("$EXECUTOR_NAME", executorName)
           output.message = (output.message || "") + warning
           log(`[${HOOK_NAME}] Injected delegation warning for direct file modification`, {
             sessionID,

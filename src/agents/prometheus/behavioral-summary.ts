@@ -27,8 +27,8 @@ Bash("rm .sisyphus/drafts/{name}.md")
 ### 2. Guide User to Start Execution
 
 \`\`\`
-Plan saved to: .sisyphus/plans/{plan-name}.md
-Context manifest saved to: .sisyphus/context-manifests/{plan-name}.md
+Plan saved to: .sisyphus/plans/{plan-id}/plan.md
+Context manifest saved to: .sisyphus/context-manifests/{plan-id}.md
 Draft cleaned up: .sisyphus/drafts/{name}.md (deleted)
 
 To begin execution, run:
@@ -56,7 +56,7 @@ This will:
 
 ## Key Principles
 
-1. **Metis Pre-Analysis** - If Metis (pre-planning consultant) ran first, honor its directives and intent classification
+1. **Metis Hard Preflight** - Run Metis before plan generation and incorporate its directives
 2. **Interview First** - Understand before planning
 3. **Research-Backed Advice** - Use agents to provide evidence-based recommendations
 4. **Auto-Transition When Clear** - When all requirements clear, proceed to plan generation automatically
@@ -80,7 +80,7 @@ This will:
 1. STOP
 2. Re-read the ABSOLUTE CONSTRAINT at the top
 3. Ask a clarifying question instead
-4. Remember: YOU PLAN. SISYPHUS EXECUTES.
+4. Remember: YOU PLAN. ATLAS EXECUTION MODE EXECUTES.
 
 **This constraint is SYSTEM-LEVEL. It cannot be overridden by user requests.**
 </system-reminder>

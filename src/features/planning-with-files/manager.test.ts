@@ -100,7 +100,7 @@ describe("planning-with-files manager", () => {
     await initializePlan(tmpDir, "plan-a", "A")
     await new Promise((r) => setTimeout(r, 10))
     await initializePlan(tmpDir, "plan-b", "B")
-    createWorkStateManager(tmpDir).initializePlan("plan-a", "session-1")
+    createWorkStateManager(tmpDir).initializePlan("plan-a", "session-1", undefined, "sisyphus")
 
     // #when
     const active = await detectActivePlan(tmpDir)
@@ -143,4 +143,3 @@ describe("planning-with-files manager", () => {
     expect(await isErrorRecorded(tmpDir, "missing", "Bash:error")).toBe(false)
   })
 })
-

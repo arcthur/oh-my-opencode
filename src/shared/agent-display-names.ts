@@ -5,6 +5,7 @@
  */
 export const AGENT_DISPLAY_NAMES: Record<string, string> = {
   sisyphus: "Sisyphus (Ultraworker)",
+  atlas: "Atlas (Execution Orchestrator)",
   prometheus: "Prometheus (Plan Builder)",
   "sisyphus-junior": "Sisyphus-Junior",
   metis: "Metis (Pre-Planning Consultant)",

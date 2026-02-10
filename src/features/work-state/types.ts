@@ -52,10 +52,9 @@ export const DecisionSchema = z.object({
   alternatives_rejected: z.array(z.string()).optional(),
 })
 
-export const WorkStateSchema = z.object({
-  // === Core work state ===
-  /** Work state schema version (breaking state upgrades bump this value) */
-  schema_version: z.literal(3),
+export const WorkExecutorSchema = z.enum(["sisyphus", "atlas"])
+
+const WorkStateCommonFields = {
   /** Stable plan identifier */
   plan_id: z.string().min(1),
   /** Canonical execution plan path (.sisyphus/plans/{plan_id}/plan.md) */
@@ -66,25 +65,23 @@ export const WorkStateSchema = z.object({
   started_at: z.string(),
   /** Session IDs that have worked on this plan */
   session_ids: z.array(z.string()).default([]),
-
-  // === From planning-with-files ===
   /** 2-action rule counter (reset when findings.md modified) */
   research_ops: z.number().default(0),
   /** Last mtime of findings.md for auto-reset */
   last_findings_mtime: z.number().default(0),
-
-  // === Error tracking (3-strike protocol) ===
   errors: z.array(ErrorRecordSchema).default([]),
-
-  // === Blocker tracking ===
   blockers: z.array(BlockerRecordSchema).default([]),
-
-  // === Decision history ===
   decisions: z.array(DecisionSchema).default([]),
-
-  // === Metadata ===
   /** Last update timestamp */
   last_updated: z.string().optional(),
+} as const
+
+export const WorkStateSchema = z.object({
+  /** Work state schema version (breaking state upgrades bump this value) */
+  schema_version: z.literal(4),
+  /** Active execution orchestrator profile */
+  executor: WorkExecutorSchema,
+  ...WorkStateCommonFields,
 })
 
 // === TypeScript Types ===
@@ -92,6 +89,7 @@ export const WorkStateSchema = z.object({
 export type ErrorRecord = z.infer<typeof ErrorRecordSchema>
 export type BlockerRecord = z.infer<typeof BlockerRecordSchema>
 export type Decision = z.infer<typeof DecisionSchema>
+export type WorkExecutor = z.infer<typeof WorkExecutorSchema>
 export type WorkState = z.infer<typeof WorkStateSchema>
 
 // === Constants ===

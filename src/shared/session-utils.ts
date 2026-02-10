@@ -3,6 +3,9 @@ import { join } from "node:path"
 import { getSessionAgent } from "../features/claude-code-session-state"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../features/hook-message-injector"
 
+export type ExecutionCaller = "sisyphus" | "atlas"
+export type ExecutionOwnership = "matched" | "mismatched" | "unknown"
+
 export function getMessageDir(sessionID: string): string | null {
   if (!existsSync(MESSAGE_STORAGE)) return null
 
@@ -28,12 +31,34 @@ export function getSessionAgentBestEffort(sessionID: string): string | undefined
   return typeof nearest?.agent === "string" ? nearest.agent : undefined
 }
 
-export function isCallerSisyphus(sessionID?: string): boolean {
-  if (!sessionID) return false
+export function getExecutionCaller(sessionID?: string): ExecutionCaller | null {
+  if (!sessionID) return null
   const agent = getSessionAgentBestEffort(sessionID)?.toLowerCase()
-  return agent === "sisyphus"
+  if (agent === "sisyphus" || agent === "atlas") {
+    return agent
+  }
+  return null
+}
+
+export function resolveExecutionOwnership(
+  sessionID: string | undefined,
+  expectedExecutor: ExecutionCaller
+): ExecutionOwnership {
+  if (!sessionID) return "unknown"
+
+  const caller = getExecutionCaller(sessionID)
+  if (caller) {
+    return caller === expectedExecutor ? "matched" : "mismatched"
+  }
+
+  const resolvedAgent = getSessionAgentBestEffort(sessionID)?.toLowerCase()
+  if (!resolvedAgent) {
+    return "unknown"
+  }
+
+  return "mismatched"
 }
 
 export function isCallerOrchestrator(sessionID?: string): boolean {
-  return isCallerSisyphus(sessionID)
+  return getExecutionCaller(sessionID) !== null
 }

@@ -2,6 +2,7 @@ import type { AgentConfig } from "@opencode-ai/sdk"
 import type { BuiltinAgentName, AgentOverrides, AgentPromptMetadata } from "./types"
 import type { CategoriesConfig, CategoryConfig, GitMasterConfig, BrowserAutomationProvider } from "../config/schema"
 import { createSisyphusAgent } from "./sisyphus"
+import { createAtlasAgentFactory, atlasPromptMetadata } from "./atlas"
 import { createOracleAgent, ORACLE_PROMPT_METADATA } from "./oracle"
 import { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
 import { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
@@ -18,6 +19,7 @@ import type { AgentSource } from "./agent-builder"
 import { buildAvailableSkills } from "./builtin-agents/available-skills"
 import { collectPendingBuiltinAgents } from "./builtin-agents/general-agents"
 import { maybeCreateSisyphusConfig } from "./builtin-agents/sisyphus-agent"
+import { maybeCreateAtlasConfig } from "./builtin-agents/atlas-agent"
 import { maybeCreateHephaestusConfig } from "./builtin-agents/hephaestus-agent"
 import { parseRegisteredAgentSummaries, buildCustomAgentMetadata } from "./custom-agent-summaries"
 
@@ -27,6 +29,7 @@ export { createEnvContext } from "./env-context"
 
 const agentSources: Record<BuiltinAgentName, AgentSource> = {
   sisyphus: createSisyphusAgent,
+  atlas: createAtlasAgentFactory,
   hephaestus: createHephaestusAgent,
   oracle: createOracleAgent,
   librarian: createLibrarianAgent,
@@ -37,6 +40,7 @@ const agentSources: Record<BuiltinAgentName, AgentSource> = {
 }
 
 const agentMetadata: Partial<Record<BuiltinAgentName, AgentPromptMetadata>> = {
+  atlas: atlasPromptMetadata,
   oracle: ORACLE_PROMPT_METADATA,
   librarian: LIBRARIAN_PROMPT_METADATA,
   explore: EXPLORE_PROMPT_METADATA,
@@ -130,6 +134,21 @@ export async function createBuiltinAgents(
   })
   if (sisyphusConfig) {
     result["sisyphus"] = sisyphusConfig
+  }
+
+  const atlasConfig = maybeCreateAtlasConfig({
+    disabledAgents,
+    agentOverrides,
+    uiSelectedModel,
+    availableModels,
+    systemDefaultModel,
+    availableAgents,
+    availableSkills,
+    mergedCategories,
+    userCategories: categories,
+  })
+  if (atlasConfig) {
+    result["atlas"] = atlasConfig
   }
 
   const hephaestusConfig = maybeCreateHephaestusConfig({

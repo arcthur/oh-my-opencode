@@ -24,6 +24,21 @@ async function withModelStubs<T>(
 }
 
 describe("createBuiltinAgents with model overrides", () => {
+  test("Atlas is registered as a primary orchestrator agent", async () => {
+    // #given
+    const availableModels = new Set(["anthropic/claude-opus-4-6"])
+
+    // #when
+    const agents = await withModelStubs(
+      { connectedProviders: null, availableModels },
+      async () => createBuiltinAgents([], {}, undefined, TEST_DEFAULT_MODEL)
+    )
+
+    // #then
+    expect(agents.atlas).toBeDefined()
+    expect(agents.atlas.mode).toBe("primary")
+  })
+
   test("Sisyphus with default model has thinking config when all models available", async () => {
     // #given
     const availableModels = new Set([
@@ -304,7 +319,7 @@ describe("createBuiltinAgents without systemDefaultModel", () => {
 })
 
 describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => {
-  test("hephaestus is registered as subagent for delegate_task compatibility", async () => {
+  test("hephaestus is registered as primary deep-worker agent", async () => {
     // #given
     const availableModels = new Set(["openai/gpt-5.3-codex"])
 
@@ -316,7 +331,7 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
 
     // #then
     expect(agents.hephaestus).toBeDefined()
-    expect(agents.hephaestus.mode).toBe("subagent")
+    expect(agents.hephaestus.mode).toBe("primary")
   })
 
   test("hephaestus is not created when no required provider is connected", async () => {

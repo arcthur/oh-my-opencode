@@ -9,8 +9,10 @@ import {
   type ExecutionOrchestratorHookOptions,
 } from "./index"
 import type { WorkState } from "../../features/work-state"
-import { _resetForTesting, setMainSession } from "../../features/claude-code-session-state"
+import { _resetForTesting, setMainSession, updateSessionAgent } from "../../features/claude-code-session-state"
 import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
+import { createTaskNode, transitionTaskNode } from "../../features/task-system"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
   const sisyphusDir = join(directory, ".sisyphus")
@@ -46,7 +48,8 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   }
 
   const fullState: WorkState = {
-    schema_version: 3,
+    schema_version: 4,
+    executor: state.executor ?? "sisyphus",
     plan_id: planId,
     execution_plan_path: canonicalPlanPath,
     runtime_ledger_path: canonicalLedgerPath,
@@ -66,6 +69,14 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 describe("execution-orchestrator hook", () => {
   const TEST_DIR = join(tmpdir(), "execution-orchestrator-test")
   const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-execution-orchestrator-test")
+  const TEST_TASK_CONFIG = {
+    sisyphus: {
+      tasks: {
+        enabled: true,
+        storage_path: join(TEST_DIR, ".sisyphus", "tasks"),
+      },
+    },
+  } as const
 
   type TestExecutionOrchestratorHookOptions = Omit<
     ExecutionOrchestratorHookOptions,
@@ -98,6 +109,7 @@ describe("execution-orchestrator hook", () => {
     return createExecutionOrchestratorHookBase(input, {
       ...options,
       directory: options.directory ?? input.directory,
+      taskConfig: options.taskConfig ?? TEST_TASK_CONFIG,
       reportContinuationIntent:
         options.reportContinuationIntent ?? createDirectContinuationReporterForTesting(input),
     })
@@ -128,6 +140,7 @@ describe("execution-orchestrator hook", () => {
   }
 
   beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
     setOpenCodeStorageDirForTesting(TEST_STORAGE_DIR)
     _resetForTesting()
     if (!existsSync(TEST_DIR)) {
@@ -140,6 +153,7 @@ describe("execution-orchestrator hook", () => {
     if (existsSync(TEST_DIR)) {
       rmSync(TEST_DIR, { recursive: true, force: true })
     }
+    contextBudgetArbiter.resetForTesting()
     _resetForTesting()
   })
 
@@ -177,6 +191,154 @@ describe("execution-orchestrator hook", () => {
     const args = mockInput._promptMock.mock.calls[0][0]
     expect(args.body.agent).toBe("sisyphus")
     expect(args.body.parts[0].text).toContain("WORK CONTINUATION")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("injects atlas continuation for atlas execution session on idle", async () => {
+    // #given
+    const sessionID = "atlas-main-session"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "atlas")
+
+    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
+    const args = mockInput._promptMock.mock.calls[0][0]
+    expect(args.body.agent).toBe("atlas")
+    expect(args.body.parts[0].text).toContain("ATLAS EXECUTION CONTINUATION")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("falls back to work-state ownership when execution caller metadata is unavailable", async () => {
+    // #given
+    const sessionID = "atlas-no-metadata-session"
+    setMainSession(sessionID)
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
+    const args = mockInput._promptMock.mock.calls[0][0]
+    expect(args.body.agent).toBe("atlas")
+    expect(args.body.parts[0].text).toContain("ATLAS EXECUTION CONTINUATION")
+  })
+
+  test("does not run execution continuation when explicit non-orchestrator agent is active", async () => {
+    // #given
+    const sessionID = "atlas-prometheus-session"
+    setMainSession(sessionID)
+    updateSessionAgent(sessionID, "prometheus")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
+  })
+
+  test("does not inject continuation when atlas plan tasks are fully completed", async () => {
+    // #given
+    const sessionID = "atlas-complete-session"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "atlas")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const created = createTaskNode(
+      { scope: "plan", container_id: "execution", title: "1. Task 1" },
+      TEST_TASK_CONFIG
+    )
+    transitionTaskNode(
+      {
+        scope: "plan",
+        container_id: "execution",
+        id: created.id,
+        expected_revision: created.revision,
+        next_state: "completed",
+      },
+      TEST_TASK_CONFIG
+    )
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
 
     cleanupMessageStorage(sessionID)
   })
@@ -535,6 +697,59 @@ Implement atomic fix for login validator.
     expect(nextPrompt).toContain("SINGLE TASK ONLY")
     expect(nextPrompt).toContain("## 1. TASK")
     expect(output.message).toBe("")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("injects single-task directive for atlas execution profile delegation", async () => {
+    // #given
+    const sessionID = "atlas-good-delegate-prompt"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+    const output = {
+      args: {
+        prompt: `## 1. TASK
+Implement atomic fix.
+
+## 2. EXPECTED OUTCOME
+- [ ] Verification passes
+- [ ] Scope is bounded
+
+## 3. REQUIRED TOOLS
+- Read
+- Edit
+- Bash
+
+## 4. MUST DO
+- Keep the change minimal
+- Verify result
+
+## 5. MUST NOT DO
+- Expand scope
+- Skip verification
+
+## 6. CONTEXT
+- Plan: .sisyphus/plans/execution/plan.md
+- Current focus: task-1
+- Notes: follow repository style
+`,
+      },
+      message: "",
+    }
+
+    // #when
+    await hook["tool.execute.before"]({ tool: "delegate_task", sessionID, callID: "call-atlas-prompt" }, output)
+
+    // #then
+    expect(output.args.prompt).toContain("SINGLE TASK ONLY")
 
     cleanupMessageStorage(sessionID)
   })

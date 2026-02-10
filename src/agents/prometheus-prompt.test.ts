@@ -65,4 +65,14 @@ describe("PROMETHEUS_SYSTEM_PROMPT planning policy", () => {
     expect(prompt).toContain("phase 2 entry preconditions")
     expect(prompt).toContain(".sisyphus/designs/")
   })
+
+  test("should require mandatory Metis preflight before plan generation", () => {
+    // #given
+    const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
+
+    // #when / #then
+    expect(prompt).toContain("pre-generation: metis consultation (mandatory)")
+    expect(prompt).toContain("before generating the plan")
+    expect(prompt).toContain("consult metis for gap analysis")
+  })
 })

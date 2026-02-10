@@ -1,4 +1,4 @@
-export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
+export const START_WORK_TEMPLATE = `You are starting an Atlas execution work session.
 
 ## WHAT TO DO
 
@@ -18,7 +18,8 @@ export const START_WORK_TEMPLATE = `You are starting a Sisyphus work session.
 
 4. **Create/Update work.yaml**:
    \`\`\`yaml
-   schema_version: 3
+   schema_version: 4
+   executor: atlas
    plan_id: plan-name
    execution_plan_path: .sisyphus/plans/plan-name/plan.md
    runtime_ledger_path: .sisyphus/plans/plan-name/ledger.yaml
@@ -83,4 +84,4 @@ Reading plan and beginning execution...
 - The session_id is injected by the hook - use it directly
 - Always update work.yaml BEFORE starting work
 - TaskGraph is the execution SSOT (plan.md is an artifact)
-- Follow execution-mode delegation protocols (7-section format)`
+- Follow execution-mode delegation protocols (6-section format)`

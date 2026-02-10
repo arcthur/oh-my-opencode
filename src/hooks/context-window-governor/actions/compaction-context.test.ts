@@ -127,7 +127,7 @@ describe("compaction-context", () => {
     // #given
     const sessionID = "ses_plan"
     const planID = "plan_alpha"
-    createWorkStateManager(workspace).initializePlan(planID, sessionID)
+    createWorkStateManager(workspace).initializePlan(planID, sessionID, undefined, "sisyphus")
 
     const planTask = createTaskNode(
       {

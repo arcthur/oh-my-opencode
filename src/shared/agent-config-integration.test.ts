@@ -8,6 +8,7 @@ describe("Agent Config Integration", () => {
       // given
       const agents = [
         "sisyphus",
+        "atlas",
         "hephaestus",
         "prometheus",
         "metis",
@@ -23,6 +24,7 @@ describe("Agent Config Integration", () => {
 
       // then
       expect(displayNames).toContain("Sisyphus (Ultraworker)")
+      expect(displayNames).toContain("Atlas (Execution Orchestrator)")
       expect(displayNames).toContain("Hephaestus (Autonomous Deep Worker)")
       expect(displayNames).toContain("Prometheus (Plan Builder)")
       expect(displayNames).toContain("Metis (Pre-Planning Consultant)")
@@ -77,6 +79,7 @@ describe("Agent Config Integration", () => {
       // given
       const expectedAgents = [
         "sisyphus",
+        "atlas",
         "prometheus",
         "metis",
         "momus",

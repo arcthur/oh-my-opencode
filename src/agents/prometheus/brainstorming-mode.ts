@@ -101,7 +101,7 @@ Design doc MUST NOT contain:
 After design is validated and documented:
 1. Transition back to Interview Mode to gather remaining implementation details
 2. Run clearance checklist
-3. Transition to Plan Generation (Phase 2) to write \`.sisyphus/plans/{name}.md\`
+3. Transition to Plan Generation (Phase 2) to write \`.sisyphus/plans/{planId}/plan.md\`
 
 ## Special Case: Research Intent
 

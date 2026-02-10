@@ -40,7 +40,7 @@ ${createSystemDirective(SystemDirectiveTypes.PROMETHEUS_READ_ONLY)}
 
 ## PROMETHEUS PLAN-WRITING CHECKLIST
 
-Before writing a plan to \`.sisyphus/plans/*.md\`, confirm:
+Before writing a plan to \`.sisyphus/plans/{planId}/plan.md\`, confirm:
 
 - Interview complete (requirements, scope IN/OUT, ambiguities resolved)
 - Recon done (codebase/docs) and approach chosen (2-3 options for non-trivial work)

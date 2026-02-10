@@ -8,10 +8,10 @@ import { createWorkStateManager } from "./manager"
 import type { WorkState } from "./types"
 
 function createTempWorkspace(): string {
-  return join(tmpdir(), `work-state-v3-${randomUUID()}`)
+  return join(tmpdir(), `work-state-v4-${randomUUID()}`)
 }
 
-describe("WorkStateManager v3", () => {
+describe("WorkStateManager v4", () => {
   let workspaceDir: string
 
   beforeEach(() => {
@@ -36,19 +36,32 @@ describe("WorkStateManager v3", () => {
     expect(loaded).toBeNull()
   })
 
-  test("initializePlan writes schema v3 state with canonical plan and ledger paths", () => {
+  test("initializePlan writes schema v4 state with canonical plan and ledger paths", () => {
     // #given
     const manager = createWorkStateManager(workspaceDir)
 
     // #when
-    const state = manager.initializePlan("auth-refactor", "session-1")
+    const state = manager.initializePlan("auth-refactor", "session-1", undefined, "sisyphus")
 
     // #then
-    expect(state.schema_version).toBe(3)
+    expect(state.schema_version).toBe(4)
+    expect(state.executor).toBe("sisyphus")
     expect(state.plan_id).toBe("auth-refactor")
     expect(state.execution_plan_path).toBe(".sisyphus/plans/auth-refactor/plan.md")
     expect(state.runtime_ledger_path).toBe(".sisyphus/plans/auth-refactor/ledger.yaml")
     expect(state.session_ids).toEqual(["session-1"])
+  })
+
+  test("initializePlan accepts explicit atlas executor", () => {
+    // #given
+    const manager = createWorkStateManager(workspaceDir)
+
+    // #when
+    const state = manager.initializePlan("auth-refactor", "session-1", undefined, "atlas")
+
+    // #then
+    expect(state.schema_version).toBe(4)
+    expect(state.executor).toBe("atlas")
   })
 
   test("initializePlan rejects non-canonical execution plan path", () => {
@@ -57,18 +70,15 @@ describe("WorkStateManager v3", () => {
 
     // #when / #then
     expect(() =>
-      manager.initializePlan(
-        "auth-refactor",
-        "session-1",
-        ".sisyphus/plans/auth-refactor.md"
-      )
+      manager.initializePlan("auth-refactor", "session-1", ".sisyphus/plans/auth-refactor.md", "sisyphus")
     ).toThrow("Invalid work-state invariant")
   })
 
   test("load rejects state with broken plan invariant", () => {
     // #given
     const badState: WorkState = {
-      schema_version: 3,
+      schema_version: 4,
+      executor: "sisyphus",
       plan_id: "demo",
       execution_plan_path: ".sisyphus/plans/demo.md",
       runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
@@ -91,13 +101,39 @@ describe("WorkStateManager v3", () => {
     expect(loaded).toBeNull()
   })
 
+  test("load rejects legacy v3 work-state", () => {
+    // #given
+    const legacyState = {
+      schema_version: 3,
+      plan_id: "legacy-plan",
+      execution_plan_path: ".sisyphus/plans/legacy-plan/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/legacy-plan/ledger.yaml",
+      started_at: new Date().toISOString(),
+      session_ids: ["session-1"],
+      research_ops: 0,
+      last_findings_mtime: 0,
+      errors: [],
+      blockers: [],
+      decisions: [],
+    }
+    mkdirSync(join(workspaceDir, ".sisyphus"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), yaml.dump(legacyState), "utf-8")
+    const manager = createWorkStateManager(workspaceDir)
+
+    // #when
+    const loaded = manager.load()
+
+    // #then
+    expect(loaded).toBeNull()
+  })
+
   test("switchPlan replaces active plan and resets session list", () => {
     // #given
     const manager = createWorkStateManager(workspaceDir)
-    manager.initializePlan("plan-a", "session-a")
+    manager.initializePlan("plan-a", "session-a", undefined, "sisyphus")
 
     // #when
-    const switched = manager.switchPlan("plan-b", "session-b")
+    const switched = manager.switchPlan("plan-b", "session-b", undefined, "sisyphus")
 
     // #then
     expect(switched.plan_id).toBe("plan-b")
@@ -125,4 +161,3 @@ describe("WorkStateManager v3", () => {
     expect(plans.some((p) => p.endsWith("legacy.md"))).toBe(false)
   })
 })
-

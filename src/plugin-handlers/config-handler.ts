@@ -46,7 +46,7 @@ export function resolveCategoryConfig(
   return userCategories?.[categoryName] ?? DEFAULT_CATEGORIES[categoryName];
 }
 
-const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus"] as const;
+const CORE_AGENT_ORDER = ["sisyphus", "atlas", "hephaestus", "prometheus"] as const;
 
 function reorderAgentsByPriority(agents: Record<string, unknown>): Record<string, unknown> {
   const ordered: Record<string, unknown> = {};
@@ -220,6 +220,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       librarian?: { tools?: Record<string, unknown> };
       "multimodal-looker"?: { tools?: Record<string, unknown> };
       sisyphus?: { tools?: Record<string, unknown> };
+      atlas?: { tools?: Record<string, unknown> };
     };
     const configAgent = config.agent as AgentConfig | undefined;
 
@@ -440,6 +441,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     }
     if (agentResult.sisyphus) {
       const agent = agentResult.sisyphus as AgentWithPermission;
+      agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
+    }
+    if (agentResult.atlas) {
+      const agent = agentResult.atlas as AgentWithPermission;
       agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
     if (agentResult.hephaestus) {

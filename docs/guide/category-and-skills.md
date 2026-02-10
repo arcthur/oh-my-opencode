@@ -133,15 +133,14 @@ You can create powerful specialized agents by combining Categories and Skills.
 
 ## 5. delegate_task Prompt Guide
 
-When delegating, **clear and specific** prompts are essential. Include these 7 elements:
+When delegating, **clear and specific** prompts are essential. Include these 6 elements:
 
 1. **TASK**: What needs to be done? (single objective)
 2. **EXPECTED OUTCOME**: What is the deliverable?
-3. **REQUIRED SKILLS**: Which skills should be loaded via `load_skills`?
-4. **REQUIRED TOOLS**: Which tools must be used? (whitelist)
-5. **MUST DO**: What must be done (constraints)
-6. **MUST NOT DO**: What must never be done
-7. **CONTEXT**: File paths, existing patterns, reference materials
+3. **REQUIRED TOOLS**: Which tools must be used? (whitelist)
+4. **MUST DO**: What must be done (constraints)
+5. **MUST NOT DO**: What must never be done
+6. **CONTEXT**: File paths, existing patterns, reference materials, and required `load_skills` list
 
 **Bad Example**:
 > "Fix this"

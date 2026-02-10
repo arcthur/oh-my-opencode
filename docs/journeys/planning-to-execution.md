@@ -13,9 +13,9 @@ flowchart TD
   MT --> PG["Plan generation (Prometheus)"]
   PG --> MO["Plan review (Momus)"]
 
-  MO --> ART["Write plan draft + context manifest → .sisyphus/"]
+  MO --> ART["Write plan spec + context manifest → .sisyphus/"]
   ART --> SW["Start execution (/start-work or start-work hook)"]
-  SW --> MIG["Migrate plan draft → .sisyphus/plans/<planId>/plan.md\nCreate/Update .sisyphus/work.yaml"]
+  SW --> MIG["Select active plan spec + Create/Update .sisyphus/work.yaml"]
 
   MIG --> PWF{"planning_with_files.enabled?"}
   PWF -->|Yes| PWFY["Enable execution guardrails\n(2-action, 3-strike, auto reread, stop verification)"]
@@ -31,7 +31,7 @@ flowchart TD
   TOOL --> OUT["Artifacts + final answer"]
 ```
 
-This journey explains how a plan is produced, validated, migrated into execution state (`work.yaml` + TaskGraph), and then executed through orchestration.
+This journey explains how a plan is produced, validated, bound into execution state (`work.yaml` + TaskGraph), and then executed through orchestration.
 
 ## Swarm-first (Optional)
 

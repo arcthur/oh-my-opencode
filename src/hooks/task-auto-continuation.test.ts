@@ -4,10 +4,12 @@ import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { OhMyOpenCodeConfig } from "../config/schema"
 import { createTaskNode, transitionTaskNode } from "../features/task-system"
+import { createWorkStateManager } from "../features/work-state"
 import {
   _resetForTesting,
   markSubagentSession,
   setMainSession,
+  updateSessionAgent,
 } from "../features/claude-code-session-state"
 import { createDirectContinuationReporterForTesting } from "./continuation-control"
 import { createTaskAutoContinuationHook } from "./task-auto-continuation"
@@ -213,6 +215,119 @@ describe("task-auto-continuation", () => {
 
     // #then
     expect(toastCalls.length).toBeGreaterThan(0)
+    expect(promptCalls).toHaveLength(1)
+    expect(promptCalls[0]?.text).toContain("TASK CONTINUATION")
+  })
+
+  test("skips continuation for execution session owned by execution-orchestrator", async () => {
+    // #given
+    const sessionID = "main-execution"
+    const planID = "execution-plan"
+    setMainSession(sessionID)
+    updateSessionAgent(sessionID, "atlas")
+
+    const workStateManager = createWorkStateManager(workspace)
+    workStateManager.initializePlan(planID, sessionID, undefined, "atlas")
+    createTaskNode(
+      {
+        scope: "plan",
+        container_id: planID,
+        title: "Plan task",
+      },
+      config
+    )
+
+    const input = createMockPluginInput()
+    const intents: string[] = []
+    const hook = createTaskAutoContinuationHook(input, {
+      taskConfig: config,
+      reportContinuationIntent: async (intent) => {
+        intents.push(intent.source)
+      },
+    })
+
+    // #when
+    await hook.handler({
+      event: { type: "session.idle", properties: { sessionID } },
+    })
+    await timers.advanceBy(2500)
+
+    // #then
+    expect(toastCalls).toHaveLength(0)
+    expect(promptCalls).toHaveLength(0)
+    expect(intents).toHaveLength(0)
+  })
+
+  test("skips continuation when execution ownership metadata is unavailable", async () => {
+    // #given
+    const sessionID = "main-execution-metadata-missing"
+    const planID = "execution-plan-metadata-missing"
+    setMainSession(sessionID)
+
+    const workStateManager = createWorkStateManager(workspace)
+    workStateManager.initializePlan(planID, sessionID, undefined, "atlas")
+    createTaskNode(
+      {
+        scope: "plan",
+        container_id: planID,
+        title: "Plan task",
+      },
+      config
+    )
+
+    const input = createMockPluginInput()
+    const intents: string[] = []
+    const hook = createTaskAutoContinuationHook(input, {
+      taskConfig: config,
+      reportContinuationIntent: async (intent) => {
+        intents.push(intent.source)
+      },
+    })
+
+    // #when
+    await hook.handler({
+      event: { type: "session.idle", properties: { sessionID } },
+    })
+    await timers.advanceBy(2500)
+
+    // #then
+    expect(toastCalls).toHaveLength(0)
+    expect(promptCalls).toHaveLength(0)
+    expect(intents).toHaveLength(0)
+  })
+
+  test("does not treat explicit non-orchestrator agent as execution-owned session", async () => {
+    // #given
+    const sessionID = "main-execution-prometheus"
+    const planID = "execution-plan-prometheus"
+    setMainSession(sessionID)
+    updateSessionAgent(sessionID, "prometheus")
+
+    const workStateManager = createWorkStateManager(workspace)
+    workStateManager.initializePlan(planID, sessionID, undefined, "atlas")
+    createTaskNode(
+      {
+        scope: "plan",
+        container_id: planID,
+        title: "Plan task",
+      },
+      config
+    )
+
+    const input = createMockPluginInput()
+    const hook = createTaskAutoContinuationHook(input, {
+      taskConfig: config,
+      skipAgents: [],
+      reportContinuationIntent: createDirectContinuationReporterForTesting(input),
+    })
+
+    // #when
+    await hook.handler({
+      event: { type: "session.idle", properties: { sessionID } },
+    })
+    await timers.advanceBy(2500)
+
+    // #then
     expect(promptCalls).toHaveLength(1)
     expect(promptCalls[0]?.text).toContain("TASK CONTINUATION")
   })

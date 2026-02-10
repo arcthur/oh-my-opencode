@@ -51,4 +51,16 @@ describe("sisyphus execution-mode prompt overlays", () => {
     expect(agent.prompt).toContain("Do not rely on memory for file state")
     expect(agent.prompt).not.toContain("## Execution Profile (GPT-family)")
   })
+
+  test("enforces a single six-section delegation contract for execution clarity", () => {
+    // #given
+    const model = "anthropic/claude-opus-4-5"
+
+    // #when
+    const agent = createSisyphusAgent(model)
+
+    // #then
+    expect(agent.prompt).toContain("Delegation Prompt Structure (MANDATORY - ALL 6 sections)")
+    expect(agent.prompt).not.toContain("ALL 7 sections")
+  })
 })

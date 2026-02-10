@@ -1,16 +1,16 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { createWorkStateManager } from "../../features/work-state"
+import { createWorkStateManager, type WorkExecutor } from "../../features/work-state"
 import { log } from "../../shared/logger"
 import { updateSessionAgent } from "../../features/claude-code-session-state"
 import { existsSync, readFileSync, statSync } from "node:fs"
 import { basename, isAbsolute, join } from "node:path"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 import { listTaskNodes, syncPlanTasksToTaskGraph } from "../../features/task-system"
-import { sanitizePathSegment } from "../../shared/path-sanitizer"
 
 export const HOOK_NAME = "start-work"
 
 const KEYWORD_PATTERN = /\b(ultrawork|ulw)\b/gi
+const DEFAULT_EXECUTOR: WorkExecutor = "atlas"
 
 interface StartWorkHookInput {
   sessionID: string
@@ -82,8 +82,7 @@ function computePlanProgressFromTaskGraph(
 }
 
 function findIncompletePlans(
-  planPaths: string[]
-  ,
+  planPaths: string[],
   config: Partial<OhMyOpenCodeConfig>
 ): Array<{ path: string; planId: string; progress: PlanProgress }> {
   return planPaths
@@ -150,13 +149,12 @@ export function createStartWorkHook(
         sessionID: input.sessionID,
       })
 
-      updateSessionAgent(input.sessionID, "sisyphus")
-
       const existingState = workStateManager.load()
       const sessionId = input.sessionID
       const timestamp = new Date().toISOString()
 
       let contextInfo = ""
+      let existingProgress: PlanProgress | null = null
 
       const explicitPlanId = extractUserRequestPlanId(promptText)
 
@@ -204,7 +202,7 @@ Continuing existing work session. Use TaskGraph to continue from the next ready 
 The requested plan "${matchedPlanId}" has been completed.
 All ${progress.total} tasks are done. Create a new plan with: /plan "your task"`
             } else {
-              workStateManager.switchPlan(matchedPlanId, sessionId)
+              workStateManager.switchPlan(matchedPlanId, sessionId, undefined, DEFAULT_EXECUTOR)
               contextInfo = `
 ## Auto-Selected Plan
 
@@ -248,9 +246,9 @@ No incomplete plans available. Create a new plan with: /plan "your task"`
           existingState.execution_plan_path,
           taskConfig
         )
-        const progress = computePlanProgressFromTaskGraph(existingState.plan_id, taskConfig)
+        existingProgress = computePlanProgressFromTaskGraph(existingState.plan_id, taskConfig)
 
-        if (!progress.isComplete) {
+        if (!existingProgress.isComplete) {
           workStateManager.appendSessionId(sessionId)
           const sessions = existingState.session_ids.length + 1
           contextInfo = `
@@ -259,7 +257,7 @@ No incomplete plans available. Create a new plan with: /plan "your task"`
 **Status**: RESUMING existing work
 **Plan ID**: ${existingState.plan_id}
 **Path**: ${existingState.execution_plan_path}
-**Progress**: ${progress.completed}/${progress.total} tasks completed
+**Progress**: ${existingProgress.completed}/${existingProgress.total} tasks completed
 **Sessions**: ${sessions} (current session appended)
 **Started**: ${existingState.started_at}
 
@@ -276,7 +274,7 @@ Looking for new plans...`
 
       if (
         (!existingState && !explicitPlanId) ||
-        (existingState && !explicitPlanId && computePlanProgressFromTaskGraph(existingState.plan_id, taskConfig).isComplete)
+        (existingState && !explicitPlanId && existingProgress?.isComplete)
       ) {
         const allPlans = workStateManager.findPlans()
         const incompletePlans = findIncompletePlans(allPlans, taskConfig)
@@ -298,7 +296,7 @@ All ${allPlans.length} plan(s) are complete. Create a new plan with: /plan "your
           }
         } else if (incompletePlans.length === 1) {
           const plan = incompletePlans[0]
-          workStateManager.initializePlan(plan.planId, sessionId)
+          workStateManager.initializePlan(plan.planId, sessionId, undefined, DEFAULT_EXECUTOR)
           syncPlanTasksFromFile(ctx.directory, plan.planId, plan.path, taskConfig)
           const progress = computePlanProgressFromTaskGraph(plan.planId, taskConfig)
 
@@ -345,6 +343,11 @@ Ask the user which plan to work on. Present the options above and wait for their
           .replace(/\$TIMESTAMP/g, timestamp)
 
         output.parts[idx].text += `\n\n---\n${contextInfo}`
+      }
+
+      const activeState = workStateManager.load()
+      if (activeState?.session_ids.includes(sessionId)) {
+        updateSessionAgent(sessionId, activeState.executor)
       }
 
       log(`[${HOOK_NAME}] Context injected`, {

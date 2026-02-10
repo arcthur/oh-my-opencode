@@ -54,7 +54,7 @@ For complex or critical tasks, press **Tab** to switch to Prometheus mode.
 
 2. **Plan generation** - Metis analyzes the request, Prometheus generates a detailed work plan with tasks, acceptance criteria, and guardrails, and Momus reviews the plan for executability.
 
-3. **Run `/start-work`** - The Sisyphus Execution Mode takes over:
+3. **Run `/start-work`** - Atlas Execution Mode takes over:
    - Distributes tasks to specialized sub-agents
    - Verifies each task completion independently
    - Accumulates learnings across tasks
@@ -70,21 +70,20 @@ For complex or critical tasks, press **Tab** to switch to Prometheus mode.
 
 ## Critical Usage Guidelines
 
-### Always Use Prometheus + Orchestrator Together
+### Use the Right Orchestrator for the Job
 
-**Do NOT use `sisyphus` without `/start-work`.**
-
-The orchestrator is designed to execute work plans created by Prometheus. Using it directly without a plan leads to unpredictable behavior.
+- Use `sisyphus` for open-ended, ad-hoc orchestration.
+- Use `Prometheus -> /start-work` when you need strict plan-first execution with Atlas.
 
 **Correct workflow:**
 ```
 1. Press Tab → Enter Prometheus mode
 2. Describe work → Prometheus interviews you
-3. Confirm plan → Review .sisyphus/plans/*.md
-4. Run /start-work → Orchestrator executes
+3. Confirm plan → Review .sisyphus/plans/*/plan.md
+4. Run /start-work → Atlas executes
 ```
 
-**Prometheus and Sisyphus Execution Mode are a pair. Always use them together.**
+**Prometheus and Atlas Execution Mode are a pair for precise execution workflows.**
 
 ---
 

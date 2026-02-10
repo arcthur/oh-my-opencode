@@ -3,13 +3,13 @@ import type { OhMyOpenCodeConfig } from "../config/schema"
 import type { BackgroundManager } from "../features/background-agent"
 import { getMainSessionID, isSubagentSession } from "../features/claude-code-session-state"
 import { listIncompleteTasks, listTaskNodes, type TaskSummary } from "../features/task-system"
+import { createWorkStateManager, resolveActiveTaskSelector } from "../features/work-state"
 import {
-    findNearestMessageWithFields,
-    type ToolPermission,
+  findNearestMessageWithFields,
+  type ToolPermission,
 } from "../features/hook-message-injector"
-import { resolveActiveTaskSelector } from "../features/work-state"
 import { log } from "../shared/logger"
-import { getMessageDir } from "../shared/session-utils"
+import { getMessageDir, resolveExecutionOwnership } from "../shared/session-utils"
 import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
 import type { ContinuationIntent } from "./continuation-control"
 
@@ -91,6 +91,23 @@ export function createTaskAutoContinuationHook(
     reportContinuationIntent,
   } = options
   const sessions = new Map<string, SessionState>()
+  const workStateManager = createWorkStateManager(ctx.directory)
+
+  function isExecutionSessionOwnedByOrchestrator(sessionID: string): boolean {
+    const workState = workStateManager.load()
+    if (!workState) return false
+    if (!workState.session_ids.includes(sessionID)) return false
+    const ownership = resolveExecutionOwnership(sessionID, workState.executor)
+    if (ownership === "matched") return true
+    if (ownership === "unknown") {
+      log(`[${HOOK_NAME}] Ownership unresolved; yielding continuation to execution-orchestrator`, {
+        sessionID,
+        executor: workState.executor,
+      })
+      return true
+    }
+    return false
+  }
 
   function getState(sessionID: string): SessionState {
     let state = sessions.get(sessionID)
@@ -350,6 +367,13 @@ ${taskList}`
 
       if (mainSessionID && !isMainSession && !isBackgroundTaskSession) {
         log(`[${HOOK_NAME}] Skipped: not main or background task session`, { sessionID })
+        return
+      }
+
+      if (isExecutionSessionOwnedByOrchestrator(sessionID)) {
+        log(`[${HOOK_NAME}] Skipped: execution session owned by execution-orchestrator`, {
+          sessionID,
+        })
         return
       }
 

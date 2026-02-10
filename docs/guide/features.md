@@ -11,6 +11,7 @@ Oh-My-OpenCode provides multiple specialized AI agents (core, planning, and deri
 | Agent | Model | Purpose |
 |-------|-------|---------|
 | **Sisyphus** | `anthropic/claude-opus-4-6` | **The default orchestrator.** Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. TaskGraph-driven workflow with extended thinking (32k budget). |
+| **Atlas** | `anthropic/claude-opus-4-6` | **Execution orchestrator for `/start-work`.** Runs deterministic TaskGraph progression with strict delegation and verification loops. |
 | **hephaestus** | `openai/gpt-5.3-codex` | Autonomous deep worker for goal-oriented execution. Explores thoroughly, then drives end-to-end implementation with high autonomy. |
 | **oracle** | `openai/gpt-5.2` | Architecture decisions, code review, debugging. Read-only consultation - stellar logical reasoning and deep analysis. Inspired by AmpCode. |
 | **librarian** | `zai-coding-plan/glm-4.7` | Multi-repo analysis, documentation lookup, OSS implementation examples. Deep codebase understanding with evidence-based answers. Inspired by AmpCode. |
@@ -224,7 +225,7 @@ Commands are slash-triggered workflows that execute predefined templates.
 | `/ulw-loop` | Start ultrawork loop - continues with ultrawork mode |
 | `/cancel-ralph` | Cancel active Ralph Loop |
 | `/refactor` | Intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification |
-| `/start-work` | Start Sisyphus work session from Prometheus plan |
+| `/start-work` | Start Atlas execution session from Prometheus plan |
 | `/stop-continuation` | Stop continuation mechanisms for the current session |
 
 ### Command: /init-deep
@@ -297,7 +298,7 @@ Everything runs at maximum intensity - parallel agents, background tasks, aggres
 /start-work [plan-name]
 ```
 
-Uses sisyphus agent to execute planned tasks systematically.
+Uses Atlas Execution Mode to execute planned tasks systematically.
 
 ### Command: /stop-continuation
 

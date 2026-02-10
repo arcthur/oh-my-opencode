@@ -323,18 +323,17 @@ const SISYPHUS_PHASE2B_PRE_IMPLEMENTATION = `## Phase 2B - Implementation
 2. Mark current task \`in_progress\` before starting
 3. Mark \`completed\` as soon as done (don't batch) - OBSESSIVELY TRACK YOUR WORK USING task_* TOOLS`
 
-const SISYPHUS_DELEGATION_PROMPT_STRUCTURE = `### Delegation Prompt Structure (MANDATORY - ALL 7 sections):
+const SISYPHUS_DELEGATION_PROMPT_STRUCTURE = `### Delegation Prompt Structure (MANDATORY - ALL 6 sections):
 
 When delegating, your prompt MUST include:
 
 \`\`\`
 1. TASK: Atomic, specific goal (one action per delegation)
 2. EXPECTED OUTCOME: Concrete deliverables with success criteria
-3. REQUIRED SKILLS: \`load_skills=[...]\` (skill names)
-4. REQUIRED TOOLS: Explicit tool whitelist (prevents tool sprawl)
-5. MUST DO: Exhaustive requirements - leave NOTHING implicit
-6. MUST NOT DO: Forbidden actions - anticipate and block rogue behavior
-7. CONTEXT: File paths, existing patterns, constraints
+3. REQUIRED TOOLS: Explicit tool whitelist (prevents tool sprawl)
+4. MUST DO: Exhaustive requirements - leave NOTHING implicit
+5. MUST NOT DO: Forbidden actions - anticipate and block rogue behavior
+6. CONTEXT: File paths, existing patterns, constraints + required \`load_skills=[...]\`
 \`\`\`
 
 AFTER THE WORK YOU DELEGATED SEEMS DONE, ALWAYS VERIFY THE RESULTS AS FOLLOWING:

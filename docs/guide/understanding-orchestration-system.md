@@ -1,6 +1,6 @@
 # Understanding the Orchestration System
 
-Oh My OpenCode's orchestration system transforms a simple AI agent into a coordinated development team. This document explains how the Prometheus → Sisyphus Execution Mode → Junior workflow creates high-quality, reliable code output.
+Oh My OpenCode's orchestration system transforms a simple AI agent into a coordinated development team. This document explains how the Prometheus → Atlas Execution Mode → Junior workflow creates high-quality, reliable code output.
 
 ---
 
@@ -29,7 +29,7 @@ flowchart TB
     end
     
     subgraph Execution["Execution Layer (Orchestrator)"]
-        Orchestrator["Sisyphus Execution Mode<br/>(Conductor)<br/>Claude Opus 4.6"]
+        Orchestrator["Atlas Execution Mode<br/>(Conductor)<br/>Claude Opus 4.6"]
     end
     
     subgraph Workers["Worker Layer (Specialized Agents)"]
@@ -42,7 +42,7 @@ flowchart TB
     
     User -->|"Describe work"| Prometheus
     Prometheus -->|"Interview"| User
-    Prometheus -->|"Generate plan draft"| PlanDraft[".sisyphus/plans/{planId}.md<br/>(planner output)"]
+    Prometheus -->|"Generate plan spec"| PlanSpec[".sisyphus/plans/{planId}/plan.md<br/>(planner output)"]
     Prometheus -->|"Generate context manifest"| Manifest[".sisyphus/context-manifests/{planId}.md"]
     Metis -->|"Pre-planning analysis"| Prometheus
     Prometheus -->|"Plan review"| Momus
@@ -50,8 +50,8 @@ flowchart TB
     
     User -->|"/start-work"| Orchestrator
     Orchestrator --> WorkState[".sisyphus/work.yaml<br/>(STATE SSOT)"]
-    PlanDraft -->|"Migrate on /start-work"| Plan[".sisyphus/plans/{planId}/plan.md<br/>(PLAN SPEC)"]
-    PlanDraft -->|"Seed TaskGraph"| TaskGraph[".sisyphus/tasks/plan/{planId}/task_*.json<br/>(TASK SSOT)"]
+    PlanSpec -->|"Bind on /start-work"| Plan[".sisyphus/plans/{planId}/plan.md<br/>(PLAN SPEC)"]
+    PlanSpec -->|"Seed TaskGraph"| TaskGraph[".sisyphus/tasks/plan/{planId}/task_*.json<br/>(TASK SSOT)"]
     Plan -->|"Read spec"| Orchestrator
     TaskGraph -->|"Read tasks"| Orchestrator
     WorkState -->|"Resume state"| Orchestrator
@@ -127,7 +127,7 @@ The planning pipeline uses two additional agents alongside Prometheus:
 
 ---
 
-## Layer 2: Execution (Sisyphus Execution Mode)
+## Layer 2: Execution (Atlas Execution Mode)
 
 ### The Conductor Mindset
 
@@ -135,7 +135,7 @@ The Orchestrator is like an orchestra conductor: **it doesn't play instruments, 
 
 ```mermaid
 flowchart LR
-    subgraph Orchestrator["Sisyphus Execution Mode"]
+    subgraph Orchestrator["Atlas Execution Mode"]
         Read["1. Read Plan"]
         Analyze["2. Analyze Tasks"]
         Wisdom["3. Accumulate Wisdom"]
@@ -180,7 +180,7 @@ This prevents repeating mistakes and ensures consistent patterns.
 **Notepad System:**
 
 ```
-.sisyphus/notepads/{plan-name}/
+.sisyphus/notepads/{planId}/
 ├── learnings.md      # Patterns, conventions, successful approaches
 ├── decisions.md      # Architectural choices and rationales
 ├── issues.md         # Problems, blockers, gotchas encountered
@@ -377,7 +377,7 @@ delegate_task({
 ```mermaid
 sequenceDiagram
     participant User
-    participant Orchestrator as Sisyphus Execution Mode
+    participant Orchestrator as Atlas Execution Mode
     participant Junior as Sisyphus-Junior
     participant Notepad as .sisyphus/notepads/
     
@@ -386,9 +386,9 @@ sequenceDiagram
     
     loop For each task (parallel when possible)
         Orchestrator->>Notepad: Read accumulated wisdom
-        Orchestrator->>Orchestrator: Build 7-section prompt
+        Orchestrator->>Orchestrator: Build 6-section prompt
         
-        Note over Orchestrator: Prompt Structure:<br/>1. TASK (exact checkbox)<br/>2. EXPECTED OUTCOME<br/>3. REQUIRED SKILLS<br/>4. REQUIRED TOOLS<br/>5. MUST DO<br/>6. MUST NOT DO<br/>7. CONTEXT + Wisdom
+        Note over Orchestrator: Prompt Structure:<br/>1. TASK (single atomic objective)<br/>2. EXPECTED OUTCOME<br/>3. REQUIRED TOOLS<br/>4. MUST DO<br/>5. MUST NOT DO<br/>6. CONTEXT + Wisdom + required load_skills
         
         Orchestrator->>Junior: delegate_task(category, load_skills, description, prompt, run_in_background)
         
@@ -417,7 +417,7 @@ sequenceDiagram
 ### 1. Separation of Concerns
 
 - **Planning** (Prometheus): High reasoning, interview, strategic thinking
-- **Orchestration** (Sisyphus Execution Mode): Coordination, verification, wisdom accumulation
+- **Orchestration** (Atlas Execution Mode): Coordination, verification, wisdom accumulation
 - **Execution** (Junior): Focused implementation, no distractions
 
 ### 2. Explicit Over Implicit

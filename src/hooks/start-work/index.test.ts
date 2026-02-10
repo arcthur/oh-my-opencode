@@ -35,7 +35,8 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
-    schema_version: 3,
+    schema_version: 4,
+    executor: state.executor ?? "sisyphus",
     plan_id: planId,
     execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
     runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
@@ -195,6 +196,10 @@ describe("start-work hook", () => {
       // Tasks should be imported into TaskGraph for the selected plan.
       const imported = readAllTaskNodes("plan", "plan-incomplete", config)
       expect(imported.length).toBeGreaterThan(0)
+
+      const workYaml = readFileSync(join(testDir, ".sisyphus", "work.yaml"), "utf-8")
+      expect(workYaml).toContain("schema_version: 4")
+      expect(workYaml).toContain("executor: atlas")
     })
 
     test("should wrap multiple plans message in system-reminder tag", async () => {
@@ -320,8 +325,9 @@ describe("start-work hook", () => {
   })
 
   describe("session agent management", () => {
-    test("should update session agent to sisyphus when start-work command is triggered", async () => {
+    test("should update session agent to atlas when start-work command auto-selects a new plan", async () => {
       const updateSpy = spyOn(sessionState, "updateSessionAgent")
+      createPlan(testDir, "execution-plan", "# Plan: execution-plan\n\n## Tasks\n\n- 1. Task 1\n")
 
       const hook = createStartWorkHook(createMockPluginInput(), config)
       const output = {
@@ -330,7 +336,27 @@ describe("start-work hook", () => {
 
       await hook["chat.message"]({ sessionID: "ses-prometheus-to-sisyphus" }, output)
 
-      expect(updateSpy).toHaveBeenCalledWith("ses-prometheus-to-sisyphus", "sisyphus")
+      expect(updateSpy).toHaveBeenCalledWith("ses-prometheus-to-sisyphus", "atlas")
+      updateSpy.mockRestore()
+    })
+
+    test("should preserve existing executor when resuming active work", async () => {
+      const updateSpy = spyOn(sessionState, "updateSessionAgent")
+      createPlan(testDir, "legacy-plan", "# Plan: legacy-plan\n\n## Tasks\n\n- 1. Task 1\n")
+      writeWorkState(testDir, {
+        plan_id: "legacy-plan",
+        executor: "sisyphus",
+        session_ids: ["old-session"],
+      })
+
+      const hook = createStartWorkHook(createMockPluginInput(), config)
+      const output = {
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
+      }
+
+      await hook["chat.message"]({ sessionID: "ses-resume-existing" }, output)
+
+      expect(updateSpy).toHaveBeenCalledWith("ses-resume-existing", "sisyphus")
       updateSpy.mockRestore()
     })
   })

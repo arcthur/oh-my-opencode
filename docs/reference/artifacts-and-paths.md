@@ -77,8 +77,8 @@ See `src/shared/paths.ts`.
 The `.sisyphus/` directory is used for fork-owned artifacts such as:
 
 - Plans:
-  - Planner drafts: `.sisyphus/plans/<planId>.md`
-  - Execution plan directories: `.sisyphus/plans/<planId>/` (plan spec: `plan.md`; task state SSOT: TaskGraph under `.sisyphus/tasks/plan/<planId>/`)
+  - Canonical plan specs: `.sisyphus/plans/<planId>/plan.md`
+  - Plan directories: `.sisyphus/plans/<planId>/` (task state SSOT: TaskGraph under `.sisyphus/tasks/plan/<planId>/`)
 - Plan reviews: `.sisyphus/plan-reviews/`
 - Notepads: `.sisyphus/notepads/`
 - Ralph loop state: `.sisyphus/ralph-loop.local.md` (when enabled and active)

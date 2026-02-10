@@ -1,7 +1,7 @@
 /**
  * Prometheus Plan Generation
  *
- * Phase 2: Plan generation, Momus review routing,
+ * Phase 2: Metis preflight, plan generation, Momus review routing,
  * gap classification, and summary format.
  */
 
@@ -15,6 +15,7 @@ For non-trivial work, you MUST NOT enter plan generation until Brainstorming is 
 - Approach exploration completed (2-3 options, one chosen)
 - Incremental design validation completed (200-300 word sections confirmed)
 - Design doc written to \`.sisyphus/designs/{topic-slug}.md\`
+- Metis preflight completed for this planning cycle
 
 **If user explicitly asks for a plan before these are done:**
 - Acknowledge the request
@@ -41,40 +42,60 @@ For non-trivial work, you MUST NOT enter plan generation until Brainstorming is 
 
 \`\`\`typescript
 // IMMEDIATELY upon Phase 2 entry - NO EXCEPTIONS
-task_create({ title: "plan-1 Choose plan name + assemble full planning context", scope: "session" })
-task_create({ title: "plan-2 Generate work plan to .sisyphus/plans/{name}.md", scope: "session" })
-task_create({ title: "plan-3 Generate context manifest to .sisyphus/context-manifests/{name}.md", scope: "session" })
-task_create({ title: "plan-4 Run Momus plan review and apply blocking fixes", scope: "session" })
-task_create({ title: "plan-5 Self-review: classify gaps (critical/minor/ambiguous)", scope: "session" })
-task_create({ title: "plan-6 Present summary with auto-resolved items and decisions needed", scope: "session" })
-task_create({ title: "plan-7 If decisions needed: wait for user, update plan", scope: "session" })
-task_create({ title: "plan-8 Guide user to /start-work", scope: "session" })
+task_create({ title: "plan-1 Consult Metis for gap analysis (hard preflight)", scope: "session" })
+task_create({ title: "plan-2 Choose plan name + assemble full planning context", scope: "session" })
+task_create({ title: "plan-3 Generate work plan to .sisyphus/plans/{plan-id}/plan.md", scope: "session" })
+task_create({ title: "plan-4 Generate context manifest to .sisyphus/context-manifests/{plan-id}.md", scope: "session" })
+task_create({ title: "plan-5 Run Momus plan review and apply blocking fixes", scope: "session" })
+task_create({ title: "plan-6 Self-review: classify gaps (critical/minor/ambiguous)", scope: "session" })
+task_create({ title: "plan-7 Present summary with auto-resolved items and decisions needed", scope: "session" })
+task_create({ title: "plan-8 If decisions needed: wait for user, update plan", scope: "session" })
+task_create({ title: "plan-9 Guide user to /start-work", scope: "session" })
 \`\`\`
 
 **WHY THIS IS CRITICAL:**
 - User sees exactly what steps remain
-- Prevents skipping crucial steps like review and self-check
+- Prevents skipping crucial steps like Metis preflight and review
 - Creates accountability for each phase
 - Enables recovery if session is interrupted
 
 **WORKFLOW:**
-1. Phase 2 entered → **IMMEDIATELY** register tasks (plan-1 through plan-8)
-2. Mark plan-1 as \`in_progress\` → Pick plan name and assemble full context
-3. Mark plan-2 as \`in_progress\` → Generate plan and write to \`.sisyphus/plans/{name}.md\`
-4. Mark plan-3 as \`in_progress\` → Generate context manifest and write to \`.sisyphus/context-manifests/{name}.md\`
-5. Mark plan-4 as \`in_progress\` → Run Momus review and apply blocking fixes
-6. Mark plan-5 as \`in_progress\` → Self-review and classify gaps
-7. Mark plan-6 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
-8. Mark plan-7 as \`in_progress\` → If decisions needed, wait for user and update plan
-9. Mark plan-8 as \`in_progress\` → Guide user to \`/start-work\`
-10. NEVER skip a task. NEVER proceed without updating status.
+1. Phase 2 entered → **IMMEDIATELY** register tasks (plan-1 through plan-9)
+2. Mark plan-1 as \`in_progress\` → Run Metis hard preflight and incorporate directives
+3. Mark plan-2 as \`in_progress\` → Pick plan name + assemble full context
+4. Mark plan-3 as \`in_progress\` → Generate plan and write to \`.sisyphus/plans/{plan-id}/plan.md\`
+5. Mark plan-4 as \`in_progress\` → Generate context manifest and write to \`.sisyphus/context-manifests/{plan-id}.md\`
+6. Mark plan-5 as \`in_progress\` → Run Momus review and apply blocking fixes
+7. Mark plan-6 as \`in_progress\` → Self-review and classify gaps
+8. Mark plan-7 as \`in_progress\` → Present summary (with auto-resolved/defaults/decisions)
+9. Mark plan-8 as \`in_progress\` → If decisions needed, wait for user and update plan
+10. Mark plan-9 as \`in_progress\` → Guide user to \`/start-work\`
+11. NEVER skip a task. NEVER proceed without updating status.
+
+## Pre-Generation: Metis Consultation (MANDATORY)
+
+**BEFORE generating the plan**, you MUST consult Metis for hard preflight.
+
+\`\`\`typescript
+delegate_task(
+  description="Consult Metis for gap analysis",
+  subagent_type="metis",
+  load_skills=[],
+  run_in_background=false,
+  prompt="Review this planning context before plan generation. Identify missing constraints, ambiguous assumptions, and required guardrails."
+)
+\`\`\`
+
+**Hard rule:**
+- Do not generate \`.sisyphus/plans/{plan-id}/plan.md\` until Metis preflight is complete.
+- Incorporate Metis directives before writing the plan.
 
 ## Plan Generation Path (Single Source of Truth)
 
-Generate the plan directly:
+After Metis preflight:
 1. Use the plan template and full interview context
-2. Write to \`.sisyphus/plans/{name}.md\`
-3. Generate context manifest at \`.sisyphus/context-manifests/{name}.md\`
+2. Write to \`.sisyphus/plans/{plan-id}/plan.md\`
+3. Generate context manifest at \`.sisyphus/context-manifests/{plan-id}.md\`
 4. Continue to Momus review and self-review
 
 ## Post-Generation: Momus Review (Recommended)
@@ -82,7 +103,7 @@ Generate the plan directly:
 After generating the plan:
 1. Invoke Momus to review the plan for blocking issues
 \`\`\`typescript
-delegate_task(description="Review plan for blocking issues", subagent_type="momus", load_skills=[], run_in_background=false, prompt="Review .sisyphus/plans/{name}.md for executability, missing dependencies, and unsafe assumptions")
+delegate_task(description="Review plan for blocking issues", subagent_type="momus", load_skills=[], run_in_background=false, prompt="Review .sisyphus/plans/{plan-id}/plan.md for executability, missing dependencies, and unsafe assumptions")
 \`\`\`
 2. If Momus returns [OKAY] → proceed to summary
 3. If Momus returns [REJECT] → address blocking issues, update plan, and re-run Momus once
@@ -97,7 +118,7 @@ If user asks for high accuracy:
    - dependency ordering issues
    - unverifiable acceptance criteria
    - rollout/rollback blind spots
-2. Apply fixes in \`.sisyphus/plans/{name}.md\`
+2. Apply fixes in \`.sisyphus/plans/{plan-id}/plan.md\`
 3. Reconfirm with Momus before handoff
 
 ## Post-Generation: Summarize for the User
@@ -112,8 +133,8 @@ After generating and reviewing the plan, **DO NOT restart the interview**. Inste
 ## Plan Generated: {plan-name}
 
 **Generated Files:**
-- Final Plan: \`.sisyphus/plans/{name}.md\`
-- Context Manifest: \`.sisyphus/context-manifests/{name}.md\`
+- Final Plan: \`.sisyphus/plans/{plan-id}/plan.md\`
+- Context Manifest: \`.sisyphus/context-manifests/{plan-id}.md\`
 
 **Key Decisions Made:**
 - [Decision 1]: [Brief rationale]
@@ -127,7 +148,7 @@ After generating and reviewing the plan, **DO NOT restart the interview**. Inste
 - [Guardrail 1]
 - [Guardrail 2]
 
-Plan saved to: \`.sisyphus/plans/{name}.md\`
+Plan saved to: \`.sisyphus/plans/{plan-id}/plan.md\`
 \`\`\`
 
 ## Post-Plan Self-Review (MANDATORY)
@@ -201,7 +222,7 @@ Before presenting summary, verify:
 **Decisions Needed** (if any):
 - [Question requiring user input]
 
-Plan saved to: \`.sisyphus/plans/{name}.md\`
+Plan saved to: \`.sisyphus/plans/{plan-id}/plan.md\`
 \`\`\`
 
 **CRITICAL**: If "Decisions Needed" section exists, wait for user response before presenting final choices.

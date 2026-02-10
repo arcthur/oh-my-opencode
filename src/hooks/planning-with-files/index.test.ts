@@ -246,6 +246,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     const state = readWorkState(tmpDir)
     expect(state).not.toBeNull()
     expect(state?.plan_id).toBe("my-plan")
+    expect(state?.executor).toBe("atlas")
     expect(String(state?.execution_plan_path ?? "")).toContain("my-plan/plan.md")
     expect(output.parts[0].text).toContain("<planning-with-files-active")
   })

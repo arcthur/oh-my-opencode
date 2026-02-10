@@ -781,6 +781,46 @@ describe("Sisyphus-Junior agent override", () => {
   })
 })
 
+describe("Atlas agent surface", () => {
+  test("schema accepts agents.atlas overrides", () => {
+    // given
+    const config = {
+      agents: {
+        atlas: {
+          model: "openai/gpt-5.2",
+          temperature: 0.1,
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.agents?.atlas?.model).toBe("openai/gpt-5.2")
+      expect(result.data.agents?.atlas?.temperature).toBe(0.1)
+    }
+  })
+
+  test("schema accepts atlas in disabled_agents", () => {
+    // given
+    const config = {
+      disabled_agents: ["atlas"],
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.disabled_agents).toEqual(["atlas"])
+    }
+  })
+})
+
 describe("SessionReferenceConfigSchema", () => {
   test("applies nested resolve_options defaults on parse({})", () => {
     // given

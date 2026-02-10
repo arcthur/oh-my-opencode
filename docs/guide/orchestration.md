@@ -6,7 +6,7 @@
 |------------|----------|-------------|
 | **Simple** | Just prompt | Simple tasks, quick fixes, single-file changes |
 | **Complex + Lazy** | Just type `ulw` or `ultrawork` | Complex tasks where explaining context is tedious. Agent figures it out. |
-| **Complex + Precise** | `@plan` → `/start-work` | Precise, multi-step work requiring true orchestration. Prometheus plans, Sisyphus executes. |
+| **Complex + Precise** | `@plan` → `/start-work` | Precise, multi-step work requiring true orchestration. Prometheus plans, Atlas executes. |
 | **Complex + Parallel (Isolated)** | `@plan` → `/start-work` (Swarm-first) | Large work where you want parallel execution with git worktree isolation and a recoverable TaskGraph state. |
 
 **Decision Flow:**
@@ -32,7 +32,7 @@ Traditional AI agents often mix planning and execution, leading to context pollu
 Oh-My-OpenCode solves this by clearly separating two roles:
 
 1. **Prometheus**: A pure strategist who never writes code. Establishes perfect plans through interviews and analysis.
-2. **Sisyphus (Executor)**: An orchestrator who executes plans. Delegates work to specialized agents and never stops until completion.
+2. **Atlas (Executor)**: An execution orchestrator for `/start-work`. Delegates work to specialized agents and never stops until completion.
 
 ---
 
@@ -46,23 +46,23 @@ flowchart TD
         Metis["Metis<br>(Pre-Planning)"] --> Prometheus["Prometheus<br>Planner"]
         Prometheus --> Momus["Momus<br>(Plan Review)"]
         Momus --> Prometheus
-        Prometheus --> PlanDraft[".sisyphus/plans/{planId}.md"]
+        Prometheus --> PlanSpec[".sisyphus/plans/{planId}/plan.md"]
         Prometheus --> ManifestFile[".sisyphus/context-manifests/{planId}.md"]
     end
 
-    PlanDraft --> StartWork["/start-work"]
+    PlanSpec --> StartWork["/start-work"]
     StartWork --> WorkState[".sisyphus/work.yaml"]
     StartWork --> ExecPlan[".sisyphus/plans/{planId}/plan.md"]
     StartWork --> TaskGraph[".sisyphus/tasks/plan/{planId}/task_*.json"]
 
     subgraph Execution Phase
-        WorkState --> Sisyphus[Sisyphus<br>Orchestrator]
-        TaskGraph -.-> |"TASK SSOT"| Sisyphus
-        ExecPlan -.-> |"PLAN SPEC"| Sisyphus
-        ManifestFile -.-> |"CONTEXT PACKS"| Sisyphus
-        Sisyphus --> Oracle[Oracle]
-        Sisyphus --> Junior["Sisyphus-Junior<br>Executor"]
-        Sisyphus --> Explore[Explore]
+        WorkState --> Atlas[Atlas<br>Execution Orchestrator]
+        TaskGraph -.-> |"TASK SSOT"| Atlas
+        ExecPlan -.-> |"PLAN SPEC"| Atlas
+        ManifestFile -.-> |"CONTEXT PACKS"| Atlas
+        Atlas --> Oracle[Oracle]
+        Atlas --> Junior["Sisyphus-Junior<br>Executor"]
+        Atlas --> Explore[Explore]
     end
 ```
 
@@ -109,10 +109,13 @@ task_snapshot:
 - **Prometheus**: Strategic planner that generates detailed work plans
 - **Momus**: Plan reviewer that verifies plan executability and catches blocking issues
 
-### Sisyphus (Orchestrator)
+### Atlas (Execution Orchestrator)
 - **Model**: `anthropic/claude-opus-4-6` (Extended Thinking 32k)
-- **Role**: Execution and delegation
-- **Characteristic**: Doesn't do everything directly, actively delegates to specialized agents (Oracle, Librarian, Explore, etc.) and uses Categories + Skills for domain routing (e.g., `visual-engineering` + `frontend-ui-ux` for UI work).
+- **Role**: Plan execution and delegation for `/start-work`
+- **Characteristic**: Delegates implementation to specialized agents (Oracle, Librarian, Explore, etc.) and uses Categories + Skills for domain routing (e.g., `visual-engineering` + `frontend-ui-ux` for UI work).
+
+### Sisyphus (General Orchestrator)
+- **Role**: Default primary orchestrator for open-ended work and non-`/start-work` sessions.
 
 ---
 
@@ -129,7 +132,7 @@ Prometheus starts in **interview mode** by default. Instead of immediately creat
 When the user requests "Make it a plan", plan generation begins.
 
 1. **Pre-planning (Metis)**: Metis analyzes the request for hidden intentions, ambiguities, and scope.
-2. **Plan Creation**: Prometheus writes a plan draft to `.sisyphus/plans/{planId}.md` and a context manifest to `.sisyphus/context-manifests/{planId}.md`.
+2. **Plan Creation**: Prometheus writes a plan spec to `.sisyphus/plans/{planId}/plan.md` and a context manifest to `.sisyphus/context-manifests/{planId}.md`.
 3. **Plan Review (Momus)**: Momus verifies plan executability and catches blocking issues.
 4. **Handoff**: Once plan creation is complete, guides user to use `/start-work` command.
 
@@ -137,7 +140,7 @@ When the user requests "Make it a plan", plan generation begins.
 When the user enters `/start-work`, the execution phase begins.
 
 1. **State Management**: Creates/updates `work.yaml` to track active plan, session IDs, and protocol state.
-2. **Task Execution**: Sisyphus processes tasks from TaskGraph (seeded from `plan.md`) and advances state via `task_transition`.
+2. **Task Execution**: Atlas processes tasks from TaskGraph (seeded from `plan.md`) and advances state via `task_transition`.
 3. **Delegation**: UI work is delegated via category + skills (e.g., `visual-engineering` + `frontend-ui-ux`, executed by Sisyphus-Junior); complex logic to Oracle.
 4. **Continuity**: Even if the session is interrupted, work continues in the next session through `work.yaml`.
 5. **Protocol Enforcement**: 2-action rule (research tracking) and 3-strike protocol (error recording) are managed via work.yaml.
@@ -265,7 +268,7 @@ Deep dive (recommended): `docs/journeys/context-packs-and-manifests.md`
 
 ### 8.2 Deterministic Injection (v2)
 
-When Sisyphus Execution Mode calls `delegate_task(...)`, if the prompt contains:
+When Atlas Execution Mode calls `delegate_task(...)`, if the prompt contains:
 
 ```text
 Context Packs: global, tooling
@@ -303,7 +306,7 @@ Benefits:
 - When Prometheus generates the plan:
   - Also generate `.sisyphus/context-manifests/{planId}.md`
   - Every task block must include a `Context Packs:` selector line (used by the injector)
-- When Sisyphus Execution Mode delegates:
+- When Atlas Execution Mode delegates:
   - Copy the task’s `Context Packs:` line verbatim into the `delegate_task` prompt (keep it a single line)
 
 ### 8.4 Troubleshooting (Quick)

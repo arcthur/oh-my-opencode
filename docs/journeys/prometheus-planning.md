@@ -13,9 +13,9 @@ flowchart TD
   R --> Q["Interview (one question at a time)"]
   Q --> OPT["Explore 2-3 approaches (when non-trivial)"]
   OPT --> CLR{"Clearance check\\n(requirements, scope, tests)"}
-  CLR -->|Pass| PLAN["Write plan draft → .sisyphus/plans/<planId>.md"]
+  CLR -->|Pass| PLAN["Write plan spec → .sisyphus/plans/<planId>/plan.md"]
   CLR -->|Fail| Q
-  PLAN --> EXEC["Execution (/start-work migrates to .sisyphus/plans/<planId>/plan.md)"]
+  PLAN --> EXEC["Execution (/start-work binds work.yaml + TaskGraph)"]
 ```
 
 Prometheus is the strategic planning agent in OpenCode. Named after the Titan who brought fire (knowledge/foresight) to humanity, it brings structure and clarity to complex work through thoughtful consultation.
@@ -29,7 +29,7 @@ Prometheus is a **planner, not an implementer**. It:
 - Produces executable work plans
 
 ```
-User Request → Prometheus Interview → Design Doc → Work Plan → Sisyphus Execution
+User Request → Prometheus Interview → Design Doc → Work Plan → Atlas Execution Mode
 ```
 
 ## Architecture
@@ -145,7 +145,7 @@ Auto-triggers when clearance check passes.
 □ No blocking questions outstanding?
 ```
 
-**Output:** `.sisyphus/plans/{planId}.md` (plan draft; `/start-work` migrates it into `.sisyphus/plans/{planId}/plan.md` for execution mode)
+**Output:** `.sisyphus/plans/{planId}/plan.md` (execution-facing plan spec used directly by `/start-work`)
 
 ### Phase 3: High Accuracy Mode (Optional)
 
@@ -163,8 +163,7 @@ Momus iterative review for stricter executability checks.
 | Draft | `.sisyphus/drafts/{topic}.md` | Working memory during interview |
 | Design Doc | `.sisyphus/designs/{topic-slug}.md` | WHY/HOW decisions |
 | Research Findings | `.sisyphus/drafts/{topic}-research.md` | Investigation results |
-| Work Plan (draft) | `.sisyphus/plans/{planId}.md` | Planner output (what to do, why, verification) |
-| Plan spec (migrated) | `.sisyphus/plans/{planId}/plan.md` | Execution-facing plan document (human-readable) |
+| Work Plan (spec) | `.sisyphus/plans/{planId}/plan.md` | Planner output and execution-facing plan document |
 | TaskGraph (task SSOT) | `.sisyphus/tasks/plan/{planId}/task_*.json` | Task state, dependencies, revision (CAS) |
 | Context Manifest | `.sisyphus/context-manifests/{planId}.md` | Deterministic context packs for delegation |
 
@@ -210,7 +209,7 @@ Prometheus must end every turn with a valid action:
 **Prometheus CAN ONLY write:**
 - `.sisyphus/drafts/*.md`
 - `.sisyphus/designs/*.md`
-- `.sisyphus/plans/*.md`
+- `.sisyphus/plans/*/plan.md`
 - `.sisyphus/context-manifests/*.md`
 
 ## Usage

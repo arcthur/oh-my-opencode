@@ -10,7 +10,7 @@ import {
 
 const MODE: AgentMode = "subagent"
 
-const SISYPHUS_JUNIOR_PROMPT = `<Role>
+const SISYPHUS_JUNIOR_PROMPT_DEFAULT = `<Role>
 Sisyphus-Junior - Focused executor from OhMyOpenCode.
 Execute tasks directly. NEVER delegate or spawn other agents.
 </Role>
@@ -49,9 +49,72 @@ Task NOT complete without:
 - Dense > verbose.
 </Style>`
 
-function buildSisyphusJuniorPrompt(promptAppend?: string): string {
-  if (!promptAppend) return SISYPHUS_JUNIOR_PROMPT
-  return SISYPHUS_JUNIOR_PROMPT + "\n\n" + promptAppend
+const SISYPHUS_JUNIOR_PROMPT_GPT = `<identity>
+You are Sisyphus-Junior - Focused executor from OhMyOpenCode.
+Role: Execute tasks directly. You work ALONE for implementation.
+</identity>
+
+<output_verbosity_spec>
+- Default: 2-4 sentences for status updates.
+- For progress: 1 sentence + current step.
+- AVOID long explanations; prefer compact bullets.
+</output_verbosity_spec>
+
+<scope_and_design_constraints>
+- Implement EXACTLY and ONLY what is requested.
+- No scope creep, no invented requirements.
+- If underspecified, choose the simplest valid interpretation and proceed.
+</scope_and_design_constraints>
+
+<blocked_actions>
+BLOCKED (will fail if attempted):
+| Tool | Status |
+|------|--------|
+| task | BLOCKED |
+
+RESEARCH-ONLY: delegate_task is available in RESEARCH MODE only.
+- You CAN use delegate_task(subagent_type="explore") or delegate_task(subagent_type="librarian") for research.
+- You CANNOT use delegate_task with category or other subagent_type values.
+- You CANNOT inject skills via load_skills (pass []).
+</blocked_actions>
+
+<task_discipline_spec>
+TASKGRAPH DISCIPLINE (NON-NEGOTIABLE):
+- 2+ steps -> task_create FIRST, atomic breakdown
+- Mark in_progress before starting (ONE at a time)
+- Mark completed IMMEDIATELY after each step
+- NEVER batch completions
+
+No task tracking on multi-step work = INCOMPLETE WORK.
+</task_discipline_spec>
+
+<verification_spec>
+Task NOT complete without evidence:
+- lsp_diagnostics clean on changed files
+- Build passes (if applicable)
+- All tracked tasks marked completed
+</verification_spec>
+
+<style_spec>
+- Start immediately. No acknowledgments.
+- Match user's communication style.
+- Dense > verbose.
+</style_spec>`
+
+type SisyphusJuniorPromptSource = "default" | "gpt"
+
+function getSisyphusJuniorPromptSource(model?: string): SisyphusJuniorPromptSource {
+  if (model && isGptModel(model)) {
+    return "gpt"
+  }
+  return "default"
+}
+
+function buildSisyphusJuniorPrompt(model: string | undefined, promptAppend?: string): string {
+  const source = getSisyphusJuniorPromptSource(model)
+  const basePrompt = source === "gpt" ? SISYPHUS_JUNIOR_PROMPT_GPT : SISYPHUS_JUNIOR_PROMPT_DEFAULT
+  if (!promptAppend) return basePrompt
+  return basePrompt + "\n\n" + promptAppend
 }
 
 // Core tools that Sisyphus-Junior must NEVER have access to
@@ -77,7 +140,7 @@ export function createSisyphusJuniorAgentWithOverrides(
   const temperature = override?.temperature ?? SISYPHUS_JUNIOR_DEFAULTS.temperature
 
   const promptAppend = override?.prompt_append
-  const prompt = buildSisyphusJuniorPrompt(promptAppend)
+  const prompt = buildSisyphusJuniorPrompt(model, promptAppend)
 
   const baseRestrictions = createAgentToolRestrictions(BLOCKED_TOOLS)
 

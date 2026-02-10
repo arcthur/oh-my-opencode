@@ -19,7 +19,7 @@ import {
   BlockerPromptCache,
 } from "../../features/planning-with-files/blocker-detection"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
-import { createWorkStateManager } from "../../features/work-state"
+import { createWorkStateManager, type WorkExecutor } from "../../features/work-state"
 import { listIncompleteTasks, listTaskNodes, syncPlanTasksToTaskGraph } from "../../features/task-system"
 import { log } from "../../shared/logger"
 import type { ContinuationIntent } from "../continuation-control"
@@ -35,6 +35,7 @@ export interface PlanningWithFilesHookOptions {
 }
 
 const HOOK_NAME = "planning-with-files"
+const DEFAULT_EXECUTOR: WorkExecutor = "atlas"
 
 function buildPlanContext(content: string): string {
   return `<plan-context>
@@ -200,9 +201,9 @@ export function createPlanningWithFilesHook(
 
     const workState = workStateManager.load()
     if (!workState) {
-      workStateManager.initializePlan(planId, sessionID)
+      workStateManager.initializePlan(planId, sessionID, undefined, DEFAULT_EXECUTOR)
     } else if (workState.plan_id !== planId) {
-      workStateManager.switchPlan(planId, sessionID)
+      workStateManager.switchPlan(planId, sessionID, undefined, DEFAULT_EXECUTOR)
     } else {
       workStateManager.appendSessionId(sessionID)
     }

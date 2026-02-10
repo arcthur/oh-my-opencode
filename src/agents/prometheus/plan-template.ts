@@ -7,8 +7,8 @@
 
 export const PROMETHEUS_PLAN_TEMPLATE = `## Plan Structure
 
-Generate plan to: \`.sisyphus/plans/{name}.md\`
-Generate context manifest to: \`.sisyphus/context-manifests/{name}.md\`
+Generate plan to: \`.sisyphus/plans/{plan-id}/plan.md\`
+Generate context manifest to: \`.sisyphus/context-manifests/{plan-id}.md\`
 
 \`\`\`markdown
 # {Plan Title}
@@ -34,8 +34,8 @@ Generate context manifest to: \`.sisyphus/context-manifests/{name}.md\`
 
 ## Context Manifests (REQUIRED)
 
-- Plan: \`.sisyphus/plans/{name}.md\`
-- Context Manifest: \`.sisyphus/context-manifests/{name}.md\`
+- Plan: \`.sisyphus/plans/{plan-id}/plan.md\`
+- Context Manifest: \`.sisyphus/context-manifests/{plan-id}.md\`
 
 ### Context Manifest File Format (MANDATORY)
 
@@ -45,7 +45,7 @@ The context manifest MUST be **machine-parseable**. Write it as Markdown, but in
 [CONTEXT_MANIFEST]
 {
   "schemaVersion": 2,
-  "planId": "{name}",
+  "planId": "{plan-id}",
   "generatedAt": "{ISO-8601 timestamp}",
   "packs": [
     {

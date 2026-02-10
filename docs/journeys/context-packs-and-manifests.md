@@ -14,13 +14,13 @@ Context Packs and Context Manifests turn “context selection” into a first-cl
 ```mermaid
 flowchart TD
   U["User request"] --> P["Prometheus planning"]
-  P --> Draft["Plan draft → .sisyphus/plans/<planId>.md"]
+  P --> PlanSpec["Plan spec → .sisyphus/plans/<planId>/plan.md"]
   P --> CM["Context manifest → .sisyphus/context-manifests/<planId>.md"]
 
-  Draft --> SW["/start-work"]
+  PlanSpec --> SW["/start-work"]
   SW --> WS["Work state → .sisyphus/work.yaml"]
   SW --> PLAN["Execution plan → .sisyphus/plans/<planId>/plan.md"]
-  WS --> AT["Sisyphus Execution Mode orchestrates"]
+  WS --> AT["Atlas Execution Mode orchestrates"]
 
   AT --> DT["delegate_task prompt includes: Context Packs: ..."]
   DT --> HOOK["context-manifest-injector (tool.execute.before)"]
@@ -59,10 +59,10 @@ This keeps it human-readable (Markdown) and machine-parseable (JSON block).
 ### Step 1: Prometheus generates both artifacts
 
 For a plan `{planId}`, Prometheus should write:
-- `.sisyphus/plans/{planId}.md` (plan draft)
+- `.sisyphus/plans/{planId}/plan.md` (plan spec)
 - `.sisyphus/context-manifests/{planId}.md`
 
-When you run `/start-work`, execution mode migrates the plan draft into:
+When you run `/start-work`, execution mode binds:
 - `.sisyphus/plans/{planId}/plan.md` (plan spec)
 - `.sisyphus/tasks/plan/{planId}/task_*.json` (TaskGraph task SSOT)
 
@@ -82,7 +82,7 @@ The injector resolves the manifest path from `work.yaml.plan_id`.
 
 ### Step 3: Delegate as usual
 
-When Sisyphus Execution Mode calls `delegate_task(...)`, it copies the task’s `Context Packs:` line into the delegation prompt.
+When Atlas Execution Mode calls `delegate_task(...)`, it copies the task’s `Context Packs:` line into the delegation prompt.
 
 The injector hook then appends the corresponding pack content (rendered) right before the tool executes.
 

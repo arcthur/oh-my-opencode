@@ -236,5 +236,31 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       expect(baseEndIndex).not.toBe(-1) // Guard: anchor text must exist in base prompt
       expect(appendIndex).toBeGreaterThan(baseEndIndex)
     })
+
+    test("uses GPT-specific prompt scaffold for GPT-family models", () => {
+      // given
+      const override = { model: "openai/gpt-5.2" }
+
+      // when
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
+
+      // then
+      expect(result.prompt).toContain("<output_verbosity_spec>")
+      expect(result.prompt).toContain("Default: 2-4 sentences for status updates")
+      expect(result.prompt).toContain("RESEARCH-ONLY")
+    })
+
+    test("uses default prompt scaffold for non-GPT models", () => {
+      // given
+      const override = { model: "anthropic/claude-sonnet-4-5" }
+
+      // when
+      const result = createSisyphusJuniorAgentWithOverrides(override, TEST_SYSTEM_DEFAULT_MODEL)
+
+      // then
+      expect(result.prompt).toContain("<Task_Discipline>")
+      expect(result.prompt).not.toContain("<output_verbosity_spec>")
+      expect(result.prompt).toContain("RESEARCH-ONLY")
+    })
   })
 })
