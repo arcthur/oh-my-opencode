@@ -94,6 +94,7 @@ export const EVENT_TOTAL_ORDER: Record<HookEventType, HookNodeId[]> = {
     "background-notification:event",
     "session-notification:event",
     "task-auto-continuation:event",
+    "unstable-agent-watchdog:event",
     "pre-completion-verification:event",
     "planning-with-files:event",
     "internal:user-memory:event",

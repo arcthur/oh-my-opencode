@@ -287,7 +287,8 @@ Prompts MUST be in English.`
           parentContext,
           agentToUse,
           categoryModel,
-          systemContent
+          systemContent,
+          isUnstableAgent
         )
       }
 

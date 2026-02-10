@@ -63,6 +63,15 @@ export function buildEventNodes(
     })
   }
 
+  if (context.unstableAgentWatchdog?.event) {
+    nodes.push({
+      id: "unstable-agent-watchdog:event",
+      invoke: async () => {
+        await context.unstableAgentWatchdog?.event?.(input)
+      },
+    })
+  }
+
   if (context.preCompletionVerification?.event) {
     nodes.push({
       id: "pre-completion-verification:event",

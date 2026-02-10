@@ -2,6 +2,7 @@ import type { Plugin } from "@opencode-ai/plugin";
 import type { Message, Part } from "@opencode-ai/sdk";
 import {
   createTaskAutoContinuationHook,
+  createUnstableAgentWatchdogHook,
   createContextWindowGovernorHook,
   createSessionStateRepairHook,
   createSessionNotification,
@@ -627,6 +628,20 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
+  const unstableAgentWatchdog = isHookEnabled("unstable-agent-watchdog") &&
+    pluginConfig.background_task?.unstable_watchdog?.enabled !== false
+    ? createUnstableAgentWatchdogHook(ctx, {
+        backgroundManager,
+        reportContinuationIntent,
+        getContinuationRound,
+        isContinuationStopped,
+        timeoutMs: pluginConfig.background_task?.unstable_watchdog?.timeout_ms,
+        cooldownMs: pluginConfig.background_task?.unstable_watchdog?.cooldown_ms,
+        thinkingSummaryMaxChars:
+          pluginConfig.background_task?.unstable_watchdog?.thinking_summary_max_chars,
+      })
+    : null;
+
   const antiSlopEnforcer = isHookEnabled("anti-slop-enforcer")
     ? createAntiSlopEnforcerHook(ctx)
     : null;
@@ -942,6 +957,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     backgroundNotificationHook: optional(backgroundNotificationHook),
     sessionNotification: optional(sessionNotification),
     taskAutoContinuation: optional(taskAutoContinuation),
+    unstableAgentWatchdog: optional(unstableAgentWatchdog),
     runtimeTracker: optional(runtimeTracker),
     repoOverviewInjector: optional(repoOverviewInjector),
     contextWindowGovernor: optional(contextWindowGovernor),

@@ -250,6 +250,10 @@ export interface RuntimeAssemblyContext {
     cancelAllCountdowns: () => void
   }
 
+  unstableAgentWatchdog?: {
+    event?: EventHandler
+  }
+
   runtimeTracker?: {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     ["tool.execute.after"]?: ToolExecuteAfterHandler

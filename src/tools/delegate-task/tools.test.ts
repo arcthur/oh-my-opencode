@@ -1499,10 +1499,12 @@ describe("sisyphus-task", () => {
       // given - category using gemini model with run_in_background=true (normal background flow)
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
+      let launchInput: unknown
       
       const mockManager = {
-        launch: async () => {
+        launch: async (input: unknown) => {
           launchCalled = true
+          launchInput = input
           return {
             id: "task-normal-bg",
             sessionID: "ses_normal_bg",
@@ -1549,6 +1551,7 @@ describe("sisyphus-task", () => {
       
       // then - should NOT show unstable message (it's normal background flow)
       expect(launchCalled).toBe(true)
+      expect((launchInput as { isUnstableAgent?: boolean }).isUnstableAgent).toBe(true)
       expect(result).not.toContain("UNSTABLE AGENT MODE")
       expect(result).toContain("task-normal-bg")
     })
@@ -1817,10 +1820,12 @@ describe("sisyphus-task", () => {
       // given - custom category with is_unstable_agent=true but non-gemini model
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
+      let launchInput: unknown
       
       const mockManager = {
-        launch: async () => {
+        launch: async (input: unknown) => {
           launchCalled = true
+          launchInput = input
           return {
             id: "task-custom-unstable",
             sessionID: "ses_custom_unstable",
@@ -1879,6 +1884,7 @@ describe("sisyphus-task", () => {
       
       // then - should launch as background BUT wait for and return actual result
       expect(launchCalled).toBe(true)
+      expect((launchInput as { isUnstableAgent?: boolean }).isUnstableAgent).toBe(true)
       expect(result).toContain("SUPERVISED TASK COMPLETED")
       expect(result).toContain("Custom unstable result")
     }, { timeout: 20000 })

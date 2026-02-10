@@ -20,7 +20,7 @@ describe("semantic groups", () => {
     const entries = Object.entries(RECOVERY_MECHANISM_CATEGORY_BY_HOOK)
 
     // #then
-    expect(entries).toHaveLength(5)
+    expect(entries).toHaveLength(6)
     expect(RECOVERY_MECHANISM_CATEGORY_BY_HOOK["session-state-repair"]).toBe(
       "state-repair"
     )
@@ -35,6 +35,9 @@ describe("semantic groups", () => {
     ).toBe("continuation-control")
     expect(
       RECOVERY_MECHANISM_CATEGORY_BY_HOOK["task-auto-continuation"]
+    ).toBe("continuation-control")
+    expect(
+      RECOVERY_MECHANISM_CATEGORY_BY_HOOK["unstable-agent-watchdog"]
     ).toBe("continuation-control")
   })
 

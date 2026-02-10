@@ -66,6 +66,7 @@ export const AgentNameSchema = BuiltinAgentNameSchema
 
 export const HookNameSchema = z.enum([
   "task-auto-continuation",
+  "unstable-agent-watchdog",
   "context-window-governor",
   "session-state-repair",
   "session-notification",
@@ -389,12 +390,25 @@ export const RalphLoopConfigSchema = z.object({
   state_dir: z.string().optional(),
 })
 
+export const UnstableAgentWatchdogConfigSchema = z.object({
+  /** Enable unstable-agent watchdog reminders (default: true) */
+  enabled: z.boolean().default(true),
+  /** Idle timeout in milliseconds before triggering reminder (default: 120000 = 2 minutes) */
+  timeout_ms: z.number().min(10_000).default(120_000),
+  /** Cooldown per task between reminder injections (default: 300000 = 5 minutes) */
+  cooldown_ms: z.number().min(10_000).default(300_000),
+  /** Maximum chars to include from background thinking/reasoning summary (default: 500) */
+  thinking_summary_max_chars: z.number().min(100).max(4000).default(500),
+})
+
 export const BackgroundTaskConfigSchema = z.object({
   defaultConcurrency: z.number().min(1).optional(),
   providerConcurrency: z.record(z.string(), z.number().min(0)).optional(),
   modelConcurrency: z.record(z.string(), z.number().min(0)).optional(),
   /** Stale timeout in milliseconds - interrupt tasks with no activity for this duration (default: 180000 = 3 minutes, minimum: 60000 = 1 minute) */
   staleTimeoutMs: z.number().min(60000).optional(),
+  /** Watchdog for unstable-model background tasks (Gemini/Minimax/custom unstable categories) */
+  unstable_watchdog: UnstableAgentWatchdogConfigSchema.optional(),
 })
 
 export const ParallelRuntimeModeSchema = z.enum(["shadow", "enforce"])
@@ -530,6 +544,8 @@ export const ContinuationControlPrioritySchema = z.object({
   "task-auto-continuation": z.number().min(0).max(1000).default(200),
   /** Planning stop-verification continuation */
   "planning-with-files": z.number().min(0).max(1000).default(100),
+  /** Lowest priority: unstable background watchdog reminder */
+  "unstable-agent-watchdog": z.number().min(0).max(1000).default(50),
 })
 
 export const ContinuationControlConfigSchema = z.object({
@@ -541,6 +557,7 @@ export const ContinuationControlConfigSchema = z.object({
     "ralph-loop": 300,
     "task-auto-continuation": 200,
     "planning-with-files": 100,
+    "unstable-agent-watchdog": 50,
   }),
 })
 

@@ -21,6 +21,7 @@ export function createTask(input: LaunchInput): BackgroundTask {
     prompt: input.prompt,
     agent: input.agent,
     category: input.category,
+    isUnstableAgent: input.isUnstableAgent,
     parentSessionID: input.parentSessionID,
     parentMessageID: input.parentMessageID,
     parentModel: input.parentModel,

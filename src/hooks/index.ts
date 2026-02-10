@@ -1,4 +1,5 @@
 export { createTaskAutoContinuationHook, type TaskAutoContinuationHook } from "./task-auto-continuation";
+export { createUnstableAgentWatchdogHook, type UnstableAgentWatchdogOptions } from "./unstable-agent-watchdog";
 export {
   createContinuationControl,
   type ContinuationControlConfig,

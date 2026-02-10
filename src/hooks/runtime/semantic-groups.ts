@@ -11,6 +11,7 @@ export type RecoveryMechanismHook =
   | "delegation-failure-guidance"
   | "continuation-stop-guard"
   | "task-auto-continuation"
+  | "unstable-agent-watchdog"
 
 export const RECOVERY_MECHANISM_CATEGORY_BY_HOOK: Record<
   RecoveryMechanismHook,
@@ -21,6 +22,7 @@ export const RECOVERY_MECHANISM_CATEGORY_BY_HOOK: Record<
   "delegation-failure-guidance": "failure-guidance",
   "continuation-stop-guard": "continuation-control",
   "task-auto-continuation": "continuation-control",
+  "unstable-agent-watchdog": "continuation-control",
 }
 
 export type DelegationProgressStage = "block" | "validate" | "nudge"

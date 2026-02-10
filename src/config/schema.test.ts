@@ -864,6 +864,7 @@ describe("continuation_control schema", () => {
           "ralph-loop": 300,
           "task-auto-continuation": 200,
           "planning-with-files": 100,
+          "unstable-agent-watchdog": 50,
         },
       })
     }
@@ -891,6 +892,32 @@ describe("continuation_control schema", () => {
         "ralph-loop": 250,
         "task-auto-continuation": 200,
         "planning-with-files": 100,
+        "unstable-agent-watchdog": 50,
+      })
+    }
+  })
+})
+
+describe("background_task.unstable_watchdog schema", () => {
+  test("applies nested defaults when unstable_watchdog is configured", () => {
+    // given
+    const config = {
+      background_task: {
+        unstable_watchdog: {},
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.background_task?.unstable_watchdog).toEqual({
+        enabled: true,
+        timeout_ms: 120000,
+        cooldown_ms: 300000,
+        thinking_summary_max_chars: 500,
       })
     }
   })

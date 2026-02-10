@@ -6,6 +6,7 @@ export type ContinuationSource =
   | "ralph-loop"
   | "task-auto-continuation"
   | "planning-with-files"
+  | "unstable-agent-watchdog"
 
 export type ContinuationRejectReason =
   | "stop_guard"
@@ -46,6 +47,7 @@ export interface ContinuationControlPriority {
   "ralph-loop": number
   "task-auto-continuation": number
   "planning-with-files": number
+  "unstable-agent-watchdog": number
 }
 
 export interface ContinuationControlConfig {

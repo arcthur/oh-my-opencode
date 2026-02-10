@@ -57,6 +57,8 @@ export interface LaunchInput {
   prompt: string
   agent: string
   category?: string
+  /** True when the selected category/model is marked unstable (non-gemini custom unstable categories included). */
+  isUnstableAgent?: boolean
   parentSessionID: string
   parentMessageID: string
   parentModel?: { providerID: string; modelID: string }

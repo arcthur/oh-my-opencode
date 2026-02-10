@@ -4,6 +4,7 @@ import { validateSemanticGroups } from "./semantic-groups"
 
 const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "task-auto-continuation", events: ["event"] },
+  { name: "unstable-agent-watchdog", events: ["event"] },
   { name: "context-window-governor", events: ["event", "tool.execute.after", "experimental.session.compacting"] },
   { name: "session-state-repair", events: [] },
   { name: "session-notification", events: ["event"] },

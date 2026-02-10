@@ -9,6 +9,7 @@ function createConfig(overrides?: Partial<ContinuationControlConfig>): Continuat
       "ralph-loop": 300,
       "task-auto-continuation": 200,
       "planning-with-files": 100,
+      "unstable-agent-watchdog": 50,
     },
     ...overrides,
   }

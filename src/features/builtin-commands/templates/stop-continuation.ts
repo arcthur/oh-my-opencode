@@ -5,7 +5,8 @@ This command will:
 2. Cancel any active Ralph Loop
 3. Stop planning-with-files stop verification continuation prompts
 4. Stop execution-orchestrator work continuation prompts
-5. Clear the work state for the current project
+5. Stop unstable-agent-watchdog reminder prompts
+6. Clear the work state for the current project
 
 After running this command:
 - The session will not auto-continue when idle

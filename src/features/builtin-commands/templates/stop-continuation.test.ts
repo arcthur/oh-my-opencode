@@ -22,6 +22,7 @@ describe("stop-continuation template", () => {
     expect(STOP_CONTINUATION_TEMPLATE).toContain("Ralph Loop")
     expect(STOP_CONTINUATION_TEMPLATE).toContain("planning-with-files")
     expect(STOP_CONTINUATION_TEMPLATE).toContain("execution-orchestrator")
+    expect(STOP_CONTINUATION_TEMPLATE).toContain("unstable-agent-watchdog")
     expect(STOP_CONTINUATION_TEMPLATE).toContain("work state")
   })
 })

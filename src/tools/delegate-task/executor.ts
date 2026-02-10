@@ -395,6 +395,7 @@ export async function executeUnstableAgentTask(
       description: args.description,
       prompt: args.prompt,
       agent: agentToUse,
+      isUnstableAgent: true,
       parentSessionID: parentContext.sessionID,
       parentMessageID: parentContext.messageID,
       parentModel: parentContext.model,
@@ -541,7 +542,8 @@ export async function executeBackgroundTask(
   parentContext: ParentContext,
   agentToUse: string,
   categoryModel: { providerID: string; modelID: string; variant?: string } | undefined,
-  systemContent: string | undefined
+  systemContent: string | undefined,
+  isUnstableAgent?: boolean
 ): Promise<string> {
   const { manager } = executorCtx
 
@@ -556,6 +558,7 @@ export async function executeBackgroundTask(
       description: args.description,
       prompt: args.prompt,
       agent: agentToUse,
+      isUnstableAgent,
       parentSessionID: parentContext.sessionID,
       parentMessageID: parentContext.messageID,
       parentModel: parentContext.model,
