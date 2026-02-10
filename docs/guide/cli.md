@@ -65,7 +65,10 @@ Options:
 |--------|-------------|
 | `-a, --agent <name>` | Agent override (`Sisyphus`, `Hephaestus`, `Prometheus`, etc.) |
 | `-d, --directory <path>` | Working directory for the prompt call |
-| `-t, --timeout <ms>` | Timeout in milliseconds (`0` or omitted means no timeout in runner) |
+| `-t, --timeout <ms>` | Timeout in milliseconds (default: **30 minutes**; set `0` to disable) |
+
+Notes:
+- Messages that begin with `-` are accepted (unknown options are passed through). If your shell treats them as flags, prefix the message with `--` to be explicit.
 
 ## 5. `get-local-version`
 

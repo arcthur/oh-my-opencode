@@ -270,6 +270,25 @@ describe("resolveMultipleSkillsAsync", () => {
 		expect(gitMasterContent).not.toContain("Co-authored-by: Sisyphus")
 	})
 
+	it("should inject custom footer when commit_footer is a string", async () => {
+		// given: git-master skill with custom footer text
+		const skillNames = ["git-master"]
+		const options = {
+			gitMasterConfig: {
+				commit_footer: "Custom footer text",
+				include_co_authored_by: false,
+			},
+		}
+
+		// when: resolving with custom footer
+		const result = await resolveMultipleSkillsAsync(skillNames, options)
+
+		// then: custom footer is injected
+		const gitMasterContent = result.resolved.get("git-master")
+		expect(gitMasterContent).toContain("Custom footer text")
+		expect(gitMasterContent).not.toContain("Ultraworked with [Sisyphus]")
+	})
+
 	it("should inject watermark by default when no config provided", async () => {
 		// given: git-master skill with NO config (default behavior)
 		const skillNames = ["git-master"]

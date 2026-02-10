@@ -323,8 +323,19 @@ Configure git-master skill behavior:
 
 | Option                   | Default | Description                                                                      |
 | ------------------------ | ------- | -------------------------------------------------------------------------------- |
-| `commit_footer`          | `true`  | Adds "Ultraworked with Sisyphus" footer to commit messages.                      |
+| `commit_footer`          | `true`  | `true` adds the default footer, `false` disables it, or a **string** sets custom footer text. |
 | `include_co_authored_by` | `true`  | Adds `Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>` trailer to commits. |
+
+Custom footer example:
+
+```json
+{
+  "git_master": {
+    "commit_footer": "Reviewed and signed by DevOps",
+    "include_co_authored_by": false
+  }
+}
+```
 
 ## Sisyphus Agent
 
