@@ -72,7 +72,6 @@ function buildDynamicAtlasPrompt(ctx?: AtlasContext): string {
 export function createAtlasAgent(ctx: AtlasContext): AgentConfig {
   const restrictions = createAgentToolRestrictions([
     "task",
-    "call_omo_agent",
   ])
 
   const baseConfig = {
