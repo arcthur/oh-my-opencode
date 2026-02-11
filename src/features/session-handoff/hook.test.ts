@@ -14,6 +14,7 @@ mock.module("./storage", () => ({
   deleteHandoff: mock(() => false),
   getRecentSessionHandoffs: mock(() => []),
   saveEmbeddings: mock(() => {}),
+  updateHandoffMetrics: mock(() => null),
 }))
 
 mock.module("./injector", () => ({

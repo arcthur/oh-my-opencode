@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createSisyphusAgent, getSisyphusPromptSource } from "./sisyphus"
+import { getExecutionPolicy } from "../features/orchestration/policy"
 
 describe("sisyphus execution-mode prompt overlays", () => {
   test("selects GPT prompt source for GPT-family models", () => {
@@ -27,6 +28,7 @@ describe("sisyphus execution-mode prompt overlays", () => {
   test("uses GPT execution profile for GPT models", () => {
     // #given
     const model = "openai/gpt-5.2"
+    const policy = getExecutionPolicy()
 
     // #when
     const agent = createSisyphusAgent(model)
@@ -35,7 +37,7 @@ describe("sisyphus execution-mode prompt overlays", () => {
     expect(agent.prompt).toContain("## Execution Profile (GPT-family)")
     expect(agent.prompt).toContain("<output_verbosity_spec>")
     expect(agent.prompt).toContain("Default: 2-4 sentences for status updates")
-    expect(agent.prompt).toContain("Minimum 18 lines per delegation prompt")
+    expect(agent.prompt).toContain(`Minimum ${policy.delegatePrompt.minNonEmptyLines} lines per delegation prompt`)
   })
 
   test("uses non-GPT execution profile for Claude-family models", () => {
