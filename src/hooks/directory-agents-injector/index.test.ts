@@ -42,6 +42,7 @@ describe("directory-agents-injector budget integration", () => {
   })
 
   afterEach(() => {
+    contextBudgetArbiter.resetForTesting()
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true, force: true })
     }

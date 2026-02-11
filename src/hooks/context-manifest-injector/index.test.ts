@@ -47,6 +47,7 @@ describe("context-manifest-injector hook", () => {
   })
 
   afterEach(() => {
+    contextBudgetArbiter.resetForTesting()
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true, force: true })
     }
