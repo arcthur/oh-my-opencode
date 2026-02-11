@@ -18,7 +18,7 @@ export const START_WORK_TEMPLATE = `You are starting an Atlas execution work ses
 
 4. **Create/Update work.yaml**:
    \`\`\`yaml
-   schema_version: 4
+   schema_version: 5
    executor: atlas
    plan_id: plan-name
    execution_plan_path: .sisyphus/plans/plan-name/plan.md

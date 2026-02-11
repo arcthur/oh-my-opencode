@@ -52,7 +52,7 @@ export const DecisionSchema = z.object({
   alternatives_rejected: z.array(z.string()).optional(),
 })
 
-export const WorkExecutorSchema = z.enum(["sisyphus", "atlas"])
+export const WorkExecutorSchema = z.literal("atlas")
 
 const WorkStateCommonFields = {
   /** Stable plan identifier */
@@ -78,7 +78,7 @@ const WorkStateCommonFields = {
 
 export const WorkStateSchema = z.object({
   /** Work state schema version (breaking state upgrades bump this value) */
-  schema_version: z.literal(4),
+  schema_version: z.literal(5),
   /** Active execution orchestrator profile */
   executor: WorkExecutorSchema,
   ...WorkStateCommonFields,

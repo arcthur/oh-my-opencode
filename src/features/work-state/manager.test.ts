@@ -8,10 +8,10 @@ import { createWorkStateManager } from "./manager"
 import type { WorkState } from "./types"
 
 function createTempWorkspace(): string {
-  return join(tmpdir(), `work-state-v4-${randomUUID()}`)
+  return join(tmpdir(), `work-state-v5-${randomUUID()}`)
 }
 
-describe("WorkStateManager v4", () => {
+describe("WorkStateManager v5", () => {
   let workspaceDir: string
 
   beforeEach(() => {
@@ -36,32 +36,20 @@ describe("WorkStateManager v4", () => {
     expect(loaded).toBeNull()
   })
 
-  test("initializePlan writes schema v4 state with canonical plan and ledger paths", () => {
+  test("initializePlan writes schema v5 state with canonical plan and ledger paths", () => {
     // #given
     const manager = createWorkStateManager(workspaceDir)
 
     // #when
-    const state = manager.initializePlan("auth-refactor", "session-1", undefined, "sisyphus")
+    const state = manager.initializePlan("auth-refactor", "session-1", undefined)
 
     // #then
-    expect(state.schema_version).toBe(4)
-    expect(state.executor).toBe("sisyphus")
+    expect(state.schema_version).toBe(5)
+    expect(state.executor).toBe("atlas")
     expect(state.plan_id).toBe("auth-refactor")
     expect(state.execution_plan_path).toBe(".sisyphus/plans/auth-refactor/plan.md")
     expect(state.runtime_ledger_path).toBe(".sisyphus/plans/auth-refactor/ledger.yaml")
     expect(state.session_ids).toEqual(["session-1"])
-  })
-
-  test("initializePlan accepts explicit atlas executor", () => {
-    // #given
-    const manager = createWorkStateManager(workspaceDir)
-
-    // #when
-    const state = manager.initializePlan("auth-refactor", "session-1", undefined, "atlas")
-
-    // #then
-    expect(state.schema_version).toBe(4)
-    expect(state.executor).toBe("atlas")
   })
 
   test("initializePlan rejects non-canonical execution plan path", () => {
@@ -70,15 +58,15 @@ describe("WorkStateManager v4", () => {
 
     // #when / #then
     expect(() =>
-      manager.initializePlan("auth-refactor", "session-1", ".sisyphus/plans/auth-refactor.md", "sisyphus")
+      manager.initializePlan("auth-refactor", "session-1", ".sisyphus/plans/auth-refactor.md")
     ).toThrow("Invalid work-state invariant")
   })
 
   test("load rejects state with broken plan invariant", () => {
     // #given
     const badState: WorkState = {
-      schema_version: 4,
-      executor: "sisyphus",
+      schema_version: 5,
+      executor: "atlas",
       plan_id: "demo",
       execution_plan_path: ".sisyphus/plans/demo.md",
       runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
@@ -130,10 +118,10 @@ describe("WorkStateManager v4", () => {
   test("switchPlan replaces active plan and resets session list", () => {
     // #given
     const manager = createWorkStateManager(workspaceDir)
-    manager.initializePlan("plan-a", "session-a", undefined, "sisyphus")
+    manager.initializePlan("plan-a", "session-a", undefined)
 
     // #when
-    const switched = manager.switchPlan("plan-b", "session-b", undefined, "sisyphus")
+    const switched = manager.switchPlan("plan-b", "session-b", undefined)
 
     // #then
     expect(switched.plan_id).toBe("plan-b")

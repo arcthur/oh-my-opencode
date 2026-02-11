@@ -35,8 +35,8 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
-    schema_version: 4,
-    executor: state.executor ?? "sisyphus",
+    schema_version: 5,
+    executor: state.executor ?? "atlas",
     plan_id: planId,
     execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
     runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
@@ -198,7 +198,7 @@ describe("start-work hook", () => {
       expect(imported.length).toBeGreaterThan(0)
 
       const workYaml = readFileSync(join(testDir, ".sisyphus", "work.yaml"), "utf-8")
-      expect(workYaml).toContain("schema_version: 4")
+      expect(workYaml).toContain("schema_version: 5")
       expect(workYaml).toContain("executor: atlas")
     })
 
@@ -340,12 +340,12 @@ describe("start-work hook", () => {
       updateSpy.mockRestore()
     })
 
-    test("should preserve existing executor when resuming active work", async () => {
+    test("should keep atlas executor when resuming active work", async () => {
       const updateSpy = spyOn(sessionState, "updateSessionAgent")
       createPlan(testDir, "legacy-plan", "# Plan: legacy-plan\n\n## Tasks\n\n- 1. Task 1\n")
       writeWorkState(testDir, {
         plan_id: "legacy-plan",
-        executor: "sisyphus",
+        executor: "atlas",
         session_ids: ["old-session"],
       })
 
@@ -356,7 +356,7 @@ describe("start-work hook", () => {
 
       await hook["chat.message"]({ sessionID: "ses-resume-existing" }, output)
 
-      expect(updateSpy).toHaveBeenCalledWith("ses-resume-existing", "sisyphus")
+      expect(updateSpy).toHaveBeenCalledWith("ses-resume-existing", "atlas")
       updateSpy.mockRestore()
     })
   })

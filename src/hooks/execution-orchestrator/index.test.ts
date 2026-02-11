@@ -48,8 +48,8 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   }
 
   const fullState: WorkState = {
-    schema_version: 4,
-    executor: state.executor ?? "sisyphus",
+    schema_version: 5,
+    executor: state.executor ?? "atlas",
     plan_id: planId,
     execution_plan_path: canonicalPlanPath,
     runtime_ledger_path: canonicalLedgerPath,
@@ -161,7 +161,7 @@ describe("execution-orchestrator hook", () => {
     // #given
     const sessionID = "main-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
 
     const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
     mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
@@ -189,7 +189,7 @@ describe("execution-orchestrator hook", () => {
     // #then
     expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
     const args = mockInput._promptMock.mock.calls[0][0]
-    expect(args.body.agent).toBe("sisyphus")
+    expect(args.body.agent).toBe("atlas")
     expect(args.body.parts[0].text).toContain("WORK CONTINUATION")
 
     cleanupMessageStorage(sessionID)
@@ -234,7 +234,49 @@ describe("execution-orchestrator hook", () => {
     cleanupMessageStorage(sessionID)
   })
 
-  test("falls back to work-state ownership when execution caller metadata is unavailable", async () => {
+  test("does not run continuation when work-state schema is legacy", async () => {
+    // #given
+    const sessionID = "legacy-sisyphus-session"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "atlas")
+
+    mkdirSync(join(TEST_DIR, ".sisyphus"), { recursive: true })
+    writeFileSync(
+      join(TEST_DIR, ".sisyphus", "work.yaml"),
+      `schema_version: 4
+executor: sisyphus
+plan_id: execution
+execution_plan_path: .sisyphus/plans/execution/plan.md
+runtime_ledger_path: .sisyphus/plans/execution/ledger.yaml
+started_at: "2026-02-06T00:00:00Z"
+session_ids:
+  - ${sessionID}
+research_ops: 0
+last_findings_mtime: 0
+errors: []
+blockers: []
+decisions: []
+`,
+      "utf-8"
+    )
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
+  })
+
+  test("does not continue when execution caller metadata is unavailable", async () => {
     // #given
     const sessionID = "atlas-no-metadata-session"
     setMainSession(sessionID)
@@ -260,10 +302,7 @@ describe("execution-orchestrator hook", () => {
     await flushMicrotasks()
 
     // #then
-    expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
-    const args = mockInput._promptMock.mock.calls[0][0]
-    expect(args.body.agent).toBe("atlas")
-    expect(args.body.parts[0].text).toContain("ATLAS EXECUTION CONTINUATION")
+    expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
   })
 
   test("does not run execution continuation when explicit non-orchestrator agent is active", async () => {
@@ -347,7 +386,7 @@ describe("execution-orchestrator hook", () => {
     // #given
     const sessionID = "main-session-reporter"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
@@ -394,7 +433,7 @@ describe("execution-orchestrator hook", () => {
     // #given
     const sessionID = "main-session-reporter-await"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
@@ -431,7 +470,7 @@ describe("execution-orchestrator hook", () => {
     // #given
     const sessionID = "main-session-reject-grace"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
@@ -474,7 +513,7 @@ describe("execution-orchestrator hook", () => {
     // #given
     const sessionID = "main-session-stop-guard"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
@@ -507,7 +546,7 @@ describe("execution-orchestrator hook", () => {
     // #given
     const sessionID = "main-session-prompt-failure"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
       execution_plan_path: ".sisyphus/plans/execution/plan.md",
@@ -548,7 +587,7 @@ describe("execution-orchestrator hook", () => {
     // #given
     const sessionID = "main-session-compacted-reset"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
       execution_plan_path: ".sisyphus/plans/execution/plan.md",
@@ -594,7 +633,7 @@ describe("execution-orchestrator hook", () => {
   test("blocks direct task tool in execution mode", async () => {
     // #given
     const sessionID = "execution-task-warning"
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
       execution_plan_path: ".sisyphus/plans/execution/plan.md",
@@ -617,7 +656,7 @@ describe("execution-orchestrator hook", () => {
   test("blocks delegate_task when execution-mode prompt is missing required structure", async () => {
     // #given
     const sessionID = "execution-bad-delegate-prompt"
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
       execution_plan_path: ".sisyphus/plans/execution/plan.md",
@@ -645,7 +684,7 @@ describe("execution-orchestrator hook", () => {
   test("allows delegate_task when execution-mode prompt includes required sections", async () => {
     // #given
     const sessionID = "execution-good-delegate-prompt"
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
       execution_plan_path: ".sisyphus/plans/execution/plan.md",
@@ -757,7 +796,7 @@ Implement atomic fix.
   test("warns on direct write outside .sisyphus in execution mode", async () => {
     // #given
     const sessionID = "execution-write-warning"
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
       execution_plan_path: ".sisyphus/plans/execution/plan.md",
@@ -783,7 +822,7 @@ Implement atomic fix.
   test("does not warn for write inside .sisyphus", async () => {
     // #given
     const sessionID = "execution-write-plan"
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
       execution_plan_path: ".sisyphus/plans/execution/plan.md",
@@ -809,7 +848,7 @@ Implement atomic fix.
   test("transforms delegate_task output in execution mode", async () => {
     // #given
     const sessionID = "execution-delegate"
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
 
     const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
     mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
@@ -843,7 +882,7 @@ Implement atomic fix.
   test("skips orchestration transform outside execution mode", async () => {
     // #given
     const sessionID = "regular-sisyphus"
-    setupMessageStorage(sessionID, "sisyphus")
+    setupMessageStorage(sessionID, "atlas")
 
     const hook = createExecutionOrchestratorHook(createMockPluginInput())
     const output = {

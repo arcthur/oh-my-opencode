@@ -11,7 +11,6 @@ import * as yaml from "js-yaml"
 import {
   WorkStateSchema,
   type WorkState,
-  type WorkExecutor,
   type ErrorRecord,
   type BlockerRecord,
   WORK_STATE_DIR,
@@ -80,8 +79,7 @@ export class WorkStateManager {
   initializePlan(
     planId: string,
     sessionId: string,
-    executionPlanPath: string | undefined,
-    executor: WorkExecutor
+    executionPlanPath: string | undefined
   ): WorkState {
     const canonicalExecutionPlanPath = this.getCanonicalExecutionPlanPath(planId)
     const canonicalRuntimeLedgerPath = this.getCanonicalRuntimeLedgerPath(planId)
@@ -90,8 +88,8 @@ export class WorkStateManager {
     this.ensurePlanInvariant(planId, selectedExecutionPlanPath, canonicalRuntimeLedgerPath)
 
     this.state = {
-      schema_version: 4,
-      executor,
+      schema_version: 5,
+      executor: "atlas",
       plan_id: planId,
       execution_plan_path: selectedExecutionPlanPath,
       runtime_ledger_path: canonicalRuntimeLedgerPath,
@@ -113,10 +111,9 @@ export class WorkStateManager {
   switchPlan(
     planId: string,
     sessionId: string,
-    executionPlanPath: string | undefined,
-    executor: WorkExecutor
+    executionPlanPath: string | undefined
   ): WorkState {
-    return this.initializePlan(planId, sessionId, executionPlanPath, executor)
+    return this.initializePlan(planId, sessionId, executionPlanPath)
   }
 
   /**

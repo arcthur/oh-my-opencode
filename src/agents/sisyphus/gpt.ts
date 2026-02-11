@@ -1,5 +1,9 @@
+import { getExecutionPolicy } from "../../features/orchestration/policy"
+
+const EXECUTION_POLICY = getExecutionPolicy()
+
 /**
- * GPT-family execution profile for Sisyphus execution mode.
+ * GPT-family execution governance profile used in the Sisyphus prompt.
  */
 export const SISYPHUS_EXECUTION_PROFILE_GPT = `## Execution Profile (GPT-family)
 
@@ -30,7 +34,7 @@ export const SISYPHUS_EXECUTION_PROFILE_GPT = `## Execution Profile (GPT-family)
 
 <delegation_prompt_contract>
 - Prompt must include 6 sections: TASK, EXPECTED OUTCOME, REQUIRED TOOLS, MUST DO, MUST NOT DO, CONTEXT.
-- Minimum 30 lines per delegation prompt in Execution Mode.
+- Minimum ${EXECUTION_POLICY.delegatePrompt.minNonEmptyLines} lines per delegation prompt in Execution Mode.
 </delegation_prompt_contract>`
 
 export function getGptSisyphusExecutionProfile(): string {

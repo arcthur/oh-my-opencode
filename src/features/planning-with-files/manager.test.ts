@@ -100,7 +100,7 @@ describe("planning-with-files manager", () => {
     await initializePlan(tmpDir, "plan-a", "A")
     await new Promise((r) => setTimeout(r, 10))
     await initializePlan(tmpDir, "plan-b", "B")
-    createWorkStateManager(tmpDir).initializePlan("plan-a", "session-1", undefined, "sisyphus")
+    createWorkStateManager(tmpDir).initializePlan("plan-a", "session-1", undefined)
 
     // #when
     const active = await detectActivePlan(tmpDir)

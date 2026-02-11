@@ -1,5 +1,5 @@
 /**
- * Default (non-GPT) execution profile for Sisyphus execution mode.
+ * Default (non-GPT) execution governance profile used in the Sisyphus prompt.
  */
 export const SISYPHUS_EXECUTION_PROFILE_NON_GPT = `## Execution Profile (Non-GPT)
 

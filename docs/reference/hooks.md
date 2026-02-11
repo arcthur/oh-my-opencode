@@ -99,6 +99,7 @@ sisyphus-junior-notepad
 tmux-parallel-agents
 swarm-agent
 anthropic-effort
+unstable-agent-watchdog
 ```
 
 Notes:

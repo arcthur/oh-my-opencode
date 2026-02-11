@@ -14,8 +14,8 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
-    schema_version: 4,
-    executor: state.executor ?? "sisyphus",
+    schema_version: 5,
+    executor: state.executor ?? "atlas",
     execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
     runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
     plan_id: planId,

@@ -45,11 +45,11 @@ describe("swarm-from-plan hook", () => {
 
     mkdirSync(join(projectDir, ".sisyphus", "plans"), { recursive: true })
 
-    // Minimal work.yaml (v4)
+    // Minimal work.yaml (v5)
     writeFileSync(
       join(projectDir, ".sisyphus", "work.yaml"),
       [
-        `schema_version: 4`,
+        `schema_version: 5`,
         `executor: "atlas"`,
         `plan_id: "demo"`,
         `execution_plan_path: ".sisyphus/plans/demo/plan.md"`,

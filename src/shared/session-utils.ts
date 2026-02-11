@@ -2,8 +2,9 @@ import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { getSessionAgent } from "../features/claude-code-session-state"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../features/hook-message-injector"
+import { EXECUTION_OWNER, type ExecutionOwner } from "../features/orchestration/owner"
 
-export type ExecutionCaller = "sisyphus" | "atlas"
+export type OrchestratorCaller = "sisyphus" | "atlas"
 export type ExecutionOwnership = "matched" | "mismatched" | "unknown"
 
 export function getMessageDir(sessionID: string): string | null {
@@ -31,7 +32,7 @@ export function getSessionAgentBestEffort(sessionID: string): string | undefined
   return typeof nearest?.agent === "string" ? nearest.agent : undefined
 }
 
-export function getExecutionCaller(sessionID?: string): ExecutionCaller | null {
+export function getOrchestratorCaller(sessionID?: string): OrchestratorCaller | null {
   if (!sessionID) return null
   const agent = getSessionAgentBestEffort(sessionID)?.toLowerCase()
   if (agent === "sisyphus" || agent === "atlas") {
@@ -40,9 +41,14 @@ export function getExecutionCaller(sessionID?: string): ExecutionCaller | null {
   return null
 }
 
+export function getExecutionCaller(sessionID?: string): ExecutionOwner | null {
+  const orchestrator = getOrchestratorCaller(sessionID)
+  return orchestrator === EXECUTION_OWNER ? EXECUTION_OWNER : null
+}
+
 export function resolveExecutionOwnership(
   sessionID: string | undefined,
-  expectedExecutor: ExecutionCaller
+  expectedExecutor: ExecutionOwner
 ): ExecutionOwnership {
   if (!sessionID) return "unknown"
 
@@ -60,5 +66,5 @@ export function resolveExecutionOwnership(
 }
 
 export function isCallerOrchestrator(sessionID?: string): boolean {
-  return getExecutionCaller(sessionID) !== null
+  return getOrchestratorCaller(sessionID) !== null
 }

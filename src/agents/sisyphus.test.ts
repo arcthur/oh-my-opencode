@@ -35,7 +35,7 @@ describe("sisyphus execution-mode prompt overlays", () => {
     expect(agent.prompt).toContain("## Execution Profile (GPT-family)")
     expect(agent.prompt).toContain("<output_verbosity_spec>")
     expect(agent.prompt).toContain("Default: 2-4 sentences for status updates")
-    expect(agent.prompt).toContain("Minimum 30 lines per delegation prompt")
+    expect(agent.prompt).toContain("Minimum 18 lines per delegation prompt")
   })
 
   test("uses non-GPT execution profile for Claude-family models", () => {

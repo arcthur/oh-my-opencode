@@ -21,7 +21,7 @@ describe("work-state/task-selector", () => {
 
   test("resolves to plan scope for sessions in work.yaml", () => {
     // #given
-    createWorkStateManager(workspace).initializePlan("plan-a", "ses-1", undefined, "sisyphus")
+    createWorkStateManager(workspace).initializePlan("plan-a", "ses-1", undefined)
 
     // #when
     const resolved = resolveActiveTaskSelector(workspace, "ses-1")
@@ -32,7 +32,7 @@ describe("work-state/task-selector", () => {
 
   test("falls back to session scope when no active plan binding exists", () => {
     // #given
-    createWorkStateManager(workspace).initializePlan("plan-a", "ses-1", undefined, "sisyphus")
+    createWorkStateManager(workspace).initializePlan("plan-a", "ses-1", undefined)
 
     // #when
     const resolved = resolveActiveTaskSelector(workspace, "ses-2")

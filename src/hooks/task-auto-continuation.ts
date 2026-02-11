@@ -2,6 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import type { OhMyOpenCodeConfig } from "../config/schema"
 import type { BackgroundManager } from "../features/background-agent"
 import { getMainSessionID, isSubagentSession } from "../features/claude-code-session-state"
+import { EXECUTION_OWNER } from "../features/orchestration/owner"
 import { listIncompleteTasks, listTaskNodes, type TaskSummary } from "../features/task-system"
 import { createWorkStateManager, resolveActiveTaskSelector } from "../features/work-state"
 import {
@@ -97,14 +98,15 @@ export function createTaskAutoContinuationHook(
     const workState = workStateManager.load()
     if (!workState) return false
     if (!workState.session_ids.includes(sessionID)) return false
-    const ownership = resolveExecutionOwnership(sessionID, workState.executor)
+
+    const ownership = resolveExecutionOwnership(sessionID, EXECUTION_OWNER)
     if (ownership === "matched") return true
     if (ownership === "unknown") {
-      log(`[${HOOK_NAME}] Ownership unresolved; yielding continuation to execution-orchestrator`, {
+      log(`[${HOOK_NAME}] Ownership unresolved; handling via task-auto-continuation`, {
         sessionID,
-        executor: workState.executor,
+        executor: EXECUTION_OWNER,
       })
-      return true
+      return false
     }
     return false
   }

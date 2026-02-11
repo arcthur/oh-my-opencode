@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdirSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { OhMyOpenCodeConfig } from "../config/schema"
@@ -227,7 +227,7 @@ describe("task-auto-continuation", () => {
     updateSessionAgent(sessionID, "atlas")
 
     const workStateManager = createWorkStateManager(workspace)
-    workStateManager.initializePlan(planID, sessionID, undefined, "atlas")
+    workStateManager.initializePlan(planID, sessionID, undefined)
     createTaskNode(
       {
         scope: "plan",
@@ -258,14 +258,14 @@ describe("task-auto-continuation", () => {
     expect(intents).toHaveLength(0)
   })
 
-  test("skips continuation when execution ownership metadata is unavailable", async () => {
+  test("continues via task-auto-continuation when execution ownership metadata is unavailable", async () => {
     // #given
     const sessionID = "main-execution-metadata-missing"
     const planID = "execution-plan-metadata-missing"
     setMainSession(sessionID)
 
     const workStateManager = createWorkStateManager(workspace)
-    workStateManager.initializePlan(planID, sessionID, undefined, "atlas")
+    workStateManager.initializePlan(planID, sessionID, undefined)
     createTaskNode(
       {
         scope: "plan",
@@ -291,9 +291,8 @@ describe("task-auto-continuation", () => {
     await timers.advanceBy(2500)
 
     // #then
-    expect(toastCalls).toHaveLength(0)
     expect(promptCalls).toHaveLength(0)
-    expect(intents).toHaveLength(0)
+    expect(intents).toEqual(["task-auto-continuation"])
   })
 
   test("does not treat explicit non-orchestrator agent as execution-owned session", async () => {
@@ -304,12 +303,65 @@ describe("task-auto-continuation", () => {
     updateSessionAgent(sessionID, "prometheus")
 
     const workStateManager = createWorkStateManager(workspace)
-    workStateManager.initializePlan(planID, sessionID, undefined, "atlas")
+    workStateManager.initializePlan(planID, sessionID, undefined)
     createTaskNode(
       {
         scope: "plan",
         container_id: planID,
         title: "Plan task",
+      },
+      config
+    )
+
+    const input = createMockPluginInput()
+    const hook = createTaskAutoContinuationHook(input, {
+      taskConfig: config,
+      skipAgents: [],
+      reportContinuationIntent: createDirectContinuationReporterForTesting(input),
+    })
+
+    // #when
+    await hook.handler({
+      event: { type: "session.idle", properties: { sessionID } },
+    })
+    await timers.advanceBy(2500)
+
+    // #then
+    expect(promptCalls).toHaveLength(1)
+    expect(promptCalls[0]?.text).toContain("TASK CONTINUATION")
+  })
+
+  test("ignores legacy work-state and falls back to session continuation", async () => {
+    // #given
+    const sessionID = "legacy-sisyphus-execution"
+    setMainSession(sessionID)
+    updateSessionAgent(sessionID, "sisyphus")
+
+    mkdirSync(join(workspace, ".sisyphus"), { recursive: true })
+    writeFileSync(
+      join(workspace, ".sisyphus", "work.yaml"),
+      `schema_version: 4
+executor: sisyphus
+plan_id: legacy-sisyphus-plan
+execution_plan_path: .sisyphus/plans/legacy-sisyphus-plan/plan.md
+runtime_ledger_path: .sisyphus/plans/legacy-sisyphus-plan/ledger.yaml
+started_at: "2026-02-06T00:00:00Z"
+session_ids:
+  - ${sessionID}
+research_ops: 0
+last_findings_mtime: 0
+errors: []
+blockers: []
+decisions: []
+`,
+      "utf-8"
+    )
+
+    createTaskNode(
+      {
+        scope: "session",
+        container_id: sessionID,
+        title: "Session fallback task",
       },
       config
     )

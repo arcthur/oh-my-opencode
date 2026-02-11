@@ -1,10 +1,11 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 import { listTaskNodes } from "../../features/task-system"
-import { createWorkStateManager, type WorkExecutor, type WorkState } from "../../features/work-state"
+import { createWorkStateManager, type WorkState } from "../../features/work-state"
 import { getMainSessionID, isSubagentSession } from "../../features/claude-code-session-state"
 import { appendBudgetedOutput, injectBudgetedPrompt } from "../../features/context-budget"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
+import { getExecutionPolicy } from "../../features/orchestration/policy"
 import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
 import { getMessageDir, resolveExecutionOwnership } from "../../shared/session-utils"
@@ -52,24 +53,7 @@ You should NOT:
 ---
 `
 
-const WORK_CONTINUATION_PROMPTS: Record<WorkExecutor, string> = {
-  sisyphus: `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
-
-You are Sisyphus in execution mode with an active plan. Continue working.
-
-RULES:
-- Proceed without asking for permission
-- Use \`task_list\` (scope=plan) to pick the next ready task
-- Use \`task_transition\` to move tasks through \`open -> in_progress -> completed\`
-- Use the notepad at .sisyphus/notepads/{PLAN_NAME}/ to record learnings
-- Do not stop until all tasks are complete
-- If blocked, document the blocker and move to the next task
-
-Plan file: \`{PLAN_PATH}\`
-
-TaskGraph scope: \`plan\`
-TaskGraph container_id: \`{PLAN_NAME}\``,
-  atlas: `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
+const ATLAS_WORK_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
 
 ATLAS EXECUTION CONTINUATION
 
@@ -87,13 +71,9 @@ RULES:
 Plan file: \`{PLAN_PATH}\`
 
 TaskGraph scope: \`plan\`
-TaskGraph container_id: \`{PLAN_NAME}\``,
-}
+TaskGraph container_id: \`{PLAN_NAME}\``
 
-const EXECUTION_AGENT_LABEL: Record<WorkExecutor, string> = {
-  sisyphus: "Sisyphus",
-  atlas: "Atlas",
-}
+const EXECUTION_AGENT_LABEL = "Atlas"
 
 const VERIFICATION_REMINDER = `**MANDATORY: WHAT YOU MUST DO RIGHT NOW**
 
@@ -228,19 +208,9 @@ Use \`delegate_task\` with a single atomic objective and explicit acceptance cri
 const EXECUTION_MODE_TASK_BLOCK_ERROR =
   "The `task` tool is forbidden in Execution Mode. Use `delegate_task` with one atomic objective."
 
-const EXECUTION_MODE_PROMPT_MIN_NON_EMPTY_LINES = 18
-
-const EXECUTION_MODE_REQUIRED_PROMPT_SECTIONS: ReadonlyArray<{
-  name: string
-  pattern: RegExp
-}> = [
-  { name: "TASK", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?TASK\b/im },
-  { name: "EXPECTED OUTCOME", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?EXPECTED OUTCOME\b/im },
-  { name: "REQUIRED TOOLS", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?REQUIRED TOOLS\b/im },
-  { name: "MUST DO", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?MUST DO\b/im },
-  { name: "MUST NOT DO", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?MUST NOT DO\b/im },
-  { name: "CONTEXT", pattern: /^(?:\s{0,3}#{1,6}\s*)?(?:\d+\.\s*)?CONTEXT\b/im },
-]
+const EXECUTION_POLICY = getExecutionPolicy()
+const EXECUTION_MODE_PROMPT_MIN_NON_EMPTY_LINES = EXECUTION_POLICY.delegatePrompt.minNonEmptyLines
+const EXECUTION_MODE_REQUIRED_PROMPT_SECTIONS = EXECUTION_POLICY.delegatePrompt.requiredSections
 
 function getExecutionPromptValidationErrors(prompt: string): string[] {
   const errors: string[] = []
@@ -344,10 +314,14 @@ task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "c
 
 **DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
 
-**STEP 5: COMMIT ATOMIC UNIT**
+**STEP 5: HANDOFF VERIFIED CHANGES**
 
 - Stage ONLY the verified changes
-- Commit with clear message describing what was done
+- ${
+   EXECUTION_POLICY.commit.autoCommitEnabled
+     ? "Commit with clear message describing what was done"
+     : "Do NOT auto-commit. Report verified delta and let the user decide commit timing."
+ }
 
 **STEP 6: PROCEED TO NEXT TASK**
 
@@ -524,22 +498,22 @@ export function createExecutionOrchestratorHook(
     const progress = computeWorkProgress(workState.plan_id)
     if (progress.isComplete) return false
 
-    const ownership = resolveExecutionOwnership(sessionID, workState.executor)
+    const ownership = resolveExecutionOwnership(sessionID, EXECUTION_POLICY.owner)
     if (ownership === "mismatched") {
       return false
     }
     if (ownership === "unknown") {
-      log(`[${HOOK_NAME}] Execution ownership unresolved; falling back to work-state`, {
+      log(`[${HOOK_NAME}] Execution ownership unresolved; skipping continuation`, {
         sessionID,
-        executor: workState.executor,
+        executor: EXECUTION_POLICY.owner,
       })
+      return false
     }
     return true
   }
 
   async function injectContinuation(
     sessionID: string,
-    executor: WorkExecutor,
     planId: string,
     planPath: string,
     remaining: number,
@@ -556,8 +530,7 @@ export function createExecutionOrchestratorHook(
       return
     }
 
-    const promptTemplate = WORK_CONTINUATION_PROMPTS[executor]
-    const prompt = promptTemplate
+    const prompt = ATLAS_WORK_CONTINUATION_PROMPT
       .replace(/{PLAN_NAME}/g, planId)
       .replace(/{PLAN_PATH}/g, planPath) +
       (total === 0
@@ -565,7 +538,12 @@ export function createExecutionOrchestratorHook(
         : `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`)
 
     try {
-      log(`[${HOOK_NAME}] Injecting work continuation`, { sessionID, planId, remaining, executor })
+      log(`[${HOOK_NAME}] Injecting work continuation`, {
+        sessionID,
+        planId,
+        remaining,
+        executor: EXECUTION_POLICY.owner,
+      })
 
       const attemptAt = Date.now()
       let model: { providerID: string; modelID: string } | undefined
@@ -602,7 +580,7 @@ export function createExecutionOrchestratorHook(
         source: "execution-orchestrator",
         reason: `work_remaining:${remaining}/${total}`,
         prompt: {
-          agent: executor,
+          agent: EXECUTION_POLICY.owner,
           ...(model !== undefined ? { model } : {}),
           ...(variant !== undefined ? { variant } : {}),
           text: prompt,
@@ -634,7 +612,10 @@ export function createExecutionOrchestratorHook(
             return
           }
           state.promptFailureCount = 0
-          log(`[${HOOK_NAME}] Work continuation injected`, { sessionID, executor })
+          log(`[${HOOK_NAME}] Work continuation injected`, {
+            sessionID,
+            executor: EXECUTION_POLICY.owner,
+          })
         },
       })
     } catch (err) {
@@ -691,7 +672,7 @@ export function createExecutionOrchestratorHook(
           return
         }
 
-        if (state.promptFailureCount >= 2) {
+        if (state.promptFailureCount >= EXECUTION_POLICY.continuation.maxPromptFailures) {
           log(`[${HOOK_NAME}] Skipped: continuation disabled after repeated prompt failures`, {
             sessionID,
             promptFailureCount: state.promptFailureCount,
@@ -738,7 +719,6 @@ export function createExecutionOrchestratorHook(
 
         await injectContinuation(
           sessionID,
-          workState.executor,
           workState.plan_id,
           workState.execution_plan_path,
           progress.remaining,
@@ -832,7 +812,7 @@ export function createExecutionOrchestratorHook(
         const filePath = (output.args.filePath ?? output.args.path ?? output.args.file) as string | undefined
         if (filePath && !isSisyphusPath(filePath)) {
           const activeState = workStateManager.load()
-          const executorName = activeState ? EXECUTION_AGENT_LABEL[activeState.executor] : "Execution Orchestrator"
+          const executorName = activeState ? EXECUTION_AGENT_LABEL : "Execution Orchestrator"
           // Store filePath for use in tool.execute.after
           if (input.callID) {
             pendingFilePaths.set(input.callID, filePath)

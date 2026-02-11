@@ -1,7 +1,8 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { createWorkStateManager, type WorkExecutor } from "../../features/work-state"
+import { createWorkStateManager } from "../../features/work-state"
 import { log } from "../../shared/logger"
 import { updateSessionAgent } from "../../features/claude-code-session-state"
+import { EXECUTION_OWNER } from "../../features/orchestration/owner"
 import { existsSync, readFileSync, statSync } from "node:fs"
 import { basename, isAbsolute, join } from "node:path"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
@@ -10,7 +11,6 @@ import { listTaskNodes, syncPlanTasksToTaskGraph } from "../../features/task-sys
 export const HOOK_NAME = "start-work"
 
 const KEYWORD_PATTERN = /\b(ultrawork|ulw)\b/gi
-const DEFAULT_EXECUTOR: WorkExecutor = "atlas"
 
 interface StartWorkHookInput {
   sessionID: string
@@ -202,7 +202,7 @@ Continuing existing work session. Use TaskGraph to continue from the next ready 
 The requested plan "${matchedPlanId}" has been completed.
 All ${progress.total} tasks are done. Create a new plan with: /plan "your task"`
             } else {
-              workStateManager.switchPlan(matchedPlanId, sessionId, undefined, DEFAULT_EXECUTOR)
+              workStateManager.switchPlan(matchedPlanId, sessionId, undefined)
               contextInfo = `
 ## Auto-Selected Plan
 
@@ -296,7 +296,7 @@ All ${allPlans.length} plan(s) are complete. Create a new plan with: /plan "your
           }
         } else if (incompletePlans.length === 1) {
           const plan = incompletePlans[0]
-          workStateManager.initializePlan(plan.planId, sessionId, undefined, DEFAULT_EXECUTOR)
+          workStateManager.initializePlan(plan.planId, sessionId, undefined)
           syncPlanTasksFromFile(ctx.directory, plan.planId, plan.path, taskConfig)
           const progress = computePlanProgressFromTaskGraph(plan.planId, taskConfig)
 
@@ -347,7 +347,7 @@ Ask the user which plan to work on. Present the options above and wait for their
 
       const activeState = workStateManager.load()
       if (activeState?.session_ids.includes(sessionId)) {
-        updateSessionAgent(sessionId, activeState.executor)
+        updateSessionAgent(sessionId, EXECUTION_OWNER)
       }
 
       log(`[${HOOK_NAME}] Context injected`, {
