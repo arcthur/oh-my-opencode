@@ -81,6 +81,15 @@ export function buildEventNodes(
     })
   }
 
+  if (context.sisyphusContextualInjector?.event) {
+    nodes.push({
+      id: "sisyphus-contextual-injector:event",
+      invoke: async () => {
+        await context.sisyphusContextualInjector?.event?.(input)
+      },
+    })
+  }
+
   if (context.planningWithFiles?.event) {
     nodes.push({
       id: "planning-with-files:event",

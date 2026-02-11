@@ -15,3 +15,18 @@ describe("builtin /start-work command", () => {
     expect(startWork.description).toContain("Atlas execution session")
   })
 })
+
+describe("builtin /brainstorm command", () => {
+  test("uses prometheus as planner and brainstorm entrypoint", () => {
+    // #given
+    const commands = loadBuiltinCommands()
+
+    // #when
+    const brainstorm = commands["brainstorm"]
+
+    // #then
+    expect(brainstorm).toBeDefined()
+    expect(brainstorm.agent).toBe("prometheus")
+    expect(brainstorm.description).toContain("brainstorm")
+  })
+})

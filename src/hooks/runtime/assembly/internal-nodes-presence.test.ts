@@ -93,4 +93,18 @@ describe("runtime assembly internal nodes", () => {
 
     expect(nodes.some((node) => node.id === "internal:task-resume-info:tool.execute.after")).toBe(true)
   })
+
+  test("tool.execute.after contains output-finalization internal node when truncator exists", () => {
+    const context = createTestContext()
+    context.toolOutputTruncator = {
+      "tool.execute.after": async () => {},
+    }
+    const nodes = buildToolExecuteAfterNodes(
+      context,
+      { tool: "Read", sessionID: "s", callID: "c" },
+      { title: "", output: "", metadata: {} }
+    )
+
+    expect(nodes.some((node) => node.id === "internal:output-finalization:tool.execute.after")).toBe(true)
+  })
 })

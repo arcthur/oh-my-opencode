@@ -5,8 +5,21 @@ import { RALPH_LOOP_TEMPLATE, CANCEL_RALPH_TEMPLATE } from "./templates/ralph-lo
 import { STOP_CONTINUATION_TEMPLATE } from "./templates/stop-continuation"
 import { REFACTOR_TEMPLATE } from "./templates/refactor"
 import { START_WORK_TEMPLATE } from "./templates/start-work"
+import { BRAINSTORM_TEMPLATE } from "./templates/brainstorm"
 
 const BUILTIN_COMMAND_DEFINITIONS: Record<BuiltinCommandName, Omit<CommandDefinition, "name">> = {
+  brainstorm: {
+    description: "(builtin) Enter Prometheus brainstorming mode (Phase 0 design exploration)",
+    agent: "prometheus",
+    template: `<command-instruction>
+${BRAINSTORM_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+    argumentHint: "<topic-or-goal>",
+  },
   "init-deep": {
     description: "(builtin) Initialize hierarchical AGENTS.md knowledge base",
     template: `<command-instruction>

@@ -39,6 +39,7 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "runtime-tracker", events: ["tool.execute.before", "tool.execute.after", "event"] },
   { name: "anti-slop-enforcer", events: ["tool.execute.after"] },
   { name: "pre-completion-verification", events: ["chat.message", "event"] },
+  { name: "sisyphus-contextual-injector", events: ["chat.message", "tool.execute.before", "event"] },
   { name: "delegation-validate-decision", events: ["tool.execute.before"] },
   { name: "conditional-rules", events: ["tool.execute.before", "event"] },
   { name: "session-handoff", events: ["chat.message", "user.prompt.submit", "tool.execute.after", "event"] },

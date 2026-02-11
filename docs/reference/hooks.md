@@ -87,6 +87,7 @@ repo-overview-injector
 runtime-tracker
 anti-slop-enforcer
 pre-completion-verification
+sisyphus-contextual-injector
 delegation-validate-decision
 conditional-rules
 session-handoff
@@ -131,16 +132,17 @@ Execution order (simplified to plugin-relevant steps):
 2. First-message variant gate (internal)
 3. Think-mode chat params (if enabled)
 4. Keyword detector (if enabled)
-5. Claude Code bridge node (if enabled)
-6. Governance user-prompt processing (if enabled)
-7. Session handoff (if enabled)
-8. Auto slashcommand (if enabled)
-9. Start-work (if enabled)
-10. Swarm-from-plan (if enabled; Swarm-first bootstrap)
-11. Planning-with-files (if enabled)
-12. Pre-completion verification (if enabled)
-13. `continuation-stop-guard` (if enabled)
-14. Ralph loop template detection (if enabled)
+5. Sisyphus contextual injector (if enabled)
+6. Claude Code bridge node (if enabled)
+7. Governance user-prompt processing (if enabled)
+8. Session handoff (if enabled)
+9. Auto slashcommand (if enabled)
+10. Start-work (if enabled)
+11. Swarm-from-plan (if enabled; Swarm-first bootstrap)
+12. Planning-with-files (if enabled)
+13. Pre-completion verification (if enabled)
+14. `continuation-stop-guard` (if enabled)
+15. Ralph loop template detection (if enabled)
 
 ### `user.prompt.submit`
 
@@ -168,18 +170,19 @@ Execution order (high-level):
 12. Rules injector (if enabled)
 13. Prometheus MD-only (if enabled)
 14. Planning-with-files (if enabled)
-15. `delegation-validate-decision` (if enabled)
-16. Sisyphus-junior notepad (if enabled)
-17. execution-orchestrator hook (if enabled)
-18. Tmux parallel agents (if enabled)
-19. Swarm agent (if enabled)
-20. Conditional rules (if enabled; special handling for `delegate_task`)
-21. Context manifest injector (if enabled)
-22. Task-tool sanitizer (internal)
-23. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
-24. Stop-continuation slash handling (internal)
-25. Governance pre-tool checks (if enabled)
-26. Silent tool output pre-hook (if enabled)
+15. Sisyphus contextual injector (if enabled)
+16. `delegation-validate-decision` (if enabled)
+17. Sisyphus-junior notepad (if enabled)
+18. execution-orchestrator hook (if enabled)
+19. Tmux parallel agents (if enabled)
+20. Swarm agent (if enabled)
+21. Conditional rules (if enabled; special handling for `delegate_task`)
+22. Context manifest injector (if enabled)
+23. Task-tool sanitizer (internal)
+24. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
+25. Stop-continuation slash handling (internal)
+26. Governance pre-tool checks (if enabled)
+27. Silent tool output pre-hook (if enabled)
 
 Note:
 - `tmux-parallel-agents` is a workspace/process orchestration hook (worktree/window lifecycle and rescue UX).
@@ -220,7 +223,7 @@ Execution order (high-level):
 ### `event`
 
 The generic OpenCode `event` stream is used to drive “Stop-like” behavior and background lifecycle management.
-Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes: continuation stop guard, update checker, Claude Code bridge, notifications, planning/lifecycle hooks, orchestrators, plus internal core session-state and session-state-repair nodes.
+Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes: continuation stop guard, update checker, Claude Code bridge, notifications, planning/lifecycle hooks, **sisyphus-contextual-injector**, orchestrators, plus internal core session-state and session-state-repair nodes.
 
 `session-state-repair` recoverable classes currently include:
 

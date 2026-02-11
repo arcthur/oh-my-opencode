@@ -80,21 +80,40 @@ describe("delegation-nudge-category-skill hook", () => {
       clearSessionAgent(sessionID)
     })
 
-    test("should inject reminder for sisyphus-junior agent", async () => {
-      // given - sisyphus-junior agent session
+    test("should NOT inject reminder for sisyphus-junior agent", async () => {
+      // #given - sisyphus-junior is research-scoped and cannot use category-based delegation
       const hook = createHook()
       const sessionID = "junior-session"
       updateSessionAgent(sessionID, "sisyphus-junior")
 
       const output = { title: "", output: "result", metadata: {} }
 
-      // when - 3 tool calls are made
+      // #when - 3 tool calls are made
       await hook["tool.execute.after"]({ tool: "write", sessionID, callID: "1" }, output)
       await hook["tool.execute.after"]({ tool: "write", sessionID, callID: "2" }, output)
       await hook["tool.execute.after"]({ tool: "write", sessionID, callID: "3" }, output)
 
-      // then - reminder should be injected
-      expect(output.output).toContain("[Category+Skill Reminder]")
+      // #then - reminder should NOT be injected
+      expect(output.output).not.toContain("[Category+Skill Reminder]")
+
+      clearSessionAgent(sessionID)
+    })
+
+    test("should NOT inject reminder for agents with sisyphus in name but not in TARGET_AGENTS", async () => {
+      // #given - agent named "sisyphus-foo" is not in TARGET_AGENTS
+      const hook = createHook()
+      const sessionID = "sisyphus-foo-session"
+      updateSessionAgent(sessionID, "sisyphus-foo")
+
+      const output = { title: "", output: "result", metadata: {} }
+
+      // #when - 3 tool calls are made
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "1" }, output)
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "2" }, output)
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "3" }, output)
+
+      // #then - reminder should NOT be injected (no fuzzy match)
+      expect(output.output).not.toContain("[Category+Skill Reminder]")
 
       clearSessionAgent(sessionID)
     })

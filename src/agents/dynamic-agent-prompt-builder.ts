@@ -24,11 +24,26 @@ export interface AvailableCategory {
   model?: string
 }
 
+export interface BuildToolSelectionOptions {
+  maxAgentRows?: number
+  compact?: boolean
+}
+
+export interface BuildDelegationTableOptions {
+  maxRows?: number
+  includeFallbackHint?: boolean
+}
+
+export interface BuildCategorySkillsGuideOptions {
+  maxCategories?: number
+  maxSkills?: number
+  compact?: boolean
+}
+
 function sanitizeMarkdownTableCell(value: string): string {
   return value
     .replace(/\r?\n/g, " ")
     .replace(/\|/g, "\\|")
-    .replace(/`/g, "'")
     .replace(/\s+/g, " ")
     .trim()
 }
@@ -93,10 +108,12 @@ ${keyTriggers.join("\n")}
 export function buildToolSelectionTable(
   agents: AvailableAgent[],
   tools: AvailableTool[] = [],
-  _skills: AvailableSkill[] = []
+  _skills: AvailableSkill[] = [],
+  options: BuildToolSelectionOptions = {}
 ): string {
+  const { maxAgentRows, compact = false } = options
   const rows: string[] = [
-    "### Tool & Agent Selection:",
+    compact ? "### Tool & Agent Selection (Compact):" : "### Tool & Agent Selection:",
     "",
   ]
 
@@ -113,10 +130,20 @@ export function buildToolSelectionTable(
     .filter((a) => a.metadata.category !== "utility")
     .sort((a, b) => costOrder[a.metadata.cost] - costOrder[b.metadata.cost])
 
-  for (const agent of sortedAgents) {
+  const visibleAgents =
+    typeof maxAgentRows === "number" && maxAgentRows >= 0
+      ? sortedAgents.slice(0, maxAgentRows)
+      : sortedAgents
+
+  for (const agent of visibleAgents) {
     const safeAgentName = sanitizeMarkdownTableCell(agent.name)
     const shortDesc = sanitizeMarkdownTableCell(truncateFirstSentence(agent.description))
     rows.push(`| \`${safeAgentName}\` agent | ${agent.metadata.cost} | ${shortDesc} |`)
+  }
+
+  if (visibleAgents.length < sortedAgents.length) {
+    const remaining = sortedAgents.length - visibleAgents.length
+    rows.push(`| ... | ... | ${remaining} more agents omitted (use \`delegate_task\` + \`skill\` to inspect full capabilities) |`)
   }
 
   rows.push("")
@@ -165,7 +192,11 @@ Search **external references** (docs, OSS, web). Fire proactively when unfamilia
 ${useWhen.map((w) => `- "${sanitizeMarkdownTableCell(w)}"`).join("\n")}`
 }
 
-export function buildDelegationTable(agents: AvailableAgent[]): string {
+export function buildDelegationTable(
+  agents: AvailableAgent[],
+  options: BuildDelegationTableOptions = {}
+): string {
+  const { maxRows, includeFallbackHint = false } = options
   const rows: string[] = [
     "### Delegation Table:",
     "",
@@ -173,32 +204,84 @@ export function buildDelegationTable(agents: AvailableAgent[]): string {
     "|--------|-------------|---------|",
   ]
 
+  const tableRows: string[] = []
   for (const agent of agents) {
     for (const trigger of agent.metadata.triggers) {
       const safeDomain = sanitizeMarkdownTableCell(trigger.domain)
       const safeAgentName = sanitizeMarkdownTableCell(agent.name)
       const safeTrigger = sanitizeMarkdownTableCell(trigger.trigger)
-      rows.push(`| ${safeDomain} | \`${safeAgentName}\` | ${safeTrigger} |`)
+      tableRows.push(`| ${safeDomain} | \`${safeAgentName}\` | ${safeTrigger} |`)
     }
+  }
+
+  const visibleRows =
+    typeof maxRows === "number" && maxRows >= 0
+      ? tableRows.slice(0, maxRows)
+      : tableRows
+
+  rows.push(...visibleRows)
+
+  if (visibleRows.length < tableRows.length) {
+    const remaining = tableRows.length - visibleRows.length
+    rows.push(`| ... | ... | ${remaining} more delegation triggers omitted |`)
+  }
+
+  if (includeFallbackHint) {
+    rows.push("")
+    rows.push("Use `delegate_task` with explicit `category` and `load_skills` when the compact table is insufficient.")
   }
 
   return rows.join("\n")
 }
 
-export function buildCategorySkillsDelegationGuide(categories: AvailableCategory[], skills: AvailableSkill[]): string {
+export function buildCategorySkillsDelegationGuide(
+  categories: AvailableCategory[],
+  skills: AvailableSkill[],
+  options: BuildCategorySkillsGuideOptions = {}
+): string {
+  const { maxCategories, maxSkills, compact = false } = options
   if (categories.length === 0 && skills.length === 0) return ""
 
-  const categoryRows = categories.map((c) => {
+  const visibleCategories =
+    typeof maxCategories === "number" && maxCategories >= 0
+      ? categories.slice(0, maxCategories)
+      : categories
+  const visibleSkills =
+    typeof maxSkills === "number" && maxSkills >= 0
+      ? skills.slice(0, maxSkills)
+      : skills
+
+  const categoryRows = visibleCategories.map((c) => {
     const safeName = sanitizeMarkdownTableCell(c.name)
     const desc = sanitizeMarkdownTableCell(c.description || c.name)
     return `| \`${safeName}\` | ${desc} |`
   })
 
-  const skillRows = skills.map((s) => {
+  const skillRows = visibleSkills.map((s) => {
     const safeName = sanitizeMarkdownTableCell(s.name)
     const desc = sanitizeMarkdownTableCell(truncateFirstSentence(s.description))
     return `| \`${safeName}\` | ${desc} |`
   })
+
+  const categoriesTruncated = visibleCategories.length < categories.length
+  const skillsTruncated = visibleSkills.length < skills.length
+  const truncationNote = categoriesTruncated || skillsTruncated
+    ? "\n\n**Note**: List is truncated. Use `skill` tool and category docs for full details."
+    : ""
+
+  if (compact) {
+    return `### Category + Skills Delegation System (Compact)
+
+| Category | Domain / Best For |
+|----------|-------------------|
+${categoryRows.join("\n")}
+
+| Skill | Expertise Domain |
+|-------|------------------|
+${skillRows.join("\n")}
+
+For category delegation, include relevant skills via \`load_skills=[...]\` and justify omissions.${truncationNote}`
+  }
 
   return `### Category + Skills Delegation System
 
@@ -271,7 +354,7 @@ delegate_task(
 **ANTI-PATTERN (will produce poor results):**
 \`\`\`typescript
 delegate_task(description="...", category="...", load_skills=[], run_in_background=false, prompt="...")  // Empty load_skills without justification
-\`\`\``
+\`\`\`${truncationNote}`
 }
 
 export function buildOracleSection(agents: AvailableAgent[]): string {

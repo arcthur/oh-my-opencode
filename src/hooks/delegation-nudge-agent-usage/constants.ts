@@ -7,12 +7,9 @@ export const AGENT_USAGE_REMINDER_STORAGE = join(
   "delegation-nudge-agent-usage",
 );
 
-// All tool names normalized to lowercase for case-insensitive matching
+// Web/MCP tools where explore/librarian agents provide better results.
+// Local search tools (grep, glob) are covered by delegation-nudge-category-skill.
 export const TARGET_TOOLS = new Set([
-  "grep",
-  "safe_grep",
-  "glob",
-  "safe_glob",
   "webfetch",
   "context7_resolve-library-id",
   "context7_query-docs",

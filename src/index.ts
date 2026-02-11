@@ -42,6 +42,7 @@ import {
   createSwarmFromPlanHook,
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
+  createSisyphusContextualInjectorHook,
   createDelegationValidateDecisionHook,
   createDelegationNudgeCategorySkillHook,
   createSisyphusJuniorNotepadHook,
@@ -654,6 +655,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createPreCompletionVerificationHook(ctx, undefined, pluginConfig)
     : null;
 
+  const sisyphusContextualInjector = isHookEnabled("sisyphus-contextual-injector")
+    ? createSisyphusContextualInjectorHook(ctx)
+    : null;
+
   const delegationValidateDecision = isHookEnabled("delegation-validate-decision")
     ? createDelegationValidateDecisionHook(ctx)
     : null;
@@ -954,6 +959,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     swarmFromPlan: optional(swarmFromPlan),
     planningWithFiles: optional(planningWithFiles),
     preCompletionVerification: optional(preCompletionVerification),
+    sisyphusContextualInjector: optional(sisyphusContextualInjector),
     continuationStopGuard: optional(continuationStopGuard),
     ralphLoop: optional(ralphLoop),
     userMemory: optional(userMemory),

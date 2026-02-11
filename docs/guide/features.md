@@ -221,6 +221,7 @@ Commands are slash-triggered workflows that execute predefined templates.
 | Command | Description |
 |---------|-------------|
 | `/init-deep` | Initialize hierarchical AGENTS.md knowledge base |
+| `/brainstorm` | Enter Prometheus brainstorming mode for design-first exploration |
 | `/ralph-loop` | Start self-referential development loop until completion |
 | `/ulw-loop` | Start ultrawork loop - continues with ultrawork mode |
 | `/cancel-ralph` | Cancel active Ralph Loop |
@@ -246,6 +247,21 @@ project/
 │   └── components/
 │       └── AGENTS.md      # Component-specific context
 ```
+
+### Command: /brainstorm
+
+**Purpose**: Force entry into Prometheus Brainstorming Mode (Phase 0) before plan generation
+
+**Usage**:
+```
+/brainstorm [topic-or-goal]
+```
+
+**Behavior**:
+- Runs recon first (code patterns, docs, recent commits)
+- Asks one question at a time
+- Explores 2-3 approaches with trade-offs and recommendation
+- Validates design in incremental sections, then writes `.sisyphus/designs/{topic-slug}.md`
 
 ### Command: /ralph-loop
 

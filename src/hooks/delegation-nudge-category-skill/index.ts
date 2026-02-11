@@ -10,7 +10,6 @@ import { contextBudgetArbiter } from "../../features/context-budget"
  */
 const TARGET_AGENTS = new Set([
   "sisyphus",
-  "sisyphus-junior",
 ])
 
 /**
@@ -110,10 +109,7 @@ export function createDelegationNudgeCategorySkillHook(
     const agent = getSessionAgent(sessionID) ?? inputAgent
     if (!agent) return false
     const agentLower = agent.toLowerCase()
-    return (
-      TARGET_AGENTS.has(agentLower) ||
-      agentLower.includes("sisyphus")
-    )
+    return TARGET_AGENTS.has(agentLower)
   }
 
   const toolExecuteAfter = async (

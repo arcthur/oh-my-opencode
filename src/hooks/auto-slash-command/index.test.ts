@@ -5,6 +5,7 @@ import type {
 } from "./types"
 import { AUTO_SLASH_COMMAND_TAG_OPEN } from "./constants"
 import type { LoadedSkill } from "../../features/opencode-skill-loader"
+import { clearSessionAgent, getSessionAgent } from "../../features/claude-code-session-state"
 
 // Import real shared module to avoid mock leaking to other test files
 import * as shared from "../../shared"
@@ -70,6 +71,24 @@ describe("createAutoSlashCommandHook", () => {
       // then should inject tagged template
       expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
       expect(output.parts[0].text).toContain("# /stop-continuation Command")
+    })
+
+    it("should switch session agent to prometheus for /brainstorm", async () => {
+      // given a brainstorm slash command
+      const hook = createAutoSlashCommandHook()
+      const sessionID = `test-session-brainstorm-agent-${Date.now()}`
+      const input = createMockInput(sessionID)
+      const output = createMockOutput("/brainstorm auth workflow")
+
+      // when hook is called
+      await hook["chat.message"](input, output)
+
+      // then should inject template and update session agent
+      expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
+      expect(output.parts[0].text).toContain("# /brainstorm Command")
+      expect(getSessionAgent(sessionID)).toBe("prometheus")
+
+      clearSessionAgent(sessionID)
     })
 
     it("should not modify message when command not found", async () => {
@@ -315,6 +334,24 @@ describe("createAutoSlashCommandHook", () => {
       // then
       expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
       expect(output.parts[0].text).toContain("# /stop-continuation Command")
+    })
+
+    it("should switch session agent to prometheus for brainstorm command", async () => {
+      // given
+      const hook = createAutoSlashCommandHook()
+      const sessionID = `test-session-command-before-brainstorm-${Date.now()}`
+      const input = { command: "brainstorm", sessionID, arguments: "auth workflow" }
+      const output = { parts: [{ type: "text", text: "/brainstorm auth workflow" }] }
+
+      // when
+      await hook["command.execute.before"]?.(input, output)
+
+      // then
+      expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
+      expect(output.parts[0].text).toContain("# /brainstorm Command")
+      expect(getSessionAgent(sessionID)).toBe("prometheus")
+
+      clearSessionAgent(sessionID)
     })
 
     it("should respect disabled builtin commands and skip injection", async () => {

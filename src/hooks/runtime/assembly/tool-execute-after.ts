@@ -315,5 +315,14 @@ export function buildToolExecuteAfterNodes(
     })
   }
 
+  if (context.toolOutputTruncator?.["tool.execute.after"]) {
+    nodes.push({
+      id: "internal:output-finalization:tool.execute.after",
+      invoke: async () => {
+        await context.toolOutputTruncator?.["tool.execute.after"]?.(input, output)
+      },
+    })
+  }
+
   return nodes
 }

@@ -45,5 +45,25 @@ describe("PROMETHEUS_BRAINSTORMING_MODE invariants", () => {
     // #when / #then
     expect(mode).toContain(".sisyphus/designs/")
   })
-})
 
+  test("should require recon to inspect project docs and recent commits", () => {
+    // #given
+    const mode = PROMETHEUS_BRAINSTORMING_MODE.toLowerCase()
+
+    // #when / #then
+    expect(mode).toContain("docs")
+    expect(mode).toContain("recent commits")
+  })
+
+  test("should require design sections to cover architecture/components/data flow/error handling/testing", () => {
+    // #given
+    const mode = PROMETHEUS_BRAINSTORMING_MODE.toLowerCase()
+
+    // #when / #then
+    expect(mode).toContain("architecture")
+    expect(mode).toContain("components")
+    expect(mode).toContain("data flow")
+    expect(mode).toContain("error handling")
+    expect(mode).toContain("testing")
+  })
+})

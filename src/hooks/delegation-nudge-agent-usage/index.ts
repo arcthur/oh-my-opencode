@@ -1,5 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 import { appendBudgetedOutput } from "../../features/context-budget";
+import { getSessionAgent } from "../../features/claude-code-session-state";
 import {
   loadAgentUsageState,
   saveAgentUsageState,
@@ -8,10 +9,15 @@ import {
 import { TARGET_TOOLS, AGENT_TOOLS, REMINDER_MESSAGE } from "./constants";
 import type { AgentUsageState } from "./types";
 
+const TARGET_AGENTS = new Set([
+  "sisyphus",
+]);
+
 interface ToolExecuteInput {
   tool: string;
   sessionID: string;
   callID: string;
+  agent?: string;
 }
 
 interface ToolExecuteOutput {
@@ -36,12 +42,19 @@ export function createDelegationNudgeAgentUsageHook(_ctx: PluginInput) {
       const state: AgentUsageState = persisted ?? {
         sessionID,
         agentUsed: false,
+        reminderShown: false,
         reminderCount: 0,
         updatedAt: Date.now(),
       };
       sessionStates.set(sessionID, state);
     }
     return sessionStates.get(sessionID)!;
+  }
+
+  function isTargetAgent(sessionID: string, inputAgent?: string): boolean {
+    const agent = getSessionAgent(sessionID) ?? inputAgent;
+    if (!agent) return false;
+    return TARGET_AGENTS.has(agent.toLowerCase());
   }
 
   function markAgentUsed(sessionID: string): void {
@@ -63,6 +76,10 @@ export function createDelegationNudgeAgentUsageHook(_ctx: PluginInput) {
     const { tool, sessionID } = input;
     const toolLower = tool.toLowerCase();
 
+    if (!isTargetAgent(sessionID, input.agent)) {
+      return;
+    }
+
     if (AGENT_TOOLS.has(toolLower)) {
       markAgentUsed(sessionID);
       return;
@@ -74,7 +91,7 @@ export function createDelegationNudgeAgentUsageHook(_ctx: PluginInput) {
 
     const state = getOrCreateState(sessionID);
 
-    if (state.agentUsed) {
+    if (state.agentUsed || state.reminderShown) {
       return;
     }
 
@@ -86,6 +103,7 @@ export function createDelegationNudgeAgentUsageHook(_ctx: PluginInput) {
       priority: "normal",
       content: REMINDER_MESSAGE,
     });
+    state.reminderShown = true;
     state.reminderCount++;
     state.updatedAt = Date.now();
     saveAgentUsageState(state);

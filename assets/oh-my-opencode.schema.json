@@ -105,6 +105,7 @@
           "runtime-tracker",
           "anti-slop-enforcer",
           "pre-completion-verification",
+          "sisyphus-contextual-injector",
           "delegation-validate-decision",
           "conditional-rules",
           "session-handoff",

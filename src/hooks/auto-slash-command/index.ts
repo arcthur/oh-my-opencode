@@ -9,6 +9,7 @@ import {
   AUTO_SLASH_COMMAND_TAG_OPEN,
   AUTO_SLASH_COMMAND_TAG_CLOSE,
 } from "./constants"
+import { updateSessionAgent } from "../../features/claude-code-session-state"
 import type {
   AutoSlashCommandHookInput,
   AutoSlashCommandHookOutput,
@@ -24,6 +25,12 @@ export * from "./types"
 
 const sessionProcessedCommands = new Set<string>()
 const sessionProcessedCommandExecutions = new Set<string>()
+
+function syncSessionAgentForCommand(sessionID: string, command: string): void {
+  if (command.toLowerCase() === "brainstorm") {
+    updateSessionAgent(sessionID, "prometheus")
+  }
+}
 
 export interface AutoSlashCommandHookOptions {
   /** @deprecated Skills are intentionally excluded from slash command semantics */
@@ -99,6 +106,7 @@ export function createAutoSlashCommandHook(options?: AutoSlashCommandHookOptions
 
       const taggedContent = `${AUTO_SLASH_COMMAND_TAG_OPEN}\n${result.replacementText}\n${AUTO_SLASH_COMMAND_TAG_CLOSE}`
       output.parts[idx].text = taggedContent
+      syncSessionAgentForCommand(input.sessionID, parsed.command)
 
       log(`[auto-slash-command] Replaced message with command template`, {
         sessionID: input.sessionID,
@@ -148,6 +156,7 @@ export function createAutoSlashCommandHook(options?: AutoSlashCommandHookOptions
       } else {
         output.parts.unshift({ type: "text", text: taggedContent })
       }
+      syncSessionAgentForCommand(input.sessionID, parsed.command)
 
       log(`[auto-slash-command] command.execute.before - injected template`, {
         sessionID: input.sessionID,

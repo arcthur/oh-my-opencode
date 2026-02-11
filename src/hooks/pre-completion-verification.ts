@@ -1,5 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { OhMyOpenCodeConfig } from "../config/schema"
+import { SISYPHUS_PHASE3_REVIEW_PROTOCOL_VERBOSE } from "../agents/sisyphus/injectable-sections"
 import { countIncompleteTasks } from "../features/task-system"
 import { resolveActiveTaskSelector } from "../features/work-state"
 import { log } from "../shared/logger"
@@ -28,6 +29,8 @@ Before claiming work is done, you MUST:
 Current incomplete tasks need to be addressed first.
 Use task_transition to update task lifecycle status after verification.
 ─────────────────────────────────────────────────────
+
+${SISYPHUS_PHASE3_REVIEW_PROTOCOL_VERBOSE}
 `
 
 interface SessionState {

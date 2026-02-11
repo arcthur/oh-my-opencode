@@ -197,6 +197,12 @@ export interface RuntimeAssemblyContext {
     event?: EventHandler
   }
 
+  sisyphusContextualInjector?: {
+    ["chat.message"]?: ChatMessageHandler
+    ["tool.execute.before"]?: ToolExecuteBeforeHandler
+    event?: EventHandler
+  }
+
   continuationStopGuard?: {
     ["chat.message"]?: (input: { sessionID: string }) => MaybePromiseVoid
     event?: EventHandler

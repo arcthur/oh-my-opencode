@@ -140,6 +140,15 @@ export function buildToolExecuteBeforeNodes(
     })
   }
 
+  if (context.sisyphusContextualInjector?.["tool.execute.before"]) {
+    nodes.push({
+      id: "sisyphus-contextual-injector:tool.execute.before",
+      invoke: async () => {
+        await context.sisyphusContextualInjector?.["tool.execute.before"]?.(input, output)
+      },
+    })
+  }
+
   if (context.delegationValidateDecision?.["tool.execute.before"]) {
     nodes.push({
       id: "delegation-validate-decision:tool.execute.before",

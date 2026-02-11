@@ -103,6 +103,7 @@ export const HookNameSchema = z.enum([
   "runtime-tracker",
   "anti-slop-enforcer",
   "pre-completion-verification",
+  "sisyphus-contextual-injector",
   "delegation-validate-decision",
   "conditional-rules",
   "session-handoff",
@@ -118,6 +119,7 @@ export const HookNameSchema = z.enum([
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
+  "brainstorm",
   "init-deep",
   "ralph-loop",
   "ulw-loop",

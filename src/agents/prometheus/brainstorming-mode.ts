@@ -32,6 +32,7 @@ Skip ONLY for Trivial/Simple intents.
 
 Before asking the FIRST user question, do a quick recon to reduce ambiguity:
 - Explore current codebase patterns (use explore)
+- Read relevant project docs and recent commits for local context
 - Research external best practices when needed (use librarian)
 - Identify key constraints (tooling, conventions, test setup)
 
@@ -73,6 +74,7 @@ If the user requests complex features, you MUST challenge complexity explicitly:
 
 Once an approach is selected, present the design in small sections:
 - Each section is 200-300 words
+- Across sections, MUST cover: architecture, components, data flow, error handling, and testing
 - After EACH section, ask ONE confirmation question:
   - "Looks right so far?" (Yes / Needs changes)
 - If the user says "Needs changes", revise that SAME section and re-confirm before continuing

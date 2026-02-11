@@ -74,6 +74,15 @@ export function buildChatMessageNodes(
     })
   }
 
+  if (context.sisyphusContextualInjector?.["chat.message"]) {
+    nodes.push({
+      id: "sisyphus-contextual-injector:chat.message",
+      invoke: async () => {
+        await context.sisyphusContextualInjector?.["chat.message"]?.(input, output)
+      },
+    })
+  }
+
   if (context.claudeCodeBridgeEnabled && context.claudeCodeHooks?.["chat.message"]) {
     nodes.push({
       id: "bridge:claude-code-hooks:chat.message",

@@ -108,16 +108,17 @@ export function validateDelegationDecision(
 export function extractDelegationDecision(
   messageContent: string
 ): DelegationDecision | null {
-  // Match <delegation-decision> ... </delegation-decision>
-  const match = messageContent.match(
-    /<delegation-decision>\s*([\s\S]*?)\s*<\/delegation-decision>/i
-  )
+  const matches = [
+    ...messageContent.matchAll(
+      /<delegation-decision>\s*([\s\S]*?)\s*<\/delegation-decision>/gi
+    ),
+  ]
 
-  if (!match) {
+  if (matches.length === 0) {
     return null
   }
 
-  const jsonContent = match[1].trim()
+  const jsonContent = matches[matches.length - 1][1].trim()
 
   try {
     const parsed = JSON.parse(jsonContent)

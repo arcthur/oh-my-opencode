@@ -70,6 +70,43 @@ Some text after
     })
   })
 
+  describe("#given multiple delegation-decision blocks", () => {
+    describe("#when content has two blocks", () => {
+      it("#then should extract the last block", () => {
+        const content = `
+<delegation-decision>
+{
+  "agent": "explore",
+  "taskType": "exploration",
+  "complexity": "simple",
+  "domain": "general",
+  "reason": "First decision",
+  "signals": ["first"]
+}
+</delegation-decision>
+
+Some text in between
+
+<delegation-decision>
+{
+  "agent": "oracle",
+  "taskType": "debugging",
+  "complexity": "complex",
+  "domain": "backend",
+  "reason": "Second decision",
+  "signals": ["second"]
+}
+</delegation-decision>
+`
+        const result = extractDelegationDecision(content)
+
+        expect(result).not.toBeNull()
+        expect(result?.agent).toBe("oracle")
+        expect(result?.reason).toBe("Second decision")
+      })
+    })
+  })
+
   describe("#given malformed JSON", () => {
     describe("#when JSON is invalid", () => {
       it("#then should return null", () => {
