@@ -66,8 +66,34 @@ jobs:
 
       - name: Run remaining tests
         run: |
-          # Run all tests after isolated execution (isolated files are re-run; acceptable).
-          bun test
+          set -euo pipefail
+
+          # Run non-mock-heavy tests once to avoid mock.module() cache pollution.
+          mapfile -t mock_heavy_tests < <(
+            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "mock\\.module\\(" src
+          )
+          mapfile -t all_tests < <(
+            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "." docs bin script src
+          )
+
+          declare -A mock_heavy_lookup=()
+          for test_file in "${mock_heavy_tests[@]}"; do
+            mock_heavy_lookup["$test_file"]=1
+          done
+
+          remaining_tests=()
+          for test_file in "${all_tests[@]}"; do
+            if [ -z "${mock_heavy_lookup[$test_file]+x}" ]; then
+              remaining_tests+=("$test_file")
+            fi
+          done
+
+          if [ "${#remaining_tests[@]}" -eq 0 ]; then
+            echo "No non-mock-heavy tests found."
+          else
+            printf 'Running %s non-mock-heavy test files\n' "${#remaining_tests[@]}"
+            bun test "${remaining_tests[@]}"
+          fi
 
   typecheck:
     runs-on: ubuntu-latest
