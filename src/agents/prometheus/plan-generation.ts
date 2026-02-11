@@ -82,7 +82,7 @@ delegate_task(
   subagent_type="metis",
   load_skills=[],
   run_in_background=false,
-  prompt="Review this planning context before plan generation. Identify missing constraints, ambiguous assumptions, and required guardrails."
+  prompt="Review this planning context before plan generation. Claimed intent from Prometheus interview: [Trivial/Simple | Refactoring | Build from Scratch | Mid-sized Task | Collaborative | Architecture | Research]. Validate claimed intent first (MATCH or OVERRIDE with evidence), then identify missing constraints, ambiguous assumptions, and required guardrails."
 )
 \`\`\`
 

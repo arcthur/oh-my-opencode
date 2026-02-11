@@ -13,6 +13,10 @@ export { createMetisAgent, metisPromptMetadata } from "./metis"
 export { createMomusAgent, momusPromptMetadata } from "./momus"
 export {
   PROMETHEUS_SYSTEM_PROMPT,
+  PROMETHEUS_RUNTIME_PROMPT,
+  buildDynamicPrometheusPrompt,
+  type PrometheusPromptPhase,
+  type BuildDynamicPrometheusPromptOptions,
   PROMETHEUS_PERMISSION,
   PROMETHEUS_IDENTITY_CONSTRAINTS,
   PROMETHEUS_BRAINSTORMING_MODE,

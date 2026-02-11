@@ -13,7 +13,7 @@ describe("execution policy", () => {
     // #when / #then
     expect(EXECUTION_POLICY_VERSION).toBe(1)
     expect(policy.owner).toBe("atlas")
-    expect(policy.delegatePrompt.minNonEmptyLines).toBe(18)
+    expect(policy.delegatePrompt.minNonEmptyLines).toBe(12)
     expect(policy.retry.maxRetriesPerTask).toBe(2)
     expect(policy.continuation.maxPromptFailures).toBe(2)
     expect(policy.commit.autoCommitEnabled).toBe(false)

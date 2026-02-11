@@ -122,8 +122,8 @@ Prometheus adapts its interview style based on what you're doing:
 
 The planning pipeline uses two additional agents alongside Prometheus:
 
-- **Metis** (pre-planning): Analyzes requests for hidden intentions, ambiguities, and AI failure points before Prometheus begins planning
-- **Momus** (plan review): Verifies plan executability and catches blocking issues with a practical focus after Prometheus generates the plan
+- **Metis** (pre-planning): Validates Prometheus's claimed intent against request evidence, returning `MATCH` or a justified `OVERRIDE` when mismatch is clear
+- **Momus** (plan review): Verifies plan executability and blocks plans that violate zero-human verification minimums (concrete verification command, no manual-user acceptance steps, actionable task starting point)
 
 ---
 
@@ -166,6 +166,12 @@ flowchart LR
 - Medium/large code changes (implementation, refactors)
 - Test creation and multi-file migrations
 - Specialized work that benefits from a focused context window (UI/UX, deep reasoning, research)
+
+**Completion behavior (TaskGraph complete):**
+- Writes `.sisyphus/plans/{planId}/completion.md`
+- Includes reminder telemetry summary (full/compact/ultra-compact and downgrade counters)
+- Persists reminder telemetry snapshots during execution (`.sisyphus/plans/{planId}/orchestrator-reminder-telemetry.json`) so summary survives compaction/restart
+- Clears `.sisyphus/work.yaml` and resets work sessions to default orchestrator agent
 
 ### Wisdom Accumulation
 

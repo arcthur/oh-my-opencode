@@ -50,7 +50,7 @@ const EXECUTION_POLICY: ExecutionPolicy = {
   version: EXECUTION_POLICY_VERSION,
   owner: EXECUTION_OWNER,
   delegatePrompt: {
-    minNonEmptyLines: 18,
+    minNonEmptyLines: 12,
     requiredSections: EXECUTION_REQUIRED_SECTIONS,
   },
   retry: {

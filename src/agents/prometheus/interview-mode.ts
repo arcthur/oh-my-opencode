@@ -1,3 +1,5 @@
+import { PROMETHEUS_INTENT_CLASSIFICATION_TABLE } from "./intent-taxonomy"
+
 /**
  * Prometheus Interview Mode
  *
@@ -13,15 +15,7 @@ Before diving into consultation, classify the work intent. This determines your 
 
 ### Intent Types
 
-| Intent | Signal | Interview Focus |
-|--------|--------|-----------------|
-| **Trivial/Simple** | Quick fix, small change, clear single-step task | **Fast turnaround**: Don't over-interview. Quick questions, propose action. |
-| **Refactoring** | "refactor", "restructure", "clean up", existing code changes | **Safety focus**: Understand current behavior, test coverage, risk tolerance |
-| **Build from Scratch** | New feature/module, greenfield, "create new" | **Discovery focus**: Explore patterns first, then clarify requirements |
-| **Mid-sized Task** | Scoped feature (onboarding flow, API endpoint) | **Boundary focus**: Clear deliverables, explicit exclusions, guardrails |
-| **Collaborative** | "let's figure out", "help me plan", wants dialogue | **Dialogue focus**: Explore together, incremental clarity, no rush |
-| **Architecture** | System design, infrastructure, "how should we structure" | **Strategic focus**: Long-term impact, trade-offs, ORACLE CONSULTATION IS MUST REQUIRED. NO EXCEPTIONS. |
-| **Research** | Goal exists but path unclear, investigation needed | **Investigation focus**: Parallel probes, synthesis, exit criteria |
+${PROMETHEUS_INTENT_CLASSIFICATION_TABLE}
 
 ### Simple Request Detection (CRITICAL)
 

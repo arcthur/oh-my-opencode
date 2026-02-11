@@ -5,11 +5,19 @@ import { isAbsolute, join } from "node:path"
 import * as yaml from "js-yaml"
 import { createDirectContinuationReporterForTesting } from "../continuation-control"
 import {
+  buildOrchestratorReminderWithTelemetry,
   createExecutionOrchestratorHook as createExecutionOrchestratorHookBase,
+  formatFileChanges,
   type ExecutionOrchestratorHookOptions,
 } from "./index"
 import type { WorkState } from "../../features/work-state"
-import { _resetForTesting, setMainSession, updateSessionAgent } from "../../features/claude-code-session-state"
+import type { GitFileStat } from "./git-diff-stats"
+import {
+  _resetForTesting,
+  getSessionAgent,
+  setMainSession,
+  updateSessionAgent,
+} from "../../features/claude-code-session-state"
 import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
 import { createTaskNode, transitionTaskNode } from "../../features/task-system"
 import { contextBudgetArbiter } from "../../features/context-budget"
@@ -378,6 +386,249 @@ decisions: []
 
     // #then
     expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("runs completion routine when plan tasks are fully completed", async () => {
+    // #given
+    const sessionID = "atlas-completion-routine-session"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "atlas")
+    updateSessionAgent(sessionID, "atlas")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const created = createTaskNode(
+      { scope: "plan", container_id: "execution", title: "1. Task 1" },
+      TEST_TASK_CONFIG
+    )
+    transitionTaskNode(
+      {
+        scope: "plan",
+        container_id: "execution",
+        id: created.id,
+        expected_revision: created.revision,
+        next_state: "completed",
+      },
+      TEST_TASK_CONFIG
+    )
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+
+    // #when
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(existsSync(join(TEST_DIR, ".sisyphus", "work.yaml"))).toBe(false)
+    expect(existsSync(completionPath)).toBe(true)
+    const completionContent = readFileSync(completionPath, "utf-8")
+    expect(completionContent).toContain("Plan Complete")
+    expect(completionContent).toContain("## Reminder Telemetry")
+    expect(completionContent).toContain("Total reminders: 0")
+    expect(getSessionAgent(sessionID)).toBe("sisyphus")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("records reminder telemetry counts in completion artifact", async () => {
+    // #given
+    const sessionID = "atlas-completion-telemetry-session"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "atlas")
+    updateSessionAgent(sessionID, "atlas")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const created = createTaskNode(
+      { scope: "plan", container_id: "execution", title: "1. Task 1" },
+      TEST_TASK_CONFIG
+    )
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+    const delegateOutput = {
+      title: "delegate_task",
+      output: "Subagent done\nSession ID: ses_completiontelemetry001",
+      metadata: {},
+    }
+    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+
+    // #when
+    await hook["tool.execute.after"](
+      { tool: "delegate_task", sessionID, callID: "completion-telemetry-call-1" },
+      delegateOutput
+    )
+    transitionTaskNode(
+      {
+        scope: "plan",
+        container_id: "execution",
+        id: created.id,
+        expected_revision: created.revision,
+        next_state: "completed",
+      },
+      TEST_TASK_CONFIG
+    )
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    const completionContent = readFileSync(completionPath, "utf-8")
+    expect(completionContent).toContain("## Reminder Telemetry")
+    expect(completionContent).toContain("Total reminders: 1")
+    expect(completionContent).toContain("Profiles: full=1, compact=0, ultra-compact=0")
+    expect(completionContent).toContain("Budget downgrades: 0")
+    expect(completionContent).toContain("Field truncations: 0")
+    expect(completionContent).toContain("Hard truncations: 0")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("preserves reminder telemetry across session.compacted before completion", async () => {
+    // #given
+    const sessionID = "atlas-completion-telemetry-compacted-session"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "atlas")
+    updateSessionAgent(sessionID, "atlas")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const created = createTaskNode(
+      { scope: "plan", container_id: "execution", title: "1. Task 1" },
+      TEST_TASK_CONFIG
+    )
+
+    const mockInput = createMockPluginInput()
+    const hook = createExecutionOrchestratorHook(mockInput)
+    const delegateOutput = {
+      title: "delegate_task",
+      output: "Subagent done\nSession ID: ses_completiontelemetry002",
+      metadata: {},
+    }
+    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+
+    // #when
+    await hook["tool.execute.after"](
+      { tool: "delegate_task", sessionID, callID: "completion-telemetry-call-2" },
+      delegateOutput
+    )
+    await hook.handler({ event: { type: "session.compacted", properties: { sessionID } } })
+
+    transitionTaskNode(
+      {
+        scope: "plan",
+        container_id: "execution",
+        id: created.id,
+        expected_revision: created.revision,
+        next_state: "completed",
+      },
+      TEST_TASK_CONFIG
+    )
+    await hook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    const completionContent = readFileSync(completionPath, "utf-8")
+    expect(completionContent).toContain("Total reminders: 1")
+    expect(completionContent).toContain("Profiles: full=1, compact=0, ultra-compact=0")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("preserves reminder telemetry across hook recreation (process restart simulation)", async () => {
+    // #given
+    const sessionID = "atlas-completion-telemetry-restart-session"
+    setMainSession(sessionID)
+    setupMessageStorage(sessionID, "atlas")
+    updateSessionAgent(sessionID, "atlas")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      executor: "atlas",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const created = createTaskNode(
+      { scope: "plan", container_id: "execution", title: "1. Task 1" },
+      TEST_TASK_CONFIG
+    )
+
+    const mockInput = createMockPluginInput()
+    const firstHook = createExecutionOrchestratorHook(mockInput)
+    const delegateOutput = {
+      title: "delegate_task",
+      output: "Subagent done\nSession ID: ses_completiontelemetry003",
+      metadata: {},
+    }
+    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+
+    // #when
+    await firstHook["tool.execute.after"](
+      { tool: "delegate_task", sessionID, callID: "completion-telemetry-call-3" },
+      delegateOutput
+    )
+    const secondHook = createExecutionOrchestratorHook(createMockPluginInput())
+
+    transitionTaskNode(
+      {
+        scope: "plan",
+        container_id: "execution",
+        id: created.id,
+        expected_revision: created.revision,
+        next_state: "completed",
+      },
+      TEST_TASK_CONFIG
+    )
+    await secondHook.handler({
+      event: {
+        type: "session.idle",
+        properties: { sessionID },
+      },
+    })
+    await flushMicrotasks()
+
+    // #then
+    const completionContent = readFileSync(completionPath, "utf-8")
+    expect(completionContent).toContain("Total reminders: 1")
+    expect(completionContent).toContain("Profiles: full=1, compact=0, ultra-compact=0")
 
     cleanupMessageStorage(sessionID)
   })
@@ -819,6 +1070,73 @@ Implement atomic fix.
     cleanupMessageStorage(sessionID)
   })
 
+  test("uses unified delegation-required format for before/after write warnings", async () => {
+    // #given
+    const sessionID = "execution-write-warning-unified"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+    const beforeOutput = {
+      args: { filePath: "src/unified-warning.ts" },
+      message: "",
+    }
+    const afterOutput = {
+      title: "write",
+      output: "",
+      metadata: {},
+    }
+
+    // #when
+    await hook["tool.execute.before"]({ tool: "Write", sessionID, callID: "call-unified-warning" }, beforeOutput)
+    await hook["tool.execute.after"]({ tool: "Write", sessionID, callID: "call-unified-warning" }, afterOutput)
+
+    // #then
+    expect(beforeOutput.message).toContain("DELEGATION REQUIRED")
+    expect(beforeOutput.message).toContain("Path: `src/unified-warning.ts`")
+    expect(afterOutput.output).toContain("DELEGATION REQUIRED")
+    expect(afterOutput.output).toContain("Path: `src/unified-warning.ts`")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("applies cooldown to repeated delegation-required warnings in execution mode", async () => {
+    // #given
+    const sessionID = "execution-write-warning-cooldown"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+    const first = {
+      args: { filePath: "src/first.ts" },
+      message: "",
+    }
+    const second = {
+      args: { filePath: "src/second.ts" },
+      message: "",
+    }
+
+    // #when
+    await hook["tool.execute.before"]({ tool: "Write", sessionID, callID: "call-1" }, first)
+    await hook["tool.execute.before"]({ tool: "Write", sessionID, callID: "call-2" }, second)
+
+    // #then
+    expect(first.message).toContain("DELEGATION REQUIRED")
+    expect(second.message).toBe("")
+
+    cleanupMessageStorage(sessionID)
+  })
+
   test("does not warn for write inside .sisyphus", async () => {
     // #given
     const sessionID = "execution-write-plan"
@@ -843,6 +1161,102 @@ Implement atomic fix.
     expect(output.message).toBe("")
 
     cleanupMessageStorage(sessionID)
+  })
+
+  test("summarizes large file-change sets with omission markers", () => {
+    // #given
+    const modified: GitFileStat[] = Array.from({ length: 9 }, (_, index) => ({
+      path: `src/modified-${index + 1}.ts`,
+      added: index + 1,
+      removed: index,
+      status: "modified",
+    }))
+    const created: GitFileStat[] = Array.from({ length: 6 }, (_, index) => ({
+      path: `src/created-${index + 1}.ts`,
+      added: index + 2,
+      removed: 0,
+      status: "added",
+    }))
+    const deleted: GitFileStat[] = Array.from({ length: 5 }, (_, index) => ({
+      path: `src/deleted-${index + 1}.ts`,
+      added: 0,
+      removed: index + 2,
+      status: "deleted",
+    }))
+    const stats = [...modified, ...created, ...deleted]
+
+    // #when
+    const summary = formatFileChanges(stats)
+
+    // #then
+    expect(summary).toContain("[FILE CHANGES SUMMARY]")
+    expect(summary).toContain("... (5 more modified files omitted)")
+    expect(summary).toContain("... (2 more created files omitted)")
+    expect(summary).toContain("... (1 more deleted files omitted)")
+    expect(summary).not.toContain("src/modified-9.ts")
+    expect(summary).not.toContain("src/created-6.ts")
+    expect(summary).not.toContain("src/deleted-5.ts")
+  })
+
+  test("reports compact reminder telemetry without downgrade", () => {
+    // #given
+    const planId = "execution"
+    const planPath = ".sisyphus/plans/execution/plan.md"
+
+    // #when
+    const result = buildOrchestratorReminderWithTelemetry(
+      planId,
+      planPath,
+      { total: 8, completed: 3 },
+      "ses_compactTelemetry001",
+      "compact"
+    )
+
+    // #then
+    expect(result.telemetry.profile).toBe("compact")
+    expect(result.telemetry.reason).toBe("none")
+    expect(result.telemetry.fieldTruncated).toBe(false)
+    expect(result.telemetry.budgetDowngraded).toBe(false)
+    expect(result.telemetry.hardTruncated).toBe(false)
+    expect(result.content).toContain("VERIFICATION LOOP (COMPACT)")
+  })
+
+  test("reports field-truncation telemetry for oversized session id", () => {
+    // #given
+    const oversizedSessionId = `ses_${"b".repeat(5000)}`
+
+    // #when
+    const result = buildOrchestratorReminderWithTelemetry(
+      "execution",
+      ".sisyphus/plans/execution/plan.md",
+      { total: 2, completed: 1 },
+      oversizedSessionId,
+      "full"
+    )
+
+    // #then
+    expect(result.telemetry.profile).toBe("ultra-compact")
+    expect(result.telemetry.reason).toBe("field-truncation")
+    expect(result.telemetry.fieldTruncated).toBe(true)
+    expect(result.content).toContain("VERIFICATION LOOP (ULTRA-COMPACT)")
+  })
+
+  test("truncates file-change summary when character budget is exceeded", () => {
+    // #given
+    const longSegment = "very-long-path-segment-".repeat(18)
+    const stats: GitFileStat[] = Array.from({ length: 20 }, (_, index) => ({
+      path: `src/${longSegment}/module-${index + 1}.ts`,
+      added: 10 + index,
+      removed: index,
+      status: "modified",
+    }))
+
+    // #when
+    const summary = formatFileChanges(stats)
+
+    // #then
+    expect(summary).toContain("[summary truncated to fit context budget]")
+    expect(summary.length).toBeLessThanOrEqual(1600)
   })
 
   test("transforms delegate_task output in execution mode", async () => {
@@ -875,6 +1289,80 @@ Implement atomic fix.
     expect(output.output).toContain("SUBAGENT WORK COMPLETED")
     expect(output.output).toContain("MANDATORY")
     expect(output.output).toContain('session_id="ses_test123"')
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("uses compact verification reminder after first delegation completion in same session", async () => {
+    // #given
+    const sessionID = "execution-delegate-compact-reminder"
+    setupMessageStorage(sessionID, "atlas")
+
+    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+    const firstOutput = {
+      title: "delegate_task",
+      output: "First subagent done\nSession ID: ses_compact001",
+      metadata: {},
+    }
+    const secondOutput = {
+      title: "delegate_task",
+      output: "Second subagent done\nSession ID: ses_compact002",
+      metadata: {},
+    }
+
+    // #when
+    await hook["tool.execute.after"]({ tool: "delegate_task", sessionID, callID: "compact-call-1" }, firstOutput)
+    await hook["tool.execute.after"]({ tool: "delegate_task", sessionID, callID: "compact-call-2" }, secondOutput)
+
+    // #then
+    expect(firstOutput.output).toContain("MANDATORY: WHAT YOU MUST DO RIGHT NOW")
+    expect(secondOutput.output).toContain("VERIFICATION LOOP (COMPACT)")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("falls back to ultra-compact reminder when orchestration reminder exceeds budget", async () => {
+    // #given
+    const sessionID = "execution-delegate-ultra-compact"
+    setupMessageStorage(sessionID, "atlas")
+
+    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
+
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+    const oversizedSubagentSession = `ses_${"a".repeat(6000)}`
+    const output = {
+      title: "delegate_task",
+      output: `Subagent done\nSession ID: ${oversizedSubagentSession}`,
+      metadata: {},
+    }
+
+    // #when
+    await hook["tool.execute.after"]({ tool: "delegate_task", sessionID, callID: "ultra-compact-call-1" }, output)
+
+    // #then
+    expect(output.output).toContain("VERIFICATION LOOP (ULTRA-COMPACT)")
+    expect(output.output).toContain("[orchestrator reminder downgraded due to context budget]")
+    expect(output.output).not.toContain("MANDATORY: WHAT YOU MUST DO RIGHT NOW")
 
     cleanupMessageStorage(sessionID)
   })

@@ -1,6 +1,7 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 import type { AgentMode, AgentPromptMetadata } from "./types"
 import { createAgentToolRestrictions } from "../shared/permission-compat"
+import { PROMETHEUS_INTENT_CLASSIFICATION_TABLE } from "./prometheus/intent-taxonomy"
 
 const MODE: AgentMode = "subagent"
 
@@ -27,26 +28,26 @@ export const METIS_SYSTEM_PROMPT = `# Metis - Pre-Planning Consultant
 
 ---
 
-## PHASE 0: INTENT CLASSIFICATION (MANDATORY FIRST STEP)
+## PHASE 0: INTENT VALIDATION (MANDATORY FIRST STEP)
 
-Before ANY analysis, classify the work intent. This determines your entire strategy.
+Prometheus intent classification is authoritative.
+You are a validator, not a second intent owner.
 
-### Step 1: Identify Intent Type
+### Step 1: Validate Claimed Intent
 
-| Intent | Signals | Your Primary Focus |
-|--------|---------|-------------------|
-| **Refactoring** | "refactor", "restructure", "clean up", changes to existing code | SAFETY: regression prevention, behavior preservation |
-| **Build from Scratch** | "create new", "add feature", greenfield, new module | DISCOVERY: explore patterns first, informed questions |
-| **Mid-sized Task** | Scoped feature, specific deliverable, bounded work | GUARDRAILS: exact deliverables, explicit exclusions |
-| **Collaborative** | "help me plan", "let's figure out", wants dialogue | INTERACTIVE: incremental clarity through dialogue |
-| **Architecture** | "how should we structure", system design, infrastructure | STRATEGIC: long-term impact, Oracle recommendation |
-| **Research** | Investigation needed, goal exists but path unclear | INVESTIGATION: exit criteria, parallel probes |
+Use Prometheus taxonomy as canonical reference:
+
+${PROMETHEUS_INTENT_CLASSIFICATION_TABLE}
 
 ### Step 2: Validate Classification
 
 Confirm:
-- [ ] Intent type is clear from request
-- [ ] If ambiguous, ASK before proceeding
+- [ ] Claimed intent from Prometheus is present
+- [ ] Evidence in request/context supports claimed intent
+- [ ] If mismatch exists, provide override with evidence
+
+Only override when evidence strongly contradicts the claimed intent.
+If evidence is mixed or weak, keep Prometheus intent and report risk.
 
 ---
 
@@ -211,10 +212,12 @@ delegate_task(description="Research: OSS implementations of Z", subagent_type="l
 ## OUTPUT FORMAT
 
 \`\`\`markdown
-## Intent Classification
-**Type**: [Refactoring | Build | Mid-sized | Collaborative | Architecture | Research]
+## Intent Validation
+**Result**: [MATCH | OVERRIDE]
+**Claimed Intent**: [from Prometheus]
+**Final Intent**: [same as claimed, or override]
 **Confidence**: [High | Medium | Low]
-**Rationale**: [Why this classification]
+**Rationale**: [evidence-based validation]
 
 ## Pre-Analysis Findings
 [Results from explore/librarian agents if launched]

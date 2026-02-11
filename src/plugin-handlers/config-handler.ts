@@ -28,7 +28,7 @@ import type { OhMyOpenCodeConfig } from "../config";
 import { log, fetchAvailableModels, readConnectedProvidersCache, resolveModelPipeline } from "../shared";
 import { migrateAgentConfig } from "../shared/permission-compat";
 import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
-import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus";
+import { PROMETHEUS_PERMISSION, PROMETHEUS_RUNTIME_PROMPT } from "../agents/prometheus";
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
 import type { ModelCacheState } from "../plugin-state";
 import type { CategoryConfig } from "../config/schema";
@@ -321,7 +321,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           ...(resolvedModel ? { model: resolvedModel } : {}),
           ...(variantToUse ? { variant: variantToUse } : {}),
           mode: "all" as const,
-          prompt: PROMETHEUS_SYSTEM_PROMPT,
+          prompt: PROMETHEUS_RUNTIME_PROMPT,
           permission: PROMETHEUS_PERMISSION,
           description: `${configAgent?.plan?.description ?? "Plan agent"} (Prometheus - OhMyOpenCode)`,
           color: (configAgent?.plan?.color as string) ?? "#9D4EDD", // Amethyst Purple - wisdom/foresight

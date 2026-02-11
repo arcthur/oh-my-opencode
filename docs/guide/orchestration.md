@@ -105,9 +105,9 @@ task_snapshot:
 - **Characteristic**: Never writes code directly, focuses solely on "how to do it".
 
 ### Pre-Planning and Review (Metis → Prometheus → Momus)
-- **Metis**: Pre-planning consultant that analyzes requests for hidden intentions, ambiguities, and AI failure points
+- **Metis**: Pre-planning validator that treats Prometheus intent classification as authoritative, then returns `MATCH` or evidence-based `OVERRIDE` when a mismatch is detected
 - **Prometheus**: Strategic planner that generates detailed work plans
-- **Momus**: Plan reviewer that verifies plan executability and catches blocking issues
+- **Momus**: Plan reviewer that verifies executability and enforces a zero-human verification gate (concrete verification command, no manual-user steps, actionable task start points)
 
 ### Atlas (Execution Orchestrator)
 - **Model**: `anthropic/claude-opus-4-6` (Extended Thinking 32k)
@@ -124,17 +124,17 @@ task_snapshot:
 ### Phase 1: Interview and Planning (Interview Mode)
 Prometheus starts in **interview mode** by default. Instead of immediately creating a plan, it collects sufficient context.
 
-1. **Intent Identification**: Classifies whether the user's request is Refactoring or New Feature.
+1. **Intent Identification**: Classifies request intent using a shared taxonomy (Trivial/Simple, Refactoring, Build, Mid-sized, Collaborative, Architecture, Research).
 2. **Context Collection**: Investigates codebase and external documentation through `explore` and `librarian` agents.
 3. **Draft Creation**: Continuously records discussion content in `.sisyphus/drafts/`.
 
 ### Phase 2: Plan Generation
 When the user requests "Make it a plan", plan generation begins.
 
-1. **Pre-planning (Metis)**: Metis analyzes the request for hidden intentions, ambiguities, and scope.
+1. **Pre-planning (Metis)**: Metis validates Prometheus's claimed intent and reports mismatch overrides with evidence, plus ambiguities/scope gaps.
 2. **Plan Creation**: Prometheus writes a plan spec to `.sisyphus/plans/{planId}/plan.md` and a context manifest to `.sisyphus/context-manifests/{planId}.md`.
 3. **Plan Review (Momus)**: Momus verifies plan executability and catches blocking issues.
-4. **Handoff**: Once plan creation is complete, guides user to use `/start-work` command.
+4. **Draft Archival + Handoff**: Prometheus archives the working draft to `.sisyphus/drafts/_archive/` and then guides user to use `/start-work`.
 
 ### Phase 3: Execution
 When the user enters `/start-work`, the execution phase begins.
@@ -144,6 +144,8 @@ When the user enters `/start-work`, the execution phase begins.
 3. **Delegation**: UI work is delegated via category + skills (e.g., `visual-engineering` + `frontend-ui-ux`, executed by Sisyphus-Junior); complex logic to Oracle.
 4. **Continuity**: Even if the session is interrupted, work continues in the next session through `work.yaml`.
 5. **Protocol Enforcement**: 2-action rule (research tracking) and 3-strike protocol (error recording) are managed via work.yaml.
+6. **Completion Routine**: When all TaskGraph tasks are complete, Atlas writes `.sisyphus/plans/{planId}/completion.md`, includes reminder telemetry summary, clears work state, and switches active work sessions back to default orchestrator agent.
+   - Reminder telemetry is persisted per plan during execution (`.sisyphus/plans/{planId}/orchestrator-reminder-telemetry.json`) so completion summaries survive session compaction and process restarts.
 
 #### Swarm-first Execution (Parallel Worktrees)
 

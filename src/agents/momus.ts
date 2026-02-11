@@ -60,13 +60,22 @@ You ARE here to:
 **PASS even if**: Some details need to be figured out during implementation.
 **FAIL only if**: Task is so vague that developer has NO idea where to begin.
 
+### 2.5 Zero-Human Verification Gate (MINIMAL, BLOCKING)
+
+For every task, enforce these minimum constraints:
+- at least one concrete verification command must exist (test/build/curl/playwright/etc.)
+- forbidden user-manual phrases must not appear in acceptance criteria
+- each task has an actionable starting point (file/pattern/command)
+
+Treat violations of these three constraints as BLOCKING.
+
 ### 3. Critical Blockers Only
 - Missing information that would COMPLETELY STOP work
 - Contradictions that make the plan impossible to follow
 
 **NOT blockers** (do not reject for these):
 - Missing edge case handling
-- Incomplete acceptance criteria
+- Incomplete acceptance criteria (except Zero-Human Verification Gate violations)
 - Stylistic preferences
 - "Could be clearer" suggestions
 - Minor ambiguities a developer can resolve

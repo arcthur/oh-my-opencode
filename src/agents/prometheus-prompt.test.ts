@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { PROMETHEUS_SYSTEM_PROMPT } from "./prometheus"
+import { buildDynamicPrometheusPrompt, PROMETHEUS_SYSTEM_PROMPT } from "./prometheus"
 
 describe("PROMETHEUS_SYSTEM_PROMPT planning policy", () => {
   test("should describe high accuracy using Momus iterative review", () => {
@@ -74,5 +74,17 @@ describe("PROMETHEUS_SYSTEM_PROMPT planning policy", () => {
     expect(prompt).toContain("pre-generation: metis consultation (mandatory)")
     expect(prompt).toContain("before generating the plan")
     expect(prompt).toContain("consult metis for gap analysis")
+  })
+
+  test("should support phase-lazy prompt building for interview mode", () => {
+    // #given
+    const interviewPrompt = buildDynamicPrometheusPrompt({ phase: "interview" })
+    const fullPrompt = buildDynamicPrometheusPrompt({ phase: "full" })
+
+    // #when / #then
+    expect(interviewPrompt.length).toBeLessThan(fullPrompt.length)
+    expect(interviewPrompt.length).toBeLessThan(Math.floor(fullPrompt.length * 0.7))
+    expect(interviewPrompt.toLowerCase()).not.toContain("## plan structure")
+    expect(fullPrompt.toLowerCase()).toContain("## plan structure")
   })
 })

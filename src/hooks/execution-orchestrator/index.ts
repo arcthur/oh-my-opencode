@@ -1,8 +1,10 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { listTaskNodes } from "../../features/task-system"
 import { createWorkStateManager, type WorkState } from "../../features/work-state"
-import { getMainSessionID, isSubagentSession } from "../../features/claude-code-session-state"
+import { getMainSessionID, isSubagentSession, updateSessionAgent } from "../../features/claude-code-session-state"
 import { appendBudgetedOutput, injectBudgetedPrompt } from "../../features/context-budget"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
 import { getExecutionPolicy } from "../../features/orchestration/policy"
@@ -25,33 +27,49 @@ function isSisyphusPath(filePath: string): boolean {
 
 const WRITE_EDIT_TOOLS = ["Write", "Edit", "write", "edit"]
 
-const DIRECT_WORK_REMINDER = `
+type DelegationNoticePhase = "before-write" | "after-write"
+
+function buildDelegationRequiredNotice(input: {
+  phase: DelegationNoticePhase
+  executorName: string
+  filePath: string
+}): string {
+  const statusLine =
+    input.phase === "before-write"
+      ? "You are attempting a direct source edit."
+      : "You already made a direct source edit."
+
+  return `
 
 ---
 
 ${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)}
 
-You just performed direct file modifications outside \`.sisyphus/\`.
+**DELEGATION REQUIRED**
+${statusLine}
 
-**You are an ORCHESTRATOR, not an IMPLEMENTER.**
+Executor: ${input.executorName}
+Path: \`${input.filePath}\` (outside \`.sisyphus/\`)
 
-As an orchestrator, you should:
-- **DELEGATE** implementation work to subagents via \`delegate_task\`
-- **VERIFY** the work done by subagents
-- **COORDINATE** multiple tasks and ensure completion
+Atlas rule:
+- Delegate implementation via \`delegate_task\`
+- Verify results with your own tool calls
+- Keep direct edits limited to \`.sisyphus/*\` artifacts or tiny verification-only fixes
 
-You should NOT:
-- Write code directly (except for \`.sisyphus/\` files like plans and notepads)
-- Make direct file edits outside \`.sisyphus/\`
-- Implement features yourself
-
-**If you need to make changes:**
-1. Use \`delegate_task\` to delegate to an appropriate subagent
-2. Provide clear instructions in the prompt
-3. Verify the subagent's work after completion
+Next action:
+\`\`\`typescript
+delegate_task(
+  description="Atomic implementation task",
+  category="...",
+  load_skills=[],
+  run_in_background=false,
+  prompt="[single objective + explicit verification]"
+)
+\`\`\`
 
 ---
 `
+}
 
 const ATLAS_WORK_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
 
@@ -74,6 +92,7 @@ TaskGraph scope: \`plan\`
 TaskGraph container_id: \`{PLAN_NAME}\``
 
 const EXECUTION_AGENT_LABEL = "Atlas"
+const DEFAULT_COMPLETION_FALLBACK_AGENT = "sisyphus"
 
 const VERIFICATION_REMINDER = `**MANDATORY: WHAT YOU MUST DO RIGHT NOW**
 
@@ -115,58 +134,15 @@ task_create({
 
 **BLOCKING: DO NOT proceed to Step 4 until Steps 1-3 are VERIFIED.**`
 
-const ORCHESTRATOR_DELEGATION_REQUIRED = `
+const VERIFICATION_REMINDER_COMPACT = `**VERIFICATION LOOP (COMPACT)**
 
----
+Repeat this on every delegated result:
+1. Run \`lsp_diagnostics\` on changed files
+2. Run targeted tests + typecheck/build commands
+3. Read changed code and confirm acceptance criteria
+4. Decide if hands-on QA is required (\`/playwright\`, \`interactive_bash\`, or API probes)
 
-⚠️⚠️⚠️ ${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)} ⚠️⚠️⚠️
-
-**STOP. YOU ARE VIOLATING ORCHESTRATOR PROTOCOL.**
-
-You ($EXECUTOR_NAME in Execution Mode) are attempting to directly modify a file outside \`.sisyphus/\`.
-
-**Path attempted:** $FILE_PATH
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🚫 **THIS IS FORBIDDEN** (except for VERIFICATION purposes)
-
-As an ORCHESTRATOR, you MUST:
-1. **DELEGATE** all implementation work via \`delegate_task\`
-2. **VERIFY** the work done by subagents (reading files is OK)
-3. **COORDINATE** - you orchestrate, you don't implement
-
-**ALLOWED direct file operations:**
-- Files inside \`.sisyphus/\` (plans, notepads, drafts)
-- Reading files for verification
-- Running diagnostics/tests
-
-**FORBIDDEN direct file operations:**
-- Writing/editing source code
-- Creating new files outside \`.sisyphus/\`
-- Any implementation work
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**IF THIS IS FOR VERIFICATION:**
-Proceed if you are verifying subagent work by making a small fix.
-But for any substantial changes, USE \`delegate_task\`.
-
-**CORRECT APPROACH:**
-\`\`\`
-delegate_task(
-  description="Verify fix",
-  category="...",
-  load_skills=[],
-  run_in_background=false,
-  prompt="[specific single task with clear acceptance criteria]"
-)
-\`\`\`
-
-⚠️⚠️⚠️ DELEGATE. DON'T IMPLEMENT. ⚠️⚠️⚠️
-
----
-`
+If ANY check fails, delegate one atomic fix immediately.`
 
 const SINGLE_TASK_DIRECTIVE = `
 
@@ -200,7 +176,7 @@ const EXECUTION_MODE_TASK_WARNING = `
 ${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)}
 
 Execution Mode policy forbids direct use of \`task\`.
-Use \`delegate_task\` with a single atomic objective and explicit acceptance criteria.
+Use TaskGraph tools (\`task_create\`, \`task_get\`, \`task_list\`, \`task_update\`, \`task_transition\`) or \`delegate_task\` with a single atomic objective and explicit acceptance criteria.
 
 ---
 `
@@ -252,8 +228,159 @@ function enforceExecutionModeDelegatePrompt(prompt: unknown): void {
   )
 }
 
-function buildVerificationReminder(sessionId: string): string {
-  return `${VERIFICATION_REMINDER}
+type VerificationReminderMode = "full" | "compact"
+type WorkProgress = { total: number; completed: number }
+
+const ORCHESTRATOR_REMINDER_CHAR_BUDGET = 4200
+const ORCHESTRATOR_REMINDER_DOWNGRADE_MARKER = "[orchestrator reminder downgraded due to context budget]"
+const ORCHESTRATOR_REMINDER_TRUNCATION_MARKER = "[orchestrator reminder truncated to fit context budget]"
+const ORCHESTRATOR_PLAN_ID_MAX_LENGTH = 120
+const ORCHESTRATOR_PLAN_PATH_MAX_LENGTH = 220
+const ORCHESTRATOR_SESSION_ID_MAX_LENGTH = 220
+type OrchestratorReminderProfile = "full" | "compact" | "ultra-compact"
+type OrchestratorReminderReason =
+  | "none"
+  | "field-truncation"
+  | "budget-downgrade"
+  | "hard-budget-truncate"
+  | "field-truncation+budget-downgrade"
+  | "field-truncation+hard-budget-truncate"
+
+export interface OrchestratorReminderTelemetry {
+  profile: OrchestratorReminderProfile
+  reason: OrchestratorReminderReason
+  charLength: number
+  charBudget: number
+  fieldTruncated: boolean
+  budgetDowngraded: boolean
+  hardTruncated: boolean
+}
+
+export interface OrchestratorReminderBuildResult {
+  content: string
+  telemetry: OrchestratorReminderTelemetry
+}
+
+interface ReminderTelemetrySummary {
+  total: number
+  full: number
+  compact: number
+  ultraCompact: number
+  budgetDowngrades: number
+  fieldTruncations: number
+  hardTruncations: number
+}
+
+interface ReminderTelemetryPersistenceSnapshot {
+  schema_version: 1
+  plan_id: string
+  updated_at: string
+  summary: ReminderTelemetrySummary
+}
+
+function createEmptyReminderTelemetrySummary(): ReminderTelemetrySummary {
+  return {
+    total: 0,
+    full: 0,
+    compact: 0,
+    ultraCompact: 0,
+    budgetDowngrades: 0,
+    fieldTruncations: 0,
+    hardTruncations: 0,
+  }
+}
+
+function addReminderTelemetrySummary(
+  target: ReminderTelemetrySummary,
+  source: ReminderTelemetrySummary
+): void {
+  target.total += source.total
+  target.full += source.full
+  target.compact += source.compact
+  target.ultraCompact += source.ultraCompact
+  target.budgetDowngrades += source.budgetDowngrades
+  target.fieldTruncations += source.fieldTruncations
+  target.hardTruncations += source.hardTruncations
+}
+
+const REMINDER_TELEMETRY_SNAPSHOT_VERSION = 1
+const REMINDER_TELEMETRY_FILE_NAME = "orchestrator-reminder-telemetry.json"
+
+function getReminderTelemetryPath(workspaceDir: string, planId: string): string {
+  return join(workspaceDir, ".sisyphus", "plans", planId, REMINDER_TELEMETRY_FILE_NAME)
+}
+
+function cloneReminderTelemetrySummary(summary: ReminderTelemetrySummary): ReminderTelemetrySummary {
+  return {
+    ...summary,
+  }
+}
+
+function truncatePromptField(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value
+  if (maxLength <= 16) return `${value.slice(0, maxLength)}...`
+
+  const prefixLength = maxLength - 16
+  const omitted = value.length - prefixLength
+  return `${value.slice(0, prefixLength)}...[+${omitted}]`
+}
+
+function truncateOrchestratorReminder(content: string): string {
+  const suffix = `\n${ORCHESTRATOR_REMINDER_TRUNCATION_MARKER}`
+  const maxPrefixLength = Math.max(0, ORCHESTRATOR_REMINDER_CHAR_BUDGET - suffix.length)
+  return `${content.slice(0, maxPrefixLength).trimEnd()}${suffix}`
+}
+
+function deriveOrchestratorReminderReason(
+  fieldTruncated: boolean,
+  budgetDowngraded: boolean,
+  hardTruncated: boolean
+): OrchestratorReminderReason {
+  if (hardTruncated) {
+    return fieldTruncated ? "field-truncation+hard-budget-truncate" : "hard-budget-truncate"
+  }
+  if (budgetDowngraded) {
+    return fieldTruncated ? "field-truncation+budget-downgrade" : "budget-downgrade"
+  }
+  if (fieldTruncated) {
+    return "field-truncation"
+  }
+  return "none"
+}
+
+function toOrchestratorReminderResult(
+  content: string,
+  profile: OrchestratorReminderProfile,
+  flags: {
+    fieldTruncated: boolean
+    budgetDowngraded: boolean
+    hardTruncated: boolean
+  }
+): OrchestratorReminderBuildResult {
+  return {
+    content,
+    telemetry: {
+      profile,
+      reason: deriveOrchestratorReminderReason(
+        flags.fieldTruncated,
+        flags.budgetDowngraded,
+        flags.hardTruncated
+      ),
+      charLength: content.length,
+      charBudget: ORCHESTRATOR_REMINDER_CHAR_BUDGET,
+      fieldTruncated: flags.fieldTruncated,
+      budgetDowngraded: flags.budgetDowngraded,
+      hardTruncated: flags.hardTruncated,
+    },
+  }
+}
+
+function buildVerificationReminder(
+  sessionId: string,
+  mode: VerificationReminderMode
+): string {
+  const baseReminder = mode === "compact" ? VERIFICATION_REMINDER_COMPACT : VERIFICATION_REMINDER
+  return `${baseReminder}
 
 ---
 
@@ -287,21 +414,84 @@ Fix verification failure with one atomic change.
 \`\`\``
 }
 
-function buildOrchestratorReminder(
+function buildUltraCompactOrchestratorReminder(
   planId: string,
   planPath: string,
-  progress: { total: number; completed: number },
+  progress: WorkProgress,
   sessionId: string
 ): string {
   const remaining = progress.total - progress.completed
   return `
 ---
 
-**WORK STATE:** Plan: \`${planId}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
+${ORCHESTRATOR_REMINDER_DOWNGRADE_MARKER}
+
+**WORK STATE (COMPACT):** Plan: \`${planId}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
+Plan file: \`${planPath}\`
+
+**VERIFICATION LOOP (ULTRA-COMPACT)**
+1. Run \`lsp_diagnostics\`, targeted tests, and build/typecheck on changed files.
+2. Read changed code and confirm acceptance criteria.
+3. If any check fails, delegate one atomic fix:
+\`\`\`
+delegate_task(description="Fix verification", session_id="${sessionId}", run_in_background=false, prompt="[single failure + concrete verification]")
+\`\`\`
+4. If checks pass, mark task complete via \`task_transition\`.
+5. Pull next ready task with \`task_list\` and continue immediately.
+`
+}
+
+export function buildOrchestratorReminderWithTelemetry(
+  planId: string,
+  planPath: string,
+  progress: WorkProgress,
+  sessionId: string,
+  verificationReminderMode: VerificationReminderMode
+): OrchestratorReminderBuildResult {
+  const safePlanId = truncatePromptField(planId, ORCHESTRATOR_PLAN_ID_MAX_LENGTH)
+  const safePlanPath = truncatePromptField(planPath, ORCHESTRATOR_PLAN_PATH_MAX_LENGTH)
+  const safeSessionId = truncatePromptField(sessionId, ORCHESTRATOR_SESSION_ID_MAX_LENGTH)
+  const hasTruncatedField =
+    safePlanId !== planId || safePlanPath !== planPath || safeSessionId !== sessionId
+  const remaining = progress.total - progress.completed
+  const ultraCompactReminder = buildUltraCompactOrchestratorReminder(
+    safePlanId,
+    safePlanPath,
+    progress,
+    safeSessionId
+  )
+  const baseProfile: OrchestratorReminderProfile =
+    verificationReminderMode === "compact" ? "compact" : "full"
+
+  if (hasTruncatedField) {
+    if (ultraCompactReminder.length <= ORCHESTRATOR_REMINDER_CHAR_BUDGET) {
+      return toOrchestratorReminderResult(ultraCompactReminder, "ultra-compact", {
+        fieldTruncated: true,
+        budgetDowngraded: false,
+        hardTruncated: false,
+      })
+    }
+
+    return toOrchestratorReminderResult(
+      truncateOrchestratorReminder(ultraCompactReminder),
+      "ultra-compact",
+      {
+        fieldTruncated: true,
+        budgetDowngraded: true,
+        hardTruncated: true,
+      }
+    )
+  }
+
+  const fullReminder = `
+---
+
+**WORK STATE:** Plan: \`${safePlanId}\` | ${progress.completed}/${progress.total} done | ${remaining} remaining
+Plan file: \`${safePlanPath}\`
 
 ---
 
-${buildVerificationReminder(sessionId)}
+${buildVerificationReminder(safeSessionId, verificationReminderMode)}
 
 **STEP 4: MARK COMPLETION IN TASKGRAPH (IMMEDIATELY)**
 
@@ -309,7 +499,7 @@ RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
 
 Use \`task_list\` to find the current \`in_progress\` task (should be exactly one), then:
 \`\`\`
-task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "completed", scope: "plan", container_id: "${planId}" })
+task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "completed", scope: "plan", container_id: "${safePlanId}" })
 \`\`\`
 
 **DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
@@ -325,12 +515,37 @@ task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "c
 
 **STEP 6: PROCEED TO NEXT TASK**
 
-- Use \`task_list({ ready_only: true, scope: "plan", container_id: "${planId}" })\` to find the next ready task
+- Use \`task_list({ ready_only: true, scope: "plan", container_id: "${safePlanId}" })\` to find the next ready task
 - Start immediately - DO NOT STOP
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **${remaining} tasks remain. Keep working.**`
+  if (fullReminder.length <= ORCHESTRATOR_REMINDER_CHAR_BUDGET) {
+    return toOrchestratorReminderResult(fullReminder, baseProfile, {
+      fieldTruncated: false,
+      budgetDowngraded: false,
+      hardTruncated: false,
+    })
+  }
+
+  if (ultraCompactReminder.length <= ORCHESTRATOR_REMINDER_CHAR_BUDGET) {
+    return toOrchestratorReminderResult(ultraCompactReminder, "ultra-compact", {
+      fieldTruncated: false,
+      budgetDowngraded: true,
+      hardTruncated: false,
+    })
+  }
+
+  return toOrchestratorReminderResult(
+    truncateOrchestratorReminder(ultraCompactReminder),
+    "ultra-compact",
+    {
+      fieldTruncated: false,
+      budgetDowngraded: true,
+      hardTruncated: true,
+    }
+  )
 }
 
 function extractSessionIdFromOutput(output: string): string {
@@ -338,38 +553,77 @@ function extractSessionIdFromOutput(output: string): string {
   return match?.[1] ?? "<session_id>"
 }
 
-function formatFileChanges(stats: GitFileStat[], notepadPath?: string): string {
+const FILE_CHANGES_SECTION_LIMIT = 4
+const FILE_CHANGES_CHAR_BUDGET = 1500
+const FILE_CHANGES_TRUNCATION_MARKER = "[summary truncated to fit context budget]"
+
+function applyFileChangeSummaryBudget(summary: string): string {
+  if (summary.length <= FILE_CHANGES_CHAR_BUDGET) {
+    return summary
+  }
+  const suffix = `\n${FILE_CHANGES_TRUNCATION_MARKER}`
+  const maxPrefixLength = Math.max(0, FILE_CHANGES_CHAR_BUDGET - suffix.length)
+  const prefix = summary.slice(0, maxPrefixLength).trimEnd()
+  return `${prefix}${suffix}`
+}
+
+function appendFileChangeSection(
+  lines: string[],
+  title: string,
+  files: GitFileStat[],
+  renderLine: (file: GitFileStat) => string,
+  categoryLabel: "modified" | "created" | "deleted"
+): void {
+  if (files.length === 0) return
+
+  lines.push(title)
+  const visibleFiles = files.slice(0, FILE_CHANGES_SECTION_LIMIT)
+  for (const file of visibleFiles) {
+    lines.push(renderLine(file))
+  }
+
+  const omittedCount = files.length - visibleFiles.length
+  if (omittedCount > 0) {
+    lines.push(`  ... (${omittedCount} more ${categoryLabel} files omitted)`)
+  }
+
+  lines.push("")
+}
+
+export function formatFileChanges(stats: GitFileStat[], notepadPath?: string): string {
   if (stats.length === 0) return "[FILE CHANGES SUMMARY]\nNo file changes detected.\n"
 
   const modified = stats.filter((s) => s.status === "modified")
   const added = stats.filter((s) => s.status === "added")
   const deleted = stats.filter((s) => s.status === "deleted")
 
-  const lines: string[] = ["[FILE CHANGES SUMMARY]"]
+  const lines: string[] = [
+    "[FILE CHANGES SUMMARY]",
+    `Total files: ${stats.length} (modified: ${modified.length}, created: ${added.length}, deleted: ${deleted.length})`,
+    "",
+  ]
 
-  if (modified.length > 0) {
-    lines.push("Modified files:")
-    for (const f of modified) {
-      lines.push(`  ${f.path}  (+${f.added}, -${f.removed})`)
-    }
-    lines.push("")
-  }
-
-  if (added.length > 0) {
-    lines.push("Created files:")
-    for (const f of added) {
-      lines.push(`  ${f.path}  (+${f.added})`)
-    }
-    lines.push("")
-  }
-
-  if (deleted.length > 0) {
-    lines.push("Deleted files:")
-    for (const f of deleted) {
-      lines.push(`  ${f.path}  (-${f.removed})`)
-    }
-    lines.push("")
-  }
+  appendFileChangeSection(
+    lines,
+    "Modified files:",
+    modified,
+    (file) => `  ${file.path}  (+${file.added}, -${file.removed})`,
+    "modified"
+  )
+  appendFileChangeSection(
+    lines,
+    "Created files:",
+    added,
+    (file) => `  ${file.path}  (+${file.added})`,
+    "created"
+  )
+  appendFileChangeSection(
+    lines,
+    "Deleted files:",
+    deleted,
+    (file) => `  ${file.path}  (-${file.removed})`,
+    "deleted"
+  )
 
   if (notepadPath) {
     const notepadStat = stats.find((s) => s.path.includes("notepad") || s.path.includes(".sisyphus"))
@@ -380,7 +634,7 @@ function formatFileChanges(stats: GitFileStat[], notepadPath?: string): string {
     }
   }
 
-  return lines.join("\n")
+  return applyFileChangeSummaryBudget(lines.join("\n"))
 }
 
 interface ToolExecuteAfterInput {
@@ -398,10 +652,15 @@ interface ToolExecuteAfterOutput {
 interface SessionState {
   lastEventWasAbortError?: boolean
   lastContinuationInjectedAt?: number
+  lastDelegationWarningAt?: number
+  lastDirectWorkReminderAt?: number
   promptFailureCount: number
+  verificationReminderCount: number
+  reminderTelemetry: ReminderTelemetrySummary
 }
 
 const CONTINUATION_COOLDOWN_MS = 5000
+const DELEGATION_WARNING_COOLDOWN_MS = 30000
 
 export interface ExecutionOrchestratorHookOptions {
   directory: string
@@ -456,6 +715,8 @@ export function createExecutionOrchestratorHook(
 
   const workStateManager = createWorkStateManager(ctx.directory)
   const sessions = new Map<string, SessionState>()
+  const archivedReminderTelemetryBySession = new Map<string, ReminderTelemetrySummary>()
+  const persistedReminderTelemetryByPlan = new Map<string, ReminderTelemetrySummary>()
   const pendingFilePaths = new Map<string, string>()
 
   function computeWorkProgress(planId: string): { total: number; completed: number; remaining: number; isComplete: boolean } {
@@ -481,10 +742,278 @@ export function createExecutionOrchestratorHook(
   function getState(sessionID: string): SessionState {
     let state = sessions.get(sessionID)
     if (!state) {
-      state = { promptFailureCount: 0 }
+      state = {
+        promptFailureCount: 0,
+        verificationReminderCount: 0,
+        reminderTelemetry: createEmptyReminderTelemetrySummary(),
+      }
       sessions.set(sessionID, state)
     }
     return state
+  }
+
+  function recordReminderTelemetry(
+    state: SessionState,
+    telemetry: OrchestratorReminderTelemetry
+  ): void {
+    state.reminderTelemetry.total += 1
+
+    if (telemetry.profile === "full") {
+      state.reminderTelemetry.full += 1
+    } else if (telemetry.profile === "compact") {
+      state.reminderTelemetry.compact += 1
+    } else {
+      state.reminderTelemetry.ultraCompact += 1
+    }
+
+    if (telemetry.budgetDowngraded) {
+      state.reminderTelemetry.budgetDowngrades += 1
+    }
+    if (telemetry.fieldTruncated) {
+      state.reminderTelemetry.fieldTruncations += 1
+    }
+    if (telemetry.hardTruncated) {
+      state.reminderTelemetry.hardTruncations += 1
+    }
+  }
+
+  function loadReminderTelemetrySnapshot(planId: string): ReminderTelemetrySummary | null {
+    const telemetryPath = getReminderTelemetryPath(options.directory, planId)
+    if (!existsSync(telemetryPath)) return null
+
+    try {
+      const raw = readFileSync(telemetryPath, "utf-8")
+      const parsed = JSON.parse(raw) as Partial<ReminderTelemetryPersistenceSnapshot>
+      const summary = parsed.summary
+      if (
+        parsed.schema_version !== REMINDER_TELEMETRY_SNAPSHOT_VERSION ||
+        typeof parsed.plan_id !== "string" ||
+        parsed.plan_id !== planId ||
+        !summary ||
+        typeof summary.total !== "number" ||
+        typeof summary.full !== "number" ||
+        typeof summary.compact !== "number" ||
+        typeof summary.ultraCompact !== "number" ||
+        typeof summary.budgetDowngrades !== "number" ||
+        typeof summary.fieldTruncations !== "number" ||
+        typeof summary.hardTruncations !== "number"
+      ) {
+        return null
+      }
+
+      return cloneReminderTelemetrySummary(summary)
+    } catch (err) {
+      log(`[${HOOK_NAME}] Failed to read reminder telemetry snapshot`, {
+        planId,
+        error: String(err),
+      })
+      return null
+    }
+  }
+
+  function writeReminderTelemetrySnapshot(planId: string, summary: ReminderTelemetrySummary): void {
+    const telemetryPath = getReminderTelemetryPath(options.directory, planId)
+    try {
+      mkdirSync(dirname(telemetryPath), { recursive: true })
+      const payload: ReminderTelemetryPersistenceSnapshot = {
+        schema_version: REMINDER_TELEMETRY_SNAPSHOT_VERSION,
+        plan_id: planId,
+        updated_at: new Date().toISOString(),
+        summary: cloneReminderTelemetrySummary(summary),
+      }
+      const tempPath = `${telemetryPath}.tmp`
+      writeFileSync(tempPath, JSON.stringify(payload, null, 2), "utf-8")
+      renameSync(tempPath, telemetryPath)
+    } catch (err) {
+      log(`[${HOOK_NAME}] Failed to persist reminder telemetry snapshot`, {
+        planId,
+        error: String(err),
+      })
+    }
+  }
+
+  function getPersistedReminderTelemetry(planId: string): ReminderTelemetrySummary {
+    const cached = persistedReminderTelemetryByPlan.get(planId)
+    if (cached) return cached
+
+    const loaded = loadReminderTelemetrySnapshot(planId) ?? createEmptyReminderTelemetrySummary()
+    persistedReminderTelemetryByPlan.set(planId, loaded)
+    return loaded
+  }
+
+  function persistReminderTelemetry(planId: string, telemetry: OrchestratorReminderTelemetry): void {
+    const summary = getPersistedReminderTelemetry(planId)
+    summary.total += 1
+
+    if (telemetry.profile === "full") {
+      summary.full += 1
+    } else if (telemetry.profile === "compact") {
+      summary.compact += 1
+    } else {
+      summary.ultraCompact += 1
+    }
+
+    if (telemetry.budgetDowngraded) {
+      summary.budgetDowngrades += 1
+    }
+    if (telemetry.fieldTruncated) {
+      summary.fieldTruncations += 1
+    }
+    if (telemetry.hardTruncated) {
+      summary.hardTruncations += 1
+    }
+
+    writeReminderTelemetrySnapshot(planId, summary)
+  }
+
+  function clearPersistedReminderTelemetry(planId: string): void {
+    persistedReminderTelemetryByPlan.delete(planId)
+    const telemetryPath = getReminderTelemetryPath(options.directory, planId)
+    if (!existsSync(telemetryPath)) return
+    try {
+      rmSync(telemetryPath, { force: true })
+    } catch (err) {
+      log(`[${HOOK_NAME}] Failed to clear reminder telemetry snapshot`, {
+        planId,
+        error: String(err),
+      })
+    }
+  }
+
+  function aggregateReminderTelemetry(sessionIDs: string[]): ReminderTelemetrySummary {
+    const summary = createEmptyReminderTelemetrySummary()
+
+    for (const sessionID of sessionIDs) {
+      const state = sessions.get(sessionID)
+      if (state) {
+        addReminderTelemetrySummary(summary, state.reminderTelemetry)
+      }
+
+      const archived = archivedReminderTelemetryBySession.get(sessionID)
+      if (archived) {
+        addReminderTelemetrySummary(summary, archived)
+      }
+    }
+
+    return summary
+  }
+
+  function archiveReminderTelemetryForSession(sessionID: string): void {
+    const state = sessions.get(sessionID)
+    if (!state || state.reminderTelemetry.total === 0) return
+
+    const existing = archivedReminderTelemetryBySession.get(sessionID)
+    if (existing) {
+      addReminderTelemetrySummary(existing, state.reminderTelemetry)
+      return
+    }
+
+    archivedReminderTelemetryBySession.set(sessionID, {
+      ...state.reminderTelemetry,
+    })
+  }
+
+  function shouldEmitDelegationWarning(state: SessionState, now = Date.now()): boolean {
+    if (!state.lastDelegationWarningAt) {
+      state.lastDelegationWarningAt = now
+      return true
+    }
+    if (now - state.lastDelegationWarningAt >= DELEGATION_WARNING_COOLDOWN_MS) {
+      state.lastDelegationWarningAt = now
+      return true
+    }
+    return false
+  }
+
+  function shouldEmitDirectWorkReminder(state: SessionState, now = Date.now()): boolean {
+    if (!state.lastDirectWorkReminderAt) {
+      state.lastDirectWorkReminderAt = now
+      return true
+    }
+    if (now - state.lastDirectWorkReminderAt >= DELEGATION_WARNING_COOLDOWN_MS) {
+      state.lastDirectWorkReminderAt = now
+      return true
+    }
+    return false
+  }
+
+  function writeCompletionArtifact(
+    planId: string,
+    planPath: string,
+    progress: { total: number; completed: number; remaining: number },
+    reminderTelemetry: ReminderTelemetrySummary
+  ): string | null {
+    try {
+      const completionPath = join(options.directory, ".sisyphus", "plans", planId, "completion.md")
+      mkdirSync(dirname(completionPath), { recursive: true })
+      const completedAt = new Date().toISOString()
+      const content = `# Plan Complete
+
+- Plan ID: \`${planId}\`
+- Plan Path: \`${planPath}\`
+- Completed At: \`${completedAt}\`
+- TaskGraph Progress: ${progress.completed}/${progress.total} (remaining: ${progress.remaining})
+
+## Summary
+
+Execution orchestrator marked all TaskGraph items as complete and finalized work state.
+
+## Reminder Telemetry
+
+- Total reminders: ${reminderTelemetry.total}
+- Profiles: full=${reminderTelemetry.full}, compact=${reminderTelemetry.compact}, ultra-compact=${reminderTelemetry.ultraCompact}
+- Budget downgrades: ${reminderTelemetry.budgetDowngrades}
+- Field truncations: ${reminderTelemetry.fieldTruncations}
+- Hard truncations: ${reminderTelemetry.hardTruncations}
+`
+      writeFileSync(completionPath, content, "utf-8")
+      return completionPath
+    } catch (err) {
+      log(`[${HOOK_NAME}] Failed to write completion artifact`, {
+        planId,
+        error: String(err),
+      })
+      return null
+    }
+  }
+
+  function finalizeCompletedWork(
+    sessionID: string,
+    workState: WorkState,
+    progress: { total: number; completed: number; remaining: number }
+  ): void {
+    const inMemoryTelemetry = aggregateReminderTelemetry(workState.session_ids)
+    const persistedTelemetry = getPersistedReminderTelemetry(workState.plan_id)
+    const reminderTelemetry = cloneReminderTelemetrySummary(persistedTelemetry)
+    // Keep completion robust if persistence is unavailable for any reason.
+    if (reminderTelemetry.total < inMemoryTelemetry.total) {
+      addReminderTelemetrySummary(reminderTelemetry, inMemoryTelemetry)
+    }
+
+    const completionPath = writeCompletionArtifact(
+      workState.plan_id,
+      workState.execution_plan_path,
+      progress,
+      reminderTelemetry
+    )
+
+    for (const sid of workState.session_ids) {
+      updateSessionAgent(sid, DEFAULT_COMPLETION_FALLBACK_AGENT)
+    }
+
+    const cleared = workStateManager.clear()
+    for (const sid of workState.session_ids) {
+      archivedReminderTelemetryBySession.delete(sid)
+    }
+    clearPersistedReminderTelemetry(workState.plan_id)
+    log(`[${HOOK_NAME}] Completion routine finished`, {
+      sessionID,
+      plan: workState.plan_id,
+      cleared,
+      completionPath,
+      fallbackAgent: DEFAULT_COMPLETION_FALLBACK_AGENT,
+      reminderTelemetry,
+    })
   }
 
   function isExecutionModeSession(sessionID?: string, stateFromCaller?: WorkState | null): boolean {
@@ -700,14 +1229,15 @@ export function createExecutionOrchestratorHook(
           return
         }
 
-        if (!isExecutionModeSession(sessionID, workState)) {
-          log(`[${HOOK_NAME}] Skipped: session is not in execution mode`, { sessionID })
-          return
-        }
-
         const progress = computeWorkProgress(workState.plan_id)
         if (progress.isComplete) {
           log(`[${HOOK_NAME}] Work complete`, { sessionID, plan: workState.plan_id })
+          finalizeCompletedWork(sessionID, workState, progress)
+          return
+        }
+
+        if (!isExecutionModeSession(sessionID, workState)) {
+          log(`[${HOOK_NAME}] Skipped: session is not in execution mode`, { sessionID })
           return
         }
 
@@ -769,6 +1299,7 @@ export function createExecutionOrchestratorHook(
       if (event.type === "session.deleted") {
         const sessionInfo = props?.info as { id?: string } | undefined
         if (sessionInfo?.id) {
+          archiveReminderTelemetryForSession(sessionInfo.id)
           sessions.delete(sessionInfo.id)
           log(`[${HOOK_NAME}] Session deleted: cleaned up`, { sessionID: sessionInfo.id })
         }
@@ -779,6 +1310,7 @@ export function createExecutionOrchestratorHook(
         const sessionID = (props?.sessionID ??
           (props?.info as { id?: string } | undefined)?.id) as string | undefined
         if (sessionID) {
+          archiveReminderTelemetryForSession(sessionID)
           sessions.delete(sessionID)
           log(`[${HOOK_NAME}] Session compacted: cleaned up`, { sessionID })
         }
@@ -811,15 +1343,27 @@ export function createExecutionOrchestratorHook(
       if (WRITE_EDIT_TOOLS.includes(input.tool)) {
         const filePath = (output.args.filePath ?? output.args.path ?? output.args.file) as string | undefined
         if (filePath && !isSisyphusPath(filePath)) {
+          const state = getState(sessionID)
+          const shouldWarn = shouldEmitDelegationWarning(state)
+          if (!shouldWarn) {
+            log(`[${HOOK_NAME}] Skipped delegation warning due to cooldown`, {
+              sessionID,
+              tool: input.tool,
+              filePath,
+            })
+            return
+          }
           const activeState = workStateManager.load()
           const executorName = activeState ? EXECUTION_AGENT_LABEL : "Execution Orchestrator"
           // Store filePath for use in tool.execute.after
           if (input.callID) {
             pendingFilePaths.set(input.callID, filePath)
           }
-          const warning = ORCHESTRATOR_DELEGATION_REQUIRED
-            .replace("$FILE_PATH", filePath)
-            .replace("$EXECUTOR_NAME", executorName)
+          const warning = buildDelegationRequiredNotice({
+            phase: "before-write",
+            executorName,
+            filePath,
+          })
           output.message = (output.message || "") + warning
           log(`[${HOOK_NAME}] Injected delegation warning for direct file modification`, {
             sessionID,
@@ -839,9 +1383,10 @@ export function createExecutionOrchestratorHook(
             output: { args: output.args },
             sessionID,
             source: "execution-orchestrator",
-            id: `${input.callID ?? "unknown"}:single-task-directive`,
+            id: "single-task-directive",
             priority: "critical",
             content: `<system-reminder>${SINGLE_TASK_DIRECTIVE}</system-reminder>\n`,
+            oncePerSession: true,
           })
           log(`[${HOOK_NAME}] Injected single-task directive to delegate_task`, {
             sessionID,
@@ -939,13 +1484,28 @@ This helps maintain context across sessions and prevents knowledge loss.
           filePath = output.metadata?.filePath as string | undefined
         }
         if (filePath && !isSisyphusPath(filePath)) {
+          const state = getState(input.sessionID)
+          const shouldRemind = shouldEmitDirectWorkReminder(state)
+          if (!shouldRemind) {
+            log(`[${HOOK_NAME}] Skipped direct work reminder due to cooldown`, {
+              sessionID: input.sessionID,
+              tool: input.tool,
+              filePath,
+            })
+            return
+          }
           appendBudgetedOutput({
             output,
             sessionID: input.sessionID,
             source: "execution-orchestrator",
-            id: `${input.callID}:direct-work-reminder`,
+            id: "direct-work-reminder",
             priority: "critical",
-            content: DIRECT_WORK_REMINDER,
+            content: buildDelegationRequiredNotice({
+              phase: "after-write",
+              executorName: EXECUTION_AGENT_LABEL,
+              filePath,
+            }),
+            oncePerSession: true,
           })
           log(`[${HOOK_NAME}] Direct work reminder appended`, {
             sessionID: input.sessionID,
@@ -974,6 +1534,9 @@ This helps maintain context across sessions and prevents knowledge loss.
         const gitStats = getGitDiffStats(ctx.directory)
         const fileChanges = formatFileChanges(gitStats)
         const subagentSessionId = extractSessionIdFromOutput(output.output)
+        const state = getState(input.sessionID)
+        const verificationReminderMode: VerificationReminderMode =
+          state.verificationReminderCount > 0 ? "compact" : "full"
 
         // Reload work state in case it was updated by protocol handling
         const currentWorkState = workStateManager.load()
@@ -1018,6 +1581,13 @@ ${fileChanges}
             ? `${outputPrefixBuffer.output}${originalResponse}`
             : originalResponse
         output.output = outputCore
+        const reminderResult = buildOrchestratorReminderWithTelemetry(
+          currentWorkState.plan_id,
+          currentWorkState.execution_plan_path,
+          { total: progress.total, completed: progress.completed },
+          subagentSessionId,
+          verificationReminderMode
+        )
 
         appendBudgetedOutput({
           output,
@@ -1028,19 +1598,25 @@ ${fileChanges}
           content: `
 
 <system-reminder>
-${buildOrchestratorReminder(
-  currentWorkState.plan_id,
-  currentWorkState.execution_plan_path,
-  { total: progress.total, completed: progress.completed },
-  subagentSessionId
-)}
+${reminderResult.content}
 </system-reminder>`,
         })
+
+        state.verificationReminderCount += 1
+        recordReminderTelemetry(state, reminderResult.telemetry)
+        persistReminderTelemetry(currentWorkState.plan_id, reminderResult.telemetry)
 
         log(`[${HOOK_NAME}] Output transformed for execution mode`, {
           plan: currentWorkState.plan_id,
           progress: `${progress.completed}/${progress.total}`,
           fileCount: gitStats.length,
+          reminderProfile: reminderResult.telemetry.profile,
+          reminderReason: reminderResult.telemetry.reason,
+          reminderLength: reminderResult.telemetry.charLength,
+          reminderBudget: reminderResult.telemetry.charBudget,
+          reminderFieldTruncated: reminderResult.telemetry.fieldTruncated,
+          reminderBudgetDowngraded: reminderResult.telemetry.budgetDowngraded,
+          reminderHardTruncated: reminderResult.telemetry.hardTruncated,
         })
       }
     },

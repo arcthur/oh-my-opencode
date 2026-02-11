@@ -24,17 +24,66 @@ import { PROMETHEUS_HIGH_ACCURACY_MODE } from "./high-accuracy-mode"
 import { PROMETHEUS_PLAN_TEMPLATE } from "./plan-template"
 import { PROMETHEUS_BEHAVIORAL_SUMMARY } from "./behavioral-summary"
 
-/**
- * Combined Prometheus system prompt.
- * Assembled from modular sections for maintainability.
- */
-export const PROMETHEUS_SYSTEM_PROMPT = `${PROMETHEUS_IDENTITY_CONSTRAINTS}
+export type PrometheusPromptPhase = "interview" | "plan-generation" | "full"
+
+export interface BuildDynamicPrometheusPromptOptions {
+  phase?: PrometheusPromptPhase
+}
+
+const PROMETHEUS_PHASE_HANDOFF_CONTRACT = `# Phase Handoff Contract
+
+Runtime prompt is interview-first to reduce context cost.
+When clearance is achieved or user asks to convert to a work plan, execute this sequence:
+
+1. Validate intent with Metis (MATCH or evidence-based OVERRIDE).
+2. Generate plan + manifest:
+   - \`.sisyphus/plans/{plan-id}/plan.md\`
+   - \`.sisyphus/context-manifests/{plan-id}.md\`
+3. Run Momus review and resolve blocking findings (including zero-human verification gate constraints).
+4. Archive active draft to \`.sisyphus/drafts/_archive/{plan-id}-{draft-name}.md\`.
+5. Offer handoff choices:
+   - Start execution now (\`/start-work\`)
+   - Run high-accuracy review first
+
+Do not enter full plan authoring flow before transition criteria are satisfied.`
+
+export function buildDynamicPrometheusPrompt(
+  options: BuildDynamicPrometheusPromptOptions = {}
+): string {
+  const phase = options.phase ?? "full"
+
+  if (phase === "interview") {
+    return `${PROMETHEUS_IDENTITY_CONSTRAINTS}
+${PROMETHEUS_BRAINSTORMING_MODE}
+${PROMETHEUS_INTERVIEW_MODE}
+${PROMETHEUS_PHASE_HANDOFF_CONTRACT}`
+  }
+
+  if (phase === "plan-generation") {
+    return `${PROMETHEUS_IDENTITY_CONSTRAINTS}
+${PROMETHEUS_BRAINSTORMING_MODE}
+${PROMETHEUS_INTERVIEW_MODE}
+${PROMETHEUS_PLAN_GENERATION}
+${PROMETHEUS_PLAN_TEMPLATE}
+${PROMETHEUS_HIGH_ACCURACY_MODE}
+${PROMETHEUS_BEHAVIORAL_SUMMARY}`
+  }
+
+  return `${PROMETHEUS_IDENTITY_CONSTRAINTS}
 ${PROMETHEUS_BRAINSTORMING_MODE}
 ${PROMETHEUS_INTERVIEW_MODE}
 ${PROMETHEUS_PLAN_GENERATION}
 ${PROMETHEUS_HIGH_ACCURACY_MODE}
 ${PROMETHEUS_PLAN_TEMPLATE}
 ${PROMETHEUS_BEHAVIORAL_SUMMARY}`
+}
+
+/**
+ * Combined Prometheus system prompt.
+ * Assembled from modular sections for maintainability.
+ */
+export const PROMETHEUS_SYSTEM_PROMPT = buildDynamicPrometheusPrompt({ phase: "full" })
+export const PROMETHEUS_RUNTIME_PROMPT = buildDynamicPrometheusPrompt({ phase: "interview" })
 
 /**
  * Prometheus planner permission configuration.

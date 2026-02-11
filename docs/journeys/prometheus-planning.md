@@ -39,6 +39,7 @@ Prometheus is assembled from modular sections:
 ```
 src/agents/prometheus/
 ├── index.ts                 # Assembly + exports
+├── intent-taxonomy.ts       # Shared intent taxonomy (Prometheus owner, Metis validator)
 ├── identity-constraints.ts  # Core identity, forbidden actions, turn rules
 ├── brainstorming-mode.ts    # Phase 0: Design validation (Superpowers-inspired)
 ├── interview-mode.ts        # Phase 1: Intent classification, interview strategies
@@ -47,6 +48,9 @@ src/agents/prometheus/
 ├── plan-template.ts         # Work plan structure template
 └── behavioral-summary.ts    # Summary and cleanup rules
 ```
+
+Runtime loading is interview-first (`PROMETHEUS_RUNTIME_PROMPT`) with explicit phase handoff rules.
+Full prompt (`PROMETHEUS_SYSTEM_PROMPT`) remains available for full-context planning surfaces and tests.
 
 ## Workflow Phases
 
@@ -120,6 +124,8 @@ Default mode for gathering requirements. Strategy varies by intent.
 | Architecture | System design | Strategic, Oracle consultation |
 | Research | Investigation needed | Exit criteria, parallel probes |
 
+The same taxonomy table is shared by Metis so intent validation is aligned across the planning pipeline.
+
 **Key Rules:**
 - All interview questions asked ONE AT A TIME (not batched)
 - Use `Question` tool for multiple-choice options
@@ -160,7 +166,8 @@ Momus iterative review for stricter executability checks.
 
 | Artifact | Path | Purpose |
 |----------|------|---------|
-| Draft | `.sisyphus/drafts/{topic}.md` | Working memory during interview |
+| Draft (active) | `.sisyphus/drafts/{topic}.md` | Working memory during interview |
+| Draft (archived) | `.sisyphus/drafts/_archive/{planId}-{topic}.md` | Traceability after plan handoff |
 | Design Doc | `.sisyphus/designs/{topic-slug}.md` | WHY/HOW decisions |
 | Research Findings | `.sisyphus/drafts/{topic}-research.md` | Investigation results |
 | Work Plan (spec) | `.sisyphus/plans/{planId}/plan.md` | Planner output and execution-facing plan document |

@@ -9,9 +9,9 @@ This journey maps the end-to-end chain: plan generation → plan selection → (
 
 ```mermaid
 flowchart TD
-  U["User request"] --> MT["Pre-planning analysis (Metis)"]
+  U["User request"] --> MT["Intent validation + gap analysis (Metis)"]
   MT --> PG["Plan generation (Prometheus)"]
-  PG --> MO["Plan review (Momus)"]
+  PG --> MO["Executability review + zero-human gate (Momus)"]
 
   MO --> ART["Write plan spec + context manifest → .sisyphus/"]
   ART --> SW["Start execution (/start-work or start-work hook)"]
@@ -29,6 +29,7 @@ flowchart TD
   AT --> TOOL["Tools (Read/Glob/Grep/LSP/Edit/Bash/...)"]
   SF --> TOOL
   TOOL --> OUT["Artifacts + final answer"]
+  AT --> COMP["completion.md + reminder telemetry summary"]
 ```
 
 This journey explains how a plan is produced, validated, bound into execution state (`work.yaml` + TaskGraph), and then executed through orchestration.
