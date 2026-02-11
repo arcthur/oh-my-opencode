@@ -384,7 +384,7 @@ export function createSessionStateRepairHook(ctx: PluginInput, options?: Session
           await resumeSession(ctx.client, resumeConfig)
         }
       } else if (errorType === "assistant_prefill_unsupported") {
-        success = true
+        success = false
       }
 
       return success

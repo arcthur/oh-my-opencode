@@ -17,6 +17,7 @@ export function createWebsearchConfig(): RemoteMcpConfig {
       ? `${EXA_WEBSEARCH_MCP_URL}&exaApiKey=${encodeURIComponent(exaApiKey)}`
       : EXA_WEBSEARCH_MCP_URL,
     enabled: true,
+    ...(exaApiKey ? { headers: { "x-api-key": exaApiKey } } : {}),
     // Disable OAuth auto-detection - Exa uses URL query auth for remote MCP
     oauth: false as const,
   }

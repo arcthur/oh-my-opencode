@@ -59,6 +59,22 @@ function getConnectionType(config: ClaudeCodeMcpServer): ConnectionType | null {
   return null
 }
 
+function redactUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const sensitiveKeys = ["key", "token", "secret"]
+    for (const key of parsed.searchParams.keys()) {
+      const lower = key.toLowerCase()
+      if (sensitiveKeys.some((sensitive) => lower.includes(sensitive))) {
+        parsed.searchParams.set(key, "***REDACTED***")
+      }
+    }
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
 export class SkillMcpManager {
   private clients: Map<string, ManagedClient> = new Map()
   private pendingConnections: Map<string, Promise<Client>> = new Map()
@@ -237,7 +253,7 @@ export class SkillMcpManager {
       url = new URL(config.url)
     } catch {
       throw new Error(
-        `MCP server "${info.serverName}" has invalid URL: ${config.url}\n\n` +
+        `MCP server "${info.serverName}" has invalid URL: ${redactUrl(config.url)}\n\n` +
         `Expected a valid URL like: https://mcp.example.com/mcp`
       )
     }
@@ -293,7 +309,7 @@ export class SkillMcpManager {
       const errorMessage = error instanceof Error ? error.message : String(error)
       throw new Error(
         `Failed to connect to MCP server "${info.serverName}".\n\n` +
-        `URL: ${config.url}\n` +
+        `URL: ${redactUrl(config.url)}\n` +
         `Reason: ${errorMessage}\n\n` +
         `Hints:\n` +
         `  - Verify the URL is correct and the server is running\n` +

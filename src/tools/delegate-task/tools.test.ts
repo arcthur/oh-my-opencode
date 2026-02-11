@@ -6,6 +6,7 @@ import { __resetModelCache } from "../../shared/model-availability"
 import { clearSkillCache } from "../../features/opencode-skill-loader/skill-content"
 import { __setTimingConfig, __resetTimingConfig } from "./timing"
 import * as connectedProvidersCache from "../../shared/connected-providers-cache"
+import { listSubagentSessions, _resetForTesting as resetSessionStateForTesting } from "../../features/claude-code-session-state/state"
 
 const SYSTEM_DEFAULT_MODEL = "anthropic/claude-sonnet-4-5"
 
@@ -14,6 +15,7 @@ describe("sisyphus-task", () => {
   let providerModelsSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
+    resetSessionStateForTesting()
     __resetModelCache()
     clearSkillCache()
     __setTimingConfig({
@@ -38,6 +40,7 @@ describe("sisyphus-task", () => {
   })
 
   afterEach(() => {
+    resetSessionStateForTesting()
     __resetTimingConfig()
     cacheSpy?.mockRestore()
     providerModelsSpy?.mockRestore()
@@ -1091,6 +1094,237 @@ describe("sisyphus-task", () => {
     expect(result).not.toContain("Background task continued")
   }, { timeout: 10000 })
 
+  test("sync continuation should ignore pre-existing completed messages until new turn appears", async () => {
+    // given
+    const { createDelegateTask } = require("./tools")
+    __setTimingConfig({
+      POLL_INTERVAL_MS: 10,
+      SESSION_CONTINUATION_STABILITY_MS: 50,
+      MAX_POLL_TIME_MS: 1000,
+    })
+
+    let messageCallCount = 0
+    const oldMessages = [
+      { info: { id: "msg_001", role: "user", time: { created: 1000 } }, parts: [{ type: "text", text: "Old user turn" }] },
+      { info: { id: "msg_002", role: "assistant", finish: "end_turn", time: { created: 2000 } }, parts: [{ type: "text", text: "Old completed answer" }] },
+    ]
+    const newMessages = [
+      ...oldMessages,
+      { info: { id: "msg_003", role: "user", time: { created: 3000 } }, parts: [{ type: "text", text: "Continue please" }] },
+      { info: { id: "msg_004", role: "assistant", finish: "end_turn", time: { created: 4000 } }, parts: [{ type: "text", text: "Fresh continuation result" }] },
+    ]
+    const responses = [oldMessages, oldMessages, oldMessages, oldMessages, newMessages, newMessages]
+
+    const mockManager = {
+      resume: async () => ({
+        id: "task-continue-anchor",
+        sessionID: "ses_continue_anchor",
+        description: "Continue with anchor",
+        agent: "explore",
+        status: "running",
+      }),
+    }
+
+    const mockClient = {
+      session: {
+        prompt: async () => ({ data: {} }),
+        status: async () => ({ data: { "ses_continue_anchor": { type: "idle" } } }),
+        messages: async () => {
+          const idx = Math.min(messageCallCount, responses.length - 1)
+          const payload = responses[idx]
+          messageCallCount++
+          return { data: payload }
+        },
+      },
+      config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+      app: { agents: async () => ({ data: [] }) },
+    }
+
+    const tool = createDelegateTask({
+      manager: mockManager,
+      client: mockClient,
+    })
+
+    const toolContext = {
+      sessionID: "parent-session",
+      messageID: "parent-message",
+      agent: "sisyphus",
+      abort: new AbortController().signal,
+    }
+
+    // when
+    const result = await tool.execute(
+      {
+        description: "Continue with delayed append",
+        prompt: "Continue the latest task",
+        session_id: "ses_continue_anchor",
+        run_in_background: false,
+        load_skills: [],
+      },
+      toolContext
+    )
+
+    // then
+    expect(result).toContain("Fresh continuation result")
+    expect(result).not.toContain("Old completed answer")
+    expect(messageCallCount).toBeGreaterThanOrEqual(5)
+  }, { timeout: 10000 })
+
+  test("sync continuation with status support should not return stale pre-prompt output", async () => {
+    // given
+    const { createDelegateTask } = require("./tools")
+    __setTimingConfig({
+      POLL_INTERVAL_MS: 10,
+      SESSION_CONTINUATION_STABILITY_MS: 50,
+      MAX_POLL_TIME_MS: 1000,
+    })
+
+    let messageCallCount = 0
+    const oldMessages = [
+      { info: { id: "msg_001", role: "user", time: { created: 1000 } }, parts: [{ type: "text", text: "Old user turn" }] },
+      { info: { id: "msg_002", role: "assistant", finish: "end_turn", time: { created: 2000 } }, parts: [{ type: "text", text: "Old completed answer" }] },
+    ]
+    const newMessages = [
+      ...oldMessages,
+      { info: { id: "msg_003", role: "user", time: { created: 3000 } }, parts: [{ type: "text", text: "Continue please" }] },
+      { info: { id: "msg_004", role: "assistant", finish: "end_turn", time: { created: 4000 } }, parts: [{ type: "text", text: "Fresh continuation result" }] },
+    ]
+
+    const mockManager = {
+      resume: async () => ({
+        id: "task-continue-stale-guard",
+        sessionID: "ses_continue_stale_guard",
+        description: "Continue with stale guard",
+        agent: "explore",
+        status: "running",
+      }),
+    }
+
+    const mockClient = {
+      session: {
+        prompt: async () => ({ data: {} }),
+        status: async () => ({ data: { "ses_continue_stale_guard": { type: "idle" } } }),
+        messages: async () => {
+          messageCallCount++
+          const payload = messageCallCount <= 20 ? oldMessages : newMessages
+          return { data: payload }
+        },
+      },
+      config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+      app: { agents: async () => ({ data: [] }) },
+    }
+
+    const tool = createDelegateTask({
+      manager: mockManager,
+      client: mockClient,
+    })
+
+    const toolContext = {
+      sessionID: "parent-session",
+      messageID: "parent-message",
+      agent: "sisyphus",
+      abort: new AbortController().signal,
+    }
+
+    // when
+    const result = await tool.execute(
+      {
+        description: "Continue with status-aware stale guard",
+        prompt: "Continue the latest task",
+        session_id: "ses_continue_stale_guard",
+        run_in_background: false,
+        load_skills: [],
+      },
+      toolContext
+    )
+
+    // then
+    expect(result).toContain("Fresh continuation result")
+    expect(result).not.toContain("Old completed answer")
+    expect(messageCallCount).toBeGreaterThan(20)
+  }, { timeout: 10000 })
+
+  test("sync continuation respects SESSION_CONTINUATION_MAX_POLL_MS", async () => {
+    // given
+    const { createDelegateTask } = require("./tools")
+    __setTimingConfig({
+      POLL_INTERVAL_MS: 10,
+      SESSION_CONTINUATION_STABILITY_MS: 0,
+      STABILITY_POLLS_REQUIRED: 1,
+      SESSION_CONTINUATION_MAX_POLL_MS: 50,
+    })
+
+    let messageCallCount = 0
+    const oldMessages = [
+      { info: { id: "msg_001", role: "user", time: { created: 1000 } }, parts: [{ type: "text", text: "Old user turn" }] },
+      { info: { id: "msg_002", role: "assistant", finish: "end_turn", time: { created: 2000 } }, parts: [{ type: "text", text: "Old completed answer" }] },
+    ]
+    const incompleteMessages = [
+      ...oldMessages,
+      { info: { id: "msg_003", role: "user", time: { created: 3000 } }, parts: [{ type: "text", text: "Continue please" }] },
+      {
+        info: { id: "msg_004", role: "assistant", finish: "tool-calls", time: { created: 4000 } },
+        parts: [{ type: "text", text: "Partial continuation result" }],
+      },
+    ]
+
+    const mockManager = {
+      resume: async () => ({
+        id: "task-continue-max-poll",
+        sessionID: "ses_continue_max_poll",
+        description: "Continue with bounded poll",
+        agent: "explore",
+        status: "running",
+      }),
+    }
+
+    const mockClient = {
+      session: {
+        prompt: async () => ({ data: {} }),
+        messages: async () => {
+          messageCallCount++
+          if (messageCallCount === 1) {
+            return { data: oldMessages }
+          }
+          return { data: incompleteMessages }
+        },
+      },
+      config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+      app: { agents: async () => ({ data: [] }) },
+    }
+
+    const tool = createDelegateTask({
+      manager: mockManager,
+      client: mockClient,
+    })
+
+    const toolContext = {
+      sessionID: "parent-session",
+      messageID: "parent-message",
+      agent: "sisyphus",
+      abort: new AbortController().signal,
+    }
+
+    // when
+    const start = Date.now()
+    const result = await tool.execute(
+      {
+        description: "Continue with bounded poll",
+        prompt: "Continue the latest task",
+        session_id: "ses_continue_max_poll",
+        run_in_background: false,
+        load_skills: [],
+      },
+      toolContext
+    )
+    const elapsed = Date.now() - start
+
+    // then
+    expect(result).toContain("Partial continuation result")
+    expect(elapsed).toBeLessThan(1000)
+    expect(messageCallCount).toBeLessThan(30)
+  }, { timeout: 5000 })
+
   test("session_id with background=true should return immediately without waiting", async () => {
     // given
     const { createDelegateTask } = require("./tools")
@@ -1315,6 +1549,7 @@ describe("sisyphus-task", () => {
       expect(result).toContain("JSON Parse error")
       expect(result).toContain("**Arguments**:")
       expect(result).toContain("**Stack Trace**:")
+      expect(listSubagentSessions()).not.toContain("ses_sync_error_test")
     })
 
     test("sync mode success returns task result with content", async () => {
@@ -1374,6 +1609,80 @@ describe("sisyphus-task", () => {
       expect(result).toContain("Sync task completed successfully")
       expect(result).toContain("Task completed")
     }, { timeout: 20000 })
+
+    test("sync mode tolerates transient status fetch failure during polling", async () => {
+      // given
+      const { createDelegateTask } = require("./tools")
+      __setTimingConfig({
+        POLL_INTERVAL_MS: 10,
+        MIN_STABILITY_TIME_MS: 0,
+        STABILITY_POLLS_REQUIRED: 1,
+        MAX_POLL_TIME_MS: 1000,
+      })
+
+      let statusCallCount = 0
+      const mockManager = {
+        launch: async () => ({}),
+      }
+
+      const mockClient = {
+        session: {
+          get: async () => ({ data: { directory: "/project" } }),
+          create: async () => ({ data: { id: "ses_sync_transient_status" } }),
+          prompt: async () => ({ data: {} }),
+          status: async () => {
+            statusCallCount++
+            if (statusCallCount === 1) {
+              throw new Error("temporary status transport error")
+            }
+            return { data: { "ses_sync_transient_status": { type: "idle" } } }
+          },
+          messages: async () => ({
+            data: [
+              { info: { id: "msg_001", role: "user", time: { created: 1000 } }, parts: [{ type: "text", text: "Input" }] },
+              {
+                info: { id: "msg_002", role: "assistant", finish: "end_turn", time: { created: 2000 } },
+                parts: [{ type: "text", text: "Recovered result after transient status error" }],
+              },
+            ],
+          }),
+        },
+        config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+        app: {
+          agents: async () => ({ data: [{ name: "ultrabrain", mode: "subagent" }] }),
+        },
+      }
+
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+      })
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+
+      // when
+      const result = await tool.execute(
+        {
+          description: "Transient status poll",
+          prompt: "Handle transient polling errors",
+          category: "ultrabrain",
+          run_in_background: false,
+          load_skills: [],
+        },
+        toolContext
+      )
+
+      // then
+      expect(result).toContain("Task completed")
+      expect(result).toContain("Recovered result after transient status error")
+      expect(result).not.toContain("Execute task failed")
+      expect(statusCallCount).toBeGreaterThanOrEqual(2)
+    }, { timeout: 10000 })
 
     test("sync mode agent not found returns helpful error", async () => {
       // given

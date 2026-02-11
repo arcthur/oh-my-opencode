@@ -18,17 +18,17 @@ export async function runBunInstallWithDetails(): Promise<BunInstallResult> {
   try {
     const proc = Bun.spawn(["bun", "install"], {
       cwd: getConfigDir(),
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: "inherit",
+      stderr: "inherit",
     })
 
-    const timeoutPromise = new Promise<"timeout">((resolve) =>
-      setTimeout(() => resolve("timeout"), BUN_INSTALL_TIMEOUT_MS),
-    )
-
+    let timeoutId: ReturnType<typeof setTimeout>
+    const timeoutPromise = new Promise<"timeout">((resolve) => {
+      timeoutId = setTimeout(() => resolve("timeout"), BUN_INSTALL_TIMEOUT_MS)
+    })
     const exitPromise = proc.exited.then(() => "completed" as const)
-
     const result = await Promise.race([exitPromise, timeoutPromise])
+    clearTimeout(timeoutId!)
 
     if (result === "timeout") {
       try {
@@ -44,10 +44,9 @@ export async function runBunInstallWithDetails(): Promise<BunInstallResult> {
     }
 
     if (proc.exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text()
       return {
         success: false,
-        error: stderr.trim() || `bun install failed with exit code ${proc.exitCode}`,
+        error: `bun install failed with exit code ${proc.exitCode}`,
       }
     }
 

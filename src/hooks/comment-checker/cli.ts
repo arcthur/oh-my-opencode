@@ -8,6 +8,18 @@ import { getCachedBinaryPath, ensureCommentCheckerBinary } from "./downloader"
 
 const DEBUG = process.env.COMMENT_CHECKER_DEBUG === "1"
 const DEBUG_FILE = join(tmpdir(), "comment-checker-debug.log")
+const COMMENT_CHECKER_TIMEOUT_MS = 30_000
+
+let commentCheckerSpawn: typeof spawn = spawn
+let commentCheckerTimeoutMs = COMMENT_CHECKER_TIMEOUT_MS
+
+export function __setCommentCheckerSpawnForTest(value: typeof spawn | null): void {
+  commentCheckerSpawn = value ?? spawn
+}
+
+export function __setCommentCheckerTimeoutMsForTest(value: number | null): void {
+  commentCheckerTimeoutMs = value ?? COMMENT_CHECKER_TIMEOUT_MS
+}
 
 function debugLog(...args: unknown[]) {
   if (DEBUG) {
@@ -163,6 +175,7 @@ export async function runCommentChecker(input: HookInput, cliPath?: string, cust
 
   const jsonInput = JSON.stringify(input)
   debugLog("running comment-checker with input:", jsonInput.substring(0, 200))
+  let didTimeout = false
 
   try {
     const args = [binaryPath, "check"]
@@ -170,35 +183,68 @@ export async function runCommentChecker(input: HookInput, cliPath?: string, cust
       args.push("--prompt", customPrompt)
     }
     
-    const proc = spawn(args, {
+    const proc = commentCheckerSpawn(args, {
       stdin: "pipe",
       stdout: "pipe",
       stderr: "pipe",
     })
 
-    // Write JSON to stdin
-    proc.stdin.write(jsonInput)
-    proc.stdin.end()
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    const timeoutPromise = new Promise<"timeout">((resolve) => {
+      timeoutId = setTimeout(() => {
+        didTimeout = true
+        debugLog("comment-checker timed out; killing process")
+        try {
+          proc.kill()
+        } catch (killError) {
+          debugLog("failed to kill timed-out comment-checker process:", killError)
+        }
+        resolve("timeout")
+      }, commentCheckerTimeoutMs)
+    })
 
-    const stdout = await new Response(proc.stdout).text()
-    const stderr = await new Response(proc.stderr).text()
-    const exitCode = await proc.exited
+    try {
+      // Write JSON to stdin
+      proc.stdin.write(jsonInput)
+      proc.stdin.end()
 
-    debugLog("exit code:", exitCode, "stdout length:", stdout.length, "stderr length:", stderr.length)
+      const stdoutPromise = new Response(proc.stdout).text()
+      const stderrPromise = new Response(proc.stderr).text()
+      const exitCodePromise = proc.exited
 
-    if (exitCode === 0) {
+      const raceResult = await Promise.race([
+        Promise.all([stdoutPromise, stderrPromise, exitCodePromise] as const),
+        timeoutPromise,
+      ])
+
+      if (raceResult === "timeout") {
+        return { hasComments: false, message: "" }
+      }
+
+      const [stdout, stderr, exitCode] = raceResult
+      debugLog("exit code:", exitCode, "stdout length:", stdout.length, "stderr length:", stderr.length)
+
+      if (exitCode === 0) {
+        return { hasComments: false, message: "" }
+      }
+
+      if (exitCode === 2) {
+        // Comments detected - message is in stderr
+        return { hasComments: true, message: stderr }
+      }
+
+      // Error case
+      debugLog("unexpected exit code:", exitCode, "stderr:", stderr)
+      return { hasComments: false, message: "" }
+    } finally {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+      }
+    }
+  } catch (err) {
+    if (didTimeout) {
       return { hasComments: false, message: "" }
     }
-
-    if (exitCode === 2) {
-      // Comments detected - message is in stderr
-      return { hasComments: true, message: stderr }
-    }
-
-    // Error case
-    debugLog("unexpected exit code:", exitCode, "stderr:", stderr)
-    return { hasComments: false, message: "" }
-  } catch (err) {
     debugLog("failed to run comment-checker:", err)
     return { hasComments: false, message: "" }
   }

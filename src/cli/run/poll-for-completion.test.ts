@@ -157,6 +157,33 @@ describe("pollForCompletion", () => {
     expect(result).toBe(1)
   })
 
+  it("recovers from transient session error within grace window", async () => {
+    //#given
+    spyOn(console, "log").mockImplementation(() => {})
+    spyOn(console, "error").mockImplementation(() => {})
+    const ctx = createMockContext()
+    const eventState = createEventState()
+    eventState.mainSessionIdle = true
+    eventState.hasReceivedMeaningfulWork = true
+    eventState.mainSessionError = true
+    eventState.lastError = "Transient upstream failure"
+    const abortController = new AbortController()
+
+    setTimeout(() => {
+      eventState.mainSessionError = false
+      eventState.lastError = null
+    }, 15)
+
+    //#when
+    const result = await pollForCompletion(ctx, eventState, abortController, {
+      pollIntervalMs: 10,
+      requiredConsecutive: 2,
+    })
+
+    //#then
+    expect(result).toBe(0)
+  })
+
   it("returns 130 when aborted", async () => {
     //#given
     spyOn(console, "log").mockImplementation(() => {})

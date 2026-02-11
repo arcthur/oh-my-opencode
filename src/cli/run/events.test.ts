@@ -351,6 +351,35 @@ describe("event handling", () => {
     expect(state.mainSessionIdle).toBe(true)
   })
 
+  it("session.status with retry type sets mainSessionIdle to false", async () => {
+    // #given
+    const ctx = createMockContext("my-session")
+    const state: EventState = {
+      mainSessionIdle: true,
+      mainSessionError: false,
+      lastError: null,
+      lastOutput: "",
+      lastPartText: "",
+      currentTool: null,
+      hasReceivedMeaningfulWork: false,
+      messageCount: 0,
+    }
+
+    const payload: EventPayload = {
+      type: "session.status",
+      properties: { sessionID: "my-session", status: { type: "retry" } },
+    }
+
+    const events = toAsyncIterable([payload])
+    const { processEvents } = await import("./events")
+
+    // #when
+    await processEvents(ctx, events, state)
+
+    // #then
+    expect(state.mainSessionIdle).toBe(false)
+  })
+
   it("session.status ignores events from different sessions", async () => {
     // #given
     const ctx = createMockContext("my-session")

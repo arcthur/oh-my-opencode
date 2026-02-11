@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import type { OhMyOpenCodeConfig } from "../../config"
-import { resolveRunAgent } from "./runner"
+import { createSafeEventProcessor, resolveRunAgent } from "./runner"
 
 const createConfig = (overrides: Partial<OhMyOpenCodeConfig> = {}): OhMyOpenCodeConfig => ({
   ...overrides,
@@ -66,5 +66,29 @@ describe("resolveRunAgent", () => {
 
     // then
     expect(agent).toBe("hephaestus")
+  })
+})
+
+describe("createSafeEventProcessor", () => {
+  it("resolves when event processor succeeds", async () => {
+    // given
+    const processor = Promise.resolve()
+
+    // when
+    const result = await createSafeEventProcessor(processor)
+
+    // then
+    expect(result).toBeUndefined()
+  })
+
+  it("swallows event processor rejection", async () => {
+    // given
+    const processor = Promise.reject(new Error("stream failed"))
+
+    // when
+    const result = await createSafeEventProcessor(processor)
+
+    // then
+    expect(result).toBeUndefined()
   })
 })

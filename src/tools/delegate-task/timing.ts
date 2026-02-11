@@ -5,6 +5,7 @@ let WAIT_FOR_SESSION_INTERVAL_MS = 100
 let WAIT_FOR_SESSION_TIMEOUT_MS = 30000
 let MAX_POLL_TIME_MS = 10 * 60 * 1000
 let SESSION_CONTINUATION_STABILITY_MS = 5000
+let SESSION_CONTINUATION_MAX_POLL_MS = 60000
 
 export function getTimingConfig() {
   return {
@@ -15,6 +16,7 @@ export function getTimingConfig() {
     WAIT_FOR_SESSION_TIMEOUT_MS,
     MAX_POLL_TIME_MS,
     SESSION_CONTINUATION_STABILITY_MS,
+    SESSION_CONTINUATION_MAX_POLL_MS,
   }
 }
 
@@ -26,6 +28,7 @@ export function __resetTimingConfig(): void {
   WAIT_FOR_SESSION_TIMEOUT_MS = 30000
   MAX_POLL_TIME_MS = 10 * 60 * 1000
   SESSION_CONTINUATION_STABILITY_MS = 5000
+  SESSION_CONTINUATION_MAX_POLL_MS = 60000
 }
 
 export function __setTimingConfig(overrides: Partial<ReturnType<typeof getTimingConfig>>): void {
@@ -36,4 +39,5 @@ export function __setTimingConfig(overrides: Partial<ReturnType<typeof getTiming
   if (overrides.WAIT_FOR_SESSION_TIMEOUT_MS !== undefined) WAIT_FOR_SESSION_TIMEOUT_MS = overrides.WAIT_FOR_SESSION_TIMEOUT_MS
   if (overrides.MAX_POLL_TIME_MS !== undefined) MAX_POLL_TIME_MS = overrides.MAX_POLL_TIME_MS
   if (overrides.SESSION_CONTINUATION_STABILITY_MS !== undefined) SESSION_CONTINUATION_STABILITY_MS = overrides.SESSION_CONTINUATION_STABILITY_MS
+  if (overrides.SESSION_CONTINUATION_MAX_POLL_MS !== undefined) SESSION_CONTINUATION_MAX_POLL_MS = overrides.SESSION_CONTINUATION_MAX_POLL_MS
 }

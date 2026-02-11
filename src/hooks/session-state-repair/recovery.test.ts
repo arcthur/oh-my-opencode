@@ -75,7 +75,7 @@ describe("session-state-repair", () => {
     })
   })
 
-  test("assistant_prefill_unsupported is treated as recoverable and succeeds without prompt/revert", async () => {
+  test("assistant_prefill_unsupported does not report recovery success and skips prompt/revert", async () => {
     // #given
     const sessionID = "session-prefill"
     const failedMessageID = "msg-prefill"
@@ -136,7 +136,7 @@ describe("session-state-repair", () => {
     })
 
     // #then
-    expect(recovered).toBe(true)
+    expect(recovered).toBe(false)
     expect(abortCalls).toBe(1)
     expect(promptCalls).toBe(0)
     expect(revertCalls).toBe(0)

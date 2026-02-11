@@ -57,6 +57,27 @@ interface SessionMessage {
   parts?: Array<{ type?: string; text?: string }>
 }
 
+function extractSessionMessages(messagesResult: unknown): SessionMessage[] {
+  const payload = (messagesResult as { data?: unknown })?.data ?? messagesResult
+  return Array.isArray(payload) ? (payload as SessionMessage[]) : []
+}
+
+async function safeGetSessionMessageCount(
+  client: OpencodeClient,
+  sessionID: string
+): Promise<number | undefined> {
+  try {
+    const messagesResult = await client.session.messages({ path: { id: sessionID } })
+    return extractSessionMessages(messagesResult).length
+  } catch (error) {
+    log("[delegate_task] failed to fetch baseline session messages", {
+      sessionID,
+      error: String(error),
+    })
+    return undefined
+  }
+}
+
 async function getSessionStatusType(
   client: OpencodeClient,
   sessionID: string
@@ -253,6 +274,7 @@ export async function executeSyncContinuation(
   const toastManager = getTaskToastManager()
   const taskId = `resume_sync_${args.session_id!.slice(0, 8)}`
   const startTime = new Date()
+  let anchorMessageCount: number | undefined
 
   if (toastManager) {
     toastManager.addTask({
@@ -281,6 +303,7 @@ export async function executeSyncContinuation(
       args.session_id!,
       client
     )
+    anchorMessageCount = await safeGetSessionMessageCount(client, args.session_id!)
 
     await promptWithModelSuggestionRetry(client, {
       path: { id: args.session_id! },
@@ -309,19 +332,57 @@ export async function executeSyncContinuation(
   const pollStart = Date.now()
   let lastMsgCount = 0
   let stablePolls = 0
+  let hasSessionStatusSupport = false
 
-  while (Date.now() - pollStart < 60000) {
+  while (Date.now() - pollStart < timing.SESSION_CONTINUATION_MAX_POLL_MS) {
     await new Promise(resolve => setTimeout(resolve, timing.POLL_INTERVAL_MS))
 
-    const sessionStatus = await getSessionStatusType(client, args.session_id!)
+    let sessionStatus: string | undefined
+    try {
+      sessionStatus = await getSessionStatusType(client, args.session_id!)
+    } catch (error) {
+      log("[delegate_task] continuation poll status fetch failed, retrying", {
+        sessionID: args.session_id!,
+        error: String(error),
+      })
+      continue
+    }
     if (sessionStatus && sessionStatus !== "idle") {
+      hasSessionStatusSupport = true
       stablePolls = 0
       lastMsgCount = 0
       continue
     }
+    if (sessionStatus === "idle") {
+      hasSessionStatusSupport = true
+    }
 
-    const messagesCheck = await client.session.messages({ path: { id: args.session_id! } })
-    const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as SessionMessage[]
+    let msgs: SessionMessage[]
+    try {
+      const messagesCheck = await client.session.messages({ path: { id: args.session_id! } })
+      msgs = extractSessionMessages(messagesCheck)
+    } catch (error) {
+      log("[delegate_task] continuation poll messages fetch failed, retrying", {
+        sessionID: args.session_id!,
+        error: String(error),
+      })
+      continue
+    }
+
+    const elapsed = Date.now() - pollStart
+    if (anchorMessageCount !== undefined && msgs.length <= anchorMessageCount) {
+      stablePolls = 0
+      lastMsgCount = msgs.length
+      if (hasSessionStatusSupport) {
+        // When session.status is available, avoid returning stale pre-prompt output.
+        // Wait until we observe messages beyond the anchor captured before prompting.
+        continue
+      }
+      if (elapsed < timing.SESSION_CONTINUATION_STABILITY_MS) {
+        continue
+      }
+    }
+
     const completionState = getSyncCompletionState(msgs)
     if (completionState === "complete") {
       break
@@ -333,7 +394,6 @@ export async function executeSyncContinuation(
       continue
     }
 
-    const elapsed = Date.now() - pollStart
     if (elapsed < timing.SESSION_CONTINUATION_STABILITY_MS) continue
 
     const currentMsgCount = msgs.length
@@ -358,7 +418,7 @@ export async function executeSyncContinuation(
     return `Error fetching result: ${messagesResult.error}\n\nSession ID: ${args.session_id}`
   }
 
-  const messages = ((messagesResult as { data?: unknown }).data ?? messagesResult) as SessionMessage[]
+  const messages = extractSessionMessages(messagesResult)
   const assistantMessages = messages
     .filter((m) => m.info?.role === "assistant")
     .sort((a, b) => (b.info?.time?.created ?? 0) - (a.info?.time?.created ?? 0))
@@ -762,7 +822,16 @@ export async function executeSyncTask(
       await new Promise(resolve => setTimeout(resolve, syncTiming.POLL_INTERVAL_MS))
       pollCount++
 
-      const sessionStatus = await getSessionStatusType(client, sessionID)
+      let sessionStatus: string | undefined
+      try {
+        sessionStatus = await getSessionStatusType(client, sessionID)
+      } catch (error) {
+        log("[delegate_task] sync poll status fetch failed, retrying", {
+          sessionID,
+          error: String(error),
+        })
+        continue
+      }
 
       if (pollCount % 10 === 0) {
         log("[delegate_task] Poll status", {
@@ -786,8 +855,17 @@ export async function executeSyncTask(
         continue
       }
 
-      const messagesCheck = await client.session.messages({ path: { id: sessionID } })
-      const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as SessionMessage[]
+      let msgs: SessionMessage[]
+      try {
+        const messagesCheck = await client.session.messages({ path: { id: sessionID } })
+        msgs = extractSessionMessages(messagesCheck)
+      } catch (error) {
+        log("[delegate_task] sync poll messages fetch failed, retrying", {
+          sessionID,
+          error: String(error),
+        })
+        continue
+      }
       const completionState = getSyncCompletionState(msgs)
 
       if (completionState === "complete") {
@@ -830,7 +908,7 @@ export async function executeSyncTask(
       return `Error fetching result: ${messagesResult.error}\n\nSession ID: ${sessionID}`
     }
 
-    const messages = ((messagesResult as { data?: unknown }).data ?? messagesResult) as SessionMessage[]
+    const messages = extractSessionMessages(messagesResult)
 
     const assistantMessages = messages
       .filter((m) => m.info?.role === "assistant")
@@ -850,8 +928,6 @@ export async function executeSyncTask(
       toastManager.removeTask(taskId)
     }
 
-    unmarkSubagentSession(sessionID)
-
     return `Task completed in ${duration}.
 
 Agent: ${agentToUse}${args.category ? ` (category: ${args.category})` : ""}
@@ -867,9 +943,6 @@ session_id: ${sessionID}
     if (toastManager && taskId !== undefined) {
       toastManager.removeTask(taskId)
     }
-    if (syncSessionID) {
-      unmarkSubagentSession(syncSessionID)
-    }
     return formatDetailedError(error, {
       operation: "Execute task",
       args,
@@ -877,6 +950,10 @@ session_id: ${sessionID}
       agent: agentToUse,
       category: args.category,
     })
+  } finally {
+    if (syncSessionID) {
+      unmarkSubagentSession(syncSessionID)
+    }
   }
 }
 

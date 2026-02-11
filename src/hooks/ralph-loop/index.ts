@@ -33,6 +33,7 @@ interface SessionState {
 }
 
 interface OpenCodeSessionMessage {
+  role?: string
   info?: {
     role?: string
   }
@@ -139,11 +140,22 @@ export function createRalphLoopHook(
         ),
       ])
 
-      const messages = (response as { data?: unknown[] }).data ?? []
-      if (!Array.isArray(messages)) return false
+      const messagesResponse: unknown = response
+      const responseData =
+        typeof messagesResponse === "object" &&
+        messagesResponse !== null &&
+        "data" in messagesResponse
+          ? (messagesResponse as { data?: unknown }).data
+          : undefined
 
-      const assistantMessages = (messages as OpenCodeSessionMessage[]).filter(
-        (msg) => msg.info?.role === "assistant"
+      const messageArray: unknown[] = Array.isArray(messagesResponse)
+        ? messagesResponse
+        : Array.isArray(responseData)
+          ? responseData
+          : []
+
+      const assistantMessages = (messageArray as OpenCodeSessionMessage[]).filter(
+        (msg) => msg.info?.role === "assistant" || msg.role === "assistant"
       )
       if (assistantMessages.length === 0) return false
 
@@ -152,7 +164,7 @@ export function createRalphLoopHook(
       for (const assistant of recentAssistants) {
         if (!assistant.parts) continue
         const responseText = assistant.parts
-          .filter((p) => p.type === "text" || p.type === "reasoning")
+          .filter((p) => p.type === "text")
           .map((p) => p.text ?? "")
           .join("\n")
         if (pattern.test(responseText)) return true

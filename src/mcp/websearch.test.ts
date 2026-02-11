@@ -35,7 +35,9 @@ describe("websearch MCP config", () => {
 
     // #then
     expect(result.url).toContain(`exaApiKey=${encodeURIComponent(apiKey)}`)
-    expect(result.headers).toBeUndefined()
+    expect(result.headers).toEqual({
+      "x-api-key": apiKey,
+    })
     expect(result.oauth).toBe(false)
   })
 })

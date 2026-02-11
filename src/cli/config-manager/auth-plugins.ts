@@ -1,5 +1,7 @@
-import { readFileSync, writeFileSync } from "node:fs"
+import { applyEdits, modify } from "jsonc-parser"
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs"
 import type { ConfigMergeResult, InstallConfig } from "../types"
+import { parseJsonc } from "../../shared/jsonc-parser"
 import { getConfigDir } from "./config-context"
 import { ensureConfigDirectoryExists } from "./ensure-config-directory-exists"
 import { formatErrorWithSuggestion } from "./format-error-with-suggestion"
@@ -26,6 +28,7 @@ export async function addAuthPlugins(config: InstallConfig): Promise<ConfigMerge
   }
 
   const { format, path } = detectConfigFormat()
+  const backupPath = `${path}.bak`
 
   try {
     let existingConfig: OpenCodeConfig | null = null
@@ -53,25 +56,79 @@ export async function addAuthPlugins(config: InstallConfig): Promise<ConfigMerge
 
     const newConfig = { ...(existingConfig ?? {}), plugin: plugins }
 
+    if (format !== "none" && existsSync(path)) {
+      copyFileSync(path, backupPath)
+    }
+
     if (format === "jsonc") {
       const content = readFileSync(path, "utf-8")
-      const pluginArrayRegex = /"plugin"\s*:\s*\[([\s\S]*?)\]/
-      const match = content.match(pluginArrayRegex)
 
-      if (match) {
-        const formattedPlugins = plugins.map((p) => `"${p}"`).join(",\n    ")
-        const newContent = content.replace(
-          pluginArrayRegex,
-          `"plugin": [\n    ${formattedPlugins}\n  ]`,
-        )
+      const newContent = applyEdits(
+        content,
+        modify(content, ["plugin"], plugins, {
+          formattingOptions: { tabSize: 2, insertSpaces: true },
+        }),
+      )
+
+      try {
+        parseJsonc(newContent)
+      } catch (error) {
+        if (existsSync(backupPath)) {
+          copyFileSync(backupPath, path)
+        }
+        throw new Error(`Generated JSONC is invalid: ${error instanceof Error ? error.message : String(error)}`)
+      }
+
+      try {
         writeFileSync(path, newContent)
-      } else {
-        const inlinePlugins = plugins.map((p) => `"${p}"`).join(", ")
-        const newContent = content.replace(/(\{)/, `$1\n  "plugin": [${inlinePlugins}],`)
-        writeFileSync(path, newContent)
+      } catch (error) {
+        const hasBackup = existsSync(backupPath)
+        try {
+          if (hasBackup) {
+            copyFileSync(backupPath, path)
+          }
+        } catch (restoreError) {
+          return {
+            success: false,
+            configPath: path,
+            error: `Failed to write config file, and restore from backup failed: ${String(error)}; restore error: ${String(restoreError)}`,
+          }
+        }
+
+        return {
+          success: false,
+          configPath: path,
+          error: hasBackup
+            ? `Failed to write config file. Restored from backup: ${String(error)}`
+            : `Failed to write config file. No backup was available: ${String(error)}`,
+        }
       }
     } else {
-      writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
+      const nextContent = JSON.stringify(newConfig, null, 2) + "\n"
+      try {
+        writeFileSync(path, nextContent)
+      } catch (error) {
+        const hasBackup = existsSync(backupPath)
+        try {
+          if (hasBackup) {
+            copyFileSync(backupPath, path)
+          }
+        } catch (restoreError) {
+          return {
+            success: false,
+            configPath: path,
+            error: `Failed to write config file, and restore from backup failed: ${String(error)}; restore error: ${String(restoreError)}`,
+          }
+        }
+
+        return {
+          success: false,
+          configPath: path,
+          error: hasBackup
+            ? `Failed to write config file. Restored from backup: ${String(error)}`
+            : `Failed to write config file. No backup was available: ${String(error)}`,
+        }
+      }
     }
 
     return { success: true, configPath: path }

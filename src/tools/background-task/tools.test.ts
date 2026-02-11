@@ -1,4 +1,4 @@
-import { createBackgroundOutput } from "./tools"
+import { createBackgroundOutput, createBackgroundTask } from "./tools"
 import type { BackgroundTask } from "../../features/background-agent"
 import type { ToolContext } from "@opencode-ai/plugin/tool"
 import type { BackgroundOutputManager, BackgroundOutputClient } from "./tools"
@@ -293,3 +293,101 @@ type BackgroundOutputMessage = {
     content?: string | Array<{ type: string; text?: string }>
   }>
 }
+
+describe("background_output metadata title resolution", () => {
+  test("uses category label for sisyphus-junior tasks", async () => {
+    // given
+    const task = createTask({
+      id: "task-meta-1",
+      agent: "sisyphus-junior",
+      category: "deep",
+      description: "Investigate flaky test",
+      status: "running",
+    })
+    const manager = createMockManager(task)
+    const client = createMockClient({})
+    const tool = createBackgroundOutput(manager, client)
+
+    let metadataInput: { title?: string; metadata?: Record<string, unknown> } | undefined
+    const contextWithMeta: ToolContext = {
+      ...mockContext,
+      metadata: (input) => {
+        metadataInput = input
+      },
+    }
+
+    // when
+    await tool.execute({ task_id: "task-meta-1" }, contextWithMeta)
+
+    // then
+    expect(metadataInput?.title).toBe("deep - Investigate flaky test")
+    expect(metadataInput?.metadata?.task_id).toBe("task-meta-1")
+  })
+
+  test("uses agent label for non-sisyphus-junior tasks", async () => {
+    // given
+    const task = createTask({
+      id: "task-meta-2",
+      agent: "oracle",
+      description: "Summarize logs",
+      status: "running",
+    })
+    const manager = createMockManager(task)
+    const client = createMockClient({})
+    const tool = createBackgroundOutput(manager, client)
+
+    let metadataInput: { title?: string; metadata?: Record<string, unknown> } | undefined
+    const contextWithMeta: ToolContext = {
+      ...mockContext,
+      metadata: (input) => {
+        metadataInput = input
+      },
+    }
+
+    // when
+    await tool.execute({ task_id: "task-meta-2" }, contextWithMeta)
+
+    // then
+    expect(metadataInput?.title).toBe("oracle - Summarize logs")
+    expect(metadataInput?.metadata?.agent).toBe("oracle")
+  })
+})
+
+describe("background_task session id fallback", () => {
+  test("returns pending session id instead of undefined when task is queued", async () => {
+    // given
+    const manager = {
+      launch: async () => ({
+        id: "bg_pending_1",
+        sessionID: undefined,
+        description: "queued task",
+        agent: "explore",
+        status: "pending",
+      }),
+    } as any
+
+    const tool = createBackgroundTask(manager)
+    let metadataInput: { title?: string; metadata?: Record<string, unknown> } | undefined
+    const contextWithMeta: ToolContext = {
+      ...mockContext,
+      metadata: (input) => {
+        metadataInput = input
+      },
+    }
+
+    // when
+    const output = await tool.execute(
+      {
+        description: "queued task",
+        prompt: "run queued background task",
+        agent: "explore",
+      },
+      contextWithMeta
+    )
+
+    // then
+    expect(output).toContain("Session ID: pending")
+    expect(output).not.toContain("Session ID: undefined")
+    expect(metadataInput?.metadata?.sessionId).toBe("pending")
+  })
+})

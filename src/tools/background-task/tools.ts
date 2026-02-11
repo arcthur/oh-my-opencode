@@ -39,6 +39,7 @@ export type BackgroundOutputManager = Pick<BackgroundManager, "getTask">
 
 const MAX_MESSAGE_LIMIT = 100
 const THINKING_MAX_CHARS = 2000
+const SISYPHUS_JUNIOR_AGENT = "sisyphus-junior"
 
 type FullSessionMessagePart = {
   type?: string
@@ -81,6 +82,19 @@ function formatDuration(start: Date, end?: Date): string {
   } else {
     return `${seconds}s`
   }
+}
+
+function formatSessionID(sessionID?: string): string {
+  return typeof sessionID === "string" && sessionID.trim().length > 0
+    ? sessionID
+    : "pending"
+}
+
+function formatResolvedTitle(task: BackgroundTask): string {
+  const label = task.agent === SISYPHUS_JUNIOR_AGENT && task.category
+    ? task.category
+    : task.agent
+  return `${label} - ${task.description}`
 }
 
 type ToolContextWithMetadata = {
@@ -139,16 +153,17 @@ export function createBackgroundTask(manager: BackgroundManager): ToolDefinition
           parentModel,
           parentAgent,
         })
+        const sessionIdLabel = formatSessionID(task.sessionID)
 
         ctx.metadata?.({
           title: args.description,
-          metadata: { sessionId: task.sessionID },
+          metadata: { sessionId: sessionIdLabel },
         })
 
         return `Background task launched successfully.
 
 Task ID: ${task.id}
-Session ID: ${task.sessionID}
+Session ID: ${sessionIdLabel}
 Description: ${task.description}
 Agent: ${task.agent}
 Status: ${task.status}
@@ -175,6 +190,7 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 function formatTaskStatus(task: BackgroundTask): string {
+  const sessionIdLabel = formatSessionID(task.sessionID)
   let duration: string
   if (task.status === "pending" && task.queuedAt) {
     duration = formatDuration(task.queuedAt, undefined)
@@ -235,7 +251,7 @@ ${truncated}
 | Agent | ${task.agent} |
 | Status | **${task.status}** |
 | ${durationLabel} | ${duration} |
-| Session ID | \`${task.sessionID}\` |${progressSection}
+| Session ID | \`${sessionIdLabel}\` |${progressSection}
 ${statusNote}
 ## Original Prompt
 
@@ -274,6 +290,7 @@ function extractMessages(value: BackgroundOutputMessagesResult): BackgroundOutpu
 }
 
 async function formatTaskResult(task: BackgroundTask, client: BackgroundOutputClient): Promise<string> {
+  const sessionIdLabel = formatSessionID(task.sessionID)
   if (!task.sessionID) {
     return `Error: Task has no sessionID`
   }
@@ -295,7 +312,7 @@ async function formatTaskResult(task: BackgroundTask, client: BackgroundOutputCl
 Task ID: ${task.id}
 Description: ${task.description}
 Duration: ${formatDuration(task.startedAt ?? new Date(), task.completedAt)}
-Session ID: ${task.sessionID}
+Session ID: ${sessionIdLabel}
 
 ---
 
@@ -314,7 +331,7 @@ Session ID: ${task.sessionID}
 Task ID: ${task.id}
 Description: ${task.description}
 Duration: ${formatDuration(task.startedAt ?? new Date(), task.completedAt)}
-Session ID: ${task.sessionID}
+Session ID: ${sessionIdLabel}
 
 ---
 
@@ -336,7 +353,7 @@ Session ID: ${task.sessionID}
 Task ID: ${task.id}
 Description: ${task.description}
 Duration: ${duration}
-Session ID: ${task.sessionID}
+Session ID: ${sessionIdLabel}
 
 ---
 
@@ -484,12 +501,13 @@ async function formatFullSession(
     : normalizedMessages
 
   const lines: string[] = []
+  const sessionIdLabel = formatSessionID(task.sessionID)
   lines.push("# Full Session Output")
   lines.push("")
   lines.push(`Task ID: ${task.id}`)
   lines.push(`Description: ${task.description}`)
   lines.push(`Status: ${task.status}`)
-  lines.push(`Session ID: ${task.sessionID}`)
+  lines.push(`Session ID: ${sessionIdLabel}`)
   lines.push(`Total messages: ${normalizedMessages.length}`)
   lines.push(`Returned: ${visibleMessages.length}`)
   lines.push(`Has more: ${hasMore ? "true" : "false"}`)
@@ -543,12 +561,25 @@ export function createBackgroundOutput(manager: BackgroundOutputManager, client:
       include_tool_results: tool.schema.boolean().optional().describe("Include tool results in full_session output (default: false)"),
       thinking_max_chars: tool.schema.number().optional().describe("Max characters for thinking content (default: 2000)"),
     },
-    async execute(args: BackgroundOutputArgs) {
+    async execute(args: BackgroundOutputArgs, toolContext) {
       try {
+        const ctx = toolContext as ToolContextWithMetadata
         const task = manager.getTask(args.task_id)
         if (!task) {
           return `Task not found: ${args.task_id}`
         }
+        const sessionIdLabel = formatSessionID(task.sessionID)
+
+        ctx.metadata?.({
+          title: formatResolvedTitle(task),
+          metadata: {
+            task_id: task.id,
+            agent: task.agent,
+            category: task.category,
+            description: task.description,
+            sessionId: sessionIdLabel,
+          },
+        })
 
         if (args.full_session === true) {
           return await formatFullSession(task, client, {

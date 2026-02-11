@@ -259,6 +259,29 @@ describe("SkillMcpManager", () => {
         )
       })
 
+      it("redacts sensitive query params in HTTP connection error URL", async () => {
+        // given
+        const info: SkillMcpClientInfo = {
+          serverName: "redaction-server",
+          skillName: "test-skill",
+          sessionID: "session-1",
+        }
+        const config: ClaudeCodeMcpServer = {
+          url: "https://nonexistent.example.com/mcp?exaApiKey=secret123&token=abc123&safe=value",
+        }
+
+        // when / #then
+        await expect(manager.getOrCreateClient(info, config)).rejects.toThrow(
+          /exaApiKey=\*\*\*REDACTED\*\*\*/
+        )
+        await expect(manager.getOrCreateClient(info, config)).rejects.toThrow(
+          /token=\*\*\*REDACTED\*\*\*/
+        )
+        await expect(manager.getOrCreateClient(info, config)).rejects.not.toThrow(
+          /secret123|abc123/
+        )
+      })
+
       it("includes helpful hints for HTTP connection failures", async () => {
         // given
         const info: SkillMcpClientInfo = {

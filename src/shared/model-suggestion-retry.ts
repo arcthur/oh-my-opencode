@@ -2,6 +2,12 @@ import type { createOpencodeClient } from "@opencode-ai/sdk"
 import { log } from "./logger"
 
 type Client = ReturnType<typeof createOpencodeClient>
+const MODEL_SUGGESTION_PROMPT_TIMEOUT_MS = 120_000
+let modelSuggestionPromptTimeoutMs = MODEL_SUGGESTION_PROMPT_TIMEOUT_MS
+
+export function __setModelSuggestionPromptTimeoutMsForTest(timeoutMs: number | null): void {
+  modelSuggestionPromptTimeoutMs = timeoutMs ?? MODEL_SUGGESTION_PROMPT_TIMEOUT_MS
+}
 
 export interface ModelSuggestionInfo {
   providerID: string
@@ -80,12 +86,31 @@ interface PromptArgs {
   [key: string]: unknown
 }
 
+async function withPromptTimeout(promise: PromiseLike<unknown>): Promise<void> {
+  let timeoutID: ReturnType<typeof setTimeout> | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutID = setTimeout(() => {
+      reject(new Error(`prompt timed out after ${modelSuggestionPromptTimeoutMs}ms`))
+    }, modelSuggestionPromptTimeoutMs)
+  })
+
+  try {
+    await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeoutID !== null) {
+      clearTimeout(timeoutID)
+    }
+  }
+}
+
 export async function promptWithModelSuggestionRetry(
   client: Client,
   args: PromptArgs,
 ): Promise<void> {
   try {
-    await client.session.prompt(args as Parameters<typeof client.session.prompt>[0])
+    await withPromptTimeout(
+      client.session.prompt(args as Parameters<typeof client.session.prompt>[0]),
+    )
   } catch (error) {
     const suggestion = parseModelSuggestion(error)
     if (!suggestion || !args.body.model) {
@@ -97,15 +122,17 @@ export async function promptWithModelSuggestionRetry(
       suggested: suggestion.suggestion,
     })
 
-    await client.session.prompt({
-      ...args,
-      body: {
-        ...args.body,
-        model: {
-          providerID: suggestion.providerID,
-          modelID: suggestion.suggestion,
+    await withPromptTimeout(
+      client.session.prompt({
+        ...args,
+        body: {
+          ...args.body,
+          model: {
+            providerID: suggestion.providerID,
+            modelID: suggestion.suggestion,
+          },
         },
-      },
-    } as Parameters<typeof client.session.prompt>[0])
+      } as Parameters<typeof client.session.prompt>[0]),
+    )
   }
 }

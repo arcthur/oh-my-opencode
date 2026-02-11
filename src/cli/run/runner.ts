@@ -51,6 +51,10 @@ const parseEnvPort = (rawPort?: string): number | undefined => {
   return parsed
 }
 
+export function createSafeEventProcessor(processor: Promise<void>): Promise<void> {
+  return processor.catch(() => {})
+}
+
 export const resolveRunAgent = (
   options: RunOptions,
   pluginConfig: OhMyOpenCodeConfig,
@@ -152,7 +156,9 @@ export async function run(options: RunOptions): Promise<number> {
 
       const events = await client.event.subscribe()
       const eventState = createEventState()
-      const eventProcessor = processEvents(ctx, events.stream, eventState)
+      const eventProcessor = createSafeEventProcessor(
+        processEvents(ctx, events.stream, eventState),
+      )
 
       console.log(pc.dim("\nSending prompt..."))
       await client.session.promptAsync({
@@ -167,7 +173,7 @@ export async function run(options: RunOptions): Promise<number> {
       console.log(pc.dim("Waiting for completion...\n"))
       const exitCode = await pollForCompletion(ctx, eventState, abortController)
 
-      await eventProcessor.catch(() => {})
+      await eventProcessor
       cleanup()
 
       const durationMs = Date.now() - startTime

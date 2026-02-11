@@ -1,5 +1,9 @@
 import { describe, it, expect, mock } from "bun:test"
-import { parseModelSuggestion, promptWithModelSuggestionRetry } from "./model-suggestion-retry"
+import {
+  __setModelSuggestionPromptTimeoutMsForTest,
+  parseModelSuggestion,
+  promptWithModelSuggestionRetry,
+} from "./model-suggestion-retry"
 
 describe("parseModelSuggestion", () => {
   describe("structured NamedError format", () => {
@@ -211,6 +215,29 @@ describe("parseModelSuggestion", () => {
 })
 
 describe("promptWithModelSuggestionRetry", () => {
+  it("should throw timeout error when prompt hangs", async () => {
+    // given a client where prompt never resolves
+    const promptMock = mock(() => new Promise<void>(() => {}))
+    const client = { session: { prompt: promptMock } }
+    __setModelSuggestionPromptTimeoutMsForTest(5)
+
+    try {
+      // when/then
+      await expect(
+        promptWithModelSuggestionRetry(client as any, {
+          path: { id: "session-timeout" },
+          body: {
+            parts: [{ type: "text", text: "hello" }],
+            model: { providerID: "anthropic", modelID: "claude-sonnet-4" },
+          },
+        })
+      ).rejects.toThrow("prompt timed out after 5ms")
+      expect(promptMock).toHaveBeenCalledTimes(1)
+    } finally {
+      __setModelSuggestionPromptTimeoutMsForTest(null)
+    }
+  })
+
   it("should succeed on first try without retry", async () => {
     // given a client where prompt succeeds
     const promptMock = mock(() => Promise.resolve())

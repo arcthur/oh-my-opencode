@@ -1,8 +1,12 @@
 #!/usr/bin/env bun
 import * as z from "zod"
+import { mkdir } from "node:fs/promises"
 import { OhMyOpenCodeConfigSchema } from "../src/config/schema"
 
-const SCHEMA_OUTPUT_PATH = "assets/oh-my-opencode.schema.json"
+const SCHEMA_OUTPUT_PATHS = [
+  "assets/oh-my-opencode.schema.json",
+  "dist/oh-my-opencode.schema.json",
+]
 
 async function main() {
   console.log("Generating JSON Schema...")
@@ -20,9 +24,11 @@ async function main() {
     ...jsonSchema,
   }
 
-  await Bun.write(SCHEMA_OUTPUT_PATH, JSON.stringify(finalSchema, null, 2))
+  await mkdir("dist", { recursive: true })
+  const schemaContent = JSON.stringify(finalSchema, null, 2)
+  await Promise.all(SCHEMA_OUTPUT_PATHS.map((outputPath) => Bun.write(outputPath, schemaContent)))
 
-  console.log(`✓ JSON Schema generated: ${SCHEMA_OUTPUT_PATH}`)
+  console.log(`✓ JSON Schema generated: ${SCHEMA_OUTPUT_PATHS.join(", ")}`)
 }
 
 main()
