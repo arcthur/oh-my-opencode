@@ -140,7 +140,7 @@ export function createCommentCheckerHooks(config?: CommentCheckerConfig) {
 async function processWithCli(
   input: { tool: string; sessionID: string; callID: string },
   pendingCall: PendingCall,
-  output: { output: string },
+  output: { output: string | undefined },
   cliPath: string,
   customPrompt?: string
 ): Promise<void> {
@@ -165,14 +165,18 @@ async function processWithCli(
   
   if (result.hasComments && result.message) {
     debugLog("CLI detected comments, appending message")
-    appendBudgetedOutput({
-      output,
+    const mergedOutput = { output: output.output ?? "" }
+    const decision = appendBudgetedOutput({
+      output: mergedOutput,
       sessionID: input.sessionID,
       source: "comment-checker",
       id: `${input.callID}:comment-checker`,
       priority: "high",
       content: `\n\n${result.message}`,
     })
+    if (decision.accepted) {
+      output.output = mergedOutput.output
+    }
   } else {
     debugLog("CLI: no comments detected")
   }
