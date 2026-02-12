@@ -116,6 +116,7 @@ export const HookNameSchema = z.enum([
   "tmux-parallel-agents",
   "swarm-agent",
   "anthropic-effort",
+  "cache-policy",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -345,6 +346,165 @@ export const ContextWindowGovernorConfigSchema = z.object({
     },
   }),
   dynamic_pruning: DynamicContextPruningConfigSchema.optional(),
+})
+
+export const CacheStrategyProviderPolicyModeSchema = z.enum(["off", "observe", "enforce"])
+export const CacheStrategyProviderOverrideModeSchema = z.enum([
+  "inherit",
+  "off",
+  "observe",
+  "enforce",
+])
+export const CacheStrategyRolloutProviderSchema = z.enum([
+  "openai",
+  "anthropic",
+  "google",
+  "minimax",
+  "zai",
+  "moonshot",
+])
+export const CacheStrategyPrefixStabilityModeSchema = z.enum([
+  "off",
+  "balanced",
+  "strict",
+])
+
+export const CacheStrategyObservabilityConfigSchema = z.object({
+  /** Enable cache usage observability probes and logs */
+  enabled: z.boolean().default(true),
+  /** Emit structured cache-policy decisions to logger */
+  emit_log: z.boolean().default(true),
+})
+
+export const CacheStrategyProviderPolicyConfigSchema = z.object({
+  /** Global provider cache policy mode */
+  mode: CacheStrategyProviderPolicyModeSchema.default("observe"),
+  /**
+   * When true, enforce mode may inject provider-specific cache keys
+   * if the option key is missing in output.options.
+   */
+  inject_when_missing: z.boolean().default(false),
+  /** Per-provider mode overrides */
+  providers: z.record(
+    z.string(),
+    z.object({
+      mode: CacheStrategyProviderOverrideModeSchema.default("inherit"),
+    })
+  ).optional(),
+  /** Provider cache capability overrides (policy-as-data) */
+  capabilities: z.record(
+    z.string(),
+    z.object({
+      supports_cache_policy: z.boolean().optional(),
+      preferred_option_key: z.string().optional(),
+      option_aliases: z.array(z.string()).optional(),
+    })
+  ).optional(),
+  rollout: z.object({
+    /** Enable staged provider rollout for enforce mode */
+    enabled: z.boolean().default(false),
+    /**
+     * Enforce stage (fixed order):
+     * 0=none, 1=openai, 2=anthropic, 3=google, 4=minimax, 5=zai, 6=moonshot
+     */
+    stage: z.number().min(0).max(6).default(0),
+    /** Require per-provider threshold gates before enforce in the current stage */
+    require_thresholds: z.boolean().default(true),
+    /** Provider-specific threshold gates and observed metrics */
+    providers: z.partialRecord(
+      CacheStrategyRolloutProviderSchema,
+      z.object({
+        /** Manual approval switch for rapid rollback/rollforward */
+        approved: z.boolean().default(false),
+        threshold: z.object({
+          enabled: z.boolean().default(false),
+          min_cache_hit_ratio: z.number().min(0).max(1).default(0),
+          max_error_rate: z.number().min(0).max(1).default(1),
+          max_p95_latency_ms: z.number().min(1).max(600_000).default(600_000),
+          min_samples: z.number().min(0).max(1_000_000).default(0),
+        }).default({
+          enabled: false,
+          min_cache_hit_ratio: 0,
+          max_error_rate: 1,
+          max_p95_latency_ms: 600_000,
+          min_samples: 0,
+        }),
+        observed: z.object({
+          cache_hit_ratio: z.number().min(0).max(1).optional(),
+          error_rate: z.number().min(0).max(1).optional(),
+          p95_latency_ms: z.number().min(0).max(600_000).optional(),
+          samples: z.number().min(0).max(1_000_000).optional(),
+        }).optional(),
+      })
+    ).optional(),
+  }).default({
+    enabled: false,
+    stage: 0,
+    require_thresholds: true,
+  }),
+})
+
+export const CacheStrategyPrefixStabilityConfigSchema = z.object({
+  /** Prefix stability protection mode for destructive recovery */
+  mode: CacheStrategyPrefixStabilityModeSchema.default("off"),
+  /** Max destructive recoveries in a single budget window */
+  max_destructive_recoveries: z.number().min(0).max(20).default(2),
+  /** Sliding window duration for destructive recovery budget */
+  window_ms: z.number().min(1_000).max(86_400_000).default(600_000),
+  /** Cooldown after budget exhaustion (balanced mode can resume after this) */
+  cooldown_ms: z.number().min(0).max(86_400_000).default(120_000),
+  /** Allow destructive recovery when current/max exceeds this ratio */
+  hard_limit_bypass_ratio: z.number().min(0.5).max(2).default(1),
+})
+
+export const CacheStrategyLedgerConfigSchema = z.object({
+  /** Enable append-only context ledger side writes */
+  enabled: z.boolean().default(false),
+  /** Optional ledger base directory override */
+  base_dir: z.string().optional(),
+})
+
+export const CacheStrategyCompilerConfigSchema = z.object({
+  /** Enable ledger-first prefix compiler read path */
+  enabled: z.boolean().default(false),
+  /** Max immutable segments used for prefix compilation */
+  max_prefix_segments: z.number().min(1).max(1000).default(64),
+  /** Max chars allocated to stable prefix */
+  max_prefix_chars: z.number().min(256).max(200_000).default(32_000),
+  /** Segment separator used by compiler */
+  separator: z.string().default("\n\n---\n\n"),
+})
+
+export const CacheStrategyConfigSchema = z.object({
+  observability: CacheStrategyObservabilityConfigSchema.default({
+    enabled: true,
+    emit_log: true,
+  }),
+  provider_policy: CacheStrategyProviderPolicyConfigSchema.default({
+    mode: "observe",
+    inject_when_missing: false,
+    rollout: {
+      enabled: false,
+      stage: 0,
+      require_thresholds: true,
+    },
+  }),
+  prefix_stability: CacheStrategyPrefixStabilityConfigSchema.default({
+    mode: "off",
+    max_destructive_recoveries: 2,
+    window_ms: 600_000,
+    cooldown_ms: 120_000,
+    hard_limit_bypass_ratio: 1,
+  }),
+  ledger: CacheStrategyLedgerConfigSchema.default({
+    enabled: false,
+  }),
+  compiler: CacheStrategyCompilerConfigSchema.default({
+    enabled: false,
+    max_prefix_segments: 64,
+    max_prefix_chars: 32_000,
+    separator: "\n\n---\n\n",
+  }),
 })
 
 export const SkillSourceSchema = z.union([
@@ -1119,6 +1279,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   claude_code: ClaudeCodeConfigSchema.optional(),
   sisyphus_agent: SisyphusAgentConfigSchema.optional(),
   context_window_governor: ContextWindowGovernorConfigSchema.optional(),
+  cache_strategy: CacheStrategyConfigSchema.optional(),
   session_state_repair: SessionStateRepairConfigSchema.optional(),
   tool_output_truncator: ToolOutputTruncatorConfigSchema.optional(),
   comment_checker: CommentCheckerConfigSchema.optional(),
@@ -1174,6 +1335,11 @@ export type SessionStateRepairConfig = z.infer<typeof SessionStateRepairConfigSc
 export type ToolOutputTruncatorConfig = z.infer<typeof ToolOutputTruncatorConfigSchema>
 export type DynamicContextPruningConfig = z.infer<typeof DynamicContextPruningConfigSchema>
 export type ContextWindowGovernorConfig = z.infer<typeof ContextWindowGovernorConfigSchema>
+export type CacheStrategyConfig = z.infer<typeof CacheStrategyConfigSchema>
+export type CacheStrategyProviderPolicyMode = z.infer<typeof CacheStrategyProviderPolicyModeSchema>
+export type CacheStrategyPrefixStabilityMode = z.infer<
+  typeof CacheStrategyPrefixStabilityModeSchema
+>
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>
 export type RalphLoopConfig = z.infer<typeof RalphLoopConfigSchema>

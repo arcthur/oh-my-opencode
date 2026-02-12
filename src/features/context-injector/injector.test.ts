@@ -3,12 +3,17 @@ import { ContextCollector } from "./collector"
 import {
   createContextInjectorMessagesTransformHook,
 } from "./injector"
+import {
+  clearAllPrefixFingerprintsForTesting,
+  getPrefixFingerprintForSession,
+} from "./prefix-fingerprint"
 
 describe("createContextInjectorMessagesTransformHook", () => {
   let collector: ContextCollector
 
   beforeEach(() => {
     collector = new ContextCollector()
+    clearAllPrefixFingerprintsForTesting()
   })
 
   const createMockMessage = (
@@ -62,6 +67,54 @@ describe("createContextInjectorMessagesTransformHook", () => {
     expect(output.messages[2].parts[0].text).toBe("Ultrawork context")
     expect(output.messages[2].parts[0].synthetic).toBe(true)
     expect(output.messages[2].parts[1].text).toBe("Second message")
+  })
+
+  it("uses prefix compiler output when compiler is enabled", async () => {
+    // given
+    const sessionID = "ses_compiler_enabled"
+    collector.register(sessionID, {
+      id: "ctx",
+      source: "keyword-detector",
+      content: "Dynamic tail",
+    })
+    const hook = createContextInjectorMessagesTransformHook(collector, {
+      compiler: {
+        enabled: true,
+        separator: "\n\n---\n\n",
+        maxPrefixSegments: 8,
+        maxPrefixChars: 2000,
+      },
+      ledgerStore: {
+        readSegments: () => [
+          {
+            id: "seg_1",
+            sessionID,
+            index: 0,
+            source: "rules-injector",
+            content: "Stable prefix",
+            immutable: true,
+            previousHash: "root",
+            hash: "hash-1",
+            createdAt: Date.now(),
+          },
+        ],
+        computePrefixFingerprint: () => "fp_123",
+      },
+    })
+
+    const messages = [createMockMessage("user", "Message", sessionID)]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const output = { messages } as any
+
+    // when
+    await hook["experimental.chat.messages.transform"]!({}, output)
+
+    // then
+    const injected = output.messages[0].parts[0]
+    expect(injected.text).toContain("Stable prefix")
+    expect(injected.text).toContain("Dynamic tail")
+    expect(injected.metadata?.prefixFingerprint).toBe("fp_123")
+    expect(getPrefixFingerprintForSession(sessionID)).toBe("fp_123")
   })
 
   it("does nothing when no pending context", async () => {

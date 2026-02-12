@@ -6,6 +6,10 @@ import type {
   RegisterContextOptions,
 } from "./types"
 import { contextBudgetArbiter, type ContextBudgetArbiter } from "../context-budget"
+import {
+  contextLedgerStore,
+  configureContextLedgerStore,
+} from "../context-ledger/store"
 
 const PRIORITY_ORDER: Record<ContextPriority, number> = {
   critical: 0,
@@ -15,10 +19,20 @@ const PRIORITY_ORDER: Record<ContextPriority, number> = {
 }
 
 const CONTEXT_SEPARATOR = "\n\n---\n\n"
+const STABLE_IMMUTABLE_SOURCES = new Set<string>([
+  "rules-injector",
+  "directory-agents",
+  "directory-readme",
+  "conditional-rules",
+  "context-manifest-injector",
+  "repo-overview-injector",
+  "claude-code-hooks",
+])
 
 export class ContextCollector {
   private sessions: Map<string, Map<string, ContextEntry>> = new Map()
   private arbiter: ContextBudgetArbiter
+  private ledgerEnabled = false
 
   constructor(arbiter: ContextBudgetArbiter = contextBudgetArbiter) {
     this.arbiter = arbiter
@@ -36,6 +50,14 @@ export class ContextCollector {
    */
   getBudgetConfig(): ContextBudgetConfig {
     return this.arbiter.getBudgetConfig()
+  }
+
+  configureLedger(config: { enabled: boolean; baseDir?: string }): void {
+    this.ledgerEnabled = config.enabled
+    configureContextLedgerStore({
+      enabled: config.enabled,
+      ...(config.baseDir ? { baseDir: config.baseDir } : {}),
+    })
   }
 
   /**
@@ -99,6 +121,30 @@ export class ContextCollector {
     }
 
     entryMap.set(key, entry)
+
+    if (this.ledgerEnabled) {
+      const immutable =
+        typeof options.immutable === "boolean"
+          ? options.immutable
+          : options.oncePerSession === true || STABLE_IMMUTABLE_SOURCES.has(options.source)
+
+      contextLedgerStore.append({
+        sessionID,
+        source: options.source,
+        content: decision.finalContent,
+        immutable,
+        metadata: {
+          id: options.id,
+          priority,
+          channel,
+          immutable,
+          estimatedTokens: decision.finalTokens,
+          oncePerSession: options.oncePerSession ?? false,
+          kind: "collector-entry",
+          ...(options.metadata ?? {}),
+        },
+      })
+    }
   }
 
   getPending(sessionID: string): PendingContext {

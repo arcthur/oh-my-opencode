@@ -334,6 +334,50 @@ describe("GovernanceIntegration", () => {
       expect(result.block).toBe(true)
       expect(result.systemMessage).toContain("Budget exhausted")
     })
+
+    it("records cache observability fields in tracer resources", async () => {
+      // #given
+      initGovernanceSession(testSessionId, testCwd, {
+        enabled: true,
+        tracer: { enabled: true },
+        budget_monitor: { enabled: false },
+      })
+
+      executePreToolGovernance({
+        sessionId: testSessionId,
+        toolName: "Write",
+        toolInput: { file_path: "/tmp/a.ts" },
+        toolUseId: "tool-cache-1",
+        cwd: testCwd,
+      })
+
+      // #when
+      await executePostToolGovernance({
+        sessionId: testSessionId,
+        toolName: "Write",
+        toolInput: { file_path: "/tmp/a.ts" },
+        toolOutput: { success: true },
+        toolUseId: "tool-cache-1",
+        success: true,
+        tokensUsed: 120,
+        cacheReadTokens: 80,
+        cacheWriteTokens: 20,
+        cacheHitRatio: 0.4,
+        prefixFingerprint: "abc123",
+        cwd: testCwd,
+      })
+
+      // #then
+      const session = getGovernanceSession(testSessionId, testCwd)
+      const trace = session.tracer?.getTrace()
+      const node = trace?.nodes.find((item) => item.id === "tool-cache-1" || item.name === "Write")
+      expect(node).toBeDefined()
+      expect(node?.resources.tokensUsed).toBe(120)
+      expect(node?.resources.cacheReadTokens).toBe(80)
+      expect(node?.resources.cacheWriteTokens).toBe(20)
+      expect(node?.resources.cacheHitRatio).toBe(0.4)
+      expect(node?.resources.prefixFingerprint).toBe("abc123")
+    })
   })
 
   describe("executeUserPromptGovernance", () => {

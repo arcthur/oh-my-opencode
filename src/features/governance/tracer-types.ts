@@ -90,6 +90,10 @@ export interface TraceResources {
   apiCalls?: number
   filesRead?: number
   filesWritten?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  cacheHitRatio?: number
+  prefixFingerprint?: string
 }
 
 export interface TraceError {

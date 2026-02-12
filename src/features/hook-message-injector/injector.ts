@@ -6,6 +6,7 @@ import type { MessageMeta, OriginalMessageContext, TextPart, ToolPermission } fr
 import { log } from "../../shared/logger"
 import { contextBudgetArbiter } from "../context-budget"
 import type { BudgetPriority, ContextChannel } from "../context-budget"
+import { contextLedgerStore } from "../context-ledger/store"
 
 export interface StoredMessage {
   agent?: string
@@ -226,6 +227,22 @@ export function injectHookMessage(
       mkdirSync(partDir, { recursive: true })
     }
     writeFileSync(join(partDir, `${partID}.json`), JSON.stringify(textPart, null, 2))
+
+    contextLedgerStore.append({
+      sessionID,
+      source: budget?.source ?? "hook-message-injector",
+      content: hookContent,
+      immutable: true,
+      metadata: {
+        messageID,
+        partID,
+        channel: budget?.channel ?? "synthetic-message",
+        priority: budget?.priority ?? "normal",
+        oncePerSession: budget?.oncePerSession ?? false,
+        estimatedTokens: budgetDecision.finalTokens,
+        kind: "synthetic-message",
+      },
+    })
 
     return true
   } catch {

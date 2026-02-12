@@ -16,6 +16,30 @@ const DEFAULT_AGENT = "sisyphus"
 
 type EnvVars = Record<string, string | undefined>
 
+export interface RunDependencies {
+  createEventState: typeof createEventState
+  processEvents: typeof processEvents
+  serializeError: typeof serializeError
+  loadPluginConfig: typeof loadPluginConfig
+  pollForCompletion: typeof pollForCompletion
+  createServerConnection: typeof createServerConnection
+  resolveSession: typeof resolveSession
+  createJsonOutputManager: typeof createJsonOutputManager
+  executeOnCompleteHook: typeof executeOnCompleteHook
+}
+
+const DEFAULT_RUN_DEPENDENCIES: RunDependencies = {
+  createEventState,
+  processEvents,
+  serializeError,
+  loadPluginConfig,
+  pollForCompletion,
+  createServerConnection,
+  resolveSession,
+  createJsonOutputManager,
+  executeOnCompleteHook,
+}
+
 const normalizeAgentName = (agent?: string): string | undefined => {
   if (!agent) return undefined
   const trimmed = agent.trim()
@@ -88,7 +112,15 @@ export const resolveRunAgent = (
   return normalized
 }
 
-export async function run(options: RunOptions): Promise<number> {
+export async function run(
+  options: RunOptions,
+  deps: Partial<RunDependencies> = {}
+): Promise<number> {
+  const runtimeDeps: RunDependencies = {
+    ...DEFAULT_RUN_DEPENDENCIES,
+    ...deps,
+  }
+
   // In CLI run mode there is no TUI for question tool prompts.
   process.env.OPENCODE_CLI_RUN_MODE = "true"
 
@@ -99,12 +131,12 @@ export async function run(options: RunOptions): Promise<number> {
     timeout = DEFAULT_TIMEOUT_MS,
   } = options
 
-  const jsonManager = options.json ? createJsonOutputManager() : null
+  const jsonManager = options.json ? runtimeDeps.createJsonOutputManager() : null
   if (jsonManager) {
     jsonManager.redirectToStderr()
   }
 
-  const pluginConfig = loadPluginConfig(directory, { command: "run" })
+  const pluginConfig = runtimeDeps.loadPluginConfig(directory, { command: "run" })
   const resolvedAgent = resolveRunAgent(options, pluginConfig)
   const abortController = new AbortController()
   let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -120,7 +152,7 @@ export async function run(options: RunOptions): Promise<number> {
     const resolvedPort = options.port ?? parseEnvPort(process.env.OPENCODE_SERVER_PORT)
     const resolvedHostname = process.env.OPENCODE_SERVER_HOSTNAME || DEFAULT_SERVER_HOSTNAME
 
-    const { client, cleanup: serverCleanup } = await createServerConnection({
+    const { client, cleanup: serverCleanup } = await runtimeDeps.createServerConnection({
       port: resolvedPort,
       attach: options.attach,
       signal: abortController.signal,
@@ -139,7 +171,7 @@ export async function run(options: RunOptions): Promise<number> {
     })
 
     try {
-      const sessionID = await resolveSession({
+      const sessionID = await runtimeDeps.resolveSession({
         client,
         sessionId: options.sessionId,
       })
@@ -155,9 +187,9 @@ export async function run(options: RunOptions): Promise<number> {
       }
 
       const events = await client.event.subscribe({ query: { directory } })
-      const eventState = createEventState()
+      const eventState = runtimeDeps.createEventState()
       const eventProcessor = createSafeEventProcessor(
-        processEvents(ctx, events.stream, eventState),
+        runtimeDeps.processEvents(ctx, events.stream, eventState),
       )
 
       console.log(pc.dim("\nSending prompt..."))
@@ -171,7 +203,7 @@ export async function run(options: RunOptions): Promise<number> {
       })
 
       console.log(pc.dim("Waiting for completion...\n"))
-      const exitCode = await pollForCompletion(ctx, eventState, abortController)
+      const exitCode = await runtimeDeps.pollForCompletion(ctx, eventState, abortController)
 
       await eventProcessor
       cleanup()
@@ -179,7 +211,7 @@ export async function run(options: RunOptions): Promise<number> {
       const durationMs = Date.now() - startTime
 
       if (options.onComplete) {
-        await executeOnCompleteHook({
+        await runtimeDeps.executeOnCompleteHook({
           command: options.onComplete,
           sessionId: sessionID,
           exitCode,
@@ -210,7 +242,7 @@ export async function run(options: RunOptions): Promise<number> {
     if (error instanceof Error && error.name === "AbortError") {
       return 130
     }
-    console.error(pc.red(`Error: ${serializeError(error)}`))
+    console.error(pc.red(`Error: ${runtimeDeps.serializeError(error)}`))
     return 1
   }
 }

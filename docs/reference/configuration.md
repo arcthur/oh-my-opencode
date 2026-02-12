@@ -65,6 +65,7 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 
 - `context_budget`: Shared context injection token budget (see [Context Budget](#context-budget)).
 - `context_window_governor`: Token-limit warning/compaction/recovery policy (see [Context Window Governor](#context-window-governor)).
+- `cache_strategy`: Cache observability/provider policy/prefix stability/ledger/compiler controls (see [Cache Strategy](#cache-strategy)).
 - `session_state_repair`: Session error recovery behavior controls (see [Session State Repair](#session-state-repair)).
 - `tool_output_truncator`: Tool output truncation behavior controls (see [Tool Output Truncator](#tool-output-truncator)).
 - `silent_tool_output`: Tool output shaping config (requires `silent-tool-output` hook; see `docs/reference/hooks.md`).
@@ -179,6 +180,139 @@ For the built-in tool name surface shipped by this repo, see `docs/reference/too
 ## Google Auth
 
 **Recommended**: For Google Gemini authentication, install the [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin. It provides multi-account load balancing, more models (including Claude via Antigravity), and active maintenance. See [Installation > Google Gemini (Antigravity OAuth)](../guide/installation.md#google-gemini-antigravity-oauth).
+
+## Cache Strategy
+
+`cache_strategy` provides cache-first controls without changing default behavior:
+
+- `observability`: cache metrics logging controls.
+- `provider_policy`: `off` / `observe` / `enforce` policy with per-provider overrides.
+  - `provider_policy.capabilities`: provider capability overrides as data (`supports_cache_policy`, `preferred_option_key`, `option_aliases`) to avoid hardcoded-only mapping.
+  - `provider_policy.rollout`: staged enforce rollout (Phase 6) with fixed order:
+    `openai -> anthropic -> google -> minimax -> zai -> moonshot`.
+  - `provider_policy.rollout.stage` controls how many providers in that fixed order are eligible for enforce.
+  - `provider_policy.rollout.require_thresholds=true` requires per-provider threshold gates (`providers.<id>.threshold` + `observed`) before enforce.
+  - Fast rollback: set `provider_policy.providers.<id>.mode` to `observe` (provider-level one-click fallback).
+- `prefix_stability`: destructive recovery budget and hard-limit bypass guardrail.
+- `ledger`: append-only context ledger side writes.
+- `compiler`: ledger-first prefix compilation for context injection.
+
+Execution/wiring contract:
+
+- `provider_policy` is applied by the `cache-policy` hook (`chat.params` surface). If `cache-policy` is disabled, provider policy config is inert.
+- `prefix_stability` is consumed by `context-window-governor` recovery arbitration. If `context-window-governor` is disabled, prefix stability config is inert.
+- `ledger` and `compiler` are integrated through context collection/injection paths and are designed to be rollout-safe (`enabled=false` by default).
+
+### Cache Strategy Defaults
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `observability.enabled` | `true` | Enables cache usage probes and related telemetry fields |
+| `observability.emit_log` | `true` | Emits structured cache-policy decisions to logger |
+| `provider_policy.mode` | `observe` | Global mode: observe-only by default (no request mutation) |
+| `provider_policy.inject_when_missing` | `false` | In enforce mode, do not inject unknown provider key by default |
+| `provider_policy.rollout.enabled` | `false` | Staged enforce rollout disabled by default |
+| `provider_policy.rollout.stage` | `0` | Stage gate: `0=none`, `1=openai` ... `6=moonshot` |
+| `provider_policy.rollout.require_thresholds` | `true` | Require per-provider threshold gate when rollout is enabled |
+| `prefix_stability.mode` | `off` | No destructive-recovery budget guard by default |
+| `prefix_stability.max_destructive_recoveries` | `2` | Max destructive recoveries per sliding window |
+| `prefix_stability.window_ms` | `600000` | Sliding window length for destructive recovery budget |
+| `prefix_stability.cooldown_ms` | `120000` | Cooldown applied when destructive budget is exhausted |
+| `prefix_stability.hard_limit_bypass_ratio` | `1` | Bypass guard when `current/max >= ratio` |
+| `ledger.enabled` | `false` | Append-only context ledger side writes disabled by default |
+| `compiler.enabled` | `false` | Ledger-first prefix compiler read path disabled by default |
+| `compiler.max_prefix_segments` | `64` | Max immutable ledger segments in compiled prefix |
+| `compiler.max_prefix_chars` | `32000` | Stable prefix character budget |
+| `compiler.separator` | `\\n\\n---\\n\\n` | Segment separator used by compiler output |
+
+### Provider Policy Contract
+
+- Global mode resolution: `provider_policy.mode` + optional `provider_policy.providers.<id>.mode`.
+- Per-provider mode values:
+  - `inherit`: use global mode.
+  - `off`: force disabled for this provider.
+  - `observe`: force observe-only for this provider.
+  - `enforce`: request enforce for this provider (still subject to capability + rollout gates).
+- Capability registry defaults:
+  - OpenAI: supported (`prompt_cache` family).
+  - Anthropic: supported (`cache` family).
+  - Google: supported (`cachedContent` family).
+  - Minimax / ZAI / Moonshot: default unsupported until overridden.
+- Override capability as data via `provider_policy.capabilities.<id>` using:
+  - `supports_cache_policy`
+  - `preferred_option_key`
+  - `option_aliases`
+
+### Rollout Gate Contract (Enforce Mode)
+
+Enforce mode proceeds only when all applicable checks pass:
+
+1. Provider is within rollout stage fixed order.
+2. If `require_thresholds=true`, `rollout.providers.<id>` MUST exist.
+3. If `threshold.enabled=true`, observed metrics MUST satisfy threshold constraints:
+   - `samples >= min_samples`
+   - `cache_hit_ratio >= min_cache_hit_ratio`
+   - `error_rate <= max_error_rate`
+   - `p95_latency_ms <= max_p95_latency_ms`
+4. `approved` MUST NOT be `false` (set `approved=false` for instant provider-level rollback).
+
+If any check fails, enforce is downgraded to observe with reason logging.
+
+### Prefix Stability Modes
+
+- `off`: no destructive-recovery budget guard.
+- `balanced`: blocks destructive recovery after budget exhaustion, then allows recovery again after cooldown.
+- `strict`: blocks destructive recovery after budget exhaustion for the remainder of the budget window.
+- `hard_limit_bypass_ratio` applies to both balanced/strict and allows destructive recovery when hard limit pressure is high enough.
+
+### Minimal Rollout Example
+
+```jsonc
+{
+  "cache_strategy": {
+    "observability": { "enabled": true, "emit_log": true },
+    "provider_policy": {
+      "mode": "enforce",
+      "inject_when_missing": false,
+      "rollout": {
+        "enabled": true,
+        "stage": 2,
+        "require_thresholds": true,
+        "providers": {
+          "openai": {
+            "approved": true,
+            "threshold": {
+              "enabled": true,
+              "min_cache_hit_ratio": 0.25,
+              "max_error_rate": 0.02,
+              "max_p95_latency_ms": 4500,
+              "min_samples": 200
+            },
+            "observed": {
+              "cache_hit_ratio": 0.32,
+              "error_rate": 0.01,
+              "p95_latency_ms": 3800,
+              "samples": 260
+            }
+          },
+          "anthropic": {
+            "approved": false
+          }
+        }
+      }
+    },
+    "prefix_stability": {
+      "mode": "balanced",
+      "max_destructive_recoveries": 2,
+      "window_ms": 600000,
+      "cooldown_ms": 120000,
+      "hard_limit_bypass_ratio": 1
+    },
+    "ledger": { "enabled": true },
+    "compiler": { "enabled": true }
+  }
+}
+```
 
 ## Agents
 

@@ -10,9 +10,15 @@ import type { CommandInfo } from "../../tools/slashcommand/types"
 
 export interface ExecutorOptions {
   disabledBuiltinCommands?: BuiltinCommandName[]
+  discoverCommands?: (
+    disabledBuiltinCommands?: BuiltinCommandName[]
+  ) => CommandInfo[] | Promise<CommandInfo[]>
 }
 
 async function discoverAllCommands(options?: ExecutorOptions): Promise<CommandInfo[]> {
+  if (options?.discoverCommands) {
+    return await options.discoverCommands(options.disabledBuiltinCommands)
+  }
   return discoverSlashCommandsSync(options?.disabledBuiltinCommands)
 }
 

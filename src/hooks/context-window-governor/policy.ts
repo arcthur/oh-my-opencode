@@ -60,6 +60,13 @@ export const DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG: ContextWindowGovernorConfig
       },
     },
   },
+  prefixStability: {
+    mode: "off",
+    maxDestructiveRecoveries: 2,
+    windowMs: 600_000,
+    cooldownMs: 120_000,
+    hardLimitBypassRatio: 1,
+  },
 }
 
 export function resolveGovernorConfig(
@@ -109,6 +116,10 @@ export function resolveGovernorConfig(
           ...override?.dynamicPruning?.strategies?.staleToolOutputs,
         },
       },
+    },
+    prefixStability: {
+      ...DEFAULT_CONTEXT_WINDOW_GOVERNOR_CONFIG.prefixStability,
+      ...override?.prefixStability,
     },
   }
 }

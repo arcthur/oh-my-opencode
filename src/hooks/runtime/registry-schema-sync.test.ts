@@ -65,4 +65,12 @@ describe("runtime registry sync", () => {
     expect(autoSlash).toBeDefined()
     expect(autoSlash?.events).toContain("command.execute.before")
   })
+
+  test("cache-policy is declared as chat.params-only hook", () => {
+    const registryEntries = getRuntimeRegistryEntries()
+    const cachePolicy = registryEntries.find((entry) => entry.name === "cache-policy")
+
+    expect(cachePolicy).toBeDefined()
+    expect(cachePolicy?.events).toEqual([])
+  })
 })

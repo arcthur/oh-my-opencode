@@ -71,6 +71,8 @@ export interface RegisterContextOptions {
   estimatedTokens?: number
   /** Whether this context should only be injected once per session */
   oncePerSession?: boolean
+  /** Ledger immutability hint for prefix compilation */
+  immutable?: boolean
 }
 
 /**

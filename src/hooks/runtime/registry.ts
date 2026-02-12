@@ -53,6 +53,8 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "swarm-agent", events: ["event", "tool.execute.before", "tool.execute.after"] },
   // chat.params-only hook (executed outside runtime dispatcher)
   { name: "anthropic-effort", events: [] },
+  // chat.params-only hook (executed outside runtime dispatcher)
+  { name: "cache-policy", events: [] },
 ]
 
 export function getRuntimeRegistryEntries(): RuntimeRegistryEntry[] {

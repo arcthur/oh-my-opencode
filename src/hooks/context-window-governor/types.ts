@@ -17,6 +17,10 @@ export interface ContextWindowSnapshot {
   limitTokens: number
   usedInputCacheTokens: number
   usedTotalTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  cacheHitRatio: number
+  usageConfidence: "high" | "medium" | "low"
   usageRatio: number
   capturedAt: number
   source: "session.messages"
@@ -37,6 +41,7 @@ export interface ContextWindowGovernorConfig {
   preemptiveResetRatio: number
   recovery: RecoveryRetryConfig
   dynamicPruning: DynamicPruningConfig
+  prefixStability: PrefixStabilityBudget
 }
 
 export interface RecoveryRetryConfig {
@@ -72,9 +77,12 @@ export interface DynamicPruningConfigOverride
 }
 
 export interface ContextWindowGovernorConfigOverride
-  extends Partial<Omit<ContextWindowGovernorConfig, "recovery" | "dynamicPruning">> {
+  extends Partial<
+    Omit<ContextWindowGovernorConfig, "recovery" | "dynamicPruning" | "prefixStability">
+  > {
   recovery?: RecoveryRetryConfigOverride
   dynamicPruning?: DynamicPruningConfigOverride
+  prefixStability?: Partial<PrefixStabilityBudget>
 }
 
 export interface DynamicPruningConfig {
@@ -107,6 +115,16 @@ export interface DynamicPruningStaleToolOutputsConfig {
   keepRecentTurns: number
   minOutputChars: number
   maxOutputs: number
+}
+
+export type PrefixStabilityMode = "off" | "balanced" | "strict"
+
+export interface PrefixStabilityBudget {
+  mode: PrefixStabilityMode
+  maxDestructiveRecoveries: number
+  windowMs: number
+  cooldownMs: number
+  hardLimitBypassRatio: number
 }
 
 export interface ParsedTokenLimitError {

@@ -1,4 +1,5 @@
 import { appendBudgetedOutput } from "../../../features/context-budget"
+import { ContextBudgetArbiter } from "../../../features/context-budget"
 import { formatContextLimit } from "../../../shared/context-limits"
 import { createSystemDirective, SystemDirectiveTypes } from "../../../shared/system-directive"
 import type { ContextWindowSnapshot } from "../types"
@@ -32,5 +33,5 @@ export function appendContextWindowWarning(
     id: "context-window-warning",
     priority: "high",
     content: `\n\n${buildReminder(snapshot)}\n[Context Status: ${usedPct}% used (${usedTokens}/${limitTokens} tokens), ${remainingPct}% remaining]`,
-  })
+  }, new ContextBudgetArbiter())
 }

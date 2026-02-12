@@ -2,6 +2,9 @@ import type { ContextCollector } from "./collector"
 import type { Message, Part } from "@opencode-ai/sdk"
 import { log } from "../../shared"
 import { getMainSessionID } from "../claude-code-session-state"
+import { compilePrefixContext, type PrefixCompilerConfig } from "../prefix-compiler/compile"
+import { contextLedgerStore, type ContextLedgerStore } from "../context-ledger/store"
+import { setPrefixFingerprintForSession } from "./prefix-fingerprint"
 
 interface OutputPart {
   type: string
@@ -79,8 +82,14 @@ type MessagesTransformHook = {
   ) => Promise<void>
 }
 
+interface MessagesTransformHookOptions {
+  compiler?: Partial<PrefixCompilerConfig>
+  ledgerStore?: Pick<ContextLedgerStore, "readSegments" | "computePrefixFingerprint">
+}
+
 export function createContextInjectorMessagesTransformHook(
-  collector: ContextCollector
+  collector: ContextCollector,
+  options?: MessagesTransformHookOptions
 ): MessagesTransformHook {
   return {
     "experimental.chat.messages.transform": async (_input, output) => {
@@ -119,6 +128,17 @@ export function createContextInjectorMessagesTransformHook(
         return
       }
 
+      const compileResult = compilePrefixContext({
+        sessionID,
+        pendingMerged: pending.merged,
+        ledgerStore: options?.ledgerStore ?? contextLedgerStore,
+        config: options?.compiler,
+      })
+      if (compileResult.usedLedger && compileResult.prefixFingerprint) {
+        setPrefixFingerprintForSession(sessionID, compileResult.prefixFingerprint)
+      }
+      const injectedContent = compileResult.compiled || pending.merged
+
       const textPartIndex = lastUserMessage.parts.findIndex(
         (p) => p.type === "text" && (p as { text?: string }).text
       )
@@ -137,15 +157,24 @@ export function createContextInjectorMessagesTransformHook(
         messageID: lastUserMessage.info.id,
         sessionID: (lastUserMessage.info as { sessionID?: string }).sessionID ?? "",
         type: "text" as const,
-        text: pending.merged,
+        text: injectedContent,
         synthetic: true,  // UI에서 숨겨짐
+        metadata: compileResult.usedLedger
+          ? {
+              prefixFingerprint: compileResult.prefixFingerprint,
+              prefixChars: compileResult.prefix.length,
+              dynamicChars: compileResult.dynamicTail.length,
+            }
+          : undefined,
       }
 
       lastUserMessage.parts.splice(textPartIndex, 0, syntheticPart as Part)
 
       log("[context-injector] Inserted synthetic part with hook content", {
         sessionID,
-        contentLength: pending.merged.length,
+        contentLength: injectedContent.length,
+        compilerUsed: compileResult.usedLedger,
+        prefixFingerprint: compileResult.prefixFingerprint || undefined,
       })
     },
   }

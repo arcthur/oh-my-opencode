@@ -1,9 +1,22 @@
 import { executePostToolGovernance } from "../../../features/governance"
+import { extractCacheUsageSnapshot } from "../../../features/cache-observability/probe"
 import { appendBudgetedOutput } from "../../../features/context-budget"
+import { getPrefixFingerprintForSession } from "../../../features/context-injector"
 import type { ToolExecuteInput } from "../../../shared/hook-types"
 import { log } from "../../../shared"
 import type { RuntimeExecutionNode } from "../types"
 import type { RuntimeAssemblyContext, ToolExecuteAfterOutput } from "./types"
+
+export function resolvePrefixFingerprint(
+  metadata: Record<string, unknown> | undefined,
+  sessionID: string
+): string | undefined {
+  const fromMetadata = metadata?.prefixFingerprint
+  if (typeof fromMetadata === "string" && fromMetadata.trim().length > 0) {
+    return fromMetadata
+  }
+  return getPrefixFingerprintForSession(sessionID)
+}
 
 export function buildToolExecuteAfterNodes(
   context: RuntimeAssemblyContext,
@@ -91,7 +104,11 @@ export function buildToolExecuteAfterNodes(
             ?? (exitCode !== undefined
               ? exitCode === 0
               : !outputLower.includes("error:") && !outputLower.includes("failed:"))
+          const usageSnapshot = extractCacheUsageSnapshot(metadata ?? output)
           const estimatedTokensUsed = Math.ceil(outputStr.length / 4)
+          const resolvedTokensUsed =
+            usageSnapshot.totalTokens > 0 ? usageSnapshot.totalTokens : estimatedTokensUsed
+          const prefixFingerprint = resolvePrefixFingerprint(metadata, input.sessionID)
 
           const rawArgs =
             (metadata as { args?: unknown } | undefined)?.args
@@ -108,7 +125,11 @@ export function buildToolExecuteAfterNodes(
             toolOutput: output as unknown as Record<string, unknown>,
             toolUseId: input.callID,
             success: inferredSuccess,
-            tokensUsed: estimatedTokensUsed,
+            tokensUsed: resolvedTokensUsed,
+            cacheReadTokens: usageSnapshot.cacheReadTokens || undefined,
+            cacheWriteTokens: usageSnapshot.cacheWriteTokens || undefined,
+            cacheHitRatio: usageSnapshot.cacheHitRatio || undefined,
+            prefixFingerprint,
             cwd: context.directory ?? process.cwd(),
             config: context.governanceConfig,
           })

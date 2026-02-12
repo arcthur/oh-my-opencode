@@ -1076,3 +1076,93 @@ describe("session_state_repair and tool_output_truncator schema", () => {
     }
   })
 })
+
+describe("cache_strategy schema", () => {
+  test("accepts cache_strategy with provider policy, prefix stability, ledger, and compiler settings", () => {
+    // given
+    const config = {
+      cache_strategy: {
+        observability: {
+          enabled: true,
+          emit_log: true,
+        },
+        provider_policy: {
+          mode: "observe",
+          inject_when_missing: false,
+          capabilities: {
+            customx: {
+              supports_cache_policy: true,
+              preferred_option_key: "cache_mode",
+              option_aliases: ["cache_mode", "cache"],
+            },
+          },
+          providers: {
+            openai: { mode: "enforce" },
+            moonshot: { mode: "observe" },
+          },
+          rollout: {
+            enabled: true,
+            stage: 2,
+            require_thresholds: true,
+            providers: {
+              openai: {
+                approved: true,
+                threshold: {
+                  enabled: true,
+                  min_cache_hit_ratio: 0.4,
+                  max_error_rate: 0.05,
+                  max_p95_latency_ms: 2000,
+                  min_samples: 50,
+                },
+                observed: {
+                  cache_hit_ratio: 0.6,
+                  error_rate: 0.01,
+                  p95_latency_ms: 800,
+                  samples: 120,
+                },
+              },
+            },
+          },
+        },
+        prefix_stability: {
+          mode: "balanced",
+          max_destructive_recoveries: 2,
+          window_ms: 600000,
+          cooldown_ms: 120000,
+          hard_limit_bypass_ratio: 1,
+        },
+        ledger: {
+          enabled: true,
+        },
+        compiler: {
+          enabled: true,
+          max_prefix_segments: 32,
+          max_prefix_chars: 16000,
+          separator: "\n\n---\n\n",
+        },
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.cache_strategy?.provider_policy.mode).toBe("observe")
+      expect(
+        result.data.cache_strategy?.provider_policy.capabilities?.customx?.preferred_option_key
+      ).toBe("cache_mode")
+      expect(result.data.cache_strategy?.provider_policy.rollout.enabled).toBe(true)
+      expect(result.data.cache_strategy?.provider_policy.rollout.stage).toBe(2)
+      expect(result.data.cache_strategy?.prefix_stability.mode).toBe("balanced")
+      expect(result.data.cache_strategy?.ledger.enabled).toBe(true)
+      expect(result.data.cache_strategy?.compiler.enabled).toBe(true)
+    }
+  })
+
+  test("includes cache-policy in HookNameSchema", () => {
+    // then
+    expect(HookNameSchema.options).toContain("cache-policy")
+  })
+})

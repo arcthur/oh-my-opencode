@@ -1,5 +1,6 @@
-import { describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, test } from "bun:test"
 import { createContextWindowGovernorHook } from "./index"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 function createCtx(overrides?: {
   messages?: ReturnType<typeof mock>
@@ -43,6 +44,10 @@ function createCtx(overrides?: {
 }
 
 describe("context-window-governor hook", () => {
+  beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
+  })
+
   test("warns and preemptively compacts using unified snapshot", async () => {
     // #given
     const summarize = mock(() => Promise.resolve())

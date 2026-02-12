@@ -1,19 +1,11 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test"
-
-const mockAppendBudgetedOutput = mock((input: { output: { output: string }; content: string }) => {
-  input.output.output += input.content
-  return { accepted: true }
-})
-
-mock.module("../../features/context-budget", () => ({
-  appendBudgetedOutput: mockAppendBudgetedOutput,
-}))
+import { beforeEach, describe, expect, test } from "bun:test"
+import { contextBudgetArbiter } from "../../features/context-budget"
 
 const { createTaskResumeInfoHook } = await import("./index")
 
 describe("createTaskResumeInfoHook", () => {
   beforeEach(() => {
-    mockAppendBudgetedOutput.mockClear()
+    contextBudgetArbiter.resetForTesting()
   })
 
   const hook = createTaskResumeInfoHook()

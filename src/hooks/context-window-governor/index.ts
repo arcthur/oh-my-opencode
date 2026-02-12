@@ -20,6 +20,7 @@ import {
   shouldSkipRecoverySummarize,
 } from "./actions/dynamic-pruning"
 import { runAggressiveOutputTruncation } from "./actions/aggressive-output-truncation"
+import { log } from "../../shared/logger"
 
 export interface ContextWindowGovernorHookOptions extends ContextWindowGovernorConfigOverride {
   modelCacheState?: ModelCacheState
@@ -40,6 +41,7 @@ export function createContextWindowGovernorHook(
           preemptiveResetRatio: options.preemptiveResetRatio,
           recovery: options.recovery,
           dynamicPruning: options.dynamicPruning,
+          prefixStability: options.prefixStability,
         }
       : undefined
   )
@@ -60,8 +62,22 @@ export function createContextWindowGovernorHook(
     aggressiveCharsRemoved: number
   }
 
+  interface PrefixStabilityState {
+    windowStartedAt: number
+    destructiveRecoveries: number
+    cooldownUntil: number
+  }
+
+  interface PrefixStabilityDecision {
+    allowed: boolean
+    reason: string
+    nextAttemptAt?: number
+    bypassedByHardLimit: boolean
+  }
+
   const recoveryRequests = new Map<string, RecoveryRequestState>()
   const recoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const prefixStabilityBySession = new Map<string, PrefixStabilityState>()
 
   const showRecoverySuccessToast = async (show: boolean, message: string): Promise<void> => {
     if (!show) {
@@ -132,6 +148,26 @@ export function createContextWindowGovernorHook(
       true,
       `Aggressive output truncation removed ${result.truncatedCount} outputs (~${estimatedTokensRemoved} tokens); summarize skipped.`
     )
+  }
+
+  const showPrefixStabilityBlockedToast = async (
+    show: boolean,
+    decision: PrefixStabilityDecision
+  ): Promise<void> => {
+    if (!show) {
+      return
+    }
+
+    await ctx.client.tui
+      .showToast({
+        body: {
+          title: "Prefix Stability Guard",
+          message: decision.reason,
+          variant: "warning",
+          duration: 3000,
+        },
+      })
+      .catch(() => undefined)
   }
 
   const resumeAfterRecoverySkip = async (sessionID: string): Promise<void> => {
@@ -210,6 +246,126 @@ export function createContextWindowGovernorHook(
     if (timer) {
       clearTimeout(timer)
       recoveryTimers.delete(sessionID)
+    }
+  }
+
+  const clearPrefixStabilityState = (sessionID: string): void => {
+    prefixStabilityBySession.delete(sessionID)
+  }
+
+  const getPrefixStabilityState = (sessionID: string, now: number): PrefixStabilityState => {
+    const existing = prefixStabilityBySession.get(sessionID)
+    if (!existing) {
+      const initial: PrefixStabilityState = {
+        windowStartedAt: now,
+        destructiveRecoveries: 0,
+        cooldownUntil: 0,
+      }
+      prefixStabilityBySession.set(sessionID, initial)
+      return initial
+    }
+
+    if (now - existing.windowStartedAt >= config.prefixStability.windowMs) {
+      existing.windowStartedAt = now
+      existing.destructiveRecoveries = 0
+      existing.cooldownUntil = 0
+    }
+
+    return existing
+  }
+
+  const isHardLimitBypass = (request: RecoveryRequestState): boolean => {
+    const ratio = config.prefixStability.hardLimitBypassRatio
+    if (ratio <= 0) {
+      return false
+    }
+
+    if (
+      typeof request.currentTokens !== "number" ||
+      typeof request.maxTokens !== "number" ||
+      request.currentTokens <= 0 ||
+      request.maxTokens <= 0
+    ) {
+      return false
+    }
+
+    return request.currentTokens / request.maxTokens >= ratio
+  }
+
+  const evaluatePrefixStabilityBudget = (
+    sessionID: string,
+    request: RecoveryRequestState,
+    now: number
+  ): PrefixStabilityDecision => {
+    if (config.prefixStability.mode === "off") {
+      return {
+        allowed: true,
+        reason: "prefix stability disabled",
+        bypassedByHardLimit: false,
+      }
+    }
+
+    if (isHardLimitBypass(request)) {
+      return {
+        allowed: true,
+        reason: "hard limit bypass",
+        bypassedByHardLimit: true,
+      }
+    }
+
+    const budget = getPrefixStabilityState(sessionID, now)
+    const maxRecoveries = Math.max(0, config.prefixStability.maxDestructiveRecoveries)
+
+    if (maxRecoveries === 0) {
+      return {
+        allowed: false,
+        reason: "destructive recovery blocked by prefix stability budget",
+        nextAttemptAt: now + Math.max(1000, config.prefixStability.cooldownMs),
+        bypassedByHardLimit: false,
+      }
+    }
+
+    if (budget.destructiveRecoveries < maxRecoveries) {
+      return {
+        allowed: true,
+        reason: "within prefix stability budget",
+        bypassedByHardLimit: false,
+      }
+    }
+
+    if (
+      config.prefixStability.mode === "balanced" &&
+      now >= budget.cooldownUntil &&
+      budget.cooldownUntil > 0
+    ) {
+      budget.destructiveRecoveries = Math.max(0, maxRecoveries - 1)
+      budget.cooldownUntil = 0
+      return {
+        allowed: true,
+        reason: "balanced mode cooldown elapsed",
+        bypassedByHardLimit: false,
+      }
+    }
+
+    return {
+      allowed: false,
+      reason: "prefix stability cooldown active; delaying destructive recovery",
+      nextAttemptAt: Math.max(now + 1000, budget.cooldownUntil || now + config.prefixStability.cooldownMs),
+      bypassedByHardLimit: false,
+    }
+  }
+
+  const recordDestructiveRecovery = (sessionID: string, now: number): void => {
+    if (config.prefixStability.mode === "off") {
+      return
+    }
+
+    const budget = getPrefixStabilityState(sessionID, now)
+    budget.destructiveRecoveries += 1
+
+    const maxRecoveries = Math.max(0, config.prefixStability.maxDestructiveRecoveries)
+    if (budget.destructiveRecoveries >= maxRecoveries) {
+      budget.cooldownUntil = now + Math.max(0, config.prefixStability.cooldownMs)
     }
   }
 
@@ -396,6 +552,21 @@ export function createContextWindowGovernorHook(
         modelID = modelID ?? latestSnapshot?.modelID
       }
 
+      const prefixDecision = evaluatePrefixStabilityBudget(
+        sessionID,
+        requestState,
+        now
+      )
+      if (!prefixDecision.allowed) {
+        requestState.nextAttemptAt = prefixDecision.nextAttemptAt ?? (now + 1000)
+        await showPrefixStabilityBlockedToast(showToast, prefixDecision)
+        stateMachine.markRecoveryPending(sessionID)
+        scheduleRecoveryRetry(sessionID)
+        return
+      }
+
+      recordDestructiveRecovery(sessionID, now)
+
       const succeeded = await runRecoveryCompaction(
         {
           client: ctx.client,
@@ -445,6 +616,16 @@ export function createContextWindowGovernorHook(
     if (!snapshot) {
       return
     }
+
+    log("[context-window-governor] cache usage snapshot", {
+      sessionID: input.sessionID,
+      providerID: snapshot.providerID,
+      modelID: snapshot.modelID,
+      cacheReadTokens: snapshot.cacheReadTokens,
+      cacheWriteTokens: snapshot.cacheWriteTokens,
+      cacheHitRatio: snapshot.cacheHitRatio,
+      usageConfidence: snapshot.usageConfidence,
+    })
 
     const signal = stateMachine.onUsage(input.sessionID, snapshot.usageRatio)
 
@@ -511,6 +692,7 @@ export function createContextWindowGovernorHook(
       stateMachine.clearSession(sessionID)
       leaseManager.clear(sessionID)
       clearRecoveryState(sessionID)
+      clearPrefixStabilityState(sessionID)
       probe.clearSession(sessionID)
       return
     }
@@ -524,6 +706,7 @@ export function createContextWindowGovernorHook(
       stateMachine.onCompactionFinished(sessionID)
       probe.clearSession(sessionID)
       clearRecoveryState(sessionID)
+      clearPrefixStabilityState(sessionID)
       return
     }
 

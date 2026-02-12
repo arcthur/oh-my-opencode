@@ -117,7 +117,8 @@
           "sisyphus-junior-notepad",
           "tmux-parallel-agents",
           "swarm-agent",
-          "anthropic-effort"
+          "anthropic-effort",
+          "cache-policy"
         ]
       }
     },
@@ -2173,6 +2174,302 @@
                   }
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "cache_strategy": {
+      "type": "object",
+      "properties": {
+        "observability": {
+          "default": {
+            "enabled": true,
+            "emit_log": true
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "emit_log": {
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        },
+        "provider_policy": {
+          "default": {
+            "mode": "observe",
+            "inject_when_missing": false,
+            "rollout": {
+              "enabled": false,
+              "stage": 0,
+              "require_thresholds": true
+            }
+          },
+          "type": "object",
+          "properties": {
+            "mode": {
+              "default": "observe",
+              "type": "string",
+              "enum": [
+                "off",
+                "observe",
+                "enforce"
+              ]
+            },
+            "inject_when_missing": {
+              "default": false,
+              "type": "boolean"
+            },
+            "providers": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "default": "inherit",
+                    "type": "string",
+                    "enum": [
+                      "inherit",
+                      "off",
+                      "observe",
+                      "enforce"
+                    ]
+                  }
+                }
+              }
+            },
+            "capabilities": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "supports_cache_policy": {
+                    "type": "boolean"
+                  },
+                  "preferred_option_key": {
+                    "type": "string"
+                  },
+                  "option_aliases": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "rollout": {
+              "default": {
+                "enabled": false,
+                "stage": 0,
+                "require_thresholds": true
+              },
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "stage": {
+                  "default": 0,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 6
+                },
+                "require_thresholds": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "providers": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "anthropic",
+                      "google",
+                      "minimax",
+                      "zai",
+                      "moonshot"
+                    ]
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "approved": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "threshold": {
+                        "default": {
+                          "enabled": false,
+                          "min_cache_hit_ratio": 0,
+                          "max_error_rate": 1,
+                          "max_p95_latency_ms": 600000,
+                          "min_samples": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "min_cache_hit_ratio": {
+                            "default": 0,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "max_error_rate": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "max_p95_latency_ms": {
+                            "default": 600000,
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 600000
+                          },
+                          "min_samples": {
+                            "default": 0,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          }
+                        }
+                      },
+                      "observed": {
+                        "type": "object",
+                        "properties": {
+                          "cache_hit_ratio": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "error_rate": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "p95_latency_ms": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 600000
+                          },
+                          "samples": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "prefix_stability": {
+          "default": {
+            "mode": "off",
+            "max_destructive_recoveries": 2,
+            "window_ms": 600000,
+            "cooldown_ms": 120000,
+            "hard_limit_bypass_ratio": 1
+          },
+          "type": "object",
+          "properties": {
+            "mode": {
+              "default": "off",
+              "type": "string",
+              "enum": [
+                "off",
+                "balanced",
+                "strict"
+              ]
+            },
+            "max_destructive_recoveries": {
+              "default": 2,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 20
+            },
+            "window_ms": {
+              "default": 600000,
+              "type": "number",
+              "minimum": 1000,
+              "maximum": 86400000
+            },
+            "cooldown_ms": {
+              "default": 120000,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 86400000
+            },
+            "hard_limit_bypass_ratio": {
+              "default": 1,
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 2
+            }
+          }
+        },
+        "ledger": {
+          "default": {
+            "enabled": false
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "base_dir": {
+              "type": "string"
+            }
+          }
+        },
+        "compiler": {
+          "default": {
+            "enabled": false,
+            "max_prefix_segments": 64,
+            "max_prefix_chars": 32000,
+            "separator": "\n\n---\n\n"
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "max_prefix_segments": {
+              "default": 64,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "max_prefix_chars": {
+              "default": 32000,
+              "type": "number",
+              "minimum": 256,
+              "maximum": 200000
+            },
+            "separator": {
+              "default": "\n\n---\n\n",
+              "type": "string"
             }
           }
         }

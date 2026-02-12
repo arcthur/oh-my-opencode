@@ -60,3 +60,4 @@ export { createConditionalRulesHooks, clearConditionalRulesCache, reloadRules, t
 export { createSessionHandoffHook, clearAllSessionStates, type SessionHandoffHookContext } from "../features/session-handoff";
 export { createSwarmAgentHook, type SwarmAgentHook, type SwarmAgentHookOptions } from "./swarm-agent";
 export { createAnthropicEffortHook } from "./anthropic-effort";
+export { createCachePolicyHook, type ProviderCachePolicyDecision } from "./cache-policy";

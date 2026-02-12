@@ -1,10 +1,5 @@
-import { describe, expect, test, mock } from "bun:test"
-
-mock.module("../../shared/slash-command-catalog", () => ({
-  discoverSlashCommandsSync: () => [],
-}))
-
-const { executeSlashCommand } = await import("./executor")
+import { describe, expect, test } from "bun:test"
+import { executeSlashCommand } from "./executor"
 
 describe("executeSlashCommand", () => {
   test("returns marketplace plugin guidance for namespaced commands", async () => {
@@ -13,6 +8,8 @@ describe("executeSlashCommand", () => {
       command: "daplug:run-prompt",
       args: "",
       raw: "/daplug:run-prompt",
+    }, {
+      discoverCommands: () => [],
     })
 
     // #then
@@ -28,6 +25,8 @@ describe("executeSlashCommand", () => {
       command: "unknown-command",
       args: "",
       raw: "/unknown-command",
+    }, {
+      discoverCommands: () => [],
     })
 
     // #then

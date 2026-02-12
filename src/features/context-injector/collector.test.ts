@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from "bun:test"
+import { describe, it, expect, beforeEach, mock } from "bun:test"
 import { ContextCollector } from "./collector"
 import type { ContextPriority, ContextSourceType } from "./types"
+import { contextLedgerStore } from "../context-ledger/store"
 
 describe("ContextCollector", () => {
   let collector: ContextCollector
@@ -402,6 +403,71 @@ describe("ContextCollector", () => {
 
       // then
       expect(pending.entries.map((e) => `${e.source}:${e.id}`)).toEqual(["keyword-detector:ok"])
+    })
+  })
+
+  describe("ledger immutability policy", () => {
+    it("defaults dynamic sources to mutable segments", () => {
+      // #given
+      const sessionID = "ses_ledger_mutable_default"
+      const appendSpy = mock(() => null)
+      const originalAppend = contextLedgerStore.append
+      ;(contextLedgerStore as unknown as { append: typeof appendSpy }).append = appendSpy
+      collector.configureLedger({ enabled: true })
+
+      try {
+        // #when
+        collector.register(sessionID, {
+          id: "ctx",
+          source: "keyword-detector",
+          content: "dynamic",
+        })
+
+        // #then
+        expect(appendSpy).toHaveBeenCalledTimes(1)
+        const payload = appendSpy.mock.calls[0]?.[0] as { immutable?: boolean } | undefined
+        expect(payload?.immutable).toBe(false)
+      } finally {
+        collector.configureLedger({ enabled: false })
+        ;(contextLedgerStore as unknown as { append: typeof originalAppend }).append =
+          originalAppend
+      }
+    })
+
+    it("treats oncePerSession context as immutable unless explicitly overridden", () => {
+      // #given
+      const sessionID = "ses_ledger_immutable_override"
+      const appendSpy = mock(() => null)
+      const originalAppend = contextLedgerStore.append
+      ;(contextLedgerStore as unknown as { append: typeof appendSpy }).append = appendSpy
+      collector.configureLedger({ enabled: true })
+
+      try {
+        // #when
+        collector.register(sessionID, {
+          id: "ctx-1",
+          source: "keyword-detector",
+          content: "once",
+          oncePerSession: true,
+        })
+        collector.register(sessionID, {
+          id: "ctx-2",
+          source: "rules-injector",
+          content: "stable but explicit mutable",
+          immutable: false,
+        })
+
+        // #then
+        expect(appendSpy).toHaveBeenCalledTimes(2)
+        const first = appendSpy.mock.calls[0]?.[0] as { immutable?: boolean } | undefined
+        const second = appendSpy.mock.calls[1]?.[0] as { immutable?: boolean } | undefined
+        expect(first?.immutable).toBe(true)
+        expect(second?.immutable).toBe(false)
+      } finally {
+        collector.configureLedger({ enabled: false })
+        ;(contextLedgerStore as unknown as { append: typeof originalAppend }).append =
+          originalAppend
+      }
     })
   })
 })

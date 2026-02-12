@@ -51,6 +51,7 @@ import {
   createSessionHandoffHook,
   createSwarmAgentHook,
   createAnthropicEffortHook,
+  createCachePolicyHook,
   createContinuationControl,
   type ContinuationIntent,
 } from "./hooks";
@@ -82,6 +83,7 @@ import { createHandoffSummarizer } from "./features/session-handoff";
 import {
   contextCollector,
   createContextInjectorMessagesTransformHook,
+  clearPrefixFingerprintForSession,
 } from "./features/context-injector";
 import { createDefaultUserMemorySummarizer, createUserMemoryHook } from "./features/user-memory";
 import { createOrgMemoryHook } from "./features/org-memory";
@@ -360,6 +362,21 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
               },
             }
           : undefined,
+        prefixStability: pluginConfig.cache_strategy?.prefix_stability
+          ? {
+              mode: pluginConfig.cache_strategy.prefix_stability.mode,
+              maxDestructiveRecoveries:
+                pluginConfig.cache_strategy.prefix_stability
+                  .max_destructive_recoveries,
+              windowMs:
+                pluginConfig.cache_strategy.prefix_stability.window_ms,
+              cooldownMs:
+                pluginConfig.cache_strategy.prefix_stability.cooldown_ms,
+              hardLimitBypassRatio:
+                pluginConfig.cache_strategy.prefix_stability
+                  .hard_limit_bypass_ratio,
+            }
+          : undefined,
       })
     : null;
   const sessionStateRepair = isHookEnabled("session-state-repair")
@@ -431,6 +448,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const anthropicEffort = isHookEnabled("anthropic-effort")
     ? createAnthropicEffortHook()
     : null;
+  const cachePolicy = isHookEnabled("cache-policy")
+    ? createCachePolicyHook(pluginConfig.cache_strategy)
+    : null;
   const claudeCodeBridgeEnabled = isClaudeCodeBridgeEnabled({
     disabledHooks,
     claudeCodeHooksEnabled: pluginConfig.claude_code?.hooks,
@@ -470,7 +490,18 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createKeywordDetectorHook(ctx, contextCollector)
     : null;
   const contextInjectorMessagesTransform =
-    createContextInjectorMessagesTransformHook(contextCollector);
+    createContextInjectorMessagesTransformHook(contextCollector, {
+      compiler: pluginConfig.cache_strategy?.compiler
+        ? {
+            enabled: pluginConfig.cache_strategy.compiler.enabled,
+            maxPrefixSegments:
+              pluginConfig.cache_strategy.compiler.max_prefix_segments,
+            maxPrefixChars:
+              pluginConfig.cache_strategy.compiler.max_prefix_chars,
+            separator: pluginConfig.cache_strategy.compiler.separator,
+          }
+        : { enabled: false },
+    });
 
   // Configure context budget
   if (pluginConfig.context_budget) {
@@ -483,13 +514,20 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     })
   }
 
+  contextCollector.configureLedger({
+    enabled: pluginConfig.cache_strategy?.ledger?.enabled ?? false,
+    baseDir: pluginConfig.cache_strategy?.ledger?.base_dir,
+  })
+
   // Register feature handlers with session coordinator
   sessionStateCoordinator.registerFeature("context-collector", {
     onSessionDeleted(sessionID) {
       contextCollector.clearSession(sessionID)
+      clearPrefixFingerprintForSession(sessionID)
     },
     onSessionCompacted(sessionID) {
       contextCollector.resetOncePerSession(sessionID)
+      clearPrefixFingerprintForSession(sessionID)
     },
   })
 
@@ -1052,6 +1090,16 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       const model = input.model as { providerID?: string; modelID?: string }
       const message = input.message as { variant?: string }
       await anthropicEffort?.["chat.params"]?.(
+        {
+          ...input,
+          agent: { name: input.agent },
+          model,
+          provider: input.provider as { id: string },
+          message,
+        },
+        output,
+      )
+      await cachePolicy?.["chat.params"]?.(
         {
           ...input,
           agent: { name: input.agent },

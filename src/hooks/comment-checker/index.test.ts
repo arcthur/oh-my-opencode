@@ -1,23 +1,14 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { contextBudgetArbiter } from "../../features/context-budget"
+import { createCommentCheckerHooks } from "./index"
 
 const mockRunCommentChecker = mock(async () => ({ hasComments: false, message: "" }))
 const mockGetCommentCheckerPath = mock(async () => null as string | null)
 const mockStartBackgroundInit = mock(() => {})
 
-mock.module("./cli", () => ({
-  runCommentChecker: mockRunCommentChecker,
-  getCommentCheckerPath: mockGetCommentCheckerPath,
-  startBackgroundInit: mockStartBackgroundInit,
-}))
-
-mock.module("../../features/context-budget", () => ({
-  appendBudgetedOutput: mock(() => ({ accepted: false })),
-}))
-
-const { createCommentCheckerHooks } = await import("./index")
-
 describe("createCommentCheckerHooks", () => {
   beforeEach(() => {
+    contextBudgetArbiter.resetForTesting()
     mockRunCommentChecker.mockClear()
     mockGetCommentCheckerPath.mockClear()
     mockStartBackgroundInit.mockClear()
@@ -26,7 +17,11 @@ describe("createCommentCheckerHooks", () => {
 
   test("does not crash when output.output is undefined", async () => {
     // #given
-    const hooks = createCommentCheckerHooks()
+    const hooks = createCommentCheckerHooks(undefined, {
+      runCommentChecker: mockRunCommentChecker,
+      getCommentCheckerPath: mockGetCommentCheckerPath,
+      startBackgroundInit: mockStartBackgroundInit,
+    })
     await hooks["tool.execute.before"](
       { tool: "Write", sessionID: "ses_1", callID: "call_1" },
       { args: { filePath: "/tmp/test.ts", content: "const a = 1" } },

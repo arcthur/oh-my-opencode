@@ -1,15 +1,18 @@
 import type { ContextWindowSnapshot } from "./types"
+import { extractCacheUsageSnapshot } from "../../features/cache-observability/probe"
 
 interface AssistantMessageInfo {
   role: "assistant"
   providerID: string
   modelID?: string
-  tokens: {
-    input: number
-    output: number
-    reasoning: number
-    cache: { read: number; write: number }
+  tokens?: {
+    input?: number
+    output?: number
+    reasoning?: number
+    cache?: { read?: number; write?: number }
   }
+  usage?: Record<string, unknown>
+  usageMetadata?: Record<string, unknown>
 }
 
 interface MessageWrapper {
@@ -71,14 +74,12 @@ export function createContextWindowProbe(deps: ProbeDeps): ContextWindowProbe {
     const modelID = typeof lastInfo.modelID === "string" ? lastInfo.modelID : undefined
     const limitTokens = deps.resolveLimit({ providerID, modelID })
 
-    const tokens = (lastInfo as { tokens?: unknown }).tokens as
-      | AssistantMessageInfo["tokens"]
-      | undefined
-    const inputTokens = typeof tokens?.input === "number" ? tokens.input : 0
-    const cacheReadTokens = typeof tokens?.cache?.read === "number" ? tokens.cache.read : 0
-    const outputTokens = typeof tokens?.output === "number" ? tokens.output : 0
-    const usedInputCacheTokens = inputTokens + cacheReadTokens
-    const usedTotalTokens = usedInputCacheTokens + outputTokens
+    const usage = extractCacheUsageSnapshot(lastInfo)
+    const usedInputCacheTokens = usage.effectiveInputTokens
+    const usedTotalTokens =
+      usage.totalTokens > 0
+        ? usage.totalTokens
+        : usage.effectiveInputTokens + usage.outputTokens
     const usageRatio = limitTokens > 0 ? usedInputCacheTokens / limitTokens : 0
 
     const snapshot: ContextWindowSnapshot = {
@@ -88,6 +89,10 @@ export function createContextWindowProbe(deps: ProbeDeps): ContextWindowProbe {
       limitTokens,
       usedInputCacheTokens,
       usedTotalTokens,
+      cacheReadTokens: usage.cacheReadTokens,
+      cacheWriteTokens: usage.cacheWriteTokens,
+      cacheHitRatio: usage.cacheHitRatio,
+      usageConfidence: usage.confidence,
       usageRatio,
       capturedAt: Date.now(),
       source: "session.messages",

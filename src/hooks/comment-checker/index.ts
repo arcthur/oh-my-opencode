@@ -24,6 +24,18 @@ const PENDING_CALL_TTL = 60_000
 let cliPathPromise: Promise<string | null> | null = null
 let cleanupIntervalStarted = false
 
+export interface CommentCheckerDependencies {
+  runCommentChecker: typeof runCommentChecker
+  getCommentCheckerPath: typeof getCommentCheckerPath
+  startBackgroundInit: typeof startBackgroundInit
+}
+
+const DEFAULT_COMMENT_CHECKER_DEPENDENCIES: CommentCheckerDependencies = {
+  runCommentChecker,
+  getCommentCheckerPath,
+  startBackgroundInit,
+}
+
 function cleanupOldPendingCalls(): void {
   const now = Date.now()
   for (const [callID, call] of pendingCalls) {
@@ -33,7 +45,15 @@ function cleanupOldPendingCalls(): void {
   }
 }
 
-export function createCommentCheckerHooks(config?: CommentCheckerConfig) {
+export function createCommentCheckerHooks(
+  config?: CommentCheckerConfig,
+  deps: Partial<CommentCheckerDependencies> = {}
+) {
+  const runtimeDeps: CommentCheckerDependencies = {
+    ...DEFAULT_COMMENT_CHECKER_DEPENDENCIES,
+    ...deps,
+  }
+
   debugLog("createCommentCheckerHooks called", { config })
 
   if (!cleanupIntervalStarted) {
@@ -42,8 +62,8 @@ export function createCommentCheckerHooks(config?: CommentCheckerConfig) {
   }
   
   // Start background CLI initialization (may trigger lazy download)
-  startBackgroundInit()
-  cliPathPromise = getCommentCheckerPath()
+  runtimeDeps.startBackgroundInit()
+  cliPathPromise = runtimeDeps.getCommentCheckerPath()
   cliPathPromise.then(path => {
     debugLog("CLI path resolved:", path || "disabled (no binary)")
   }).catch(err => {
@@ -129,7 +149,14 @@ export function createCommentCheckerHooks(config?: CommentCheckerConfig) {
         
         // CLI mode only
         debugLog("using CLI:", cliPath)
-        await processWithCli(input, pendingCall, output, cliPath, config?.custom_prompt)
+        await processWithCli(
+          input,
+          pendingCall,
+          output,
+          cliPath,
+          config?.custom_prompt,
+          runtimeDeps.runCommentChecker
+        )
       } catch (err) {
         debugLog("tool.execute.after failed:", err)
       }
@@ -142,7 +169,8 @@ async function processWithCli(
   pendingCall: PendingCall,
   output: { output: string | undefined },
   cliPath: string,
-  customPrompt?: string
+  customPrompt?: string,
+  runCommentCheckerFn: typeof runCommentChecker = runCommentChecker
 ): Promise<void> {
   debugLog("using CLI mode with path:", cliPath)
   
@@ -161,7 +189,7 @@ async function processWithCli(
     },
   }
   
-  const result = await runCommentChecker(hookInput, cliPath, customPrompt)
+  const result = await runCommentCheckerFn(hookInput, cliPath, customPrompt)
   
   if (result.hasComments && result.message) {
     debugLog("CLI detected comments, appending message")

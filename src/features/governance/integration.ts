@@ -460,6 +460,10 @@ export interface PostToolGovernanceInput {
   success: boolean
   durationMs?: number
   tokensUsed?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  cacheHitRatio?: number
+  prefixFingerprint?: string
   cwd: string
   /** Governance config from user settings */
   config?: Partial<GovernanceConfig>
@@ -510,6 +514,10 @@ export async function executePostToolGovernance(
         status,
         resources: {
           tokensUsed: input.tokensUsed,
+          cacheReadTokens: input.cacheReadTokens,
+          cacheWriteTokens: input.cacheWriteTokens,
+          cacheHitRatio: input.cacheHitRatio,
+          prefixFingerprint: input.prefixFingerprint,
         },
       })
       session.activeToolNodes.delete(input.toolUseId)

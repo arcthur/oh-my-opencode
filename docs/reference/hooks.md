@@ -100,11 +100,13 @@ sisyphus-junior-notepad
 tmux-parallel-agents
 swarm-agent
 anthropic-effort
+cache-policy
 unstable-agent-watchdog
 ```
 
 Notes:
 - `anthropic-effort` is executed on `chat.params` outside runtime dispatcher ordering.
+- `cache-policy` is executed on `chat.params` outside runtime dispatcher ordering.
 - `task-resume-info` is an internal node (`internal:task-resume-info`) and is intentionally not part of `HookNameSchema`.
 
 ### Reserved-but-not-wired names
@@ -143,6 +145,19 @@ Execution order (simplified to plugin-relevant steps):
 13. Pre-completion verification (if enabled)
 14. `continuation-stop-guard` (if enabled)
 15. Ralph loop template detection (if enabled)
+
+### `chat.params`
+
+Execution order:
+
+1. `anthropic-effort` (if enabled)
+2. `cache-policy` (if enabled)
+
+Notes:
+
+- `chat.params` nodes are executed directly in `src/index.ts` and are intentionally outside `EVENT_TOTAL_ORDER` runtime dispatcher wiring.
+- `cache-policy` performs observe/enforce decisioning and may mutate `output.options` only in enforce mode when provider capability + rollout gates allow it.
+- `cache-policy` remains hook-gated by `disabled_hooks` (`cache-policy`) even though it is not part of runtime dispatcher ordering.
 
 ### `user.prompt.submit`
 
