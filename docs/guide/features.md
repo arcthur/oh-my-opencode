@@ -351,6 +351,9 @@ OpenCode runtime wiring uses OpenCode lifecycle events. For source of truth, see
 |-------|------|-----|
 | **`chat.message`** | User message is accepted into runtime | Transform message, trigger slash workflows, inject/route planning controls |
 | **`user.prompt.submit`** | Prompt submit boundary | Memory/session handoff injection |
+| **`command.execute.before`** | Before slash command execution | Pre-handle slash command invocation (currently auto-slash command bridge) |
+| **`chat.headers`** | Outbound chat request header stage | Add provider/session-specific headers (for example Copilot Anthropic beta token) |
+| **`shell.env`** | Shell environment assembly stage | Inject non-interactive environment guards for shell tools |
 | **`tool.execute.before`** | Before tool execution | Validate/guard/modify tool input |
 | **`tool.execute.after`** | After tool execution | Truncate output, add guidance, inject context |
 | **`event`** | Session lifecycle stream (`session.*`, `message.*`, etc.) | Notifications, continuation, runtime state repair |
@@ -358,7 +361,9 @@ OpenCode runtime wiring uses OpenCode lifecycle events. For source of truth, see
 | **`experimental.session.compacting`** | Compaction-time phase | Claude bridge `PreCompact`, compaction context injection |
 | **`chat.params`** | Model params phase | Provider/model parameter adjustment (e.g., effort tuning) |
 
-### Built-in Hooks
+### Built-in Hooks (Representative, Not Exhaustive)
+
+For the complete hook-name surface and exact ordering contract, see `docs/reference/hooks.md`.
 
 #### Context & Injection
 

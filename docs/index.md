@@ -45,6 +45,7 @@ Journeys are “how to accomplish X” guides that connect multiple subsystems a
 Reference pages are stable, “look it up quickly” docs:
 
 - Agents: `docs/reference/agents.md`
+- Commands: `docs/reference/commands.md`
 - Skills: `docs/reference/skills.md`
 - Tools: `docs/reference/tools.md`
 - TaskGraph: `docs/reference/task-graph.md`

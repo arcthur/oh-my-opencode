@@ -121,7 +121,7 @@ Runtime dispatcher uses the ordered runtime-node graph defined in `src/hooks/run
 Failure policy defaults:
 
 - `tool.execute.before`: `fail-closed`
-- `event`, `tool.execute.after`, `chat.message`, `experimental.session.compacting`: `fail-open`
+- All other runtime-dispatched events in `EVENT_TOTAL_ORDER`: `fail-open`
 - Per-node override is allowed via runtime node policy
 
 ### `chat.message`
@@ -151,6 +151,37 @@ Execution order:
 1. User memory
 2. Org memory
 3. Session handoff
+
+### `command.execute.before`
+
+Execution order:
+
+1. `auto-slash-command` command pre-handler (if runtime surface is available and hook is enabled)
+
+Notes:
+- This lifecycle surface is wired only when OpenCode version is at least `OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION`.
+- Current pipeline has a single runtime node for this event.
+
+### `chat.headers`
+
+Execution order:
+
+1. `internal:copilot-anthropic-beta:chat.headers` (GitHub Copilot provider + Anthropic/Copilot Claude model path)
+2. `internal:copilot-subagent-initiator:chat.headers` (GitHub Copilot provider + subagent session)
+
+Notes:
+- Both nodes are conditionally assembled in `src/index.ts`.
+- Current behavior is additive header mutation (`anthropic-beta` token append, `x-initiator=agent` for subagent requests).
+
+### `shell.env`
+
+Execution order:
+
+1. `internal:non-interactive-env:shell.env` (when non-interactive env support is enabled)
+
+Notes:
+- The hook merges predefined non-interactive env keys into `output.env`.
+- This lifecycle surface is wired only when OpenCode version is at least `OPENCODE_SHELL_ENV_HOOK_VERSION`.
 
 ### `tool.execute.before`
 
@@ -219,6 +250,7 @@ Execution order (high-level):
 23. Task resume info (always wired)
 24. Session handoff (if enabled)
 25. Swarm agent (if enabled)
+26. Output finalization (internal)
 
 ### `event`
 
