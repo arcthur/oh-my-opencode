@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, mock } from "bun:test"
 import { afterEach } from "bun:test"
 import { tmpdir } from "node:os"
 import type { PluginInput } from "@opencode-ai/plugin"
@@ -2032,6 +2032,45 @@ describe("BackgroundManager.pollRunningTasks message parsing", () => {
     expect(task.progress?.lastTool).toBe("bash")
     expect(task.progress?.lastMessage).toBe("working")
     expect(task.lastMsgCount).toBe(2)
+    manager.shutdown()
+  })
+})
+
+describe("BackgroundManager error cleanup", () => {
+  test("aborts running session when prompt dispatch fails", () => {
+    // #given
+    const abortSpy = mock(async () => ({}))
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        abort: abortSpy,
+      },
+    }
+    const manager = new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
+    const task: BackgroundTask = {
+      id: "task-error-cleanup",
+      sessionID: "session-error-cleanup",
+      parentSessionID: "parent-error-cleanup",
+      parentMessageID: "msg-error-cleanup",
+      description: "error cleanup",
+      prompt: "prompt",
+      agent: "explore",
+      status: "running",
+      startedAt: new Date(),
+      progress: {
+        toolCalls: 0,
+        lastUpdate: new Date(),
+      },
+    }
+    manager["state"].tasks.set(task.id, task)
+
+    // #when
+    manager["handleTaskError"](task, new Error("prompt timed out"))
+
+    // #then
+    expect(abortSpy).toHaveBeenCalledTimes(1)
+    expect(abortSpy).toHaveBeenCalledWith({ path: { id: "session-error-cleanup" } })
+    expect(task.status).toBe("interrupt")
     manager.shutdown()
   })
 })

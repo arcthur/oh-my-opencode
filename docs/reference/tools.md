@@ -57,7 +57,7 @@ The Oh-My-OpenCode plugin registers the following tools (in addition to any tool
 | Tool name | Implementation | Purpose |
 |---|---|---|
 | `background_output` | `src/tools/background-task/` | Poll background task output by `task_id` |
-| `background_cancel` | `src/tools/background-task/` | Cancel a background task by `task_id` |
+| `background_cancel` | `src/tools/background-task/` | Cancel a background task by `taskId` (or cancel all descendant tasks with `all=true`) |
 
 ### Local developer tools (builtinTools)
 
@@ -105,7 +105,7 @@ If both `category` and `subagent_type` are provided for a new task, the tool ret
 
 When `run_in_background=true`, the tool returns a plain-text summary that **MUST** include:
 
-- `Task ID: <task_id>` (for `background_output` / `background_cancel`)
+- `Task ID: <task_id>` (used as `task_id` in `background_output` and `taskId` in `background_cancel`)
 - A `<task_metadata>` block containing `session_id: <session_id>`
 
 Downstream automation relies on `<task_metadata>` for continuation.
@@ -117,6 +117,17 @@ When `run_in_background=false`, the tool blocks until the delegated session fini
 - A human-readable completion header (e.g., `Task completed in ...` / `Task continued and completed in ...`)
 - A delimiter section (`---`) followed by the last assistant text (or an explicit `(No text output)` marker)
 - A `<task_metadata>` block containing `session_id: <session_id>`
+
+### Sync execution lifecycle (managed sync)
+
+For new tasks with `run_in_background=false`, the implementation **MUST** use `BackgroundManager.launch(...)` and wait for the managed task lifecycle to reach terminal state.
+The legacy direct sync fallback (`session.create` + foreground prompt loop) is not part of the current contract.
+
+Implications:
+
+- Sync delegation is internally manager-tracked (with a background task id), even though the user-facing sync response does not expose that internal task id.
+- Managed sync launch uses `silent` mode, so parent reminder prompts/toasts are not emitted for that internal task path.
+- On sync timeout, user abort, or unexpected failure, the runtime SHOULD call manager-level cancellation (`cancelTask`) so queued/running state and session abort behavior converge with `background_cancel`.
 
 ### Error semantics
 
@@ -140,7 +151,29 @@ The caller still receives a synchronous, final output, but the underlying execut
 If you launch a background task, you SHOULD:
 
 - Poll with `background_output({ task_id: "..." })` until completion, and/or
-- Cancel with `background_cancel({ task_id: "..." })` if the task is stuck.
+- Cancel with `background_cancel({ taskId: "..." })` if the task is stuck.
+- Use `background_cancel({ all: true })` to cancel all running/pending descendant tasks under the current parent session.
+
+## Contract: `background_cancel`
+
+`background_cancel` controls running/pending tasks tracked by `BackgroundManager`.
+
+### Arguments
+
+- `taskId?: string`
+- `all?: boolean` (default: `false`)
+
+Callers **MUST** provide either:
+
+- `taskId` (single-task cancellation), or
+- `all=true` (bulk cancellation under current parent session scope)
+
+### Cancellation semantics
+
+- `pending` and `running` tasks are cancellable.
+- Terminal tasks (`completed`, `error`, `interrupt`, `cancelled`) are not cancellable and return a soft error message.
+- `all=true` targets descendant tasks of the calling parent session and cancels only those in `pending`/`running`.
+- Pending-task cancellation and running-task cancellation both converge on manager-level `cancelTask(...)`, ensuring consistent cleanup/notification behavior.
 
 ## Contract: `task_*` (TaskGraph V2)
 

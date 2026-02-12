@@ -171,7 +171,7 @@ export async function notifyParentSession(
   log("[background-agent] notifyParentSession called for task:", task.id)
 
   const toastManager = getTaskToastManager()
-  if (toastManager) {
+  if (toastManager && !task.silent) {
     toastManager.showCompletionToast({
       id: task.id,
       description: task.description,
@@ -269,7 +269,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     resolvedModel: model,
   })
 
-  if (!parentSessionAborted) {
+  if (!parentSessionAborted && !task.silent) {
     try {
       await client.session.prompt({
         path: { id: task.parentSessionID },
@@ -296,6 +296,10 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
         log("[background-agent] Failed to send notification:", error)
       }
     }
+  } else if (task.silent) {
+    log("[background-agent] Silent task completed; skipping parent notification prompt", {
+      taskId: task.id,
+    })
   }
 
   // Cleanup after retention period (track timer to prevent memory leaks)
@@ -313,7 +317,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
         state.completionTimers.delete(id)
         if (state.tasks.has(id)) {
           state.clearNotificationsForTask(id)
-          state.tasks.delete(id)
+          state.removeTask(id)
           log("[background-agent] Removed completed task from memory:", id)
         }
       }, TASK_CLEANUP_DELAY_MS)
@@ -326,7 +330,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
       state.completionTimers.delete(taskId)
       if (state.tasks.has(taskId)) {
         state.clearNotificationsForTask(taskId)
-        state.tasks.delete(taskId)
+        state.removeTask(taskId)
         log("[background-agent] Removed completed task from memory:", taskId)
       }
     }, TASK_CLEANUP_DELAY_MS)

@@ -70,6 +70,8 @@ export interface LaunchInput {
   model?: { providerID: string; modelID: string; variant?: string }
   skills?: string[]
   skillContent?: string
+  /** Allow plan-like agents to call delegate_task while running under background manager. */
+  allowDelegateTask?: boolean
   /** If true, skip parent session notification on completion (for internal orchestration tasks) */
   silent?: boolean
   /** Custom working directory (e.g., git worktree path) - overrides parent directory */

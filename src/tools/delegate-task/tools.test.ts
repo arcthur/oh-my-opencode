@@ -835,28 +835,33 @@ describe("sisyphus-task", () => {
       })
     })
 
-    test("DEFAULT_CATEGORIES variant passes to sync session.prompt WITHOUT userCategories", async () => {
+    test("DEFAULT_CATEGORIES variant passes to managed sync launch WITHOUT userCategories", async () => {
       // given - NO userCategories, testing DEFAULT_CATEGORIES for sync mode
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
+      let launchInput: any
 
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_sync_default_variant",
+            sessionID: "ses_sync_default_variant",
+            description: "sync default variant",
+            agent: "sisyphus-junior",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
 
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         model: { list: async () => [{ provider: "anthropic", id: "claude-opus-4-6" }] },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_sync_default_variant" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "done" }] }]
           }),
-          status: async () => ({ data: { "ses_sync_default_variant": { type: "idle" } } }),
         },
       }
 
@@ -885,12 +890,12 @@ describe("sisyphus-task", () => {
         toolContext
       )
 
-      // then - variant MUST be "max" from DEFAULT_CATEGORIES (passed as separate field)
-      expect(promptBody.model).toEqual({
+      // then - variant MUST be "max" from DEFAULT_CATEGORIES
+      expect(launchInput.model).toMatchObject({
         providerID: "anthropic",
         modelID: "claude-opus-4-6",
       })
-      expect(promptBody.variant).toBe("max")
+      expect(launchInput.model.variant).toBe("max")
     }, { timeout: 20000 })
   })
 
@@ -976,26 +981,27 @@ describe("sisyphus-task", () => {
       )).rejects.toThrow("IT IS HIGHLY RECOMMENDED")
     })
 
-    test("empty array [] is allowed and proceeds without skill content", async () => {
+    test("empty array [] is allowed and proceeds in managed sync mode", async () => {
       // given
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
       
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async () => ({
+          id: "bg_sync_no_skills",
+          sessionID: "ses_sync_no_skills",
+          description: "sync no skills",
+          agent: "sisyphus-junior",
+          status: "completed",
+        }),
+        cancelTask: async () => true,
+      }
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "test-session" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Done" }] }]
           }),
-          status: async () => ({ data: {} }),
         },
       }
       
@@ -1012,7 +1018,7 @@ describe("sisyphus-task", () => {
       }
       
       // when - empty array passed
-      await tool.execute(
+      const result = await tool.execute(
         {
           description: "Test task",
           prompt: "Do something",
@@ -1023,8 +1029,8 @@ describe("sisyphus-task", () => {
         toolContext
       )
       
-      // then - should proceed without system content from skills
-      expect(promptBody).toBeDefined()
+      // then - should proceed without error
+      expect(result).toContain("Task completed")
     }, { timeout: 20000 })
   })
 
@@ -1496,23 +1502,20 @@ describe("sisyphus-task", () => {
   })
 
   describe("sync mode new task (run_in_background=false)", () => {
-    test("sync mode prompt error returns error message immediately", async () => {
+    test("sync mode launch error returns error message immediately", async () => {
       // given
       const { createDelegateTask } = require("./tools")
       
       const mockManager = {
-        launch: async () => ({}),
+        launch: async () => {
+          throw new Error("JSON Parse error: Unexpected EOF")
+        },
+        cancelTask: async () => true,
       }
       
       const mockClient = {
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_sync_error_test" } }),
-          prompt: async () => {
-            throw new Error("JSON Parse error: Unexpected EOF")
-          },
           messages: async () => ({ data: [] }),
-          status: async () => ({ data: {} }),
         },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         app: {
@@ -1545,7 +1548,7 @@ describe("sisyphus-task", () => {
       )
       
       // then - should return detailed error message with args and stack trace
-      expect(result).toContain("Send prompt failed")
+      expect(result).toContain("Execute task failed")
       expect(result).toContain("JSON Parse error")
       expect(result).toContain("**Arguments**:")
       expect(result).toContain("**Stack Trace**:")
@@ -1557,14 +1560,18 @@ describe("sisyphus-task", () => {
       const { createDelegateTask } = require("./tools")
       
       const mockManager = {
-        launch: async () => ({}),
+        launch: async () => ({
+          id: "bg_sync_success",
+          sessionID: "ses_sync_success",
+          description: "Sync success",
+          agent: "sisyphus-junior",
+          status: "completed",
+        }),
+        cancelTask: async () => true,
       }
       
       const mockClient = {
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_sync_success" } }),
-          prompt: async () => ({ data: {} }),
           messages: async () => ({
             data: [
               {
@@ -1610,6 +1617,90 @@ describe("sisyphus-task", () => {
       expect(result).toContain("Task completed")
     }, { timeout: 20000 })
 
+    test("sync mode routes through background manager lifecycle", async () => {
+      // given
+      const { createDelegateTask } = require("./tools")
+      const launchInputCapture: Array<Record<string, unknown>> = []
+      const managedTask = {
+        id: "bg_sync_managed",
+        sessionID: "ses_sync_managed",
+        parentSessionID: "parent-session",
+        parentMessageID: "parent-message",
+        description: "Managed sync task",
+        prompt: "Do managed sync",
+        agent: "sisyphus-junior",
+        status: "running",
+        startedAt: new Date(),
+      } as any
+
+      const mockManager = {
+        launch: mock(async (input: Record<string, unknown>) => {
+          launchInputCapture.push(input)
+          setTimeout(() => {
+            managedTask.status = "completed"
+            managedTask.completedAt = new Date()
+          }, 20)
+          return managedTask
+        }),
+        cancelTask: mock(async () => true),
+      }
+
+      const mockClient = {
+        session: {
+          get: async () => ({ data: { directory: "/project" } }),
+          create: async () => {
+            throw new Error("legacy sync create should not be called")
+          },
+          prompt: async () => {
+            throw new Error("legacy sync prompt should not be called")
+          },
+          messages: async () => ({
+            data: [
+              {
+                info: { role: "assistant", time: { created: Date.now() } },
+                parts: [{ type: "text", text: "Managed sync task completed successfully" }],
+              },
+            ],
+          }),
+          status: async () => ({ data: {} }),
+        },
+        config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+        app: {
+          agents: async () => ({ data: [{ name: "ultrabrain", mode: "subagent" }] }),
+        },
+      }
+
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+      })
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+
+      // when
+      const result = await tool.execute(
+        {
+          description: "Managed sync test",
+          prompt: "Do managed sync",
+          category: "ultrabrain",
+          run_in_background: false,
+          load_skills: ["git-master"],
+        },
+        toolContext
+      )
+
+      // then
+      expect(mockManager.launch).toHaveBeenCalledTimes(1)
+      expect(launchInputCapture[0]?.silent).toBe(true)
+      expect(result).toContain("Managed sync task completed successfully")
+      expect(result).toContain("Task completed")
+    }, { timeout: 20000 })
+
     test("sync mode tolerates transient status fetch failure during polling", async () => {
       // given
       const { createDelegateTask } = require("./tools")
@@ -1620,23 +1711,26 @@ describe("sisyphus-task", () => {
         MAX_POLL_TIME_MS: 1000,
       })
 
-      let statusCallCount = 0
+      const managedTask = {
+        id: "bg_sync_transient_status",
+        sessionID: "ses_sync_transient_status",
+        description: "Transient status poll",
+        agent: "sisyphus-junior",
+        status: "running",
+      } as any
       const mockManager = {
-        launch: async () => ({}),
+        launch: async () => {
+          setTimeout(() => {
+            managedTask.status = "completed"
+            managedTask.completedAt = new Date()
+          }, 20)
+          return managedTask
+        },
+        cancelTask: async () => true,
       }
 
       const mockClient = {
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_sync_transient_status" } }),
-          prompt: async () => ({ data: {} }),
-          status: async () => {
-            statusCallCount++
-            if (statusCallCount === 1) {
-              throw new Error("temporary status transport error")
-            }
-            return { data: { "ses_sync_transient_status": { type: "idle" } } }
-          },
           messages: async () => ({
             data: [
               { info: { id: "msg_001", role: "user", time: { created: 1000 } }, parts: [{ type: "text", text: "Input" }] },
@@ -1681,7 +1775,6 @@ describe("sisyphus-task", () => {
       expect(result).toContain("Task completed")
       expect(result).toContain("Recovered result after transient status error")
       expect(result).not.toContain("Execute task failed")
-      expect(statusCallCount).toBeGreaterThanOrEqual(2)
     }, { timeout: 10000 })
 
     test("sync mode agent not found returns helpful error", async () => {
@@ -1689,18 +1782,20 @@ describe("sisyphus-task", () => {
       const { createDelegateTask } = require("./tools")
       
       const mockManager = {
-        launch: async () => ({}),
+        launch: async () => ({
+          id: "bg_sync_agent_not_found",
+          sessionID: "ses_agent_notfound",
+          description: "Agent not found test",
+          agent: "sisyphus-junior",
+          status: "error",
+          error: "Agent \"sisyphus-junior\" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.",
+        }),
+        cancelTask: async () => true,
       }
       
       const mockClient = {
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_agent_notfound" } }),
-          prompt: async () => {
-            throw new Error("Cannot read property 'name' of undefined agent.name")
-          },
           messages: async () => ({ data: [] }),
-          status: async () => ({ data: {} }),
         },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         app: {
@@ -1740,21 +1835,26 @@ describe("sisyphus-task", () => {
     test("sync mode passes category model to prompt", async () => {
       // given
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
+      let launchInput: any
 
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_sync_model",
+            sessionID: "ses_sync_model",
+            description: "Sync model test",
+            agent: "sisyphus-junior",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
       const mockClient = {
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_sync_model" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Done" }] }]
           }),
-          status: async () => ({ data: {} }),
         },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         app: { agents: async () => ({ data: [] }) },
@@ -1785,7 +1885,7 @@ describe("sisyphus-task", () => {
       }, toolContext)
 
       // then
-      expect(promptBody.model).toEqual({
+      expect(launchInput.model).toEqual({
         providerID: "provider",
         modelID: "custom-model"
       })
@@ -1992,29 +2092,28 @@ describe("sisyphus-task", () => {
       // given - category using non-gemini model with run_in_background=false
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
-      let promptCalled = false
       
       const mockManager = {
         launch: async () => {
           launchCalled = true
-          return { id: "should-not-be-called", sessionID: "x", description: "x", agent: "x", status: "running" }
+          return {
+            id: "bg_sync_non_gemini",
+            sessionID: "ses_sync_non_gemini",
+            description: "non-gemini sync",
+            agent: "sisyphus-junior",
+            status: "completed",
+          }
         },
+        cancelTask: async () => true,
       }
       
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_sync_non_gemini" } }),
-          prompt: async () => {
-            promptCalled = true
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Done sync" }] }]
           }),
-          status: async () => ({ data: { "ses_sync_non_gemini": { type: "idle" } } }),
         },
       }
       
@@ -2044,8 +2143,7 @@ describe("sisyphus-task", () => {
       )
       
       // then - should run sync, NOT forced to background
-      expect(launchCalled).toBe(false)  // manager.launch should NOT be called
-      expect(promptCalled).toBe(true)   // sync mode uses session.prompt
+      expect(launchCalled).toBe(true)   // sync now runs through manager.launch lifecycle
       expect(result).not.toContain("UNSTABLE AGENT MODE")
     }, { timeout: 20000 })
 
@@ -2445,23 +2543,28 @@ describe("sisyphus-task", () => {
     test("should resolve agent-browser skill when browserProvider is passed", async () => {
       // given - delegate_task configured with browserProvider: "agent-browser"
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
+      let launchInput: any
 
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_sync_browser_provider",
+            sessionID: "ses_browser_provider",
+            description: "browser provider",
+            agent: "sisyphus-junior",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_browser_provider" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Done" }] }]
           }),
-          status: async () => ({ data: {} }),
         },
       }
 
@@ -2492,9 +2595,9 @@ describe("sisyphus-task", () => {
       )
 
       // then - agent-browser skill should be resolved (not in notFound)
-      expect(promptBody).toBeDefined()
-      expect(promptBody.system).toBeDefined()
-      expect(promptBody.system).toContain("agent-browser")
+      expect(launchInput).toBeDefined()
+      expect(launchInput.skillContent).toBeDefined()
+      expect(launchInput.skillContent).toContain("agent-browser")
     }, { timeout: 20000 })
 
     test("should NOT resolve agent-browser skill when browserProvider is not set", async () => {
@@ -2990,18 +3093,23 @@ describe("sisyphus-task", () => {
       // given - current agent is sisyphus
       const { createDelegateTask } = require("./tools")
       
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async () => ({
+          id: "bg_sync_prometheus_allowed",
+          sessionID: "ses_prometheus_allowed",
+          description: "prometheus allowed",
+          agent: "prometheus",
+          status: "completed",
+        }),
+        cancelTask: async () => true,
+      }
       const mockClient = {
         app: { agents: async () => ({ data: [{ name: "prometheus", mode: "subagent" }] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_prometheus_allowed" } }),
-          prompt: async () => ({ data: {} }),
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Plan created successfully" }] }]
           }),
-          status: async () => ({ data: { "ses_prometheus_allowed": { type: "idle" } } }),
         },
       }
       
@@ -3147,12 +3255,24 @@ describe("sisyphus-task", () => {
       })
     })
 
-    test("sync mode passes matched agent model to session.prompt", async () => {
+    test("sync mode passes matched agent model to managed launch", async () => {
       // given - agent with model registered, using subagent_type with run_in_background=false
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
+      let launchInput: any
 
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_sync_oracle_model",
+            sessionID: "ses_oracle_model",
+            description: "oracle model",
+            agent: "oracle",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
 
       const mockClient = {
         app: {
@@ -3164,16 +3284,9 @@ describe("sisyphus-task", () => {
         },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_oracle_model" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Consultation done" }] }],
           }),
-          status: async () => ({ data: { "ses_oracle_model": { type: "idle" } } }),
         },
       }
 
@@ -3201,19 +3314,31 @@ describe("sisyphus-task", () => {
         toolContext
       )
 
-      // then - matched agent's model should be passed to session.prompt
-      expect(promptBody.model).toEqual({
+      // then - matched agent's model should be passed to managed launch
+      expect(launchInput.model).toEqual({
         providerID: "anthropic",
         modelID: "claude-opus-4-6",
       })
     }, { timeout: 20000 })
 
-    test("agent without model does not override categoryModel", async () => {
+    test("agent without model does not override categoryModel in managed launch", async () => {
       // given - agent registered without model field
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
+      let launchInput: any
 
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_sync_no_model_agent",
+            sessionID: "ses_no_model_agent",
+            description: "no model agent",
+            agent: "explore",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
 
       const mockClient = {
         app: {
@@ -3225,16 +3350,9 @@ describe("sisyphus-task", () => {
         },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_no_model_agent" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Done" }] }],
           }),
-          status: async () => ({ data: { "ses_no_model_agent": { type: "idle" } } }),
         },
       }
 
@@ -3262,8 +3380,8 @@ describe("sisyphus-task", () => {
         toolContext
       )
 
-      // then - no model should be passed to session.prompt
-      expect(promptBody.model).toBeUndefined()
+      // then - no model should be passed to managed launch
+      expect(launchInput.model).toBeUndefined()
     }, { timeout: 20000 })
   })
 
@@ -3271,23 +3389,28 @@ describe("sisyphus-task", () => {
     test("prometheus subagent should have delegate_task permission enabled", async () => {
       // given - sisyphus delegates to prometheus
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
+      let launchInput: any
       
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_sync_prometheus_delegate",
+            sessionID: "ses_prometheus_delegate",
+            description: "prometheus delegate",
+            agent: "prometheus",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
       const mockClient = {
         app: { agents: async () => ({ data: [{ name: "prometheus", mode: "subagent" }] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_prometheus_delegate" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Plan created" }] }]
           }),
-          status: async () => ({ data: { "ses_prometheus_delegate": { type: "idle" } } }),
         },
       }
       
@@ -3316,29 +3439,34 @@ describe("sisyphus-task", () => {
       )
       
       // then - prometheus should have delegate_task permission
-      expect(promptBody.tools.delegate_task).toBe(true)
+      expect(launchInput.allowDelegateTask).toBe(true)
     }, { timeout: 20000 })
 
     test("non-prometheus subagent should NOT have delegate_task permission", async () => {
       // given - sisyphus delegates to oracle (non-prometheus)
       const { createDelegateTask } = require("./tools")
-      let promptBody: any
+      let launchInput: any
       
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_sync_oracle_delegate",
+            sessionID: "ses_oracle_no_delegate",
+            description: "oracle delegate",
+            agent: "oracle",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
       const mockClient = {
         app: { agents: async () => ({ data: [{ name: "oracle", mode: "subagent" }] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_oracle_no_delegate" } }),
-          prompt: async (input: any) => {
-            promptBody = input.body
-            return { data: {} }
-          },
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Consultation done" }] }]
           }),
-          status: async () => ({ data: { "ses_oracle_no_delegate": { type: "idle" } } }),
         },
       }
       
@@ -3367,32 +3495,37 @@ describe("sisyphus-task", () => {
       )
       
       // then - oracle should NOT have delegate_task permission
-      expect(promptBody.tools.delegate_task).toBe(false)
+      expect(launchInput.allowDelegateTask).toBe(false)
     }, { timeout: 20000 })
   })
 
   describe("session title and metadata format (OpenCode compatibility)", () => {
-    test("sync session title follows OpenCode format: '{description} (@{agent} subagent)'", async () => {
+    test("sync session metadata is carried via managed launch", async () => {
       // given
       const { createDelegateTask } = require("./tools")
-      let createBody: any
+      let launchInput: any
 
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "bg_title_test",
+            sessionID: "ses_title_test",
+            description: "Implement feature X",
+            agent: "sisyphus-junior",
+            status: "completed",
+          }
+        },
+        cancelTask: async () => true,
+      }
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         model: { list: async () => [{ id: SYSTEM_DEFAULT_MODEL }] },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async (input: any) => {
-            createBody = input.body
-            return { data: { id: "ses_title_test" } }
-          },
-          prompt: async () => ({ data: {} }),
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "done" }] }]
           }),
-          status: async () => ({ data: { "ses_title_test": { type: "idle" } } }),
         },
       }
 
@@ -3420,28 +3553,33 @@ describe("sisyphus-task", () => {
         toolContext
       )
 
-      // then - title should follow OpenCode format
-      expect(createBody.title).toBe("Implement feature X (@sisyphus-junior subagent)")
-      expect(createBody.permission).toBeUndefined()
+      // then - managed launch should carry sync metadata
+      expect(launchInput.description).toBe("Implement feature X")
+      expect(launchInput.silent).toBe(true)
     }, { timeout: 10000 })
 
     test("sync task output includes <task_metadata> block with session_id", async () => {
       // given
       const { createDelegateTask } = require("./tools")
 
-      const mockManager = { launch: async () => ({}) }
+      const mockManager = {
+        launch: async () => ({
+          id: "bg_metadata_test",
+          sessionID: "ses_metadata_test",
+          description: "Test metadata format",
+          agent: "sisyphus-junior",
+          status: "completed",
+        }),
+        cancelTask: async () => true,
+      }
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         model: { list: async () => [{ id: SYSTEM_DEFAULT_MODEL }] },
         session: {
-          get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_metadata_test" } }),
-          prompt: async () => ({ data: {} }),
           messages: async () => ({
             data: [{ info: { role: "assistant" }, parts: [{ type: "text", text: "Task completed" }] }]
           }),
-          status: async () => ({ data: { "ses_metadata_test": { type: "idle" } } }),
         },
       }
 

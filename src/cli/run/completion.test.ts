@@ -11,10 +11,24 @@ let taskStorage: string
 const createMockContext = (overrides: {
   childrenBySession?: Record<string, ChildSession[]>
   statuses?: Record<string, SessionStatus>
+  mainSessionMessages?: Array<{
+    info?: { id?: string; role?: string; finish?: string }
+    parts?: Array<{ type?: string; text?: string }>
+  }>
 } = {}): RunContext => {
   const {
     childrenBySession = { "test-session": [] },
     statuses = {},
+    mainSessionMessages = [
+      {
+        info: { id: "msg-1", role: "user" },
+        parts: [{ type: "text", text: "Do work" }],
+      },
+      {
+        info: { id: "msg-2", role: "assistant", finish: "end_turn" },
+        parts: [{ type: "text", text: "Work complete" }],
+      },
+    ],
   } = overrides
 
   const taskConfig: Partial<OhMyOpenCodeConfig> = {
@@ -33,6 +47,7 @@ const createMockContext = (overrides: {
           Promise.resolve({ data: childrenBySession[opts.path.id] ?? [] })
         ),
         status: mock(() => Promise.resolve({ data: statuses })),
+        messages: mock(() => Promise.resolve({ data: mainSessionMessages })),
       },
     } as unknown as RunContext["client"],
     sessionID: "test-session",
@@ -191,5 +206,77 @@ describe("checkCompletionConditions", () => {
 
     // then
     expect(result).toBe(true)
+  })
+
+  it("returns false when main session has no terminal assistant output", async () => {
+    // given
+    spyOn(console, "log").mockImplementation(() => {})
+    const ctx = createMockContext({
+      mainSessionMessages: [
+        {
+          info: { id: "msg-1", role: "user" },
+          parts: [{ type: "text", text: "Need output" }],
+        },
+        {
+          info: { id: "msg-2", role: "assistant", finish: "tool-calls" },
+          parts: [],
+        },
+      ],
+    })
+    const { checkCompletionConditions } = await import("./completion")
+
+    // when
+    const result = await checkCompletionConditions(ctx)
+
+    // then
+    expect(result).toBe(false)
+  })
+
+  it("returns true when terminal assistant output exists but message ids are missing", async () => {
+    // given
+    spyOn(console, "log").mockImplementation(() => {})
+    const ctx = createMockContext({
+      mainSessionMessages: [
+        {
+          info: { role: "user" },
+          parts: [{ type: "text", text: "Need output" }],
+        },
+        {
+          info: { role: "assistant", finish: "end_turn" },
+          parts: [{ type: "text", text: "Done" }],
+        },
+      ],
+    })
+    const { checkCompletionConditions } = await import("./completion")
+
+    // when
+    const result = await checkCompletionConditions(ctx)
+
+    // then
+    expect(result).toBe(true)
+  })
+
+  it("returns false when message ids are missing and last user is newer than last assistant", async () => {
+    // given
+    spyOn(console, "log").mockImplementation(() => {})
+    const ctx = createMockContext({
+      mainSessionMessages: [
+        {
+          info: { role: "assistant", finish: "end_turn" },
+          parts: [{ type: "text", text: "Old output" }],
+        },
+        {
+          info: { role: "user" },
+          parts: [{ type: "text", text: "New request" }],
+        },
+      ],
+    })
+    const { checkCompletionConditions } = await import("./completion")
+
+    // when
+    const result = await checkCompletionConditions(ctx)
+
+    // then
+    expect(result).toBe(false)
   })
 })

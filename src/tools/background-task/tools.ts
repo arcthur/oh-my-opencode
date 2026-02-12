@@ -642,7 +642,7 @@ export function createBackgroundOutput(manager: BackgroundOutputManager, client:
   })
 }
 
-export function createBackgroundCancel(manager: BackgroundManager, client: BackgroundCancelClient): ToolDefinition {
+export function createBackgroundCancel(manager: BackgroundManager, _client: BackgroundCancelClient): ToolDefinition {
   return tool({
     description: BACKGROUND_CANCEL_DESCRIPTION,
     args: {
@@ -674,7 +674,7 @@ export function createBackgroundCancel(manager: BackgroundManager, client: Backg
 
           for (const task of cancellableTasks) {
             if (task.status === "pending") {
-              manager.cancelPendingTask(task.id)
+              await manager.cancelTask(task.id, "Cancelled via background_cancel(all=true)")
               cancelledInfo.push({
                 id: task.id,
                 description: task.description,
@@ -682,17 +682,13 @@ export function createBackgroundCancel(manager: BackgroundManager, client: Backg
                 sessionID: undefined,
               })
             } else if (task.sessionID) {
-              client.session.abort({
-                path: { id: task.sessionID },
-              }).catch(() => {})
-
-              task.status = "cancelled"
-              task.completedAt = new Date()
+              const runningSessionID = task.sessionID
+              await manager.cancelTask(task.id, "Cancelled via background_cancel(all=true)")
               cancelledInfo.push({
                 id: task.id,
                 description: task.description,
                 status: "running",
-                sessionID: task.sessionID,
+                sessionID: runningSessionID,
               })
             }
           }
@@ -733,8 +729,7 @@ Only running or pending tasks can be cancelled.`
         }
 
         if (task.status === "pending") {
-          // Pending task: use manager method (no session to abort, no slot to release)
-          const cancelled = manager.cancelPendingTask(task.id)
+          const cancelled = await manager.cancelTask(task.id, "Cancelled via background_cancel")
           if (!cancelled) {
             return `[ERROR] Failed to cancel pending task: ${task.id}`
           }
@@ -746,17 +741,7 @@ Description: ${task.description}
 Status: ${task.status}`
         }
 
-        // Running task: abort session
-        // Fire-and-forget: abort 요청을 보내고 await 하지 않음
-        // await 하면 메인 세션까지 abort 되는 문제 발생
-        if (task.sessionID) {
-          client.session.abort({
-            path: { id: task.sessionID },
-          }).catch(() => {})
-        }
-
-        task.status = "cancelled"
-        task.completedAt = new Date()
+        await manager.cancelTask(task.id, "Cancelled via background_cancel")
 
         return `Task cancelled successfully
 

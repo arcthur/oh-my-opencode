@@ -55,6 +55,7 @@ Notes:
 Run a session and keep polling until:
 - all tasks are completed/cancelled, and
 - child/background sessions become idle.
+- main session has terminal assistant output after the latest user turn (non-`tool-calls`/non-`unknown` finish reason).
 
 ```bash
 bunx oh-my-opencode run "Fix the bug in index.ts"
@@ -77,6 +78,7 @@ Notes:
 - Messages that begin with `-` are accepted (unknown options are passed through). If your shell treats them as flags, prefix the message with `--` to be explicit.
 - `--port` and `--attach` are mutually exclusive.
 - In CLI run mode, newly created sessions deny `question` permissions by default.
+- If message IDs are missing in session history, completion fallback compares message order to avoid false-positive early exits.
 
 ## 5. `get-local-version`
 

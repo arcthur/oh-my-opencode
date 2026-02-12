@@ -48,7 +48,7 @@ A server that exposes tools to the model via a standard interface. In this repo,
 
 ## Background Task
 
-Work executed asynchronously while the main session continues. Background tasks are typically launched via `delegate_task({ run_in_background: true, ... })` and monitored via `background_output({ task_id: ... })`.
+Work executed asynchronously while the main session continues. Background tasks are typically launched via `delegate_task({ run_in_background: true, ... })`, monitored via `background_output({ task_id: ... })`, and cancelled via `background_cancel({ taskId: ... })` or `background_cancel({ all: true })`.
 
 ## TaskGraph
 

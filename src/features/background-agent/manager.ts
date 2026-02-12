@@ -248,6 +248,12 @@ export class BackgroundManager {
         error: existingTask.error,
       })
 
+      if (existingTask.sessionID) {
+        this.client.session.abort({
+          path: { id: existingTask.sessionID },
+        }).catch(() => {})
+      }
+
       this.state.markForNotification(existingTask)
       this.enqueueNotificationForParent(existingTask.parentSessionID, () =>
         notifyParentSession(existingTask, this.getResultHandlerContext())
@@ -285,7 +291,7 @@ export class BackgroundManager {
     log("[background-agent] Task queued:", { taskId: task.id, key, queueLength: this.state.getQueue(key)?.length ?? 0 })
 
     const toastManager = getTaskToastManager()
-    if (toastManager) {
+    if (toastManager && !input.silent) {
       toastManager.addTask({
         id: task.id,
         description: input.description,
@@ -663,6 +669,65 @@ export class BackgroundManager {
 
   cancelPendingTask(taskId: string): boolean {
     return this.state.cancelPendingTask(taskId)
+  }
+
+  async cancelTask(taskId: string, reason = "Task cancelled"): Promise<boolean> {
+    const task = this.state.getTask(taskId)
+    if (!task) return false
+
+    if (task.status !== "pending" && task.status !== "running") {
+      return false
+    }
+
+    if (task.status === "pending") {
+      const cancelled = this.state.cancelPendingTask(taskId)
+      if (!cancelled) return false
+      task.error = reason
+      this.releaseParallelLease(task, "cancelled", {
+        reason: "pending_task_cancelled",
+      })
+      this.state.markForNotification(task)
+      await this.enqueueNotificationForParent(task.parentSessionID, () =>
+        notifyParentSession(task, this.getResultHandlerContext())
+      ).catch((err) => {
+        log("[background-agent] Failed to notify parent after pending cancellation", {
+          taskId,
+          error: String(err),
+        })
+      })
+      return true
+    }
+
+    task.status = "cancelled"
+    task.error = reason
+    task.completedAt = new Date()
+
+    if (task.concurrencyKey) {
+      this.concurrencyManager.release(task.concurrencyKey)
+      task.concurrencyKey = undefined
+    }
+
+    this.releaseParallelLease(task, "cancelled", {
+      reason: "running_task_cancelled",
+    })
+
+    if (task.sessionID) {
+      this.client.session.abort({
+        path: { id: task.sessionID },
+      }).catch(() => {})
+    }
+
+    this.state.markForNotification(task)
+    await this.enqueueNotificationForParent(task.parentSessionID, () =>
+      notifyParentSession(task, this.getResultHandlerContext())
+    ).catch((err) => {
+      log("[background-agent] Failed to notify parent after running cancellation", {
+        taskId,
+        error: String(err),
+      })
+    })
+
+    return true
   }
 
   getRunningTasks(): BackgroundTask[] {

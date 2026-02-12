@@ -28,6 +28,7 @@ export function createTask(input: LaunchInput): BackgroundTask {
     parentModel: input.parentModel,
     parentAgent: input.parentAgent,
     model: input.model,
+    silent: input.silent,
   }
 }
 
@@ -123,7 +124,7 @@ export async function startTask(
       tools: {
         ...getAgentToolRestrictions(input.agent),
         task: false,
-        delegate_task: false,
+        delegate_task: input.allowDelegateTask === true,
         question: false,
       },
       parts: [{ type: "text", text: input.prompt }],

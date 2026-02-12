@@ -35,6 +35,7 @@ This journey explains how Oh-My-OpenCode executes work in parallel, how results 
 - **Foreground**: the main session agent (often an orchestrator) drives the task and owns final integration.
 - **Background tasks**: delegated work executed concurrently to reduce wall-clock time.
 - **Continuation**: some background tasks produce a `session_id` that can be resumed with full context.
+- **Managed sync**: even `delegate_task({ run_in_background: false, ... })` for new tasks is executed through `BackgroundManager` lifecycle and awaited synchronously.
 
 ## Recommended Workflow
 
@@ -55,3 +56,5 @@ This journey explains how Oh-My-OpenCode executes work in parallel, how results 
 - If you see tool output getting truncated unexpectedly, verify hook ordering:
   - `src/hooks/runtime/pipeline-order.ts` (`tool.execute.after`)
   - `src/hooks/AGENTS.md` (documentation mirror)
+- If a foreground delegation (`run_in_background=false`) stalls or times out, cancellation now converges on manager-level cancellation (`cancelTask`) the same way as `background_cancel`.
+- `background_cancel` argument shape is `taskId` (single task) or `all=true` (cancel all pending/running descendant tasks for the current parent session).

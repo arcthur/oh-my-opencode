@@ -7,11 +7,25 @@ const createMockContext = (overrides: {
   todo?: Todo[]
   childrenBySession?: Record<string, ChildSession[]>
   statuses?: Record<string, SessionStatus>
+  mainSessionMessages?: Array<{
+    info?: { id?: string; role?: string; finish?: string }
+    parts?: Array<{ type?: string; text?: string }>
+  }>
 } = {}): RunContext => {
   const {
     todo = [],
     childrenBySession = { "test-session": [] },
     statuses = {},
+    mainSessionMessages = [
+      {
+        info: { id: "msg-1", role: "user" },
+        parts: [{ type: "text", text: "Do work" }],
+      },
+      {
+        info: { id: "msg-2", role: "assistant", finish: "end_turn" },
+        parts: [{ type: "text", text: "Done" }],
+      },
+    ],
   } = overrides
 
   return {
@@ -22,6 +36,7 @@ const createMockContext = (overrides: {
           Promise.resolve({ data: childrenBySession[opts.path.id] ?? [] })
         ),
         status: mock(() => Promise.resolve({ data: statuses })),
+        messages: mock(() => Promise.resolve({ data: mainSessionMessages })),
       },
     } as unknown as RunContext["client"],
     sessionID: "test-session",

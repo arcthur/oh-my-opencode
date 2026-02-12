@@ -14,8 +14,6 @@ import { discoverSkills } from "../../features/opencode-skill-loader"
 import { getTaskToastManager } from "../../features/task-toast-manager"
 import {
   getSessionAgent,
-  markSubagentSession,
-  unmarkSubagentSession,
 } from "../../features/claude-code-session-state"
 import { log, getAgentToolRestrictions, resolveModelPipeline, promptWithModelSuggestionRetry } from "../../shared"
 import { fetchAvailableModels, isModelAvailable } from "../../shared/model-availability"
@@ -686,53 +684,37 @@ export async function executeSyncTask(
   systemContent: string | undefined,
   modelInfo?: ModelFallbackInfo
 ): Promise<string> {
-  const { client, directory, onSyncSessionCreated } = executorCtx
+  const { manager, client, onSyncSessionCreated } = executorCtx
   const toastManager = getTaskToastManager()
   let taskId: string | undefined
   let syncSessionID: string | undefined
+  let managedTaskID: string | undefined
 
   try {
-    const parentSession = client.session.get
-      ? await client.session.get({ path: { id: parentContext.sessionID } }).catch(() => null)
-      : null
-    const parentDirectory = parentSession?.data?.directory ?? directory
-    const worktreePathRaw = (args as unknown as { __worktree_path?: unknown }).__worktree_path
-    const worktreeDirectory =
-      typeof worktreePathRaw === "string" && worktreePathRaw.trim().length > 0
-        ? worktreePathRaw
-        : undefined
+    const allowDelegateTask = isPlanAgent(agentToUse)
+    const worktreeDirectory = resolveInternalStringArg(args, "__worktree_path")
+    const tmuxTaskId = resolveInternalStringArg(args, "__tmux_task_id")
 
-    const createResult = await client.session.create({
-      body: {
-        parentID: parentContext.sessionID,
-        title: `${args.description} (@${agentToUse} subagent)`,
-      } as any,
-      query: {
-        directory: worktreeDirectory ?? parentDirectory,
-      },
+    const managedTask = await manager.launch({
+      tmuxTaskId,
+      description: args.description,
+      prompt: args.prompt,
+      agent: agentToUse,
+      parentSessionID: parentContext.sessionID,
+      parentMessageID: parentContext.messageID,
+      parentModel: parentContext.model,
+      parentAgent: parentContext.agent,
+      model: categoryModel,
+      skills: args.load_skills.length > 0 ? args.load_skills : undefined,
+      skillContent: systemContent,
+      category: args.category,
+      directory: worktreeDirectory,
+      allowDelegateTask,
+      silent: true,
     })
+    managedTaskID = managedTask.id
 
-    if (createResult.error) {
-      return `Failed to create session: ${createResult.error}`
-    }
-
-    const sessionID = createResult.data.id
-    syncSessionID = sessionID
-    markSubagentSession(sessionID, parentContext.sessionID)
-
-    if (onSyncSessionCreated) {
-      log("[delegate_task] Invoking onSyncSessionCreated callback", { sessionID, parentID: parentContext.sessionID })
-      await onSyncSessionCreated({
-        sessionID,
-        parentID: parentContext.sessionID,
-        title: args.description,
-      }).catch((err) => {
-        log("[delegate_task] onSyncSessionCreated callback failed", { error: String(err) })
-      })
-      await new Promise(r => setTimeout(r, 200))
-    }
-
-    taskId = `sync_${sessionID.slice(0, 8)}`
+    taskId = `sync_${managedTask.id.slice(0, 8)}`
     const startTime = new Date()
 
     if (toastManager) {
@@ -747,6 +729,49 @@ export async function executeSyncTask(
       })
     }
 
+    const syncTiming = getTimingConfig()
+    const sessionWaitStart = Date.now()
+    while (!managedTask.sessionID && Date.now() - sessionWaitStart < syncTiming.WAIT_FOR_SESSION_TIMEOUT_MS) {
+      if (ctx.abort?.aborted) {
+        await manager.cancelTask(managedTask.id, "Task aborted by user")
+        if (toastManager && taskId) toastManager.removeTask(taskId)
+        return "Task aborted before session startup."
+      }
+      if (managedTask.status === "error" || managedTask.status === "interrupt" || managedTask.status === "cancelled") {
+        break
+      }
+
+      await new Promise(resolve => setTimeout(resolve, syncTiming.WAIT_FOR_SESSION_INTERVAL_MS))
+    }
+
+    if (!managedTask.sessionID) {
+      if (toastManager && taskId) toastManager.removeTask(taskId)
+      const errorMessage = managedTask.error ?? "Task did not start in time"
+      return formatDetailedError(new Error(errorMessage), {
+        operation: "Launch managed sync task",
+        args,
+        agent: agentToUse,
+        category: args.category,
+      })
+    }
+
+    syncSessionID = managedTask.sessionID
+
+    if (onSyncSessionCreated) {
+      log("[delegate_task] Invoking onSyncSessionCreated callback", {
+        sessionID: syncSessionID,
+        parentID: parentContext.sessionID,
+      })
+      await onSyncSessionCreated({
+        sessionID: syncSessionID,
+        parentID: parentContext.sessionID,
+        title: args.description,
+      }).catch((err) => {
+        log("[delegate_task] onSyncSessionCreated callback failed", { error: String(err) })
+      })
+      await new Promise(r => setTimeout(r, 200))
+    }
+
     ctx.metadata?.({
       title: args.description,
       metadata: {
@@ -756,154 +781,53 @@ export async function executeSyncTask(
         load_skills: args.load_skills,
         description: args.description,
         run_in_background: args.run_in_background,
-        sessionId: sessionID,
+        sessionId: syncSessionID,
         sync: true,
         command: args.command,
       },
     })
 
-    try {
-      const allowDelegateTask = isPlanAgent(agentToUse)
-      await promptWithModelSuggestionRetry(client, {
-        path: { id: sessionID },
-        body: {
-          agent: agentToUse,
-          system: systemContent,
-          tools: {
-            task: false,
-            delegate_task: allowDelegateTask,
-            question: false,
-          },
-          parts: [{ type: "text", text: args.prompt }],
-          ...(categoryModel ? { model: { providerID: categoryModel.providerID, modelID: categoryModel.modelID } } : {}),
-          ...(categoryModel?.variant ? { variant: categoryModel.variant } : {}),
-        },
-      })
-    } catch (promptError) {
-      if (toastManager && taskId !== undefined) {
+    const pollStart = Date.now()
+    while (Date.now() - pollStart < syncTiming.MAX_POLL_TIME_MS) {
+      if (ctx.abort?.aborted) {
+        await manager.cancelTask(managedTask.id, "Task aborted by user")
+        if (toastManager && taskId) toastManager.removeTask(taskId)
+        return `Task aborted.\n\nSession ID: ${syncSessionID}`
+      }
+
+      if (
+        managedTask.status === "completed"
+        || managedTask.status === "error"
+        || managedTask.status === "interrupt"
+        || managedTask.status === "cancelled"
+      ) {
+        break
+      }
+
+      await new Promise(resolve => setTimeout(resolve, syncTiming.POLL_INTERVAL_MS))
+    }
+
+    if (managedTask.status !== "completed") {
+      await manager.cancelTask(managedTask.id, "Foreground sync delegate timed out")
+      if (toastManager && taskId) {
         toastManager.removeTask(taskId)
       }
-      const errorMessage = promptError instanceof Error ? promptError.message : String(promptError)
-      if (errorMessage.includes("agent.name") || errorMessage.includes("undefined")) {
-        return formatDetailedError(new Error(`Agent "${agentToUse}" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.`), {
-          operation: "Send prompt to agent",
-          args,
-          sessionID,
-          agent: agentToUse,
-          category: args.category,
-        })
-      }
-      return formatDetailedError(promptError, {
-        operation: "Send prompt",
+      const errorMessage = managedTask.error ?? `Task status: ${managedTask.status}`
+      return formatDetailedError(new Error(errorMessage), {
+        operation: "Managed sync task",
         args,
-        sessionID,
+        sessionID: syncSessionID,
         agent: agentToUse,
         category: args.category,
       })
     }
 
-    const syncTiming = getTimingConfig()
-    const pollStart = Date.now()
-    let lastMsgCount = 0
-    let stablePolls = 0
-    let pollCount = 0
-
-    log("[delegate_task] Starting poll loop", { sessionID, agentToUse })
-
-    while (Date.now() - pollStart < syncTiming.MAX_POLL_TIME_MS) {
-      if (ctx.abort?.aborted) {
-        log("[delegate_task] Aborted by user", { sessionID })
-        if (toastManager && taskId) toastManager.removeTask(taskId)
-        return `Task aborted.\n\nSession ID: ${sessionID}`
-      }
-
-      await new Promise(resolve => setTimeout(resolve, syncTiming.POLL_INTERVAL_MS))
-      pollCount++
-
-      let sessionStatus: string | undefined
-      try {
-        sessionStatus = await getSessionStatusType(client, sessionID)
-      } catch (error) {
-        log("[delegate_task] sync poll status fetch failed, retrying", {
-          sessionID,
-          error: String(error),
-        })
-        continue
-      }
-
-      if (pollCount % 10 === 0) {
-        log("[delegate_task] Poll status", {
-          sessionID,
-          pollCount,
-          elapsed: Math.floor((Date.now() - pollStart) / 1000) + "s",
-          sessionStatus: sessionStatus ?? "not_in_status",
-          stablePolls,
-          lastMsgCount,
-        })
-      }
-
-      if (sessionStatus && sessionStatus !== "idle") {
-        stablePolls = 0
-        lastMsgCount = 0
-        continue
-      }
-
-      const elapsed = Date.now() - pollStart
-      if (elapsed < syncTiming.MIN_STABILITY_TIME_MS) {
-        continue
-      }
-
-      let msgs: SessionMessage[]
-      try {
-        const messagesCheck = await client.session.messages({ path: { id: sessionID } })
-        msgs = extractSessionMessages(messagesCheck)
-      } catch (error) {
-        log("[delegate_task] sync poll messages fetch failed, retrying", {
-          sessionID,
-          error: String(error),
-        })
-        continue
-      }
-      const completionState = getSyncCompletionState(msgs)
-
-      if (completionState === "complete") {
-        log("[delegate_task] Poll complete - terminal finish detected", { sessionID, pollCount })
-        break
-      }
-
-      if (completionState === "incomplete") {
-        stablePolls = 0
-        lastMsgCount = msgs.length
-        continue
-      }
-
-      const currentMsgCount = msgs.length
-      if (currentMsgCount === lastMsgCount) {
-        stablePolls++
-        if (stablePolls >= syncTiming.STABILITY_POLLS_REQUIRED) {
-          log("[delegate_task] Poll complete - fallback message stability", {
-            sessionID,
-            pollCount,
-            currentMsgCount,
-          })
-          break
-        }
-      } else {
-        stablePolls = 0
-        lastMsgCount = currentMsgCount
-      }
-    }
-
-    if (Date.now() - pollStart >= syncTiming.MAX_POLL_TIME_MS) {
-      log("[delegate_task] Poll timeout reached", { sessionID, pollCount, lastMsgCount, stablePolls })
-    }
-
     const messagesResult = await client.session.messages({
-      path: { id: sessionID },
+      path: { id: syncSessionID },
     })
 
     if (messagesResult.error) {
-      return `Error fetching result: ${messagesResult.error}\n\nSession ID: ${sessionID}`
+      return `Error fetching result: ${messagesResult.error}\n\nSession ID: ${syncSessionID}`
     }
 
     const messages = extractSessionMessages(messagesResult)
@@ -914,7 +838,7 @@ export async function executeSyncTask(
     const lastMessage = assistantMessages[0]
 
     if (!lastMessage) {
-      return `No assistant response found.\n\nSession ID: ${sessionID}`
+      return `No assistant response found.\n\nSession ID: ${syncSessionID}`
     }
 
     const textParts = lastMessage?.parts?.filter((p) => p.type === "text" || p.type === "reasoning") ?? []
@@ -935,9 +859,12 @@ Agent: ${agentToUse}${args.category ? ` (category: ${args.category})` : ""}
 ${textContent || "(No text output)"}
 
 <task_metadata>
-session_id: ${sessionID}
+session_id: ${syncSessionID}
 </task_metadata>`
   } catch (error) {
+    if (managedTaskID) {
+      await manager.cancelTask(managedTaskID, "Managed sync delegate failed unexpectedly").catch(() => {})
+    }
     if (toastManager && taskId !== undefined) {
       toastManager.removeTask(taskId)
     }
@@ -948,10 +875,6 @@ session_id: ${sessionID}
       agent: agentToUse,
       category: args.category,
     })
-  } finally {
-    if (syncSessionID) {
-      unmarkSubagentSession(syncSessionID)
-    }
   }
 }
 
