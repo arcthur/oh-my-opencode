@@ -3,6 +3,6 @@
   "model": "openai/gpt-5.2-codex",
   "plugin": [
     "file:///Users/bytedance/new_py/oh-my-opencode/dist/index.js",
-    "opencode-antigravity-auth@1.4.6"
+    "opencode-antigravity-auth@1.5.1"
   ]
 }
