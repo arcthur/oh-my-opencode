@@ -10,12 +10,14 @@ import {
   ensureInbox,
   sendMessage,
   broadcast,
-  markAsRead,
-  markAllAsRead,
+  claimPendingMessages,
+  ackProcessedMessage,
   deleteMessages,
   clearInbox,
   pruneOldMessages,
   getInboxDir,
+  getInboxDoneDir,
+  getInboxPendingDir,
 } from "./writer"
 
 describe("mailbox/writer", () => {
@@ -153,7 +155,7 @@ describe("mailbox/writer", () => {
     expect(readInbox(teamName, receiver, config).length).toBe(1)
   })
 
-  test("markAsRead updates message read status", () => {
+  test("ackProcessedMessage consumes a queued message", () => {
     const fromAgent = "agent_from"
     const toAgent = "agent_to"
 
@@ -164,26 +166,14 @@ describe("mailbox/writer", () => {
     // Initially unread
     expect(readUnread(teamName, toAgent, config).length).toBe(1)
 
-    // Mark as read
-    markAsRead(teamName, toAgent, [msgId], config)
+    // Claim then ack
+    const claimed = claimPendingMessages(teamName, toAgent, config)
+    expect(claimed.map((m) => m.id)).toContain(msgId)
+    expect(ackProcessedMessage(teamName, toAgent, msgId, config)).toBe(true)
 
-    // Now no unread
+    // Now consumed
     expect(readUnread(teamName, toAgent, config).length).toBe(0)
-    expect(readInbox(teamName, toAgent, config).length).toBe(1)
-  })
-
-  test("markAllAsRead marks all messages", () => {
-    const fromAgent = "agent_from"
-    const toAgent = "agent_to"
-
-    sendMessage(teamName, fromAgent, toAgent, { type: "idle_notification" }, config)
-    sendMessage(teamName, fromAgent, toAgent, { type: "shutdown_approved" }, config)
-
-    expect(readUnread(teamName, toAgent, config).length).toBe(2)
-
-    markAllAsRead(teamName, toAgent, config)
-
-    expect(readUnread(teamName, toAgent, config).length).toBe(0)
+    expect(readInbox(teamName, toAgent, config).length).toBe(0)
   })
 
   test("deleteMessages removes specific messages", () => {
@@ -222,13 +212,15 @@ describe("mailbox/writer", () => {
     const fromAgent = "agent_from"
     const toAgent = "agent_to"
 
-    // Send and mark as read
+    // Send and persist into done queue
     const oldMsgId = sendMessage(teamName, fromAgent, toAgent, { type: "idle_notification" }, config)
-    markAsRead(teamName, toAgent, [oldMsgId], config)
+    const claimed = claimPendingMessages(teamName, toAgent, config)
+    expect(claimed.map((m) => m.id)).toContain(oldMsgId)
+    expect(ackProcessedMessage(teamName, toAgent, oldMsgId, config, { keepDone: true })).toBe(true)
 
     // Manually modify timestamp to be old
-    const inboxDir = getInboxDir(teamName, toAgent, config)
-    const msgPath = join(inboxDir, `${oldMsgId}.json`)
+    const doneDir = getInboxDoneDir(teamName, toAgent, config)
+    const msgPath = join(doneDir, `${oldMsgId}.json`)
     const msg = JSON.parse(readFileSync(msgPath, "utf-8")) as InboxMessage
     msg.timestamp = Date.now() - 48 * 60 * 60 * 1000 // 48 hours ago
     require("fs").writeFileSync(msgPath, JSON.stringify(msg, null, 2))
@@ -250,8 +242,8 @@ describe("mailbox/writer", () => {
     const msg1 = sendMessage(teamName, fromAgent, toAgent, { type: "idle_notification" }, config)
     const msg2 = sendMessage(teamName, fromAgent, toAgent, { type: "shutdown_approved" }, config)
 
-    const inboxDir = getInboxDir(teamName, toAgent, config)
-    const files = readdirSync(inboxDir).filter(f => f.endsWith(".json") && !f.startsWith("_"))
+    const pendingDir = getInboxPendingDir(teamName, toAgent, config)
+    const files = readdirSync(pendingDir).filter(f => f.endsWith(".json"))
 
     expect(files.length).toBe(2)
     expect(files).toContain(`${msg1}.json`)

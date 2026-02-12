@@ -241,45 +241,25 @@ export interface SwarmWindowRecoverySummary {
   attempted: number
   closed: number
   matchedByOption: number
-  matchedByPane: number
 }
 
 export interface SwarmWindowInspectionSummary {
   scanned: number
   matched: number
   matchedByOption: number
-  matchedByPane: number
   windowIndexes: string[]
-}
-
-function escapeRegExp(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
-function getSwarmWindowBaseName(windowName: string): string {
-  const trimmed = windowName.trim()
-  // Orchestrator prefixes an icon token (e.g. "○ swarm-worker-a") when updating status.
-  // If there is no prefix token, this keeps the original window name.
-  return trimmed.replace(/^[^\s]+\s+/, "")
-}
-
-function isLikelySwarmWindow(windowName: string): boolean {
-  return getSwarmWindowBaseName(windowName).startsWith("swarm-")
 }
 
 type SwarmRecoveryOverrides = Partial<{
   listTmuxWindows: typeof listTmuxWindows
   getTmuxWindowOption: typeof getTmuxWindowOption
-  capturePaneContent: typeof capturePaneContent
   closeTmuxWindow: typeof closeTmuxWindow
 }>
 
 /**
  * Inspect tmux windows and find ones that belong to a specific swarm team.
  *
- * Match priority:
- * 1) tmux window option @swarm_team (authoritative)
- * 2) pane content containing OPENCODE_SWARM_TEAM=<teamName> (fallback for legacy windows)
+ * Match policy: tmux window option @swarm_team only.
  */
 export function inspectSwarmWindowsByTeam(
   sessionName: string,
@@ -288,15 +268,11 @@ export function inspectSwarmWindowsByTeam(
 ): SwarmWindowInspectionSummary {
   const listWindows = overrides.listTmuxWindows ?? listTmuxWindows
   const getWindowOption = overrides.getTmuxWindowOption ?? getTmuxWindowOption
-  const capturePane = overrides.capturePaneContent ?? capturePaneContent
 
   const windows = listWindows(sessionName)
-  const teamPatternQuoted = new RegExp(`${SWARM_ENV.TEAM}\\s*=\\s*["']${escapeRegExp(teamName)}["']`)
-  const teamPatternBare = new RegExp(`${SWARM_ENV.TEAM}\\s*=\\s*${escapeRegExp(teamName)}(?:\\s|$)`)
 
   const windowIndexes: string[] = []
   let matchedByOption = 0
-  let matchedByPane = 0
 
   for (const window of windows) {
     const target = `${sessionName}:${window.index}`
@@ -304,23 +280,6 @@ export function inspectSwarmWindowsByTeam(
     if (byOption === teamName) {
       windowIndexes.push(window.index)
       matchedByOption += 1
-      continue
-    }
-
-    // Fallback only scans swarm-prefixed windows to reduce false positives.
-    if (!isLikelySwarmWindow(window.name)) {
-      continue
-    }
-
-    const paneTarget = `${target}.0`
-    const content = capturePane(paneTarget, 200)
-    if (!content) {
-      continue
-    }
-
-    if (teamPatternQuoted.test(content) || teamPatternBare.test(content)) {
-      windowIndexes.push(window.index)
-      matchedByPane += 1
     }
   }
 
@@ -328,7 +287,6 @@ export function inspectSwarmWindowsByTeam(
     scanned: windows.length,
     matched: windowIndexes.length,
     matchedByOption,
-    matchedByPane,
     windowIndexes,
   }
 }
@@ -336,9 +294,7 @@ export function inspectSwarmWindowsByTeam(
 /**
  * Best-effort recovery cleanup for swarm windows belonging to a specific team.
  *
- * Match priority:
- * 1) tmux window option @swarm_team (authoritative)
- * 2) pane content containing OPENCODE_SWARM_TEAM=<teamName> (fallback for legacy windows)
+ * Match policy: tmux window option @swarm_team only.
  */
 export function closeSwarmWindowsByTeam(
   sessionName: string,
@@ -360,7 +316,6 @@ export function closeSwarmWindowsByTeam(
     attempted: inspection.matched,
     closed,
     matchedByOption: inspection.matchedByOption,
-    matchedByPane: inspection.matchedByPane,
   }
 }
 

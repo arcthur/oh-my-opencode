@@ -1,16 +1,20 @@
 import { randomUUID } from "crypto"
+import { existsSync, readdirSync, statSync, unlinkSync } from "fs"
+import { join } from "path"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import {
-  startPolling,
-  sendMessage,
-  createInbox,
+  createFsMailboxTransport,
+  type MailboxTransport,
   type Disposable,
   type InboxMessage,
   type PermissionMode,
+  type ProtocolMessage,
 } from "../mailbox"
+import { verifyInboxControlMessageSignature } from "../security/control-message-signature"
 import {
   createAgentIdentity,
   heartbeat as sendHeartbeat,
+  getCoordinatorEpoch,
   readManifest,
   getMember,
   isCoordinatorAlive,
@@ -24,6 +28,7 @@ import type { AgentIdentity, AgentCapability } from "../team/types"
 import { workerReportCompletion } from "../task-graph"
 import { AgentStateMachine, type StateEvent } from "./state"
 import { getSwarmEnvContext } from "../tmux/utils"
+import { getTeamDir, writeJsonAtomic } from "../../sisyphus-tasks/storage"
 
 /**
  * Permission request result
@@ -123,6 +128,8 @@ export interface WorkerConfig {
   onStateChange?: (state: ReturnType<AgentStateMachine["getState"]>) => void
   /** Error callback */
   onError?: (error: Error) => void
+  /** Optional mailbox transport override */
+  mailboxTransport?: MailboxTransport
 }
 
 /**
@@ -138,6 +145,7 @@ export class WorkerAgent {
   private stateMachine: AgentStateMachine
   private config: Partial<OhMyOpenCodeConfig>
   private workerConfig: WorkerConfig
+  private mailboxTransport: MailboxTransport
   private mailboxWatcher: Disposable | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
   private taskTimeoutTimer: ReturnType<typeof setTimeout> | null = null
@@ -147,6 +155,9 @@ export class WorkerAgent {
   private permissionWatcher: PermissionWatcher | null = null
   private planApprovalWatcher: PlanApprovalWatcher | null = null
   private coordinatorCheckCount = 0
+  private expiredPermissionRequests = new Map<string, number>()
+  private expiredPlanApprovalRequests = new Map<string, number>()
+  private static readonly MAX_EXPIRED_REQUESTS = 200
 
   // Mode control state
   private currentMode: PermissionMode = "default"
@@ -156,6 +167,7 @@ export class WorkerAgent {
   constructor(workerConfig: WorkerConfig, config: Partial<OhMyOpenCodeConfig>) {
     this.workerConfig = workerConfig
     this.config = config
+    this.mailboxTransport = workerConfig.mailboxTransport ?? createFsMailboxTransport(config)
 
     // Get agent ID from environment if available (for orchestrator-spawned agents)
     const envContext = getSwarmEnvContext()
@@ -180,6 +192,188 @@ export class WorkerAgent {
         workerConfig.onStateChange!(state)
       })
     }
+  }
+
+  private isSenderValidationEnabled(): boolean {
+    return this.config.sisyphus?.swarm?.enforce_sender_validation ?? true
+  }
+
+  private reportSecurityEvent(event: string, details: Record<string, unknown>): void {
+    const serialized = JSON.stringify({
+      component: "swarm.worker",
+      event,
+      teamName: this.workerConfig.teamName,
+      workerId: this.identity.id,
+      ...details,
+    })
+    console.warn(serialized)
+    this.workerConfig.onError?.(new Error(serialized))
+  }
+
+  private isSignatureEnforced(): boolean {
+    return this.config.sisyphus?.swarm?.enforce_signature ?? true
+  }
+
+  private getCoordinatorId(): string | null {
+    const manifest = readManifest(this.workerConfig.teamName, this.config, { includeHeartbeats: false })
+    return manifest?.coordinatorId ?? null
+  }
+
+  private getCurrentCoordinatorEpoch(): number | null {
+    return getCoordinatorEpoch(this.workerConfig.teamName, this.config)
+  }
+
+  private assertFromCoordinator(message: InboxMessage, messageType: string): boolean {
+    if (!this.isSenderValidationEnabled()) {
+      return true
+    }
+    const manifest = readManifest(this.workerConfig.teamName, this.config, { includeHeartbeats: false })
+    if (!manifest) {
+      this.reportSecurityEvent("sender_validation_failed", {
+        reason: "manifest_missing",
+        messageType,
+        from: message.from,
+      })
+      return false
+    }
+    const sender = manifest.members.find((member) => member.id === message.from)
+    if (!sender) {
+      this.reportSecurityEvent("sender_validation_failed", {
+        reason: "unknown_sender",
+        messageType,
+        from: message.from,
+      })
+      return false
+    }
+    if (sender.id !== manifest.coordinatorId || sender.role !== "coordinator") {
+      this.reportSecurityEvent("sender_validation_failed", {
+        reason: "sender_not_coordinator",
+        messageType,
+        from: message.from,
+        coordinatorId: manifest.coordinatorId,
+        senderRole: sender.role,
+      })
+      return false
+    }
+    const expectedEpoch = this.getCurrentCoordinatorEpoch()
+    if (expectedEpoch !== null) {
+      if (!message.epoch || message.epoch !== expectedEpoch) {
+        this.reportSecurityEvent("epoch_validation_failed", {
+          reason: "coordinator_epoch_mismatch",
+          messageType,
+          from: message.from,
+          messageEpoch: message.epoch,
+          expectedEpoch,
+        })
+        return false
+      }
+    }
+    if (this.isSignatureEnforced()) {
+      const verification = verifyInboxControlMessageSignature({
+        teamName: this.workerConfig.teamName,
+        recipientAgentId: this.identity.id,
+        message,
+        config: this.config,
+      })
+      if (!verification.ok) {
+        this.reportSecurityEvent("signature_validation_failed", {
+          reason: verification.reason,
+          messageType,
+          from: message.from,
+          keyId: message.auth?.keyId,
+        })
+        return false
+      }
+    }
+    return true
+  }
+
+  private trackExpiredRequest(
+    bucket: Map<string, number>,
+    requestId: string,
+    expiredAt: number
+  ): void {
+    bucket.set(requestId, expiredAt)
+    if (bucket.size > WorkerAgent.MAX_EXPIRED_REQUESTS) {
+      for (const key of bucket.keys()) {
+        bucket.delete(key)
+        if (bucket.size <= WorkerAgent.MAX_EXPIRED_REQUESTS) {
+          break
+        }
+      }
+    }
+  }
+
+  private diagnosticsLateResponseDir(): string {
+    const teamDir = getTeamDir(this.workerConfig.teamName, this.config)
+    return join(teamDir, "diagnostics", "late-responses")
+  }
+
+  private pruneLateResponseDiagnostics(maxAgeMs = 24 * 60 * 60 * 1000): void {
+    const diagnosticsDir = this.diagnosticsLateResponseDir()
+    if (!existsSync(diagnosticsDir)) {
+      return
+    }
+    const now = Date.now()
+    const files = readdirSync(diagnosticsDir).filter((name) => name.endsWith(".json"))
+    for (const file of files) {
+      const filePath = join(diagnosticsDir, file)
+      try {
+        const stats = statSync(filePath)
+        if (now - stats.mtimeMs > maxAgeMs) {
+          unlinkSync(filePath)
+        }
+      } catch {
+        // Ignore individual file errors
+      }
+    }
+  }
+
+  private recordLateResponse(
+    type: "late_permission_response" | "late_plan_approval_response",
+    requestId: string,
+    expiredAt: number,
+    details: Record<string, unknown>
+  ): void {
+    const now = Date.now()
+    const entry = {
+      type,
+      requestId,
+      teamName: this.workerConfig.teamName,
+      workerId: this.identity.id,
+      expiredAt,
+      receivedAt: now,
+      latencyMs: Math.max(0, now - expiredAt),
+      ...details,
+    }
+
+    this.reportSecurityEvent(type, entry)
+
+    const diagnosticsDir = this.diagnosticsLateResponseDir()
+    const fileName = `${type}_${requestId}_${now}.json`
+    const filePath = join(diagnosticsDir, fileName)
+    try {
+      writeJsonAtomic(filePath, entry)
+      this.pruneLateResponseDiagnostics()
+    } catch (err) {
+      this.workerConfig.onError?.(err instanceof Error ? err : new Error(String(err)))
+    }
+  }
+
+  private sendToCoordinator(payload: ProtocolMessage): boolean {
+    const coordinatorId = this.getCoordinatorId()
+    if (!coordinatorId) {
+      return false
+    }
+    const epoch = this.getCurrentCoordinatorEpoch() ?? undefined
+    this.mailboxTransport.sendMessage(
+      this.workerConfig.teamName,
+      this.identity.id,
+      coordinatorId,
+      payload,
+      { epoch }
+    )
+    return true
   }
 
   /**
@@ -249,10 +443,12 @@ export class WorkerAgent {
 
     try {
       // Create inbox
-      createInbox(teamName, this.identity.id, this.config)
+      this.mailboxTransport.createInbox(teamName, this.identity.id)
 
       // Request to join team
-      const joinResult = await requestJoin(teamName, this.identity, this.config)
+      const joinResult = await requestJoin(teamName, this.identity, this.config, {
+        mailboxTransport: this.mailboxTransport,
+      })
 
       if (!joinResult.approved) {
         this.stateMachine.dispatch({ type: "JOIN_REJECTED", reason: joinResult.reason ?? "Unknown" })
@@ -270,7 +466,9 @@ export class WorkerAgent {
       this.startMailboxPolling()
 
       // Notify idle (ready for work)
-      notifyIdle(teamName, this.identity.id, this.config)
+      notifyIdle(teamName, this.identity.id, this.config, {
+        mailboxTransport: this.mailboxTransport,
+      })
 
       return true
     } catch (err) {
@@ -314,6 +512,7 @@ export class WorkerAgent {
     try {
       const leaveResult = await requestLeave(teamName, this.identity.id, this.config, {
         force: options?.force,
+        mailboxTransport: this.mailboxTransport,
       })
 
       if (leaveResult.approved || options?.force) {
@@ -360,7 +559,9 @@ export class WorkerAgent {
     this.clearTaskTimeout()
 
     // Report to coordinator
-    workerReportCompletion(teamName, this.identity.id, completedTaskId, this.config)
+    workerReportCompletion(teamName, this.identity.id, completedTaskId, this.config, {
+      mailboxTransport: this.mailboxTransport,
+    })
 
     // Update state
     this.stateMachine.dispatch({ type: "TASK_COMPLETED" })
@@ -368,7 +569,9 @@ export class WorkerAgent {
     this.approvedPlanForTaskId = null
 
     // Notify idle (ready for next task)
-    notifyIdle(teamName, this.identity.id, this.config)
+    notifyIdle(teamName, this.identity.id, this.config, {
+      mailboxTransport: this.mailboxTransport,
+    })
 
     return true
   }
@@ -406,7 +609,9 @@ export class WorkerAgent {
     this.approvedPlanForTaskId = null
 
     // Notify idle (ready for next task)
-    notifyIdle(teamName, this.identity.id, this.config)
+    notifyIdle(teamName, this.identity.id, this.config, {
+      mailboxTransport: this.mailboxTransport,
+    })
 
     return true
   }
@@ -451,31 +656,21 @@ export class WorkerAgent {
       return { approved: true, updatedInput: input }
     }
 
-    const { teamName } = this.workerConfig
     const timeoutMs = options?.timeoutMs ?? 30000
     const requestId = `perm_${randomUUID().slice(0, 12)}`
 
-    // Get coordinator ID
-    const manifest = readManifest(teamName, this.config)
-    if (!manifest) {
-      return { approved: false, reason: "Team manifest not found" }
-    }
-
     // Send permission request
-    sendMessage(
-      teamName,
-      this.identity.id,
-      manifest.coordinatorId,
-      {
-        type: "permission_request",
-        requestId,
-        toolName,
-        input,
-        agentId: this.identity.id,
-        timestamp: Date.now(),
-      },
-      this.config
-    )
+    const sent = this.sendToCoordinator({
+      type: "permission_request",
+      requestId,
+      toolName,
+      input,
+      agentId: this.identity.id,
+      timestamp: Date.now(),
+    })
+    if (!sent) {
+      return { approved: false, reason: "Coordinator not available" }
+    }
 
     // Transition to paused state
     this.stateMachine.dispatch({
@@ -493,6 +688,7 @@ export class WorkerAgent {
           // Treat timeout as a denial but keep the worker in WORKING state.
           // Dropping to IDLE while a task is active creates task-orphaning deadlocks.
           this.permissionWatcher = null
+          this.trackExpiredRequest(this.expiredPermissionRequests, requestId, Date.now())
           this.stateMachine.dispatch({ type: "RESUME" })
           resolve({ approved: false, reason: "Permission request timed out" })
         }
@@ -544,32 +740,22 @@ export class WorkerAgent {
       return { decision: "rejected", feedback: "Plan approval request already pending" }
     }
 
-    const { teamName } = this.workerConfig
     const timeoutMs = options?.timeoutMs ?? 60000 // 60s default (plans need more review time)
     const requestId = `plan_${randomUUID().slice(0, 12)}`
 
-    // Get coordinator ID
-    const manifest = readManifest(teamName, this.config)
-    if (!manifest) {
-      return { decision: "rejected", feedback: "Team manifest not found" }
-    }
-
     // Send plan approval request
-    sendMessage(
-      teamName,
-      this.identity.id,
-      manifest.coordinatorId,
-      {
-        type: "plan_approval_request",
-        requestId,
-        plan,
-        planFile: options?.planFile,
-        agentId: this.identity.id,
-        taskId: this.currentTask?.id,
-        timestamp: Date.now(),
-      },
-      this.config
-    )
+    const sent = this.sendToCoordinator({
+      type: "plan_approval_request",
+      requestId,
+      plan,
+      planFile: options?.planFile,
+      agentId: this.identity.id,
+      taskId: this.currentTask?.id,
+      timestamp: Date.now(),
+    })
+    if (!sent) {
+      return { decision: "rejected", feedback: "Coordinator not available" }
+    }
 
     // Transition to paused state
     this.stateMachine.dispatch({
@@ -587,6 +773,7 @@ export class WorkerAgent {
           // Treat timeout as rejection but keep worker in WORKING state.
           // Dropping to IDLE while a task is active can orphan tasks.
           this.planApprovalWatcher = null
+          this.trackExpiredRequest(this.expiredPlanApprovalRequests, requestId, Date.now())
           this.stateMachine.dispatch({ type: "RESUME" })
           resolve({ decision: "rejected", feedback: "Plan approval request timed out" })
         }
@@ -697,7 +884,9 @@ export class WorkerAgent {
           error: "Task rejected by worker",
         })
         this.currentTask = null
-        notifyIdle(teamName, this.identity.id, this.config)
+        notifyIdle(teamName, this.identity.id, this.config, {
+          mailboxTransport: this.mailboxTransport,
+        })
         return
       }
 
@@ -716,7 +905,9 @@ export class WorkerAgent {
         error: err instanceof Error ? err.message : String(err),
       })
       this.currentTask = null
-      notifyIdle(teamName, this.identity.id, this.config)
+      notifyIdle(teamName, this.identity.id, this.config, {
+        mailboxTransport: this.mailboxTransport,
+      })
     }
   }
 
@@ -756,19 +947,14 @@ export class WorkerAgent {
     taskId: string,
     reason: string
   ): void {
-    const { teamName } = this.workerConfig
-
-    const manifest = readManifest(teamName, this.config)
-    if (!manifest) return
-
     // Send rejection message to coordinator
-    sendMessage(teamName, this.identity.id, manifest.coordinatorId, {
+    this.sendToCoordinator({
       type: "task_rejected",
       taskId,
       agentId: this.identity.id,
       reason,
       timestamp: Date.now(),
-    }, this.config)
+    })
   }
 
   /**
@@ -779,6 +965,9 @@ export class WorkerAgent {
 
     switch (payload.type) {
       case "task_assignment":
+        if (!this.assertFromCoordinator(message, payload.type)) {
+          break
+        }
         if (this.stateMachine.is("idle")) {
           await this.processTaskAssignment({
             id: payload.taskId,
@@ -802,19 +991,35 @@ export class WorkerAgent {
         break
 
       case "permission_response":
+        if (!this.assertFromCoordinator(message, payload.type)) {
+          break
+        }
         // Handle permission response for paused state
         if (this.stateMachine.is("paused") && this.permissionWatcher) {
           if (payload.requestId === this.permissionWatcher.requestId) {
+            this.expiredPermissionRequests.delete(payload.requestId)
             if (payload.decision === "approved") {
               this.permissionWatcher.onApproved(payload.updatedInput)
             } else {
               this.permissionWatcher.onDenied(payload.feedback ?? "Permission denied")
             }
           }
+        } else {
+          const expiredAt = this.expiredPermissionRequests.get(payload.requestId)
+          if (expiredAt) {
+            this.expiredPermissionRequests.delete(payload.requestId)
+            this.recordLateResponse("late_permission_response", payload.requestId, expiredAt, {
+              from: message.from,
+              decision: payload.decision,
+            })
+          }
         }
         break
 
       case "shutdown_approved":
+        if (!this.assertFromCoordinator(message, payload.type)) {
+          break
+        }
         // If not already in "leaving" state, transition there first
         // This handles coordinator-initiated forced shutdown
         if (!this.stateMachine.is("leaving")) {
@@ -835,6 +1040,9 @@ export class WorkerAgent {
         break
 
       case "shutdown_rejected":
+        if (!this.assertFromCoordinator(message, payload.type)) {
+          break
+        }
         this.stateMachine.dispatch({
           type: "SHUTDOWN_REJECTED",
           reason: payload.reason ?? "Shutdown rejected",
@@ -842,39 +1050,46 @@ export class WorkerAgent {
         break
 
       case "plan_approval_response":
+        if (!this.assertFromCoordinator(message, payload.type)) {
+          break
+        }
         // Handle plan approval response for paused state
         if (this.stateMachine.is("paused") && this.planApprovalWatcher) {
           if (payload.requestId === this.planApprovalWatcher.requestId) {
+            this.expiredPlanApprovalRequests.delete(payload.requestId)
             this.planApprovalWatcher.resolve({
               decision: payload.decision,
               feedback: payload.feedback,
+            })
+          }
+        } else {
+          const expiredAt = this.expiredPlanApprovalRequests.get(payload.requestId)
+          if (expiredAt) {
+            this.expiredPlanApprovalRequests.delete(payload.requestId)
+            this.recordLateResponse("late_plan_approval_response", payload.requestId, expiredAt, {
+              from: message.from,
+              decision: payload.decision,
             })
           }
         }
         break
 
       case "mode_set_request":
+        if (!this.assertFromCoordinator(message, payload.type)) {
+          break
+        }
         // Handle mode change request from coordinator
         this.setMode(payload.mode, payload.duration)
         // Send acknowledgment back to coordinator
         {
-          const manifest = readManifest(this.workerConfig.teamName, this.config)
-          if (manifest) {
-            sendMessage(
-              this.workerConfig.teamName,
-              this.identity.id,
-              manifest.coordinatorId,
-              {
-                type: "mode_set_response",
-                success: true,
-                currentMode: this.currentMode,
-                message: payload.reason
-                  ? `Mode changed: ${payload.reason}`
-                  : undefined,
-              },
-              this.config
-            )
-          }
+          this.sendToCoordinator({
+            type: "mode_set_response",
+            success: true,
+            currentMode: this.currentMode,
+            message: payload.reason
+              ? `Mode changed: ${payload.reason}`
+              : undefined,
+          })
         }
         break
 
@@ -892,11 +1107,10 @@ export class WorkerAgent {
 
     const { teamName } = this.workerConfig
 
-    this.mailboxWatcher = startPolling(
+    this.mailboxWatcher = this.mailboxTransport.startPolling(
       teamName,
       this.identity.id,
       (message) => this.handleMessage(message),
-      this.config,
       {
         intervalMs: 500,
         onError: (err) => this.workerConfig.onError?.(err),

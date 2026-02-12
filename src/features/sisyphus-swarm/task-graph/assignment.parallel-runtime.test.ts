@@ -13,7 +13,7 @@ import {
 import {
   createAgentIdentity,
   createTeam,
-  addMember,
+  addMemberAsync,
   markWorkerIdle,
 } from "../team"
 import { createSwarmTask, readSwarmTaskNode } from "./pool"
@@ -91,7 +91,7 @@ describe("task-graph/assignment parallel-runtime integration", () => {
     })
 
     createTeam(teamName, coordinator, config)
-    addMember(teamName, worker, config)
+    await addMemberAsync(teamName, worker, config)
     markWorkerIdle(teamName, worker.id, config)
 
     const created = createSwarmTask(
@@ -153,4 +153,3 @@ describe("task-graph/assignment parallel-runtime integration", () => {
     expect(afterSecondAttempt?.lease?.subsystem).toBe("swarm")
   })
 })
-

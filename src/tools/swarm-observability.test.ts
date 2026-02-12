@@ -10,14 +10,12 @@ const mockInspectSwarmWindowsByTeam = mock(() => ({
   scanned: 3,
   matched: 2,
   matchedByOption: 1,
-  matchedByPane: 1,
   windowIndexes: ["1", "2"],
 }))
 const mockCloseSwarmWindowsByTeam = mock(() => ({
   attempted: 2,
   closed: 1,
   matchedByOption: 1,
-  matchedByPane: 1,
 }))
 const mockGetCurrentSession = mock(() => "main")
 
@@ -51,14 +49,12 @@ describe("swarm tool observability telemetry", () => {
       scanned: 3,
       matched: 2,
       matchedByOption: 1,
-      matchedByPane: 1,
       windowIndexes: ["1", "2"],
     })
     mockCloseSwarmWindowsByTeam.mockReturnValue({
       attempted: 2,
       closed: 1,
       matchedByOption: 1,
-      matchedByPane: 1,
     })
     mockGetCurrentSession.mockReturnValue("main")
 

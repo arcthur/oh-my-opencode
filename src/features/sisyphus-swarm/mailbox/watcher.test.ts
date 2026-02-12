@@ -4,7 +4,7 @@ import { join } from "path"
 import { tmpdir } from "os"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import { createInbox, sendMessage } from "./writer"
-import { readUnread } from "./reader"
+import { readInbox, readUnread } from "./reader"
 import { startPolling, waitForMessage, MessageQueue } from "./watcher"
 
 describe("mailbox/watcher", () => {
@@ -189,9 +189,9 @@ describe("mailbox/watcher", () => {
     const msg = await waitPromise
     expect(msg.payload.type).toBe("task_assignment")
 
-    // Unrelated message should still be unread
-    const unread = readUnread(teamName, agentId, config)
-    expect(unread.some(m => m.id === unrelatedId)).toBe(true)
+    // Unrelated message should still exist (not consumed)
+    const inbox = readInbox(teamName, agentId, config)
+    expect(inbox.some(m => m.id === unrelatedId)).toBe(true)
   })
 
   test("waitForMessage times out", async () => {

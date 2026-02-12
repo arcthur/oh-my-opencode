@@ -1,7 +1,15 @@
 import { existsSync, watch, type FSWatcher } from "fs"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
-import { readUnread, type InboxMessage } from "./reader"
-import { markAsRead, getInboxDir, pruneOldMessages } from "./writer"
+import type { InboxMessage } from "./reader"
+import {
+  deleteMessages,
+  ackProcessedMessage,
+  claimPendingMessages,
+  getInboxPendingDir,
+  pruneOldMessages,
+  requeueClaimedMessage,
+  requeueExpiredProcessing,
+} from "./writer"
 
 /**
  * Disposable interface for stopping watchers
@@ -32,6 +40,10 @@ export interface WatcherOptions {
   autoPruneInterval?: number
   /** Max age of read messages before pruning in ms (default: 1 hour) */
   pruneMaxAgeMs?: number
+  /** Claim limit per cycle in rename queue mode */
+  claimLimit?: number
+  /** Requeue processing timeout in ms */
+  processingTimeoutMs?: number
   /** Error handler callback */
   onError?: ErrorHandler
   /** Called when watcher starts */
@@ -40,15 +52,45 @@ export interface WatcherOptions {
   onStop?: () => void
 }
 
+async function processMessagesOnce(
+  teamName: string,
+  agentId: string,
+  handler: MessageHandler,
+  config: Partial<OhMyOpenCodeConfig>,
+  options: {
+    autoMarkRead: boolean
+    claimLimit: number
+    processingTimeoutMs: number
+    onError: ErrorHandler
+  }
+): Promise<void> {
+  requeueExpiredProcessing(teamName, agentId, config, {
+    maxAgeMs: options.processingTimeoutMs,
+  })
+
+  const claimed = claimPendingMessages(teamName, agentId, config, {
+    limit: options.claimLimit,
+  })
+
+  for (const message of claimed) {
+    let handled = false
+    try {
+      await handler(message)
+      handled = true
+    } catch (err) {
+      options.onError(err instanceof Error ? err : new Error(String(err)))
+    }
+
+    if (options.autoMarkRead && handled) {
+      ackProcessedMessage(teamName, agentId, message.id, config)
+    } else {
+      requeueClaimedMessage(teamName, agentId, message.id, config)
+    }
+  }
+}
+
 /**
  * Start polling an inbox for new messages
- *
- * @param teamName - Team name
- * @param agentId - Agent ID to watch
- * @param handler - Callback for each new message
- * @param config - OpenCode config
- * @param options - Watcher options
- * @returns Disposable to stop polling
  */
 export function startPolling(
   teamName: string,
@@ -60,7 +102,9 @@ export function startPolling(
   const intervalMs = options?.intervalMs ?? 1000
   const autoMarkRead = options?.autoMarkRead ?? true
   const autoPruneInterval = options?.autoPruneInterval ?? 100
-  const pruneMaxAgeMs = options?.pruneMaxAgeMs ?? 60 * 60 * 1000 // 1 hour default
+  const pruneMaxAgeMs = options?.pruneMaxAgeMs ?? 60 * 60 * 1000
+  const claimLimit = options?.claimLimit ?? 200
+  const processingTimeoutMs = options?.processingTimeoutMs ?? 30_000
   const onError = options?.onError ?? console.error
 
   let stopped = false
@@ -71,27 +115,19 @@ export function startPolling(
     if (stopped) return
 
     try {
-      const messages = readUnread(teamName, agentId, config)
+      await processMessagesOnce(teamName, agentId, handler, config, {
+        autoMarkRead,
+        claimLimit,
+        processingTimeoutMs,
+        onError,
+      })
 
-      for (const message of messages) {
-        try {
-          await handler(message)
-
-          if (autoMarkRead) {
-            markAsRead(teamName, agentId, [message.id], config)
-          }
-        } catch (err) {
-          onError(err instanceof Error ? err : new Error(String(err)))
-        }
-      }
-
-      // Auto-prune old messages periodically
       pollCount++
       if (autoPruneInterval > 0 && pollCount % autoPruneInterval === 0) {
         try {
           pruneOldMessages(teamName, agentId, config, { maxAge: pruneMaxAgeMs })
         } catch {
-          // Ignore prune errors - not critical
+          // Ignore prune errors
         }
       }
     } catch (err) {
@@ -103,9 +139,8 @@ export function startPolling(
     }
   }
 
-  // Start polling
   options?.onStart?.()
-  timeoutId = setTimeout(poll, 0) // Start immediately
+  timeoutId = setTimeout(poll, 0)
 
   return {
     dispose() {
@@ -120,16 +155,7 @@ export function startPolling(
 }
 
 /**
- * Start watching an inbox using file system watcher (more efficient but platform-dependent)
- *
- * Note: Falls back to polling if file watching is not supported
- *
- * @param teamName - Team name
- * @param agentId - Agent ID to watch
- * @param handler - Callback for each new message
- * @param config - OpenCode config
- * @param options - Watcher options
- * @returns Disposable to stop watching
+ * Start watching an inbox using file system watcher.
  */
 export function startWatching(
   teamName: string,
@@ -138,77 +164,57 @@ export function startWatching(
   config: Partial<OhMyOpenCodeConfig>,
   options?: WatcherOptions
 ): Disposable {
-  const inboxDir = getInboxDir(teamName, agentId, config)
-  const autoMarkRead = options?.autoMarkRead ?? true
-  const onError = options?.onError ?? console.error
+  const watchDir = getInboxPendingDir(teamName, agentId, config)
 
-  // If inbox directory doesn't exist, fall back to polling
-  if (!existsSync(inboxDir)) {
+  if (!existsSync(watchDir)) {
     return startPolling(teamName, agentId, handler, config, options)
   }
+
+  const autoMarkRead = options?.autoMarkRead ?? true
+  const claimLimit = options?.claimLimit ?? 200
+  const processingTimeoutMs = options?.processingTimeoutMs ?? 30_000
+  const onError = options?.onError ?? console.error
+  const fallbackPollMs = config.sisyphus?.swarm?.watch_fallback_poll_ms ?? 5000
 
   let stopped = false
   let fsWatcher: FSWatcher | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
-  let lastProcessedIds = new Set<string>()
-  let pollingFallback: Disposable | null = null
+  let fallbackTimer: ReturnType<typeof setInterval> | null = null
+  let fallbackPolling: Disposable | null = null
   let started = false
 
-  // If we switch from watching → polling fallback, we must ensure:
-  // - The polling loop is disposed when the caller disposes
-  // - onStart/onStop are called exactly once
   const pollingOptions: WatcherOptions | undefined = options
     ? { ...options, onStart: undefined, onStop: undefined }
     : options
 
-  const processNewMessages = async () => {
+  const drain = async () => {
     if (stopped) return
-
     try {
-      const messages = readUnread(teamName, agentId, config)
-
-      for (const message of messages) {
-        // Skip if we've already processed this message in this session
-        if (lastProcessedIds.has(message.id)) continue
-
-        try {
-          await handler(message)
-          lastProcessedIds.add(message.id)
-
-          if (autoMarkRead) {
-            markAsRead(teamName, agentId, [message.id], config)
-          }
-        } catch (err) {
-          onError(err instanceof Error ? err : new Error(String(err)))
-        }
-      }
-
-      // Limit memory usage of processed IDs set
-      if (lastProcessedIds.size > 1000) {
-        const recent = Array.from(lastProcessedIds).slice(-500)
-        lastProcessedIds = new Set(recent)
-      }
+      await processMessagesOnce(teamName, agentId, handler, config, {
+        autoMarkRead,
+        claimLimit,
+        processingTimeoutMs,
+        onError,
+      })
     } catch (err) {
       onError(err instanceof Error ? err : new Error(String(err)))
     }
   }
 
-  const onFileChange = () => {
-    // Debounce rapid file changes
+  const scheduleDrain = () => {
     if (debounceTimer) {
       clearTimeout(debounceTimer)
     }
-    debounceTimer = setTimeout(processNewMessages, 50)
+    debounceTimer = setTimeout(() => {
+      void drain()
+    }, 50)
   }
 
   try {
-    // Watch the inbox directory for new message files
-    fsWatcher = watch(inboxDir, { persistent: true }, onFileChange)
+    fsWatcher = watch(watchDir, { persistent: true }, scheduleDrain)
 
     fsWatcher.on("error", (err) => {
       onError(err instanceof Error ? err : new Error(String(err)))
-      // Fall back to polling on watcher errors.
-      // IMPORTANT: this must remain disposable via the original return value.
       if (stopped) return
       try {
         fsWatcher?.close()
@@ -216,9 +222,12 @@ export function startWatching(
         // ignore close failures
       }
       fsWatcher = null
-
-      if (!pollingFallback) {
-        pollingFallback = startPolling(teamName, agentId, handler, config, pollingOptions)
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer)
+        fallbackTimer = null
+      }
+      if (!fallbackPolling) {
+        fallbackPolling = startPolling(teamName, agentId, handler, config, pollingOptions)
       }
     })
 
@@ -227,10 +236,14 @@ export function startWatching(
       started = true
     }
 
-    // Process any existing unread messages
-    processNewMessages()
+    // Low-frequency fallback poll even when fs.watch is healthy.
+    fallbackTimer = setInterval(() => {
+      void drain()
+    }, fallbackPollMs)
+
+    // Initial drain
+    void drain()
   } catch {
-    // Fall back to polling if watch setup fails
     return startPolling(teamName, agentId, handler, config, options)
   }
 
@@ -241,13 +254,17 @@ export function startWatching(
         clearTimeout(debounceTimer)
         debounceTimer = null
       }
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer)
+        fallbackTimer = null
+      }
       if (fsWatcher) {
         fsWatcher.close()
         fsWatcher = null
       }
-      if (pollingFallback) {
-        pollingFallback.dispose()
-        pollingFallback = null
+      if (fallbackPolling) {
+        fallbackPolling.dispose()
+        fallbackPolling = null
       }
       options?.onStop?.()
     },
@@ -256,13 +273,6 @@ export function startWatching(
 
 /**
  * Wait for a specific message type with timeout
- *
- * @param teamName - Team name
- * @param agentId - Agent ID to watch
- * @param messageType - Type of message to wait for
- * @param config - OpenCode config
- * @param timeoutMs - Timeout in milliseconds (default: 30000)
- * @returns Promise that resolves with the message or rejects on timeout
  */
 export function waitForMessage<T extends InboxMessage["payload"]["type"]>(
   teamName: string,
@@ -273,7 +283,6 @@ export function waitForMessage<T extends InboxMessage["payload"]["type"]>(
 ): Promise<InboxMessage> {
   return new Promise((resolve, reject) => {
     let disposed = false
-    // Avoid repeatedly re-processing unrelated unread messages while waiting.
     const seenIds = new Set<string>()
 
     const timeout = setTimeout(() => {
@@ -289,20 +298,18 @@ export function waitForMessage<T extends InboxMessage["payload"]["type"]>(
       agentId,
       (message) => {
         if (disposed) return
-
-        // Ignore already-seen messages to avoid busy re-processing loops
         if (seenIds.has(message.id)) return
         seenIds.add(message.id)
 
         if (message.payload.type === messageType) {
           disposed = true
           clearTimeout(timeout)
-          // Mark ONLY the matched message as read so other message types
-          // remain available for the caller to handle (critical for join/shutdown flows).
           try {
-            markAsRead(teamName, agentId, [message.id], config)
+            if (!ackProcessedMessage(teamName, agentId, message.id, config)) {
+              deleteMessages(teamName, agentId, [message.id], config)
+            }
           } catch {
-            // Ignore mark failures; caller can still proceed
+            // Ignore mark failures
           }
           watcher.dispose()
           resolve(message)
@@ -310,8 +317,8 @@ export function waitForMessage<T extends InboxMessage["payload"]["type"]>(
       },
       config,
       {
-        intervalMs: 100, // Fast polling for waiting
-        autoMarkRead: false, // Do not consume unrelated messages
+        intervalMs: 100,
+        autoMarkRead: false,
       }
     )
   })
@@ -332,6 +339,10 @@ export class MessageQueue {
     private options?: WatcherOptions
   ) {}
 
+  get pending(): number {
+    return this.queue.length
+  }
+
   /**
    * Start the message queue
    */
@@ -342,7 +353,6 @@ export class MessageQueue {
       this.teamName,
       this.agentId,
       (message) => {
-        // If someone is waiting, deliver directly
         const waiter = this.waiters.shift()
         if (waiter) {
           waiter(message)
@@ -367,20 +377,18 @@ export class MessageQueue {
    * Get next message from queue (blocking)
    */
   async next(timeoutMs = 30000): Promise<InboxMessage> {
-    // Check if we have a queued message
     const queued = this.queue.shift()
     if (queued) {
       return queued
     }
 
-    // Wait for next message
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         const index = this.waiters.indexOf(resolve)
         if (index !== -1) {
           this.waiters.splice(index, 1)
         }
-        reject(new Error("Timeout waiting for message"))
+        reject(new Error("Message queue timeout"))
       }, timeoutMs)
 
       this.waiters.push((message) => {
@@ -391,18 +399,18 @@ export class MessageQueue {
   }
 
   /**
-   * Get all currently queued messages
+   * Drain all queued messages
    */
   drain(): InboxMessage[] {
-    const messages = this.queue
+    const messages = [...this.queue]
     this.queue = []
     return messages
   }
 
   /**
-   * Check if there are queued messages
+   * Get queue length
    */
-  get pending(): number {
+  size(): number {
     return this.queue.length
   }
 }

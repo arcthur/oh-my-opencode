@@ -149,7 +149,6 @@ interface TeamDiagnosticsSnapshot {
   tmuxSession: string | null
   tmuxMatched: number
   tmuxMatchedByOption: number
-  tmuxMatchedByPane: number
   driftDetected: boolean
 }
 
@@ -187,16 +186,13 @@ function collectTeamDiagnostics(
       tmuxSession: null,
       tmuxMatched: 0,
       tmuxMatchedByOption: 0,
-      tmuxMatchedByPane: 0,
       driftDetected: false,
     }
   }
 
   const inspection = inspectSwarmWindowsByTeam(tmuxSessionName, teamName)
   lines.push(`  Tmux session: ${tmuxSessionName}`)
-  lines.push(
-    `  Tmux windows for team: ${inspection.matched} (option=${inspection.matchedByOption}, pane=${inspection.matchedByPane})`
-  )
+  lines.push(`  Tmux windows for team: ${inspection.matched} (option=${inspection.matchedByOption})`)
 
   const driftDetected = !runtimeOrchestratorPresent && inspection.matched > 0
   if (driftDetected) {
@@ -211,7 +207,6 @@ function collectTeamDiagnostics(
     tmuxSession: tmuxSessionName,
     tmuxMatched: inspection.matched,
     tmuxMatchedByOption: inspection.matchedByOption,
-    tmuxMatchedByPane: inspection.matchedByPane,
     driftDetected,
   }
 }
@@ -399,7 +394,6 @@ async function executeSwarmCommand(
         tmuxSession: diagnostics.tmuxSession,
         tmuxMatched: diagnostics.tmuxMatched,
         tmuxMatchedByOption: diagnostics.tmuxMatchedByOption,
-        tmuxMatchedByPane: diagnostics.tmuxMatchedByPane,
         driftDetected: diagnostics.driftDetected,
       })
 
@@ -412,7 +406,6 @@ async function executeSwarmCommand(
           tmuxSession: diagnostics.tmuxSession,
           tmuxMatched: diagnostics.tmuxMatched,
           tmuxMatchedByOption: diagnostics.tmuxMatchedByOption,
-          tmuxMatchedByPane: diagnostics.tmuxMatchedByPane,
         })
       }
 
@@ -471,7 +464,7 @@ async function executeSwarmCommand(
         : [
             "\nNo in-memory orchestrator handle was found; cleared runtime bindings and attempted coordinator shutdown.",
             recoveredTmuxSummary
-              ? `\nRecovered tmux windows: ${recoveredTmuxSummary.closed}/${recoveredTmuxSummary.attempted} (option=${recoveredTmuxSummary.matchedByOption}, pane=${recoveredTmuxSummary.matchedByPane}).`
+              ? `\nRecovered tmux windows: ${recoveredTmuxSummary.closed}/${recoveredTmuxSummary.attempted} (option=${recoveredTmuxSummary.matchedByOption}).`
               : "",
             !recoveredTmuxSummary && tmuxRecoverySkippedReason
               ? `\nSkipped tmux recovery: ${tmuxRecoverySkippedReason}.`
@@ -487,7 +480,6 @@ async function executeSwarmCommand(
         tmuxRecoveryAttempted: recoveredTmuxSummary?.attempted ?? 0,
         tmuxRecoveryClosed: recoveredTmuxSummary?.closed ?? 0,
         tmuxRecoveryMatchedByOption: recoveredTmuxSummary?.matchedByOption ?? 0,
-        tmuxRecoveryMatchedByPane: recoveredTmuxSummary?.matchedByPane ?? 0,
         tmuxRecoverySkippedReason: tmuxRecoverySkippedReason ?? null,
       })
 

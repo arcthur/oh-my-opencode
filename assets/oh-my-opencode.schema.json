@@ -3661,6 +3661,44 @@
               "type": "number",
               "minimum": 0,
               "maximum": 10
+            },
+            "watch_fallback_poll_ms": {
+              "default": 5000,
+              "type": "number",
+              "minimum": 500
+            },
+            "enforce_sender_validation": {
+              "default": true,
+              "type": "boolean"
+            },
+            "enforce_signature": {
+              "default": true,
+              "type": "boolean"
+            },
+            "coordinator_lease_ttl_ms": {
+              "default": 15000,
+              "type": "number",
+              "minimum": 1000
+            },
+            "coordinator_lease_renew_ms": {
+              "default": 5000,
+              "type": "number",
+              "minimum": 500
+            },
+            "auto_rescue_policy": {
+              "default": "disabled",
+              "type": "string",
+              "enum": [
+                "disabled",
+                "allowlist"
+              ]
+            },
+            "auto_rescue_allowlist": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         }

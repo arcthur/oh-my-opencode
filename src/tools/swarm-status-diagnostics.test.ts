@@ -10,7 +10,6 @@ const mockInspectSwarmWindowsByTeam = mock(() => ({
   scanned: 3,
   matched: 2,
   matchedByOption: 1,
-  matchedByPane: 1,
   windowIndexes: ["1", "2"],
 }))
 const mockGetCurrentSession = mock(() => "main")
@@ -21,7 +20,6 @@ mock.module("../features/sisyphus-swarm/tmux", () => ({
     attempted: 0,
     closed: 0,
     matchedByOption: 0,
-    matchedByPane: 0,
   })),
   inspectSwarmWindowsByTeam: mockInspectSwarmWindowsByTeam,
   getCurrentSession: mockGetCurrentSession,
@@ -46,7 +44,6 @@ describe("swarm tool status diagnostics", () => {
       scanned: 3,
       matched: 2,
       matchedByOption: 1,
-      matchedByPane: 1,
       windowIndexes: ["1", "2"],
     })
     mockGetCurrentSession.mockReset()
@@ -112,7 +109,7 @@ describe("swarm tool status diagnostics", () => {
     expect(mockInspectSwarmWindowsByTeam).toHaveBeenCalledWith("main", "team-a")
     expect(result).toContain("Swarm Diagnostics:")
     expect(result).toContain("Runtime orchestrator: missing")
-    expect(result).toContain("Tmux windows for team: 2 (option=1, pane=1)")
+    expect(result).toContain("Tmux windows for team: 2 (option=1)")
     expect(result).toContain("Drift detected:")
   })
 })

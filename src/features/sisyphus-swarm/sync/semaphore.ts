@@ -16,7 +16,7 @@ const LOCK_MAX_RETRIES = 20 // Max wait ~1 second
 const LOCK_META_FILENAME = "_meta.json"
 
 /**
- * Fallback staleness threshold when metadata is missing (legacy locks).
+ * Fallback staleness threshold when lock metadata is missing.
  * Conservative to avoid breaking legitimate long-running operations.
  */
 const LEGACY_STALE_LOCK_MAX_AGE_MS = 5 * 60 * 1000 // 5 minutes
@@ -73,7 +73,7 @@ function isLegacyLockStale(lockDir: string): boolean {
  *
  * Safe mode:
  * - If metadata exists and PID is NOT alive → consider lock stale and remove it.
- * - If metadata is missing → only remove if directory looks "old" (legacy fallback).
+ * - If metadata is missing → only remove if directory looks "old".
  */
 function tryCleanupStaleLock(lockDir: string): boolean {
   if (!existsSync(lockDir)) return false
@@ -204,7 +204,7 @@ export async function withLock<T>(
     }
     // If lock is held, opportunistically clean up stale locks (crash recovery).
     // This is safe because we only remove locks whose PID is no longer alive
-    // (or legacy locks that are very old).
+    // (or metadata-less locks that are very old).
     tryCleanupStaleLock(lockDir)
     // Wait before retry
     await new Promise((resolve) => setTimeout(resolve, retryDelayMs))

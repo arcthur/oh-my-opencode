@@ -1,14 +1,20 @@
-import { existsSync, readdirSync, unlinkSync, writeFileSync } from "fs"
-import { dirname, join } from "path"
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+} from "fs"
+import { join } from "path"
 import { randomUUID } from "crypto"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import { getTeamDir, ensureDir, writeJsonAtomic } from "../../sisyphus-tasks/storage"
-import type { ProtocolMessage } from "./types"
+import type { EnvelopeAuth, ProtocolMessage } from "./types"
 import type { InboxMessage } from "./reader"
 
 /**
- * Get inbox directory path for an agent
- * Now uses per-message files instead of single inbox file
+ * Get inbox directory path for an agent.
  */
 export function getInboxDir(
   teamName: string,
@@ -19,9 +25,30 @@ export function getInboxDir(
   return join(teamDir, "inboxes", agentId)
 }
 
-/**
- * Get inbox meta file path (for lastRead tracking)
- */
+export function getInboxPendingDir(
+  teamName: string,
+  agentId: string,
+  config: Partial<OhMyOpenCodeConfig>
+): string {
+  return join(getInboxDir(teamName, agentId, config), "pending")
+}
+
+export function getInboxProcessingDir(
+  teamName: string,
+  agentId: string,
+  config: Partial<OhMyOpenCodeConfig>
+): string {
+  return join(getInboxDir(teamName, agentId, config), "processing")
+}
+
+export function getInboxDoneDir(
+  teamName: string,
+  agentId: string,
+  config: Partial<OhMyOpenCodeConfig>
+): string {
+  return join(getInboxDir(teamName, agentId, config), "done")
+}
+
 function getInboxMetaPath(
   teamName: string,
   agentId: string,
@@ -30,27 +57,40 @@ function getInboxMetaPath(
   return join(getInboxDir(teamName, agentId, config), "_meta.json")
 }
 
-/**
- * Get message file path
- */
-function getMessagePath(
+function getStateMessagePath(
   teamName: string,
   agentId: string,
   messageId: string,
+  state: "pending" | "processing" | "done",
   config: Partial<OhMyOpenCodeConfig>
 ): string {
-  return join(getInboxDir(teamName, agentId, config), `${messageId}.json`)
+  const base = state === "pending"
+    ? getInboxPendingDir(teamName, agentId, config)
+    : state === "processing"
+      ? getInboxProcessingDir(teamName, agentId, config)
+      : getInboxDoneDir(teamName, agentId, config)
+  return join(base, `${messageId}.json`)
+}
+
+function ensureQueueDirs(
+  teamName: string,
+  agentId: string,
+  config: Partial<OhMyOpenCodeConfig>
+): void {
+  ensureDir(getInboxPendingDir(teamName, agentId, config))
+  ensureDir(getInboxProcessingDir(teamName, agentId, config))
+  ensureDir(getInboxDoneDir(teamName, agentId, config))
 }
 
 /**
- * Generate a unique message ID
+ * Generate a unique message ID.
  */
 export function generateMessageId(): string {
   return `msg_${randomUUID().slice(0, 12)}`
 }
 
 /**
- * Create an inbox directory for an agent
+ * Create an inbox directory for an agent.
  */
 export function createInbox(
   teamName: string,
@@ -59,8 +99,8 @@ export function createInbox(
 ): void {
   const inboxDir = getInboxDir(teamName, agentId, config)
   ensureDir(inboxDir)
+  ensureQueueDirs(teamName, agentId, config)
 
-  // Create meta file
   const metaPath = getInboxMetaPath(teamName, agentId, config)
   if (!existsSync(metaPath)) {
     writeJsonAtomic(metaPath, {
@@ -72,7 +112,7 @@ export function createInbox(
 }
 
 /**
- * Ensure an inbox exists for an agent, creating if necessary
+ * Ensure an inbox exists for an agent, creating if necessary.
  */
 export function ensureInbox(
   teamName: string,
@@ -82,21 +122,21 @@ export function ensureInbox(
   const inboxDir = getInboxDir(teamName, agentId, config)
   if (!existsSync(inboxDir)) {
     createInbox(teamName, agentId, config)
+    return
   }
+  ensureQueueDirs(teamName, agentId, config)
 }
 
 /**
- * Send a message to a specific agent's inbox
- *
- * This is now a simple file creation - no read-modify-write cycle.
- * Safe for concurrent senders.
+ * Send a message to a specific agent's pending queue.
  */
 export function sendMessage(
   teamName: string,
   fromAgentId: string,
   toAgentId: string,
   message: ProtocolMessage,
-  config: Partial<OhMyOpenCodeConfig>
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: { epoch?: number; auth?: EnvelopeAuth }
 ): string {
   ensureInbox(teamName, toAgentId, config)
 
@@ -106,18 +146,15 @@ export function sendMessage(
     from: fromAgentId,
     timestamp: Date.now(),
     read: false,
+    epoch: options?.epoch,
+    auth: options?.auth,
     payload: message,
   }
 
-  const messagePath = getMessagePath(teamName, toAgentId, messageId, config)
-  writeJsonAtomic(messagePath, inboxMessage)
-
+  writeJsonAtomic(getStateMessagePath(teamName, toAgentId, messageId, "pending", config), inboxMessage)
   return messageId
 }
 
-/**
- * Get all agent inbox directories in a team
- */
 function getTeamAgentIds(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>
@@ -135,14 +172,14 @@ function getTeamAgentIds(
 }
 
 /**
- * Broadcast a message to all team members (except sender)
+ * Broadcast a message to all team members (except sender by default).
  */
 export function broadcast(
   teamName: string,
   fromAgentId: string,
   message: ProtocolMessage,
   config: Partial<OhMyOpenCodeConfig>,
-  options?: { includeSelf?: boolean }
+  options?: { includeSelf?: boolean; epoch?: number; auth?: EnvelopeAuth }
 ): string[] {
   const agentIds = getTeamAgentIds(teamName, config)
   const messageIds: string[] = []
@@ -152,86 +189,210 @@ export function broadcast(
       continue
     }
 
-    const id = sendMessage(teamName, fromAgentId, agentId, message, config)
+    const id = sendMessage(teamName, fromAgentId, agentId, message, config, {
+      epoch: options?.epoch,
+      auth: options?.auth,
+    })
     messageIds.push(id)
   }
 
   return messageIds
 }
 
-/**
- * Mark specific messages as read in an agent's inbox
- */
-export function markAsRead(
+function updateLastReadMeta(
   teamName: string,
   agentId: string,
-  messageIds: string[],
   config: Partial<OhMyOpenCodeConfig>
 ): void {
-  const inboxDir = getInboxDir(teamName, agentId, config)
-  if (!existsSync(inboxDir)) {
+  const metaPath = getInboxMetaPath(teamName, agentId, config)
+  if (!existsSync(metaPath)) {
     return
   }
 
-  for (const messageId of messageIds) {
-    const messagePath = getMessagePath(teamName, agentId, messageId, config)
-    if (!existsSync(messagePath)) {
+  try {
+    const content = readFileSync(metaPath, "utf-8")
+    const meta = JSON.parse(content) as Record<string, unknown>
+    meta.lastRead = Date.now()
+    writeJsonAtomic(metaPath, meta)
+  } catch {
+    // Ignore meta update errors.
+  }
+}
+
+function readInboxMessage(filePath: string): InboxMessage | null {
+  try {
+    const content = readFileSync(filePath, "utf-8")
+    return JSON.parse(content) as InboxMessage
+  } catch {
+    return null
+  }
+}
+
+function writeDoneMessage(
+  teamName: string,
+  agentId: string,
+  messageId: string,
+  message: InboxMessage,
+  config: Partial<OhMyOpenCodeConfig>
+): void {
+  const donePath = getStateMessagePath(teamName, agentId, messageId, "done", config)
+  writeJsonAtomic(donePath, { ...message, read: true })
+}
+
+/**
+ * Claim pending messages by atomically renaming pending -> processing.
+ */
+export function claimPendingMessages(
+  teamName: string,
+  agentId: string,
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: { limit?: number }
+): InboxMessage[] {
+  ensureInbox(teamName, agentId, config)
+  const pendingDir = getInboxPendingDir(teamName, agentId, config)
+  const files = readdirSync(pendingDir)
+    .filter((name) => name.endsWith(".json"))
+    .sort()
+
+  const limit = options?.limit ?? Number.POSITIVE_INFINITY
+  const claimed: InboxMessage[] = []
+
+  for (const file of files) {
+    if (claimed.length >= limit) {
+      break
+    }
+
+    const pendingPath = join(pendingDir, file)
+    const processingPath = join(getInboxProcessingDir(teamName, agentId, config), file)
+    const messageId = file.replace(/\.json$/, "")
+
+    try {
+      renameSync(pendingPath, processingPath)
+    } catch {
       continue
     }
 
-    try {
-      const content = require("fs").readFileSync(messagePath, "utf-8")
-      const message: InboxMessage = JSON.parse(content)
-      if (!message.read) {
-        message.read = true
-        writeJsonAtomic(messagePath, message)
+    const message = readInboxMessage(processingPath)
+    if (!message) {
+      try {
+        unlinkSync(processingPath)
+      } catch {
+        // Ignore cleanup errors.
       }
-    } catch {
-      // Ignore errors for individual messages
+      continue
     }
+
+    claimed.push({ ...message, id: message.id || messageId })
   }
 
-  // Update meta lastRead
-  const metaPath = getInboxMetaPath(teamName, agentId, config)
-  if (existsSync(metaPath)) {
-    try {
-      const content = require("fs").readFileSync(metaPath, "utf-8")
-      const meta = JSON.parse(content)
-      meta.lastRead = Date.now()
-      writeJsonAtomic(metaPath, meta)
-    } catch {
-      // Ignore meta update errors
-    }
-  }
+  return claimed
 }
 
 /**
- * Mark all messages as read in an agent's inbox
+ * Acknowledge a claimed message (processing -> done or delete).
  */
-export function markAllAsRead(
+export function ackProcessedMessage(
   teamName: string,
   agentId: string,
-  config: Partial<OhMyOpenCodeConfig>
-): void {
-  const inboxDir = getInboxDir(teamName, agentId, config)
-  if (!existsSync(inboxDir)) {
-    return
+  messageId: string,
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: { keepDone?: boolean }
+): boolean {
+  const processingPath = getStateMessagePath(teamName, agentId, messageId, "processing", config)
+  const pendingPath = getStateMessagePath(teamName, agentId, messageId, "pending", config)
+
+  if (existsSync(processingPath)) {
+    const message = readInboxMessage(processingPath)
+    if (options?.keepDone && message) {
+      writeDoneMessage(teamName, agentId, messageId, message, config)
+    }
+    try {
+      unlinkSync(processingPath)
+    } catch {
+      return false
+    }
+    updateLastReadMeta(teamName, agentId, config)
+    return true
   }
 
-  const files = readdirSync(inboxDir).filter(
-    (f) => f.endsWith(".json") && !f.startsWith("_")
-  )
+  if (existsSync(pendingPath)) {
+    try {
+      const message = readInboxMessage(pendingPath)
+      if (options?.keepDone && message) {
+        writeDoneMessage(teamName, agentId, messageId, message, config)
+      }
+      unlinkSync(pendingPath)
+      updateLastReadMeta(teamName, agentId, config)
+      return true
+    } catch {
+      return false
+    }
+  }
 
-  markAsRead(
-    teamName,
-    agentId,
-    files.map((f) => f.replace(".json", "")),
-    config
-  )
+  return false
 }
 
 /**
- * Delete specific messages from an agent's inbox
+ * Requeue a claimed message (processing -> pending).
+ */
+export function requeueClaimedMessage(
+  teamName: string,
+  agentId: string,
+  messageId: string,
+  config: Partial<OhMyOpenCodeConfig>
+): boolean {
+  const processingPath = getStateMessagePath(teamName, agentId, messageId, "processing", config)
+  const pendingPath = getStateMessagePath(teamName, agentId, messageId, "pending", config)
+  if (!existsSync(processingPath)) {
+    return false
+  }
+
+  try {
+    renameSync(processingPath, pendingPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Requeue processing messages that exceeded processing timeout.
+ */
+export function requeueExpiredProcessing(
+  teamName: string,
+  agentId: string,
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: { maxAgeMs?: number }
+): number {
+  const maxAgeMs = options?.maxAgeMs ?? 30_000
+  const processingDir = getInboxProcessingDir(teamName, agentId, config)
+  if (!existsSync(processingDir)) {
+    return 0
+  }
+
+  let requeued = 0
+  const now = Date.now()
+  const files = readdirSync(processingDir).filter((name) => name.endsWith(".json"))
+  for (const file of files) {
+    const processingPath = join(processingDir, file)
+    try {
+      const stats = statSync(processingPath)
+      if (now - stats.mtimeMs <= maxAgeMs) {
+        continue
+      }
+      const pendingPath = join(getInboxPendingDir(teamName, agentId, config), file)
+      renameSync(processingPath, pendingPath)
+      requeued++
+    } catch {
+      // Ignore per-file failures.
+    }
+  }
+
+  return requeued
+}
+
+/**
+ * Delete specific messages from an agent's inbox.
  */
 export function deleteMessages(
   teamName: string,
@@ -240,19 +401,25 @@ export function deleteMessages(
   config: Partial<OhMyOpenCodeConfig>
 ): void {
   for (const messageId of messageIds) {
-    const messagePath = getMessagePath(teamName, agentId, messageId, config)
-    if (existsSync(messagePath)) {
+    const candidates = [
+      getStateMessagePath(teamName, agentId, messageId, "pending", config),
+      getStateMessagePath(teamName, agentId, messageId, "processing", config),
+      getStateMessagePath(teamName, agentId, messageId, "done", config),
+    ]
+
+    for (const path of candidates) {
+      if (!existsSync(path)) continue
       try {
-        unlinkSync(messagePath)
+        unlinkSync(path)
       } catch {
-        // Ignore delete errors
+        // Ignore delete errors.
       }
     }
   }
 }
 
 /**
- * Clear all messages from an agent's inbox
+ * Clear all messages from an agent's inbox.
  */
 export function clearInbox(
   teamName: string,
@@ -264,21 +431,27 @@ export function clearInbox(
     return
   }
 
-  const files = readdirSync(inboxDir).filter(
-    (f) => f.endsWith(".json") && !f.startsWith("_")
-  )
+  const dirs = [
+    getInboxPendingDir(teamName, agentId, config),
+    getInboxProcessingDir(teamName, agentId, config),
+    getInboxDoneDir(teamName, agentId, config),
+  ]
 
-  for (const file of files) {
-    try {
-      unlinkSync(join(inboxDir, file))
-    } catch {
-      // Ignore delete errors
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json"))
+    for (const file of files) {
+      try {
+        unlinkSync(join(dir, file))
+      } catch {
+        // Ignore delete errors.
+      }
     }
   }
 }
 
 /**
- * Prune old read messages, keeping only recent ones
+ * Prune old done messages.
  */
 export function pruneOldMessages(
   teamName: string,
@@ -291,27 +464,25 @@ export function pruneOldMessages(
     return 0
   }
 
-  const maxAge = options?.maxAge ?? 24 * 60 * 60 * 1000 // 24 hours default
+  const maxAge = options?.maxAge ?? 24 * 60 * 60 * 1000
   const now = Date.now()
   let pruned = 0
 
-  const files = readdirSync(inboxDir).filter(
-    (f) => f.endsWith(".json") && !f.startsWith("_")
-  )
-
-  for (const file of files) {
-    const messagePath = join(inboxDir, file)
-    try {
-      const content = require("fs").readFileSync(messagePath, "utf-8")
-      const message: InboxMessage = JSON.parse(content)
-
-      // Delete old read messages
-      if (message.read && now - message.timestamp > maxAge) {
-        unlinkSync(messagePath)
-        pruned++
+  const doneDir = getInboxDoneDir(teamName, agentId, config)
+  if (existsSync(doneDir)) {
+    const doneFiles = readdirSync(doneDir).filter((f) => f.endsWith(".json"))
+    for (const file of doneFiles) {
+      const messagePath = join(doneDir, file)
+      try {
+        const message = readInboxMessage(messagePath)
+        if (!message) continue
+        if (now - message.timestamp > maxAge) {
+          unlinkSync(messagePath)
+          pruned++
+        }
+      } catch {
+        // Ignore per-file errors.
       }
-    } catch {
-      // Ignore errors for individual messages
     }
   }
 

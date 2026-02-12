@@ -465,6 +465,20 @@ export const SisyphusSwarmConfigSchema = z.object({
   swarm_first: z.boolean().default(false),
   /** Target worker count when swarm_first=true (default: 3) */
   worker_count: z.number().min(0).max(10).default(3),
+  /** Fallback polling interval for fs.watch mode (default: 5000ms) */
+  watch_fallback_poll_ms: z.number().min(500).default(5000),
+  /** Reject privileged messages from invalid senders (default: true) */
+  enforce_sender_validation: z.boolean().default(true),
+  /** Require signature verification for privileged control messages (default: true) */
+  enforce_signature: z.boolean().default(true),
+  /** Coordinator lease TTL in milliseconds (default: 15000ms) */
+  coordinator_lease_ttl_ms: z.number().min(1000).default(15000),
+  /** Coordinator lease renew interval in milliseconds (default: 5000ms) */
+  coordinator_lease_renew_ms: z.number().min(500).default(5000),
+  /** Auto-rescue policy for y/n prompts (default: disabled) */
+  auto_rescue_policy: z.enum(["disabled", "allowlist"]).default("disabled"),
+  /** Allowlist prompt patterns used when auto_rescue_policy=allowlist */
+  auto_rescue_allowlist: z.array(z.string()).default([]),
 })
 
 export const SisyphusConfigSchema = z.object({

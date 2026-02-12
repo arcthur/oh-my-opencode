@@ -25,14 +25,14 @@ export {
   getManifestPath,
   teamExists,
   readManifest,
+  type ReadManifestOptions,
   writeManifest,
   createAgentIdentity,
   createTeam,
-  addMember,
-  removeMember,
-  updateMember,
+  addMemberAsync,
+  removeMemberAsync,
+  updateMemberAsync,
   heartbeat,
-  transferCoordinator,
   getMember,
   getCoordinator,
   getWorkers,
@@ -42,7 +42,7 @@ export {
   getStaleMembers,
   isCoordinatorAlive,
   // P0-1: Coordinator takeover
-  takeoverAsCoordinator,
+  takeoverAsCoordinatorAsync,
   type TakeoverResult,
   // P0-2: Level-triggered idle workers
   markWorkerIdle,
@@ -50,16 +50,24 @@ export {
   getIdleWorkersFromManifest,
 } from "./manifest"
 
+export {
+  CoordinatorLeaseSchema,
+  type CoordinatorLease,
+  readCoordinatorLease,
+  getCoordinatorEpoch,
+  acquireOrRenewCoordinatorLease,
+  isLeaseStale,
+  coordinatorLeaseExists,
+} from "./coordinator-lease"
+
 // Membership operations
 export {
   requestJoin,
   approveJoin,
   rejectJoin,
-  getPendingJoinRequests,
   requestLeave,
   approveShutdown,
   rejectShutdown,
-  getPendingShutdownRequests,
   notifyIdle,
   getIdleWorkers,
 } from "./membership"

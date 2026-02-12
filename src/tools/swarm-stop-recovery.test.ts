@@ -5,13 +5,11 @@ const mockCloseSwarmWindowsByTeam = mock(() => ({
   attempted: 2,
   closed: 2,
   matchedByOption: 2,
-  matchedByPane: 0,
 }))
 const mockInspectSwarmWindowsByTeam = mock(() => ({
   scanned: 2,
   matched: 2,
   matchedByOption: 2,
-  matchedByPane: 0,
   windowIndexes: ["1", "2"],
 }))
 const mockGetCurrentSession = mock(() => "main")
@@ -37,13 +35,11 @@ describe("swarm tool stop recovery", () => {
       attempted: 2,
       closed: 2,
       matchedByOption: 2,
-      matchedByPane: 0,
     })
     mockInspectSwarmWindowsByTeam.mockReturnValue({
       scanned: 2,
       matched: 2,
       matchedByOption: 2,
-      matchedByPane: 0,
       windowIndexes: ["1", "2"],
     })
     mockGetCurrentSession.mockReturnValue("main")

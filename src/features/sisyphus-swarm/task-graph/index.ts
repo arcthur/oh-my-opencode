@@ -26,7 +26,6 @@ export {
 
 export {
   coordinatorAssignTask,
-  workerReceiveAssignment,
   workerReportCompletion,
   autoAssignTasksWithRuntime,
   reassignStaleTasks,
@@ -34,6 +33,4 @@ export {
   releaseSwarmTaskLease,
   type TaskAssignmentResult,
   type AssignmentStatusResult,
-  type ReceivedTaskInfo,
 } from "./assignment"
-

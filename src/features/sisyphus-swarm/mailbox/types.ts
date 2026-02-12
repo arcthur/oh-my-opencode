@@ -1,5 +1,13 @@
 import { z } from "zod"
 
+export const EnvelopeAuthSchema = z.object({
+  alg: z.literal("ed25519"),
+  keyId: z.string(),
+  sig: z.string(),
+})
+
+export type EnvelopeAuth = z.infer<typeof EnvelopeAuthSchema>
+
 export const MailboxMessageSchema = z.object({
   from: z.string(),
   text: z.string(),
@@ -126,8 +134,8 @@ export const JoinRequestSchema = z.object({
   type: z.literal("join_request"),
   agentName: z.string(),
   sessionId: z.string(),
-  /** Agent capabilities - optional for backward compatibility with old messages */
-  capabilities: z.array(JoinRequestCapabilitySchema).optional(),
+  /** Agent capabilities */
+  capabilities: z.array(JoinRequestCapabilitySchema),
   /** Tmux pane reference */
   tmuxPane: z.string().optional(),
   /** Git worktree path */

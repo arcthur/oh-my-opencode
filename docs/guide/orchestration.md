@@ -218,6 +218,24 @@ Swarm-first requires both TaskGraph and Swarm to be enabled.
 }
 ```
 
+Recommended hardening settings for production-like local runs:
+
+```jsonc
+{
+  "sisyphus": {
+    "swarm": {
+      "enforce_sender_validation": true,
+      "enforce_signature": true,
+      "coordinator_lease_ttl_ms": 15000,
+      "coordinator_lease_renew_ms": 5000,
+      "watch_fallback_poll_ms": 5000,
+      "auto_rescue_policy": "disabled",
+      "auto_rescue_allowlist": []
+    }
+  }
+}
+```
+
 ### Parallel Runtime (Global Concurrency Control)
 
 The parallel runtime is **enabled by default** (`mode: "shadow"`, `global_slots: 6`). It controls admission for Background and Swarm subsystems. Manual worktrees (Option A in `docs/journeys/parallel-agents.md`) are intentionally outside this system.

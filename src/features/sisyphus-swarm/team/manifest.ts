@@ -3,7 +3,9 @@ import { join } from "path"
 import { randomUUID } from "crypto"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import { getTeamDir, ensureDir, writeJsonAtomic, readJsonSafe } from "../../sisyphus-tasks/storage"
-import { withLockSync } from "../sync/semaphore"
+import { withLock } from "../sync/semaphore"
+import { listIdleWorkers, markBusy, markIdle } from "./idle-store"
+import { readHeartbeat, readAllHeartbeats, writeHeartbeat } from "./heartbeat-store"
 import {
   TeamManifestSchema,
   AgentIdentitySchema,
@@ -37,12 +39,34 @@ export function teamExists(teamName: string, config: Partial<OhMyOpenCodeConfig>
 /**
  * Read team manifest
  */
+export interface ReadManifestOptions {
+  includeHeartbeats?: boolean
+  heartbeats?: Map<string, number>
+}
+
 export function readManifest(
   teamName: string,
-  config: Partial<OhMyOpenCodeConfig>
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: ReadManifestOptions
 ): TeamManifest | null {
   const manifestPath = getManifestPath(teamName, config)
-  return readJsonSafe(manifestPath, TeamManifestSchema)
+  const manifest = readJsonSafe(manifestPath, TeamManifestSchema)
+  if (!manifest) {
+    return null
+  }
+
+  if (options?.includeHeartbeats !== false) {
+    const heartbeats = options?.heartbeats ?? readAllHeartbeats(teamName, config)
+    if (heartbeats.size > 0) {
+      for (const member of manifest.members) {
+        const heartbeatAt = heartbeats.get(member.id)
+        if (heartbeatAt !== undefined) {
+          member.lastHeartbeat = heartbeatAt
+        }
+      }
+    }
+  }
+  return manifest
 }
 
 /**
@@ -117,10 +141,10 @@ export function createTeam(
       heartbeatTimeoutMs: options?.settings?.heartbeatTimeoutMs ?? 30000,
       assignmentStrategy: options?.settings?.assignmentStrategy ?? "capability-match",
     },
-    idleWorkers: [],
   }
 
   writeManifest(teamName, manifest, config)
+  writeHeartbeat(teamName, coordWithRole.id, config, coordWithRole.lastHeartbeat ?? Date.now())
 
   // Create inboxes directory
   const inboxesDir = join(getTeamDir(teamName, config), "inboxes")
@@ -130,108 +154,88 @@ export function createTeam(
 }
 
 /**
- * Add a member to the team
- *
- * Uses file locking to prevent concurrent modification conflicts.
+ * Add a member to the team.
  */
-export function addMember(
+export async function addMemberAsync(
   teamName: string,
   member: AgentIdentity,
   config: Partial<OhMyOpenCodeConfig>
-): TeamManifest {
+): Promise<TeamManifest> {
   const manifestPath = getManifestPath(teamName, config)
 
-  return withLockSync(manifestPath, () => {
-    const manifest = readManifest(teamName, config)
+  return withLock(manifestPath, () => {
+    const manifest = readManifest(teamName, config, { includeHeartbeats: false })
     if (!manifest) {
       throw new Error(`Team "${teamName}" not found`)
     }
 
-    // Idempotent: if already a member, update fields and return
     const existing = manifest.members.find(m => m.id === member.id)
     if (existing) {
-      // Update mutable fields to latest values
       existing.capabilities = member.capabilities
       existing.tmuxPane = member.tmuxPane
       existing.worktreePath = member.worktreePath
       existing.lastHeartbeat = Date.now()
       writeManifest(teamName, manifest, config)
+      writeHeartbeat(teamName, existing.id, config, existing.lastHeartbeat)
       return manifest
     }
 
-    // Check max members
     if (manifest.settings.maxMembers > 0 && manifest.members.length >= manifest.settings.maxMembers) {
       throw new Error(`Team "${teamName}" has reached maximum members (${manifest.settings.maxMembers})`)
     }
 
     manifest.members.push(member)
     writeManifest(teamName, manifest, config)
-
+    writeHeartbeat(teamName, member.id, config, member.lastHeartbeat ?? Date.now())
     return manifest
   })
 }
 
 /**
- * Remove a member from the team
- *
- * Uses file locking to prevent concurrent modification conflicts.
- * Also cleans up the worker from idleWorkers list if present.
+ * Remove a member from the team.
  */
-export function removeMember(
+export async function removeMemberAsync(
   teamName: string,
   agentId: string,
   config: Partial<OhMyOpenCodeConfig>
-): TeamManifest {
+): Promise<TeamManifest> {
   const manifestPath = getManifestPath(teamName, config)
 
-  return withLockSync(manifestPath, () => {
-    const manifest = readManifest(teamName, config)
+  return withLock(manifestPath, () => {
+    const manifest = readManifest(teamName, config, { includeHeartbeats: false })
     if (!manifest) {
       throw new Error(`Team "${teamName}" not found`)
     }
 
-    // Can't remove coordinator
     if (manifest.coordinatorId === agentId) {
-      throw new Error(`Cannot remove coordinator from team. Transfer coordinator role first.`)
+      throw new Error("Cannot remove coordinator from team. Transfer coordinator role first.")
     }
 
     const memberIndex = manifest.members.findIndex(m => m.id === agentId)
     if (memberIndex === -1) {
-      // Idempotent: already removed, return current manifest
       return manifest
     }
 
     manifest.members.splice(memberIndex, 1)
-
-    // Also remove from idleWorkers if present (cleanup)
-    if (manifest.idleWorkers) {
-      const idleIndex = manifest.idleWorkers.indexOf(agentId)
-      if (idleIndex !== -1) {
-        manifest.idleWorkers.splice(idleIndex, 1)
-      }
-    }
+    markBusy(teamName, agentId, config)
 
     writeManifest(teamName, manifest, config)
-
     return manifest
   })
 }
 
 /**
- * Update member info (e.g., heartbeat, capabilities)
- *
- * Uses file locking to prevent concurrent modification conflicts.
+ * Update member info (e.g., heartbeat, capabilities).
  */
-export function updateMember(
+export async function updateMemberAsync(
   teamName: string,
   agentId: string,
   updates: Partial<Pick<AgentIdentity, "capabilities" | "tmuxPane" | "worktreePath" | "lastHeartbeat">>,
   config: Partial<OhMyOpenCodeConfig>
-): TeamManifest {
+): Promise<TeamManifest> {
   const manifestPath = getManifestPath(teamName, config)
-
-  return withLockSync(manifestPath, () => {
-    const manifest = readManifest(teamName, config)
+  return withLock(manifestPath, () => {
+    const manifest = readManifest(teamName, config, { includeHeartbeats: false })
     if (!manifest) {
       throw new Error(`Team "${teamName}" not found`)
     }
@@ -247,6 +251,9 @@ export function updateMember(
     if (updates.lastHeartbeat !== undefined) member.lastHeartbeat = updates.lastHeartbeat
 
     writeManifest(teamName, manifest, config)
+    if (updates.lastHeartbeat !== undefined) {
+      writeHeartbeat(teamName, member.id, config, updates.lastHeartbeat)
+    }
     return manifest
   })
 }
@@ -259,46 +266,7 @@ export function heartbeat(
   agentId: string,
   config: Partial<OhMyOpenCodeConfig>
 ): void {
-  updateMember(teamName, agentId, { lastHeartbeat: Date.now() }, config)
-}
-
-/**
- * Transfer coordinator role to another member
- *
- * Uses file locking to prevent concurrent modification conflicts.
- */
-export function transferCoordinator(
-  teamName: string,
-  newCoordinatorId: string,
-  config: Partial<OhMyOpenCodeConfig>
-): TeamManifest {
-  const manifestPath = getManifestPath(teamName, config)
-
-  return withLockSync(manifestPath, () => {
-    const manifest = readManifest(teamName, config)
-    if (!manifest) {
-      throw new Error(`Team "${teamName}" not found`)
-    }
-
-    const newCoord = manifest.members.find(m => m.id === newCoordinatorId)
-    if (!newCoord) {
-      throw new Error(`Agent "${newCoordinatorId}" is not a member of team "${teamName}"`)
-    }
-
-    // Update roles
-    for (const member of manifest.members) {
-      if (member.id === manifest.coordinatorId) {
-        member.role = "worker"
-      } else if (member.id === newCoordinatorId) {
-        member.role = "coordinator"
-      }
-    }
-
-    manifest.coordinatorId = newCoordinatorId
-    writeManifest(teamName, manifest, config)
-
-    return manifest
-  })
+  writeHeartbeat(teamName, agentId, config, Date.now())
 }
 
 /**
@@ -309,7 +277,7 @@ export function getMember(
   agentId: string,
   config: Partial<OhMyOpenCodeConfig>
 ): AgentIdentity | null {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) return null
   return manifest.members.find(m => m.id === agentId) ?? null
 }
@@ -321,7 +289,7 @@ export function getCoordinator(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>
 ): AgentIdentity | null {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) return null
   return manifest.members.find(m => m.id === manifest.coordinatorId) ?? null
 }
@@ -333,7 +301,7 @@ export function getWorkers(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>
 ): AgentIdentity[] {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) return []
   return manifest.members.filter(m => m.id !== manifest.coordinatorId)
 }
@@ -346,7 +314,7 @@ export function isCoordinator(
   agentId: string,
   config: Partial<OhMyOpenCodeConfig>
 ): boolean {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) return false
   return manifest.coordinatorId === agentId
 }
@@ -396,15 +364,16 @@ export function getStaleMembers(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>
 ): AgentIdentity[] {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) return []
 
   const timeout = manifest.settings.heartbeatTimeoutMs
   const now = Date.now()
 
   return manifest.members.filter(m => {
-    if (!m.lastHeartbeat) return true
-    return now - m.lastHeartbeat > timeout
+    const heartbeatAt = readHeartbeat(teamName, m.id, config) ?? m.lastHeartbeat
+    if (!heartbeatAt) return true
+    return now - heartbeatAt > timeout
   })
 }
 
@@ -418,19 +387,20 @@ export function isCoordinatorAlive(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>
 ): boolean {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) return false
 
   const coordinator = manifest.members.find(m => m.id === manifest.coordinatorId)
   if (!coordinator) return false
 
+  const heartbeatAt = readHeartbeat(teamName, coordinator.id, config) ?? coordinator.lastHeartbeat
   // If no heartbeat recorded, assume alive (just started)
-  if (!coordinator.lastHeartbeat) return true
+  if (!heartbeatAt) return true
 
   const timeout = manifest.settings.heartbeatTimeoutMs
   const now = Date.now()
 
-  return now - coordinator.lastHeartbeat < timeout
+  return now - heartbeatAt < timeout
 }
 
 /**
@@ -445,23 +415,7 @@ export function markWorkerIdle(
   workerId: string,
   config: Partial<OhMyOpenCodeConfig>
 ): void {
-  const manifestPath = getManifestPath(teamName, config)
-
-  withLockSync(manifestPath, () => {
-    const manifest = readManifest(teamName, config)
-    if (!manifest) return
-
-    // Initialize idleWorkers if not present (backward compatibility)
-    if (!manifest.idleWorkers) {
-      manifest.idleWorkers = []
-    }
-
-    // Add worker if not already in idle list
-    if (!manifest.idleWorkers.includes(workerId)) {
-      manifest.idleWorkers.push(workerId)
-      writeManifest(teamName, manifest, config)
-    }
-  })
+  markIdle(teamName, workerId, config)
 }
 
 /**
@@ -474,43 +428,22 @@ export function markWorkerBusy(
   workerId: string,
   config: Partial<OhMyOpenCodeConfig>
 ): void {
-  const manifestPath = getManifestPath(teamName, config)
-
-  withLockSync(manifestPath, () => {
-    const manifest = readManifest(teamName, config)
-    if (!manifest) return
-
-    // Initialize idleWorkers if not present (backward compatibility)
-    if (!manifest.idleWorkers) {
-      manifest.idleWorkers = []
-      return
-    }
-
-    const index = manifest.idleWorkers.indexOf(workerId)
-    if (index !== -1) {
-      manifest.idleWorkers.splice(index, 1)
-      writeManifest(teamName, manifest, config)
-    }
-  })
+  markBusy(teamName, workerId, config)
 }
 
 /**
- * Get list of idle workers from manifest (level-triggered)
+ * Get list of idle workers from idle store (level-triggered)
  *
- * This reads from the persistent idleWorkers list rather than
- * consuming messages, preventing the "edge-trigger lost" problem.
- *
- * Only returns workers that are still team members (filters out
- * stale entries from workers that have left).
+ * Returns only workers that are still members.
  */
 export function getIdleWorkersFromManifest(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>
 ): string[] {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) return []
 
-  const idleWorkers = manifest.idleWorkers ?? []
+  const idleWorkers = listIdleWorkers(teamName, config)
   if (idleWorkers.length === 0) return []
 
   // Filter to only include workers that are still members
@@ -528,87 +461,72 @@ export interface TakeoverResult {
 }
 
 /**
- * Take over as the new coordinator of a team
- *
- * This function atomically:
- * 1. Checks if the old coordinator's heartbeat has timed out
- * 2. Updates coordinatorId to the new agent
- * 3. Adds the new agent as a member (if not already)
- * 4. Updates the old coordinator's role to "worker"
- *
- * Split-brain prevention: If the old coordinator is still alive
- * (heartbeat within timeout), the takeover is rejected.
- *
- * @param teamName The team to take over
- * @param newCoordinator The agent attempting to become coordinator
- * @param config OpenCode config
- * @param options.force Force takeover even if old coordinator is alive (use with caution)
- * @returns TakeoverResult indicating success or failure with reason
+ * Take over as the new coordinator of a team.
  */
-export function takeoverAsCoordinator(
+export async function takeoverAsCoordinatorAsync(
   teamName: string,
   newCoordinator: AgentIdentity,
   config: Partial<OhMyOpenCodeConfig>,
   options?: { force?: boolean }
-): TakeoverResult {
+): Promise<TakeoverResult> {
   const manifestPath = getManifestPath(teamName, config)
 
-  return withLockSync(manifestPath, () => {
-    const manifest = readManifest(teamName, config)
+  return withLock(manifestPath, () => {
+    const manifest = readManifest(teamName, config, { includeHeartbeats: false })
     if (!manifest) {
       return { success: false, reason: `Team "${teamName}" not found` }
     }
 
     const previousCoordinatorId = manifest.coordinatorId
-
-    // Check if we're already the coordinator
     if (previousCoordinatorId === newCoordinator.id) {
       return { success: true, previousCoordinatorId }
     }
 
-    // Check if old coordinator is still alive (split-brain prevention)
     if (!options?.force) {
       const oldCoordinator = manifest.members.find(m => m.id === previousCoordinatorId)
-      if (oldCoordinator?.lastHeartbeat) {
+      const oldHeartbeat = oldCoordinator
+        ? (readHeartbeat(teamName, oldCoordinator.id, config) ?? oldCoordinator.lastHeartbeat)
+        : undefined
+      if (oldHeartbeat) {
         const timeout = manifest.settings.heartbeatTimeoutMs
         const now = Date.now()
-        if (now - oldCoordinator.lastHeartbeat < timeout) {
+        if (now - oldHeartbeat < timeout) {
           return {
             success: false,
-            reason: `Cannot takeover: coordinator "${previousCoordinatorId}" is still alive (heartbeat ${Math.round((now - oldCoordinator.lastHeartbeat) / 1000)}s ago, timeout ${timeout / 1000}s)`,
+            reason: `Cannot takeover: coordinator "${previousCoordinatorId}" is still alive (heartbeat ${Math.round((now - oldHeartbeat) / 1000)}s ago, timeout ${timeout / 1000}s)`,
             previousCoordinatorId,
           }
         }
       }
     }
 
-    // Update old coordinator's role to worker (if still in members)
     const oldCoordIndex = manifest.members.findIndex(m => m.id === previousCoordinatorId)
     if (oldCoordIndex !== -1) {
       manifest.members[oldCoordIndex].role = "worker"
     }
 
-    // Check if new coordinator is already a member
     const existingMemberIndex = manifest.members.findIndex(m => m.id === newCoordinator.id)
     if (existingMemberIndex !== -1) {
-      // Update existing member to coordinator role
       manifest.members[existingMemberIndex].role = "coordinator"
       manifest.members[existingMemberIndex].lastHeartbeat = Date.now()
+      writeHeartbeat(
+        teamName,
+        manifest.members[existingMemberIndex].id,
+        config,
+        manifest.members[existingMemberIndex].lastHeartbeat
+      )
     } else {
-      // Add new coordinator as member
       const coordWithRole: AgentIdentity = {
         ...newCoordinator,
         role: "coordinator",
         lastHeartbeat: Date.now(),
       }
       manifest.members.push(coordWithRole)
+      writeHeartbeat(teamName, coordWithRole.id, config, coordWithRole.lastHeartbeat ?? Date.now())
     }
 
-    // Update coordinatorId
     manifest.coordinatorId = newCoordinator.id
-
     writeManifest(teamName, manifest, config)
-
     return { success: true, previousCoordinatorId }
   })
 }

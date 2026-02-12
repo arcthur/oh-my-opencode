@@ -2,7 +2,7 @@ import { describe, expect, test, mock } from "bun:test"
 import { closeSwarmWindowsByTeam, inspectSwarmWindowsByTeam } from "./utils"
 
 describe("tmux swarm recovery helpers", () => {
-  test("closeSwarmWindowsByTeam prefers @swarm_team option matching", async () => {
+  test("closeSwarmWindowsByTeam matches only by @swarm_team option", async () => {
     // #given
     const closeTmuxWindow = mock(() => true)
 
@@ -18,7 +18,6 @@ describe("tmux swarm recovery helpers", () => {
         if (target === "main:3") return "team-b"
         return null
       },
-      capturePaneContent: () => null,
       closeTmuxWindow,
     })
 
@@ -26,12 +25,11 @@ describe("tmux swarm recovery helpers", () => {
     expect(result.attempted).toBe(1)
     expect(result.closed).toBe(1)
     expect(result.matchedByOption).toBe(1)
-    expect(result.matchedByPane).toBe(0)
     expect(closeTmuxWindow).toHaveBeenCalledTimes(1)
     expect(closeTmuxWindow).toHaveBeenCalledWith("main", "1")
   })
 
-  test("closeSwarmWindowsByTeam falls back to pane content matching", async () => {
+  test("closeSwarmWindowsByTeam ignores windows without @swarm_team option", async () => {
     // #given
     const closeTmuxWindow = mock(() => true)
 
@@ -42,30 +40,17 @@ describe("tmux swarm recovery helpers", () => {
         { index: "2", name: "... swarm-worker-b" },
       ],
       getTmuxWindowOption: () => null,
-      capturePaneContent: (target) => {
-        if (target === "main:1.0") {
-          return 'OPENCODE_SWARM_TEAM="team-a" OPENCODE_SWARM_ROLE="worker" opencode\n'
-        }
-        if (target === "main:2.0") {
-          return 'OPENCODE_SWARM_TEAM="team-b" OPENCODE_SWARM_ROLE="worker" opencode\n'
-        }
-        return null
-      },
       closeTmuxWindow,
     })
 
     // #then
-    expect(result.attempted).toBe(1)
-    expect(result.closed).toBe(1)
+    expect(result.attempted).toBe(0)
+    expect(result.closed).toBe(0)
     expect(result.matchedByOption).toBe(0)
-    expect(result.matchedByPane).toBe(1)
-    expect(closeTmuxWindow).toHaveBeenCalledTimes(1)
-    expect(closeTmuxWindow).toHaveBeenCalledWith("main", "1")
+    expect(closeTmuxWindow).toHaveBeenCalledTimes(0)
   })
 
-  test("inspectSwarmWindowsByTeam reports non-destructive diagnostics", async () => {
-    // #given
-
+  test("inspectSwarmWindowsByTeam reports option-based diagnostics", async () => {
     // #when
     const inspection = inspectSwarmWindowsByTeam("main", "team-a", {
       listTmuxWindows: () => [
@@ -77,19 +62,12 @@ describe("tmux swarm recovery helpers", () => {
         if (target === "main:1") return "team-a"
         return null
       },
-      capturePaneContent: (target) => {
-        if (target === "main:2.0") {
-          return 'OPENCODE_SWARM_TEAM="team-a" OPENCODE_SWARM_ROLE="worker" opencode\n'
-        }
-        return null
-      },
     })
 
     // #then
     expect(inspection.scanned).toBe(3)
-    expect(inspection.matched).toBe(2)
+    expect(inspection.matched).toBe(1)
     expect(inspection.matchedByOption).toBe(1)
-    expect(inspection.matchedByPane).toBe(1)
-    expect(inspection.windowIndexes).toEqual(["1", "2"])
+    expect(inspection.windowIndexes).toEqual(["1"])
   })
 })

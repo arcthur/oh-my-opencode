@@ -76,14 +76,6 @@ export const TeamManifestSchema = z.object({
     heartbeatTimeoutMs: 30000,
     assignmentStrategy: "capability-match" as const,
   })),
-  /**
-   * Workers currently idle and ready for tasks (level-triggered)
-   *
-   * This persists idle state so that when new tasks arrive,
-   * the coordinator can immediately assign them without waiting
-   * for workers to re-send idle notifications.
-   */
-  idleWorkers: z.array(z.string()).default([]),
 })
 
 export type TeamManifest = z.infer<typeof TeamManifestSchema>

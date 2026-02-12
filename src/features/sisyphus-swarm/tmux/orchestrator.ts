@@ -61,8 +61,39 @@ export interface SwarmOrchestratorConfig {
   }
   /** Auto-rescue stuck agents */
   autoRescue?: boolean
+  /** Auto-rescue policy for prompt confirmation */
+  autoRescuePolicy?: "disabled" | "allowlist"
+  /** Allowlist patterns used when autoRescuePolicy=allowlist */
+  autoRescueAllowlist?: string[]
   /** Rescue check interval in ms */
   rescueIntervalMs?: number
+}
+
+export function shouldAutoRescuePrompt(
+  content: string,
+  policy: "disabled" | "allowlist" = "disabled",
+  allowlist: string[] = []
+): boolean {
+  if (!/\(y\/n\)|\[Y\/n\]|\[y\/N\]/i.test(content)) {
+    return false
+  }
+  if (policy !== "allowlist") {
+    return false
+  }
+  if (allowlist.length === 0) {
+    return false
+  }
+  for (const pattern of allowlist) {
+    try {
+      const regex = new RegExp(pattern, "i")
+      if (regex.test(content)) {
+        return true
+      }
+    } catch {
+      continue
+    }
+  }
+  return false
 }
 
 /**
@@ -294,16 +325,21 @@ export class SwarmOrchestrator {
    */
   rescueStuckAgents(): number {
     let rescued = 0
+    const policy = this.orchestratorConfig.autoRescuePolicy ?? "disabled"
+    const allowlist = this.orchestratorConfig.autoRescueAllowlist ?? []
 
     for (const [agentId, info] of this.windows) {
       const content = capturePaneContent(info.paneTarget, 30)
       if (!content) continue
 
-      // Check for y/n prompt
-      if (/\(y\/n\)|\[Y\/n\]|\[y\/N\]/i.test(content)) {
+      if (shouldAutoRescuePrompt(content, policy, allowlist)) {
         sendKeys(info.paneTarget, "y")
         sendKeys(info.paneTarget, "Enter")
         rescued++
+      } else if (/\(y\/n\)|\[Y\/n\]|\[y\/N\]/i.test(content)) {
+        console.warn(
+          `[swarm] auto-rescue prompt detected but blocked by policy (${policy}) for agent ${agentId}`
+        )
       }
     }
 
@@ -434,6 +470,7 @@ export function createSwarmOrchestrator(
   }
 
   const tmuxConfig = config.tmux_parallel_agents
+  const swarmConfig = config.sisyphus?.swarm
 
   return new SwarmOrchestrator(
     {
@@ -443,6 +480,8 @@ export function createSwarmOrchestrator(
       copyFiles: tmuxConfig?.worktree?.copy_files,
       symlinkPaths: tmuxConfig?.worktree?.symlink,
       autoRescue: tmuxConfig?.auto_rescue ?? false,
+      autoRescuePolicy: swarmConfig?.auto_rescue_policy ?? "disabled",
+      autoRescueAllowlist: swarmConfig?.auto_rescue_allowlist ?? [],
       rescueIntervalMs: tmuxConfig?.rescue_interval_ms,
       statusIcons: tmuxConfig?.status_icons as SwarmOrchestratorConfig["statusIcons"],
     },

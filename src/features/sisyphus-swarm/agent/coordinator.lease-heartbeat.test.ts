@@ -10,7 +10,7 @@ import {
 } from "../../parallel-runtime"
 import {
   createAgentIdentity,
-  addMember,
+  addMemberAsync,
   markWorkerIdle,
 } from "../team"
 import { createSwarmTask } from "../task-graph"
@@ -42,6 +42,7 @@ describe("coordinator lease heartbeat", () => {
           ui_mode: "toast",
           swarm_first: false,
           worker_count: 0,
+          coordinator_lease_renew_ms: 300,
         },
       },
       parallel_runtime: {
@@ -96,7 +97,7 @@ describe("coordinator lease heartbeat", () => {
       role: "worker",
       capabilities: ["code"],
     })
-    addMember(teamName, workerIdentity, config)
+    await addMemberAsync(teamName, workerIdentity, config)
     markWorkerIdle(teamName, workerIdentity.id, config)
 
     // Create a task for auto-assignment

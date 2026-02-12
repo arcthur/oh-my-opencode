@@ -164,6 +164,21 @@ describe("SwarmOrchestrator integration", () => {
   })
 })
 
+describe("auto rescue policy", () => {
+  it("blocks rescue when policy is disabled", async () => {
+    const { shouldAutoRescuePrompt } = await import("./orchestrator")
+    const content = "Dangerous operation detected. Continue? (y/n)"
+    expect(shouldAutoRescuePrompt(content, "disabled", ["continue"])).toBe(false)
+  })
+
+  it("allows rescue only when allowlist matches", async () => {
+    const { shouldAutoRescuePrompt } = await import("./orchestrator")
+    const content = "Trusted workflow prompt [Y/n]"
+    expect(shouldAutoRescuePrompt(content, "allowlist", ["trusted workflow"])).toBe(true)
+    expect(shouldAutoRescuePrompt(content, "allowlist", ["unrelated"])).toBe(false)
+  })
+})
+
 describe("getOpenCodeSwarmCommand", () => {
   it("generates command with environment variables for worker", async () => {
     const { getOpenCodeSwarmCommand, SWARM_ENV } = await import("./utils")

@@ -33,6 +33,8 @@ export {
   // Protocol message types
   ProtocolMessageSchema,
   type ProtocolMessage,
+  EnvelopeAuthSchema,
+  type EnvelopeAuth,
 
   // Individual message schemas
   MailboxMessageSchema,
@@ -93,7 +95,6 @@ export {
   readInbox,
   readUnread,
   readByType,
-  readUnreadByType,
   getLastReadTimestamp,
   hasUnread,
   countUnread,
@@ -103,13 +104,18 @@ export {
 // Writer
 export {
   getInboxDir,
+  getInboxPendingDir,
+  getInboxProcessingDir,
+  getInboxDoneDir,
   generateMessageId,
   createInbox,
   ensureInbox,
   sendMessage,
   broadcast,
-  markAsRead,
-  markAllAsRead,
+  claimPendingMessages,
+  ackProcessedMessage,
+  requeueClaimedMessage,
+  requeueExpiredProcessing,
   deleteMessages,
   clearInbox,
   pruneOldMessages,
@@ -126,3 +132,14 @@ export {
   waitForMessage,
   MessageQueue,
 } from "./watcher"
+
+// Transport abstraction
+export {
+  type MailboxTransport,
+  type MailboxTransportFactoryOptions,
+} from "./transport"
+
+export {
+  FsMailboxTransport,
+  createFsMailboxTransport,
+} from "./fs-transport"

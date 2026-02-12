@@ -105,6 +105,25 @@ Scopes:
 
 See `src/config/schema.ts` (`SisyphusTasksConfigSchema`, `SisyphusSwarmConfigSchema`) and `docs/reference/task-graph.md`.
 
+Swarm team runtime layout (default root: `.sisyphus/teams`):
+
+```text
+.sisyphus/teams/<team>/
+├── manifest.json
+├── coordinator-lease.json
+├── heartbeats/<agentId>.json
+├── idle/<agentId>.idle
+├── diagnostics/late-responses/*.json
+├── security/control-message-signing-key.json
+└── inboxes/<agentId>/
+    ├── _meta.json
+    ├── pending/*.json
+    ├── processing/*.json
+    └── done/*.json
+```
+
+Mailbox semantics are queue-based (`pending -> processing -> done/delete`), not read-flag toggling over a single inbox file.
+
 ## Parallel Agents (tmux + git worktrees)
 
 If `tmux_parallel_agents.worktree.enabled=true`, the plugin may create git worktrees under a pattern directory:

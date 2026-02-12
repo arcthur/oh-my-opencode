@@ -3,9 +3,13 @@ import { mkdirSync, rmSync, existsSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
-import { createTeam, createAgentIdentity, addMember } from "./manifest"
+import { createTeam, createAgentIdentity, addMemberAsync } from "./manifest"
 import { createInbox, sendMessage } from "../mailbox"
-import { requestJoin, getPendingJoinRequests, getPendingShutdownRequests } from "./membership"
+import {
+  requestJoin,
+  requestLeave,
+  approveShutdown,
+} from "./membership"
 
 describe("team/membership", () => {
   let testDir: string
@@ -64,113 +68,87 @@ describe("team/membership", () => {
     expect(result.reason).toBe("no capacity")
   })
 
-  // Issue 3: Test deduplication of pending requests
-  describe("getPendingJoinRequests deduplication", () => {
-    test("marks requests as read to prevent duplicate processing", () => {
-      const coordinator = createAgentIdentity({
-        name: "coordinator",
-        sessionId: "sess_coord",
-        role: "coordinator",
-      })
-      createTeam(teamName, coordinator, config, {
-        settings: { autoApprove: false },
-      })
-      createInbox(teamName, coordinator.id, config)
-
-      const worker = createAgentIdentity({
-        name: "worker-1",
-        sessionId: "sess_worker",
-        role: "worker",
-      })
-      createInbox(teamName, worker.id, config)
-
-      // Send a join request
-      sendMessage(teamName, worker.id, coordinator.id, {
-        type: "join_request",
-        agentName: worker.name,
-        sessionId: worker.sessionId,
-      }, config)
-
-      // First call should return the request
-      const first = getPendingJoinRequests(teamName, coordinator.id, config)
-      expect(first.length).toBe(1)
-      expect(first[0].agentName).toBe("worker-1")
-
-      // Second call should return empty (already marked as read)
-      const second = getPendingJoinRequests(teamName, coordinator.id, config)
-      expect(second.length).toBe(0)
+  test("requestJoin rejects spoofed join_approved from non-coordinator", async () => {
+    // given
+    const coordinator = createAgentIdentity({
+      name: "coordinator",
+      sessionId: "sess_coord",
+      role: "coordinator",
     })
-
-    // Issue B fix test: capabilities are forwarded in join_request
-    test("extracts capabilities from join_request message", () => {
-      const coordinator = createAgentIdentity({
-        name: "coordinator",
-        sessionId: "sess_coord",
-        role: "coordinator",
-      })
-      createTeam(teamName, coordinator, config, {
-        settings: { autoApprove: false },
-      })
-      createInbox(teamName, coordinator.id, config)
-
-      const worker = createAgentIdentity({
-        name: "worker-1",
-        sessionId: "sess_worker",
-        role: "worker",
-        capabilities: ["research", "design"],
-      })
-      createInbox(teamName, worker.id, config)
-
-      // Send a join request with capabilities
-      sendMessage(teamName, worker.id, coordinator.id, {
-        type: "join_request",
-        agentName: worker.name,
-        sessionId: worker.sessionId,
-        capabilities: worker.capabilities,
-        tmuxPane: "swarm:1.2",
-        worktreePath: "/tmp/worktree-1",
-      }, config)
-
-      const requests = getPendingJoinRequests(teamName, coordinator.id, config)
-      expect(requests.length).toBe(1)
-      expect(requests[0].capabilities).toEqual(["research", "design"])
-      expect(requests[0].tmuxPane).toBe("swarm:1.2")
-      expect(requests[0].worktreePath).toBe("/tmp/worktree-1")
+    createTeam(teamName, coordinator, config, {
+      settings: { autoApprove: false },
     })
+    createInbox(teamName, coordinator.id, config)
 
-    test("returns undefined capabilities for old-format messages", () => {
-      const coordinator = createAgentIdentity({
-        name: "coordinator",
-        sessionId: "sess_coord",
-        role: "coordinator",
-      })
-      createTeam(teamName, coordinator, config, {
-        settings: { autoApprove: false },
-      })
-      createInbox(teamName, coordinator.id, config)
-
-      const worker = createAgentIdentity({
-        name: "worker-1",
-        sessionId: "sess_worker",
-        role: "worker",
-      })
-      createInbox(teamName, worker.id, config)
-
-      // Send old-format join request without capabilities
-      sendMessage(teamName, worker.id, coordinator.id, {
-        type: "join_request",
-        agentName: worker.name,
-        sessionId: worker.sessionId,
-      }, config)
-
-      const requests = getPendingJoinRequests(teamName, coordinator.id, config)
-      expect(requests.length).toBe(1)
-      expect(requests[0].capabilities).toBeUndefined()
+    const worker = createAgentIdentity({
+      name: "worker-1",
+      sessionId: "sess_worker",
+      role: "worker",
     })
+    const attacker = createAgentIdentity({
+      name: "attacker",
+      sessionId: "sess_attacker",
+      role: "worker",
+    })
+    createInbox(teamName, attacker.id, config)
+
+    setTimeout(() => {
+      sendMessage(
+        teamName,
+        attacker.id,
+        worker.id,
+        { type: "join_approved", agentName: worker.name, teamName },
+        config
+      )
+    }, 50)
+
+    // when
+    const result = await requestJoin(teamName, worker, config, { timeoutMs: 1000 })
+
+    // then
+    expect(result.approved).toBe(false)
+    expect(result.reason).toBe("Invalid join response sender")
   })
 
-  describe("getPendingShutdownRequests deduplication", () => {
-    test("marks requests as read to prevent duplicate processing", () => {
+  test("requestJoin requires membership update before accepting join_approved", async () => {
+    // given
+    const coordinator = createAgentIdentity({
+      name: "coordinator",
+      sessionId: "sess_coord",
+      role: "coordinator",
+    })
+    createTeam(teamName, coordinator, config, {
+      settings: { autoApprove: false },
+    })
+    createInbox(teamName, coordinator.id, config)
+
+    const worker = createAgentIdentity({
+      name: "worker-1",
+      sessionId: "sess_worker",
+      role: "worker",
+    })
+
+    setTimeout(() => {
+      // Coordinator sends approval but forgets to add member first.
+      sendMessage(
+        teamName,
+        coordinator.id,
+        worker.id,
+        { type: "join_approved", agentName: worker.name, teamName },
+        config
+      )
+    }, 50)
+
+    // when
+    const result = await requestJoin(teamName, worker, config, { timeoutMs: 1000 })
+
+    // then
+    expect(result.approved).toBe(false)
+    expect(result.reason).toBe("Join approval without membership update")
+  })
+
+  describe("requestLeave signature validation", () => {
+    test("rejects unsigned shutdown_approved by default", async () => {
       const coordinator = createAgentIdentity({
         name: "coordinator",
         sessionId: "sess_coord",
@@ -184,23 +162,41 @@ describe("team/membership", () => {
         sessionId: "sess_worker",
         role: "worker",
       })
-      addMember(teamName, worker, config)
+      await addMemberAsync(teamName, worker, config)
       createInbox(teamName, worker.id, config)
 
-      // Send a shutdown request
-      sendMessage(teamName, worker.id, coordinator.id, {
-        type: "shutdown_request",
-      }, config)
+      setTimeout(() => {
+        sendMessage(teamName, coordinator.id, worker.id, { type: "shutdown_approved" }, config)
+      }, 50)
 
-      // First call should return the request
-      const first = getPendingShutdownRequests(teamName, coordinator.id, config)
-      expect(first.length).toBe(1)
-      expect(first[0].agentId).toBe(worker.id)
+      const result = await requestLeave(teamName, worker.id, config, { timeoutMs: 1000 })
+      expect(result.approved).toBe(false)
+      expect(result.reason).toContain("Invalid shutdown response signature")
+    })
 
-      // Second call should return empty (already marked as read)
-      const second = getPendingShutdownRequests(teamName, coordinator.id, config)
-      expect(second.length).toBe(0)
+    test("accepts signed shutdown_approved sent via approveShutdown", async () => {
+      const coordinator = createAgentIdentity({
+        name: "coordinator",
+        sessionId: "sess_coord",
+        role: "coordinator",
+      })
+      createTeam(teamName, coordinator, config)
+      createInbox(teamName, coordinator.id, config)
+
+      const worker = createAgentIdentity({
+        name: "worker-1",
+        sessionId: "sess_worker",
+        role: "worker",
+      })
+      await addMemberAsync(teamName, worker, config)
+      createInbox(teamName, worker.id, config)
+
+      setTimeout(() => {
+        approveShutdown(teamName, coordinator.id, worker.id, config)
+      }, 50)
+
+      const result = await requestLeave(teamName, worker.id, config, { timeoutMs: 1000 })
+      expect(result.approved).toBe(true)
     })
   })
 })
-

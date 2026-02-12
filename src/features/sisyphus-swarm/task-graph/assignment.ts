@@ -1,8 +1,8 @@
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import type { TaskLease, TaskLifecycleState, TaskNode, TaskReadiness } from "../../task-system"
 import {
-  sendMessage,
-  waitForMessage,
+  createFsMailboxTransport,
+  type MailboxTransport,
 } from "../mailbox"
 import {
   readManifest,
@@ -11,6 +11,7 @@ import {
   getWorkers,
   markWorkerBusy,
 } from "../team/manifest"
+import { getCoordinatorEpoch } from "../team/coordinator-lease"
 import { getIdleWorkers } from "../team/membership"
 import {
   recordRunEvent,
@@ -38,19 +39,11 @@ export interface TaskAssignmentResult {
   reason?: string
 }
 
-export interface ReceivedTaskInfo {
-  id: string
-  title: string
-  description: string
-  contextSummary?: string
-  relevantFiles?: string[]
-  parentContext?: {
-    previousAttempts: number
-    lastError?: string
-    lastWorkerId?: string
-  }
-  requiredCapabilities?: string[]
-  priority?: number
+function resolveMailboxTransport(
+  config: Partial<OhMyOpenCodeConfig>,
+  transport?: MailboxTransport
+): MailboxTransport {
+  return transport ?? createFsMailboxTransport(config)
 }
 
 function resolveRuntimeConfig(config: Partial<OhMyOpenCodeConfig>): ParallelRuntimeConfig {
@@ -157,13 +150,14 @@ export function coordinatorAssignTask(
   options?: {
     lease?: TaskLease
     assignmentMetadata?: Record<string, unknown>
+    mailboxTransport?: MailboxTransport
   }
 ): TaskAssignmentResult {
   if (!isCoordinator(teamName, coordinatorId, config)) {
     return { success: false, reason: "Only coordinator can assign tasks" }
   }
 
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) {
     return { success: false, reason: "Team not found" }
   }
@@ -210,7 +204,8 @@ export function coordinatorAssignTask(
   const contextSummary = extractMetadataString(task.metadata, "contextSummary")
   const relevantFiles = normalizeStringArray(task.metadata?.relevantFiles)
 
-  sendMessage(
+  const mailboxTransport = resolveMailboxTransport(config, options?.mailboxTransport)
+  mailboxTransport.sendMessage(
     teamName,
     coordinatorId,
     workerId,
@@ -226,71 +221,20 @@ export function coordinatorAssignTask(
       parentContext,
       requiredCapabilities: requiredCapabilities.length > 0 ? requiredCapabilities : undefined,
       priority: task.priority,
-    },
-    config
+    }
   )
 
   return { success: true, taskId: task.id, agentId: workerId }
-}
-
-export async function workerReceiveAssignment(
-  teamName: string,
-  workerId: string,
-  config: Partial<OhMyOpenCodeConfig>,
-  options?: { timeoutMs?: number }
-): Promise<{
-  task: ReceivedTaskInfo | null
-  messageId: string | null
-}> {
-  try {
-    const message = await waitForMessage(
-      teamName,
-      workerId,
-      "task_assignment",
-      config,
-      options?.timeoutMs ?? 30000
-    )
-
-    if (message.payload.type !== "task_assignment") {
-      return { task: null, messageId: null }
-    }
-
-    const payload = message.payload as unknown as {
-      taskId: string
-      title: string
-      description: string
-      contextSummary?: string
-      relevantFiles?: string[]
-      parentContext?: ReceivedTaskInfo["parentContext"]
-      requiredCapabilities?: string[]
-      priority?: number
-    }
-
-    return {
-      task: {
-        id: payload.taskId,
-        title: payload.title,
-        description: payload.description,
-        contextSummary: payload.contextSummary,
-        relevantFiles: payload.relevantFiles,
-        parentContext: payload.parentContext,
-        requiredCapabilities: payload.requiredCapabilities,
-        priority: payload.priority,
-      },
-      messageId: message.id,
-    }
-  } catch {
-    return { task: null, messageId: null }
-  }
 }
 
 export function workerReportCompletion(
   teamName: string,
   workerId: string,
   taskId: string,
-  config: Partial<OhMyOpenCodeConfig>
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: { mailboxTransport?: MailboxTransport }
 ): boolean {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) {
     return false
   }
@@ -300,7 +244,8 @@ export function workerReportCompletion(
     return false
   }
 
-  sendMessage(
+  const mailboxTransport = resolveMailboxTransport(config, options?.mailboxTransport)
+  mailboxTransport.sendMessage(
     teamName,
     workerId,
     manifest.coordinatorId,
@@ -310,7 +255,9 @@ export function workerReportCompletion(
       agentId: workerId,
       timestamp: Date.now(),
     },
-    config
+    {
+      epoch: getCoordinatorEpoch(teamName, config) ?? undefined,
+    }
   )
 
   return true
@@ -319,13 +266,14 @@ export function workerReportCompletion(
 export async function autoAssignTasksWithRuntime(
   teamName: string,
   coordinatorId: string,
-  config: Partial<OhMyOpenCodeConfig>
+  config: Partial<OhMyOpenCodeConfig>,
+  options?: { mailboxTransport?: MailboxTransport }
 ): Promise<TaskAssignmentResult[]> {
   if (!isCoordinator(teamName, coordinatorId, config)) {
     return []
   }
 
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) {
     return []
   }
@@ -333,7 +281,9 @@ export async function autoAssignTasksWithRuntime(
   const runtimeConfig = resolveRuntimeConfig(config)
   const results: TaskAssignmentResult[] = []
 
-  const idleWorkerIds = getIdleWorkers(teamName, coordinatorId, config)
+  const idleWorkerIds = getIdleWorkers(teamName, coordinatorId, config, {
+    mailboxTransport: options?.mailboxTransport,
+  })
   const workers = getWorkers(teamName, config)
   const workerMap = new Map(workers.map((w) => [w.id, w]))
 
@@ -383,6 +333,7 @@ export async function autoAssignTasksWithRuntime(
 
     const result = coordinatorAssignTask(teamName, coordinatorId, nextTask.id, workerId, config, {
       lease,
+      mailboxTransport: options?.mailboxTransport,
     })
     results.push(result)
 
@@ -430,7 +381,7 @@ export function reassignStaleTasks(
     return []
   }
 
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) {
     return []
   }
@@ -493,7 +444,7 @@ export function getAssignmentStatus(
   teamName: string,
   config: Partial<OhMyOpenCodeConfig>
 ): AssignmentStatusResult {
-  const manifest = readManifest(teamName, config)
+  const manifest = readManifest(teamName, config, { includeHeartbeats: false })
   if (!manifest) {
     return {
       tasks: [],

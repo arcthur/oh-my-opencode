@@ -76,3 +76,6 @@ export * from "./sync"
 
 // Re-export runtime module
 export * from "./runtime"
+
+// Re-export security module
+export * from "./security"

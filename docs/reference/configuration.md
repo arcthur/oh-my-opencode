@@ -621,6 +621,15 @@ Schema: `SisyphusConfigSchema` in `src/config/schema.ts`.
 - `sisyphus.swarm.ui_mode` (default: `toast`): `toast` / `tmux` / `both`
 - `sisyphus.swarm.swarm_first` (default: `false`): Auto-start Swarm from `/start-work`.
 - `sisyphus.swarm.worker_count` (default: `3`): Target worker count when Swarm-first is enabled.
+- `sisyphus.swarm.watch_fallback_poll_ms` (default: `5000`): Low-frequency polling fallback period for watch mode.
+- `sisyphus.swarm.enforce_sender_validation` (default: `true`): Reject privileged controls from invalid senders.
+- `sisyphus.swarm.enforce_signature` (default: `true`): Require Ed25519 signature verification for privileged controls.
+- `sisyphus.swarm.coordinator_lease_ttl_ms` (default: `15000`): Lease TTL for coordinator ownership.
+- `sisyphus.swarm.coordinator_lease_renew_ms` (default: `5000`): Coordinator lease renewal cadence.
+- `sisyphus.swarm.auto_rescue_policy` (default: `disabled`): Prompt auto-confirm policy (`disabled | allowlist`).
+- `sisyphus.swarm.auto_rescue_allowlist` (default: `[]`): Regex patterns allowed for auto-confirm when policy is `allowlist`.
+
+Swarm mailbox semantics are latest-only queue directories (`pending/processing/done`). Legacy mailbox read-state toggling paths are not supported.
 
 ## Categories
 
@@ -1218,6 +1227,7 @@ These keys are intentionally removed and rejected by schema validation:
 - Top-level `session_reference`
 - Top-level `multi_plan_pipeline`
 - `sisyphus.tasks.claude_code_compat`
+- `sisyphus.swarm.mailbox_consume_mode`
 - `governance.budget_monitor.gc_threshold`
 
 ## Environment Variables

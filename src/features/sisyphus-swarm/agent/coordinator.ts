@@ -1,10 +1,11 @@
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import {
-  startPolling,
-  sendMessage,
+  createFsMailboxTransport,
+  type MailboxTransport,
   type Disposable,
+  type EnvelopeAuth,
   type InboxMessage,
-  broadcast,
+  type ProtocolMessage,
   createInbox,
   type PermissionMode,
 } from "../mailbox"
@@ -14,18 +15,17 @@ import {
   readManifest,
   deleteTeam,
   getStaleMembers,
-  removeMember,
+  removeMemberAsync,
   teamExists,
-  addMember,
-  takeoverAsCoordinator,
+  addMemberAsync,
+  acquireOrRenewCoordinatorLease,
+  takeoverAsCoordinatorAsync,
   heartbeat,
 } from "../team"
 import { getSwarmEnvContext } from "../tmux/utils"
 import {
   approveJoin,
   rejectJoin,
-  approveShutdown,
-  rejectShutdown,
 } from "../team/membership"
 import type { AgentIdentity, AgentCapability, TeamManifest } from "../team/types"
 import {
@@ -41,6 +41,8 @@ import {
   type SwarmTaskCreateInput,
 } from "../task-graph"
 import { renewSlot, resolveParallelRuntimeConfig } from "../../parallel-runtime"
+import { ExpiringRequestStore } from "../runtime/expiring-request-store"
+import { signControlMessage } from "../security/control-message-signature"
 import { AgentStateMachine } from "./state"
 import type { RiskLevel } from "./worker"
 
@@ -98,7 +100,7 @@ export interface CoordinatorConfig {
   onJoinRequest?: (agent: {
     name: string
     sessionId: string
-    capabilities?: AgentCapability[]
+    capabilities: AgentCapability[]
     tmuxPane?: string
     worktreePath?: string
   }) => Promise<boolean>
@@ -135,6 +137,8 @@ export interface CoordinatorConfig {
   onModeChangeAcknowledged?: (agentId: string, mode: PermissionMode) => void
   /** Error callback */
   onError?: (error: Error) => void
+  /** Optional mailbox transport override */
+  mailboxTransport?: MailboxTransport
 }
 
 /**
@@ -145,13 +149,16 @@ export class CoordinatorAgent {
   private stateMachine: AgentStateMachine
   private config: Partial<OhMyOpenCodeConfig>
   private coordConfig: CoordinatorConfig
+  private mailboxTransport: MailboxTransport
   private mailboxWatcher: Disposable | null = null
   private coordinationTimer: ReturnType<typeof setInterval> | null = null
   private running = false
   private manifest: TeamManifest | null = null
-  private pendingPermissions: Map<string, PendingPermission> = new Map()
+  private coordinatorEpoch = 0
+  private lastLeaseRenewedAt = 0
+  private pendingPermissions: ExpiringRequestStore<PendingPermission>
   private coordinationInFlight = false
-  private pendingPlanApprovals: Map<string, PendingPlanApproval> = new Map()
+  private pendingPlanApprovals: ExpiringRequestStore<PendingPlanApproval>
 
   /**
    * Low-risk tools that can be auto-approved
@@ -159,10 +166,24 @@ export class CoordinatorAgent {
   private static readonly AUTO_APPROVE_TOOLS = [
     "Read", "Glob", "Grep", "LSP", "WebFetch", "WebSearch", "Task", "TaskOutput"
   ]
+  private static readonly VALID_JOIN_CAPABILITIES: AgentCapability[] = [
+    "code",
+    "research",
+    "review",
+    "test",
+    "debug",
+    "design",
+    "docs",
+  ]
+
+  private static readonly PERMISSION_TTL_MS = 60_000
+  private static readonly PLAN_TTL_MS = 300_000
+  private static readonly MAX_PENDING_REQUESTS = 1_000
 
   constructor(coordConfig: CoordinatorConfig, config: Partial<OhMyOpenCodeConfig>) {
     this.coordConfig = coordConfig
     this.config = config
+    this.mailboxTransport = coordConfig.mailboxTransport ?? createFsMailboxTransport(config)
 
     // Get agent ID from environment if available (for orchestrator-spawned coordinators)
     const envContext = getSwarmEnvContext()
@@ -185,6 +206,195 @@ export class CoordinatorAgent {
         coordConfig.onStateChange!(state)
       })
     }
+
+    this.pendingPermissions = new ExpiringRequestStore<PendingPermission>({
+      ttlMs: CoordinatorAgent.PERMISSION_TTL_MS,
+      maxEntries: CoordinatorAgent.MAX_PENDING_REQUESTS,
+      onExpired: (key, value) => {
+        this.reportSecurityEvent("permission_request_expired", {
+          requestId: key,
+          from: value.from,
+          requestedAt: value.requestedAt,
+        })
+      },
+      onRejected: (key, value) => {
+        this.reportSecurityEvent("permission_request_rejected_over_capacity", {
+          requestId: key,
+          from: value.from,
+          requestedAt: value.requestedAt,
+        })
+      },
+    })
+
+    this.pendingPlanApprovals = new ExpiringRequestStore<PendingPlanApproval>({
+      ttlMs: CoordinatorAgent.PLAN_TTL_MS,
+      maxEntries: CoordinatorAgent.MAX_PENDING_REQUESTS,
+      onExpired: (key, value) => {
+        this.reportSecurityEvent("plan_approval_request_expired", {
+          requestId: key,
+          from: value.from,
+          requestedAt: value.requestedAt,
+        })
+      },
+      onRejected: (key, value) => {
+        this.reportSecurityEvent("plan_approval_request_rejected_over_capacity", {
+          requestId: key,
+          from: value.from,
+          requestedAt: value.requestedAt,
+        })
+      },
+    })
+  }
+
+  private isSenderValidationEnabled(): boolean {
+    return this.config.sisyphus?.swarm?.enforce_sender_validation ?? true
+  }
+
+  private reportSecurityEvent(event: string, details: Record<string, unknown>): void {
+    const serialized = JSON.stringify({
+      component: "swarm.coordinator",
+      event,
+      teamName: this.coordConfig.teamName,
+      coordinatorId: this.identity.id,
+      ...details,
+    })
+    console.warn(serialized)
+    this.coordConfig.onError?.(new Error(serialized))
+  }
+
+  private async renewCoordinatorLease(options?: { force?: boolean }): Promise<void> {
+    const result = await acquireOrRenewCoordinatorLease(
+      this.coordConfig.teamName,
+      this.identity.id,
+      this.config,
+      { force: options?.force }
+    )
+    if (!result.acquired || !result.lease) {
+      throw new Error(result.reason ?? "Failed to acquire coordinator lease")
+    }
+    this.coordinatorEpoch = result.lease.epoch
+    this.lastLeaseRenewedAt = result.lease.updatedAt
+  }
+
+  private shouldRenewCoordinatorLease(now = Date.now()): boolean {
+    const renewMs = this.config.sisyphus?.swarm?.coordinator_lease_renew_ms ?? 5000
+    return now - this.lastLeaseRenewedAt >= renewMs
+  }
+
+  private assertWorkerEpoch(message: InboxMessage, messageType: string): boolean {
+    if (!this.isSenderValidationEnabled()) {
+      return true
+    }
+    if (!message.epoch || message.epoch !== this.coordinatorEpoch) {
+      this.reportSecurityEvent("epoch_validation_failed", {
+        messageType,
+        from: message.from,
+        messageEpoch: message.epoch,
+        coordinatorEpoch: this.coordinatorEpoch,
+      })
+      return false
+    }
+    return true
+  }
+
+  private buildEnvelopeMeta(targetAgentId: string, payload: ProtocolMessage): { epoch: number; auth?: EnvelopeAuth } {
+    let auth: EnvelopeAuth | undefined
+    try {
+      auth = signControlMessage({
+        teamName: this.coordConfig.teamName,
+        fromAgentId: this.identity.id,
+        toAgentId: targetAgentId,
+        payload,
+        epoch: this.coordinatorEpoch,
+        config: this.config,
+      })
+    } catch (err) {
+      this.reportSecurityEvent("control_signature_failed", {
+        targetAgentId,
+        messageType: payload.type,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    return { epoch: this.coordinatorEpoch, auth }
+  }
+
+  private sendToAgent(targetAgentId: string, payload: ProtocolMessage): string {
+    return this.mailboxTransport.sendMessage(
+      this.coordConfig.teamName,
+      this.identity.id,
+      targetAgentId,
+      payload,
+      this.buildEnvelopeMeta(targetAgentId, payload)
+    )
+  }
+
+  private assertKnownWorkerSender(from: string, messageType: string): boolean {
+    if (!this.isSenderValidationEnabled()) {
+      return true
+    }
+    if (!this.manifest) {
+      this.reportSecurityEvent("sender_validation_failed", {
+        reason: "manifest_missing",
+        from,
+        messageType,
+      })
+      return false
+    }
+
+    const member = this.manifest.members.find((m) => m.id === from)
+    if (!member) {
+      this.reportSecurityEvent("sender_validation_failed", {
+        reason: "unknown_sender",
+        from,
+        messageType,
+      })
+      return false
+    }
+    if (member.role !== "worker") {
+      this.reportSecurityEvent("sender_validation_failed", {
+        reason: "sender_not_worker",
+        from,
+        messageType,
+        role: member.role,
+      })
+      return false
+    }
+
+    return true
+  }
+
+  private assertSenderMatchesPayload(
+    from: string,
+    payloadAgentId: string,
+    messageType: "task_completed" | "task_rejected"
+  ): boolean {
+    if (!this.isSenderValidationEnabled()) {
+      return true
+    }
+    if (from !== payloadAgentId) {
+      this.reportSecurityEvent("sender_payload_mismatch", {
+        from,
+        payloadAgentId,
+        messageType,
+      })
+      return false
+    }
+    return true
+  }
+
+  private normalizeJoinCapabilities(value: unknown): AgentCapability[] | null {
+    if (!Array.isArray(value) || value.length === 0) {
+      return null
+    }
+    const allowed = new Set(CoordinatorAgent.VALID_JOIN_CAPABILITIES)
+    const normalized: AgentCapability[] = []
+    for (const item of value) {
+      if (typeof item !== "string" || !allowed.has(item as AgentCapability)) {
+        return null
+      }
+      normalized.push(item as AgentCapability)
+    }
+    return normalized
   }
 
   /**
@@ -255,20 +465,20 @@ export class CoordinatorAgent {
       // Check if team already exists (created by /swarm create)
       if (teamExists(teamName, this.config)) {
         // Team exists - attempt to take over as coordinator
-        this.manifest = readManifest(teamName, this.config)
+        this.manifest = readManifest(teamName, this.config, { includeHeartbeats: false })
         if (!this.manifest) {
           throw new Error(`Team "${teamName}" exists but manifest unreadable`)
         }
 
         // Create inbox for this coordinator
-        createInbox(teamName, this.identity.id, this.config)
+        this.mailboxTransport.createInbox(teamName, this.identity.id)
 
         // If our ID doesn't match the registered coordinator, we need to take over
         // This handles:
         // 1. /swarm create registers a placeholder coordinator
         // 2. Previous coordinator crashed/died and we're recovering
         if (this.manifest.coordinatorId !== this.identity.id) {
-          const takeoverResult = takeoverAsCoordinator(
+          const takeoverResult = await takeoverAsCoordinatorAsync(
             teamName,
             this.identity,
             this.config
@@ -278,7 +488,7 @@ export class CoordinatorAgent {
             throw new Error(`Failed to become coordinator: ${takeoverResult.reason}`)
           }
 
-          this.manifest = readManifest(teamName, this.config)
+          this.manifest = readManifest(teamName, this.config, { includeHeartbeats: false })
         }
       } else {
         // Create new team
@@ -294,6 +504,7 @@ export class CoordinatorAgent {
       }
 
       // Transition to idle (coordinator is always "idle" in terms of task execution)
+      await this.renewCoordinatorLease({ force: true })
       this.stateMachine.dispatch({ type: "JOIN_APPROVED" })
       this.running = true
 
@@ -326,9 +537,15 @@ export class CoordinatorAgent {
     // Stop mailbox polling
     this.stopMailboxPolling()
 
-    // Send shutdown_approved to all workers (as if they requested it)
-    // This tells workers they should stop immediately
-    broadcast(teamName, this.identity.id, { type: "shutdown_approved" }, this.config)
+    // Send shutdown_approved to all workers (as if they requested it).
+    // This tells workers they should stop immediately.
+    if (this.manifest) {
+      for (const member of this.manifest.members) {
+        if (member.role === "worker") {
+          this.sendToAgent(member.id, { type: "shutdown_approved" })
+        }
+      }
+    }
 
     // Optionally delete team
     if (options?.deleteTeam) {
@@ -392,7 +609,9 @@ export class CoordinatorAgent {
   }
 
   private async autoAssignWithAdmissionControl(): Promise<void> {
-    await autoAssignTasksWithRuntime(this.coordConfig.teamName, this.identity.id, this.config)
+    await autoAssignTasksWithRuntime(this.coordConfig.teamName, this.identity.id, this.config, {
+      mailboxTransport: this.mailboxTransport,
+    })
   }
 
   /**
@@ -446,10 +665,9 @@ export class CoordinatorAgent {
     agentId: string,
     agentName: string,
     sessionId: string,
-    capabilities: AgentCapability[] | undefined,
+    capabilities: AgentCapability[],
     tmuxPane: string | undefined,
-    worktreePath: string | undefined,
-    messageId: string
+    worktreePath: string | undefined
   ): Promise<void> {
     const { teamName, onJoinRequest, autoApprove } = this.coordConfig
 
@@ -467,13 +685,13 @@ export class CoordinatorAgent {
     }
 
     if (approved) {
-      // Build agent identity with actual capabilities (default to ["code"] for backward compat)
+      // Build agent identity with declared capabilities.
       const agentIdentity: AgentIdentity = {
         id: agentId,
         name: agentName,
         sessionId: sessionId,
         role: "worker",
-        capabilities: capabilities ?? ["code"],
+        capabilities,
         tmuxPane,
         worktreePath,
         joinedAt: Date.now(),
@@ -482,13 +700,13 @@ export class CoordinatorAgent {
 
       try {
         // STEP 1: Add member FIRST (may fail if maxMembers reached)
-        addMember(teamName, agentIdentity, this.config)
+        await addMemberAsync(teamName, agentIdentity, this.config)
 
         // STEP 2: Only approve AFTER successful add
         approveJoin(teamName, this.identity.id, agentId, this.config)
 
         // Refresh manifest
-        this.manifest = readManifest(teamName, this.config)
+        this.manifest = readManifest(teamName, this.config, { includeHeartbeats: false })
       } catch (err) {
         // addMember failed (e.g., maxMembers reached) - reject instead
         const reason = err instanceof Error ? err.message : "Failed to add member"
@@ -513,17 +731,20 @@ export class CoordinatorAgent {
     }
 
     if (approved) {
-      approveShutdown(teamName, this.identity.id, agentId, this.config)
+      this.sendToAgent(agentId, { type: "shutdown_approved" })
 
       // Remove from team
       try {
-        removeMember(teamName, agentId, this.config)
-        this.manifest = readManifest(teamName, this.config)
+        await removeMemberAsync(teamName, agentId, this.config)
+        this.manifest = readManifest(teamName, this.config, { includeHeartbeats: false })
       } catch {
         // Ignore removal errors
       }
     } else {
-      rejectShutdown(teamName, this.identity.id, agentId, "Cannot shutdown now", this.config)
+      this.sendToAgent(agentId, {
+        type: "shutdown_rejected",
+        reason: "Cannot shutdown now",
+      })
     }
   }
 
@@ -558,22 +779,16 @@ export class CoordinatorAgent {
     toolName: string,
     input: unknown
   ): Promise<void> {
-    const { teamName, autoApproveLowRisk, onPermissionRequest, onPermissionPending } = this.coordConfig
+    const { autoApproveLowRisk, onPermissionRequest, onPermissionPending } = this.coordConfig
     const riskLevel = this.classifyRisk(toolName, input)
 
     // Auto-approve low-risk operations if enabled
     if ((autoApproveLowRisk ?? true) && riskLevel === "low") {
-      sendMessage(
-        teamName,
-        this.identity.id,
-        fromAgentId,
-        {
-          type: "permission_response",
-          requestId,
-          decision: "approved",
-        },
-        this.config
-      )
+      this.sendToAgent(fromAgentId, {
+        type: "permission_response",
+        requestId,
+        decision: "approved",
+      })
       return
     }
 
@@ -587,34 +802,22 @@ export class CoordinatorAgent {
           riskLevel,
         })
 
-        sendMessage(
-          teamName,
-          this.identity.id,
-          fromAgentId,
-          {
-            type: "permission_response",
-            requestId,
-            decision: result.approved ? "approved" : "rejected",
-            feedback: result.feedback,
-            updatedInput: result.updatedInput,
-          },
-          this.config
-        )
+        this.sendToAgent(fromAgentId, {
+          type: "permission_response",
+          requestId,
+          decision: result.approved ? "approved" : "rejected",
+          feedback: result.feedback,
+          updatedInput: result.updatedInput,
+        })
         return
       } catch (err) {
         // On callback error, reject the request
-        sendMessage(
-          teamName,
-          this.identity.id,
-          fromAgentId,
-          {
-            type: "permission_response",
-            requestId,
-            decision: "rejected",
-            feedback: `Permission handler error: ${err instanceof Error ? err.message : String(err)}`,
-          },
-          this.config
-        )
+        this.sendToAgent(fromAgentId, {
+          type: "permission_response",
+          requestId,
+          decision: "rejected",
+          feedback: `Permission handler error: ${err instanceof Error ? err.message : String(err)}`,
+        })
         return
       }
     }
@@ -628,7 +831,16 @@ export class CoordinatorAgent {
       riskLevel,
       requestedAt: Date.now(),
     }
-    this.pendingPermissions.set(requestId, pendingRequest)
+    const queued = this.pendingPermissions.set(requestId, pendingRequest)
+    if (!queued) {
+      this.sendToAgent(fromAgentId, {
+        type: "permission_response",
+        requestId,
+        decision: "rejected",
+        feedback: "Coordinator backpressure: pending permission queue is full",
+      })
+      return
+    }
 
     // Notify UI if callback is provided
     onPermissionPending?.(pendingRequest)
@@ -643,18 +855,12 @@ export class CoordinatorAgent {
       return false
     }
 
-    sendMessage(
-      this.coordConfig.teamName,
-      this.identity.id,
-      request.from,
-      {
-        type: "permission_response",
-        requestId,
-        decision: "approved",
-        updatedInput: options?.updatedInput,
-      },
-      this.config
-    )
+    this.sendToAgent(request.from, {
+      type: "permission_response",
+      requestId,
+      decision: "approved",
+      updatedInput: options?.updatedInput,
+    })
 
     this.pendingPermissions.delete(requestId)
     return true
@@ -669,18 +875,12 @@ export class CoordinatorAgent {
       return false
     }
 
-    sendMessage(
-      this.coordConfig.teamName,
-      this.identity.id,
-      request.from,
-      {
-        type: "permission_response",
-        requestId,
-        decision: "rejected",
-        feedback: reason ?? "Permission denied by coordinator",
-      },
-      this.config
-    )
+    this.sendToAgent(request.from, {
+      type: "permission_response",
+      requestId,
+      decision: "rejected",
+      feedback: reason ?? "Permission denied by coordinator",
+    })
 
     this.pendingPermissions.delete(requestId)
     return true
@@ -690,7 +890,7 @@ export class CoordinatorAgent {
    * Get list of pending permission requests
    */
   getPendingPermissions(): PendingPermission[] {
-    return Array.from(this.pendingPermissions.values())
+    return this.pendingPermissions.values()
   }
 
   // ============================================================================
@@ -711,7 +911,7 @@ export class CoordinatorAgent {
     planFile?: string,
     taskId?: string
   ): Promise<void> {
-    const { teamName, onPlanApprovalRequest, onPlanApprovalPending } = this.coordConfig
+    const { onPlanApprovalRequest, onPlanApprovalPending } = this.coordConfig
 
     // If we have a callback, use it for immediate decision
     if (onPlanApprovalRequest) {
@@ -723,33 +923,21 @@ export class CoordinatorAgent {
           taskId,
         })
 
-        sendMessage(
-          teamName,
-          this.identity.id,
-          fromAgentId,
-          {
-            type: "plan_approval_response",
-            requestId,
-            decision: result.decision,
-            feedback: result.feedback,
-          },
-          this.config
-        )
+        this.sendToAgent(fromAgentId, {
+          type: "plan_approval_response",
+          requestId,
+          decision: result.decision,
+          feedback: result.feedback,
+        })
         return
       } catch (err) {
         // On callback error, reject the request
-        sendMessage(
-          teamName,
-          this.identity.id,
-          fromAgentId,
-          {
-            type: "plan_approval_response",
-            requestId,
-            decision: "rejected",
-            feedback: `Plan approval handler error: ${err instanceof Error ? err.message : String(err)}`,
-          },
-          this.config
-        )
+        this.sendToAgent(fromAgentId, {
+          type: "plan_approval_response",
+          requestId,
+          decision: "rejected",
+          feedback: `Plan approval handler error: ${err instanceof Error ? err.message : String(err)}`,
+        })
         return
       }
     }
@@ -763,7 +951,16 @@ export class CoordinatorAgent {
       taskId,
       requestedAt: Date.now(),
     }
-    this.pendingPlanApprovals.set(requestId, pendingRequest)
+    const queued = this.pendingPlanApprovals.set(requestId, pendingRequest)
+    if (!queued) {
+      this.sendToAgent(fromAgentId, {
+        type: "plan_approval_response",
+        requestId,
+        decision: "rejected",
+        feedback: "Coordinator backpressure: pending plan queue is full",
+      })
+      return
+    }
 
     // Notify UI if callback is provided
     onPlanApprovalPending?.(pendingRequest)
@@ -778,18 +975,12 @@ export class CoordinatorAgent {
       return false
     }
 
-    sendMessage(
-      this.coordConfig.teamName,
-      this.identity.id,
-      request.from,
-      {
-        type: "plan_approval_response",
-        requestId,
-        decision: "approved",
-        feedback,
-      },
-      this.config
-    )
+    this.sendToAgent(request.from, {
+      type: "plan_approval_response",
+      requestId,
+      decision: "approved",
+      feedback,
+    })
 
     this.pendingPlanApprovals.delete(requestId)
     return true
@@ -804,18 +995,12 @@ export class CoordinatorAgent {
       return false
     }
 
-    sendMessage(
-      this.coordConfig.teamName,
-      this.identity.id,
-      request.from,
-      {
-        type: "plan_approval_response",
-        requestId,
-        decision: "rejected",
-        feedback: feedback ?? "Plan rejected by coordinator",
-      },
-      this.config
-    )
+    this.sendToAgent(request.from, {
+      type: "plan_approval_response",
+      requestId,
+      decision: "rejected",
+      feedback: feedback ?? "Plan rejected by coordinator",
+    })
 
     this.pendingPlanApprovals.delete(requestId)
     return true
@@ -830,18 +1015,12 @@ export class CoordinatorAgent {
       return false
     }
 
-    sendMessage(
-      this.coordConfig.teamName,
-      this.identity.id,
-      request.from,
-      {
-        type: "plan_approval_response",
-        requestId,
-        decision: "revision_requested",
-        feedback,
-      },
-      this.config
-    )
+    this.sendToAgent(request.from, {
+      type: "plan_approval_response",
+      requestId,
+      decision: "revision_requested",
+      feedback,
+    })
 
     this.pendingPlanApprovals.delete(requestId)
     return true
@@ -851,7 +1030,7 @@ export class CoordinatorAgent {
    * Get list of pending plan approval requests
    */
   getPendingPlanApprovals(): PendingPlanApproval[] {
-    return Array.from(this.pendingPlanApprovals.values())
+    return this.pendingPlanApprovals.values()
   }
 
   // ============================================================================
@@ -881,18 +1060,12 @@ export class CoordinatorAgent {
       return false
     }
 
-    sendMessage(
-      this.coordConfig.teamName,
-      this.identity.id,
-      workerId,
-      {
-        type: "mode_set_request",
-        mode,
-        reason: options?.reason,
-        duration: options?.durationMs,
-      },
-      this.config
-    )
+    this.sendToAgent(workerId, {
+      type: "mode_set_request",
+      mode,
+      reason: options?.reason,
+      duration: options?.durationMs,
+    })
 
     return true
   }
@@ -914,18 +1087,12 @@ export class CoordinatorAgent {
     // Send to all workers (not coordinator)
     for (const member of this.manifest.members) {
       if (member.role === "worker") {
-        sendMessage(
-          this.coordConfig.teamName,
-          this.identity.id,
-          member.id,
-          {
-            type: "mode_set_request",
-            mode,
-            reason: options?.reason,
-            duration: options?.durationMs,
-          },
-          this.config
-        )
+        this.sendToAgent(member.id, {
+          type: "mode_set_request",
+          mode,
+          reason: options?.reason,
+          duration: options?.durationMs,
+        })
       }
     }
   }
@@ -937,34 +1104,70 @@ export class CoordinatorAgent {
     const { payload } = message
 
     switch (payload.type) {
-      case "join_request":
+      case "join_request": {
+        const capabilities = this.normalizeJoinCapabilities(payload.capabilities)
+        if (!capabilities) {
+          this.reportSecurityEvent("invalid_join_request", {
+            from: message.from,
+            reason: "capabilities_required",
+          })
+          rejectJoin(
+            this.coordConfig.teamName,
+            this.identity.id,
+            message.from,
+            "Invalid join request: capabilities are required",
+            this.config
+          )
+          break
+        }
         await this.handleJoinRequest(
           message.from,
           payload.agentName,
           payload.sessionId,
-          payload.capabilities as AgentCapability[] | undefined,
+          capabilities,
           payload.tmuxPane,
-          payload.worktreePath,
-          message.id
+          payload.worktreePath
         )
         break
+      }
 
       case "shutdown_request":
+        if (!this.assertKnownWorkerSender(message.from, payload.type)) {
+          break
+        }
         await this.handleShutdownRequest(message.from)
         break
 
       case "task_completed":
+        if (!this.assertKnownWorkerSender(message.from, payload.type)) {
+          break
+        }
+        if (!this.assertWorkerEpoch(message, payload.type)) {
+          break
+        }
+        if (!this.assertSenderMatchesPayload(message.from, payload.agentId, "task_completed")) {
+          break
+        }
         this.coordConfig.onTaskCompleted?.(payload.taskId, payload.agentId)
         this.releaseParallelLeaseFromTask(payload.taskId, "completed")
         break
 
       case "idle_notification":
+        if (!this.assertKnownWorkerSender(message.from, payload.type)) {
+          break
+        }
         // Worker is idle - trigger immediate auto-assign for responsiveness
         // (coordination loop also runs periodically as fallback)
         await this.autoAssignWithAdmissionControl()
         break
 
       case "permission_request":
+        if (!this.assertKnownWorkerSender(message.from, payload.type)) {
+          break
+        }
+        if (!this.assertWorkerEpoch(message, payload.type)) {
+          break
+        }
         await this.handlePermissionRequest(
           message.from,
           payload.requestId,
@@ -974,6 +1177,15 @@ export class CoordinatorAgent {
         break
 
       case "task_rejected":
+        if (!this.assertKnownWorkerSender(message.from, payload.type)) {
+          break
+        }
+        if (!this.assertWorkerEpoch(message, payload.type)) {
+          break
+        }
+        if (!this.assertSenderMatchesPayload(message.from, payload.agentId, "task_rejected")) {
+          break
+        }
         // Worker rejected/failed task. Coordinator must requeue safely.
         this.coordConfig.onError?.(
           new Error(`Task ${payload.taskId} rejected by ${payload.agentId}: ${payload.reason}`)
@@ -988,6 +1200,12 @@ export class CoordinatorAgent {
         break
 
       case "plan_approval_request":
+        if (!this.assertKnownWorkerSender(message.from, payload.type)) {
+          break
+        }
+        if (!this.assertWorkerEpoch(message, payload.type)) {
+          break
+        }
         await this.handlePlanApprovalRequest(
           message.from,
           payload.requestId,
@@ -998,6 +1216,12 @@ export class CoordinatorAgent {
         break
 
       case "mode_set_response":
+        if (!this.assertKnownWorkerSender(message.from, payload.type)) {
+          break
+        }
+        if (!this.assertWorkerEpoch(message, payload.type)) {
+          break
+        }
         // Worker acknowledged mode change
         if (payload.success) {
           this.coordConfig.onModeChangeAcknowledged?.(message.from, payload.currentMode)
@@ -1028,28 +1252,33 @@ export class CoordinatorAgent {
     const { teamName } = this.coordConfig
 
     try {
-      // 0. Update coordinator heartbeat
+      // 0. Sweep stale pending approval requests to keep memory bounded.
+      this.pendingPermissions.sweep()
+      this.pendingPlanApprovals.sweep()
+
+      // 1. Renew coordinator lease and epoch fencing token.
+      if (this.shouldRenewCoordinatorLease()) {
+        await this.renewCoordinatorLease()
+      }
+
+      // 2. Update coordinator heartbeat
       // This allows workers to detect if coordinator is still alive
       heartbeat(teamName, this.identity.id, this.config)
 
-      // REMOVED: getPendingJoinRequests loop (now handled by mailbox polling)
-      // REMOVED: getPendingShutdownRequests loop (now handled by mailbox polling)
-      // REMOVED: coordinatorReceiveCompletions loop (now handled by mailbox polling)
-
-      // 1. Check for stale workers and reassign their tasks (level-triggered)
+      // 3. Check for stale workers and reassign their tasks (level-triggered)
       const staleMembers = getStaleMembers(teamName, this.config)
       if (staleMembers.length > 0) {
         reassignStaleTasks(teamName, this.identity.id, this.config)
       }
 
-      // 2. Renew parallel-runtime leases for active swarm tasks
+      // 4. Renew parallel-runtime leases for active swarm tasks
       await this.renewSwarmLeases()
 
-      // 3. Auto-assign tasks to idle workers (level-triggered from manifest)
+      // 5. Auto-assign tasks to idle workers (level-triggered from manifest)
       await this.autoAssignWithAdmissionControl()
 
-      // 4. Refresh manifest
-      this.manifest = readManifest(teamName, this.config)
+      // 6. Refresh manifest
+      this.manifest = readManifest(teamName, this.config, { includeHeartbeats: false })
     } catch (err) {
       this.coordConfig.onError?.(err instanceof Error ? err : new Error(String(err)))
     } finally {
@@ -1065,11 +1294,10 @@ export class CoordinatorAgent {
 
     const { teamName } = this.coordConfig
 
-    this.mailboxWatcher = startPolling(
+    this.mailboxWatcher = this.mailboxTransport.startPolling(
       teamName,
       this.identity.id,
       (message) => this.handleMessage(message),
-      this.config,
       {
         intervalMs: 500,
         onError: (err) => this.coordConfig.onError?.(err),

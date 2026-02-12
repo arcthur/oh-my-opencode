@@ -4,22 +4,33 @@ import { z } from "zod"
 import type { OhMyOpenCodeConfig } from "../../../config/schema"
 import { getTeamDir } from "../../sisyphus-tasks/storage"
 import { ProtocolMessageSchema, type ProtocolMessage } from "./types"
+import {
+  getInboxDoneDir,
+  getInboxPendingDir,
+  getInboxProcessingDir,
+} from "./writer"
 
 /**
- * Envelope wrapping a protocol message with metadata
+ * Envelope wrapping a protocol message with metadata.
  */
 export const InboxMessageSchema = z.object({
   id: z.string(),
   from: z.string(),
   timestamp: z.number(),
   read: z.boolean(),
+  epoch: z.number().optional(),
+  auth: z.object({
+    alg: z.literal("ed25519"),
+    keyId: z.string(),
+    sig: z.string(),
+  }).optional(),
   payload: ProtocolMessageSchema,
 })
 
 export type InboxMessage = z.infer<typeof InboxMessageSchema>
 
 /**
- * Inbox metadata structure
+ * Inbox metadata structure.
  */
 export const InboxMetaSchema = z.object({
   agentId: z.string(),
@@ -30,7 +41,7 @@ export const InboxMetaSchema = z.object({
 export type InboxMeta = z.infer<typeof InboxMetaSchema>
 
 /**
- * Aggregated inbox structure (convenience view over directory-based storage)
+ * Aggregated inbox structure (convenience view over directory-based storage).
  */
 export const InboxSchema = z.object({
   agentId: z.string(),
@@ -41,7 +52,7 @@ export const InboxSchema = z.object({
 export type Inbox = z.infer<typeof InboxSchema>
 
 /**
- * Get inbox directory path for an agent
+ * Get inbox directory path for an agent.
  */
 function getInboxDir(
   teamName: string,
@@ -53,7 +64,7 @@ function getInboxDir(
 }
 
 /**
- * Get inbox meta file path
+ * Get inbox meta file path.
  */
 function getInboxMetaPath(
   teamName: string,
@@ -64,7 +75,7 @@ function getInboxMetaPath(
 }
 
 /**
- * Read inbox metadata
+ * Read inbox metadata.
  */
 export function readInboxMeta(
   teamName: string,
@@ -93,7 +104,7 @@ export function readInboxMeta(
 }
 
 /**
- * Read the raw inbox (builds aggregated Inbox view from directory)
+ * Read the raw inbox (builds aggregated Inbox view from directory).
  */
 export function readInboxRaw(
   teamName: string,
@@ -116,8 +127,37 @@ export function readInboxRaw(
   }
 }
 
+function readMessageFiles(
+  dir: string,
+  options?: { forceRead?: boolean }
+): InboxMessage[] {
+  if (!existsSync(dir)) {
+    return []
+  }
+  const files = readdirSync(dir).filter((f) => f.endsWith(".json") && !f.startsWith("_"))
+  const messages: InboxMessage[] = []
+
+  for (const file of files) {
+    const filePath = join(dir, file)
+    try {
+      const content = readFileSync(filePath, "utf-8")
+      const parsed = JSON.parse(content)
+      const result = InboxMessageSchema.safeParse(parsed)
+
+      if (result.success) {
+        const msg = result.data
+        messages.push(options?.forceRead ? { ...msg, read: true } : msg)
+      }
+    } catch {
+      // Skip invalid message files.
+    }
+  }
+
+  return messages
+}
+
 /**
- * Read all messages from an agent's inbox directory
+ * Read all messages from an agent's inbox directory.
  */
 export function readInbox(
   teamName: string,
@@ -130,50 +170,38 @@ export function readInbox(
     return []
   }
 
-  const messages: InboxMessage[] = []
-
   try {
-    const files = readdirSync(inboxDir).filter(
-      (f) => f.endsWith(".json") && !f.startsWith("_")
-    )
+    const pending = readMessageFiles(getInboxPendingDir(teamName, agentId, config), { forceRead: false })
+    const processing = readMessageFiles(getInboxProcessingDir(teamName, agentId, config), { forceRead: true })
+    const done = readMessageFiles(getInboxDoneDir(teamName, agentId, config), { forceRead: true })
 
-    for (const file of files) {
-      const filePath = join(inboxDir, file)
-      try {
-        const content = readFileSync(filePath, "utf-8")
-        const parsed = JSON.parse(content)
-        const result = InboxMessageSchema.safeParse(parsed)
-
-        if (result.success) {
-          messages.push(result.data)
-        }
-      } catch {
-        // Skip invalid message files
-      }
-    }
+    return [...pending, ...processing, ...done]
+      .sort((a, b) => a.timestamp - b.timestamp)
   } catch (error) {
     console.error(`[swarm] Failed to read inbox for ${agentId}:`, error)
     return []
   }
-
-  // Sort by timestamp (oldest first)
-  return messages.sort((a, b) => a.timestamp - b.timestamp)
 }
 
 /**
- * Read only unread messages from an agent's inbox
+ * Read only unread messages (pending queue).
  */
 export function readUnread(
   teamName: string,
   agentId: string,
   config: Partial<OhMyOpenCodeConfig>
 ): InboxMessage[] {
-  const messages = readInbox(teamName, agentId, config)
-  return messages.filter((m) => !m.read)
+  const inboxDir = getInboxDir(teamName, agentId, config)
+  if (!existsSync(inboxDir)) {
+    return []
+  }
+
+  return readMessageFiles(getInboxPendingDir(teamName, agentId, config), { forceRead: false })
+    .sort((a, b) => a.timestamp - b.timestamp)
 }
 
 /**
- * Read messages of a specific type
+ * Read messages of a specific type.
  */
 export function readByType<T extends ProtocolMessage["type"]>(
   teamName: string,
@@ -186,20 +214,7 @@ export function readByType<T extends ProtocolMessage["type"]>(
 }
 
 /**
- * Read unread messages of a specific type
- */
-export function readUnreadByType<T extends ProtocolMessage["type"]>(
-  teamName: string,
-  agentId: string,
-  messageType: T,
-  config: Partial<OhMyOpenCodeConfig>
-): InboxMessage[] {
-  const messages = readUnread(teamName, agentId, config)
-  return messages.filter((m) => m.payload.type === messageType)
-}
-
-/**
- * Get the last read timestamp for an inbox
+ * Get the last read timestamp for an inbox.
  */
 export function getLastReadTimestamp(
   teamName: string,
@@ -211,7 +226,7 @@ export function getLastReadTimestamp(
 }
 
 /**
- * Check if there are any unread messages
+ * Check if there are any unread messages.
  */
 export function hasUnread(
   teamName: string,
@@ -223,7 +238,7 @@ export function hasUnread(
 }
 
 /**
- * Count unread messages
+ * Count unread messages.
  */
 export function countUnread(
   teamName: string,
@@ -234,7 +249,7 @@ export function countUnread(
 }
 
 /**
- * Find a specific message by ID
+ * Find a specific message by ID.
  */
 export function findMessage(
   teamName: string,
@@ -243,22 +258,31 @@ export function findMessage(
   config: Partial<OhMyOpenCodeConfig>
 ): InboxMessage | null {
   const inboxDir = getInboxDir(teamName, agentId, config)
-  const messagePath = join(inboxDir, `${messageId}.json`)
-
-  if (!existsSync(messagePath)) {
+  if (!existsSync(inboxDir)) {
     return null
   }
 
-  try {
-    const content = readFileSync(messagePath, "utf-8")
-    const parsed = JSON.parse(content)
-    const result = InboxMessageSchema.safeParse(parsed)
+  const candidates: Array<{ path: string; forceRead: boolean }> = [
+    { path: join(getInboxPendingDir(teamName, agentId, config), `${messageId}.json`), forceRead: false },
+    { path: join(getInboxProcessingDir(teamName, agentId, config), `${messageId}.json`), forceRead: true },
+    { path: join(getInboxDoneDir(teamName, agentId, config), `${messageId}.json`), forceRead: true },
+  ]
 
-    if (result.success) {
-      return result.data
+  for (const candidate of candidates) {
+    if (!existsSync(candidate.path)) {
+      continue
     }
-  } catch {
-    // Ignore errors
+    try {
+      const content = readFileSync(candidate.path, "utf-8")
+      const parsed = JSON.parse(content)
+      const result = InboxMessageSchema.safeParse(parsed)
+      if (!result.success) {
+        return null
+      }
+      return candidate.forceRead ? { ...result.data, read: true } : result.data
+    } catch {
+      return null
+    }
   }
 
   return null

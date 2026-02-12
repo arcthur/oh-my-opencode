@@ -106,6 +106,7 @@ describe("ProtocolMessageSchema", () => {
       type: "join_request",
       agentName: "new-agent",
       sessionId: "sess-123",
+      capabilities: ["code"],
     }
     expect(JoinRequestSchema.safeParse(msg).success).toBe(true)
   })
