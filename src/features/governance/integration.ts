@@ -276,6 +276,34 @@ export function hasGovernanceSession(sessionId: string): boolean {
 }
 
 /**
+ * Persist current trace snapshot without destroying session state.
+ * Useful for run-mode flows that end at session.idle (without session.deleted).
+ */
+export function persistGovernanceTraceSnapshot(sessionId: string): boolean {
+  const session = sessions.get(sessionId)
+  if (!session || !session.config.enabled || !session.tracer) {
+    return false
+  }
+
+  const trace = session.tracer.getTrace()
+  if (trace.nodes.length === 0) {
+    return false
+  }
+
+  const persisted = persistTrace(trace)
+  if (persisted) {
+    log("[governance] Trace snapshot persisted", {
+      sessionId,
+      nodes: persisted.compression.persistedNodeCount,
+      original: persisted.compression.originalNodeCount,
+    })
+    return true
+  }
+
+  return false
+}
+
+/**
  * Clean up session
  */
 export function cleanupGovernanceSession(sessionId: string): void {
@@ -323,6 +351,17 @@ export function cleanupGovernanceSession(sessionId: string): void {
     }
     sessions.delete(sessionId)
     log(`[governance] Session cleaned up`, { sessionId })
+  }
+}
+
+/**
+ * Clean up all active governance sessions.
+ * Used as a shutdown fallback when run-mode exits before session.idle hooks complete.
+ */
+export function cleanupAllGovernanceSessions(): void {
+  const sessionIds = [...sessions.keys()]
+  for (const sessionId of sessionIds) {
+    cleanupGovernanceSession(sessionId)
   }
 }
 

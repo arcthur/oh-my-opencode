@@ -72,6 +72,24 @@ describe("runtime assembly internal nodes", () => {
     expect(nodes.some((node) => node.id === "internal:core-session-state:event")).toBe(true)
   })
 
+  test("event core-session-state persists governance snapshot on session.idle", async () => {
+    const context = createTestContext()
+    const calls: string[] = []
+    context.persistGovernanceTraceSnapshot = (sessionID: string) => {
+      calls.push(sessionID)
+      return true
+    }
+    const nodes = buildEventNodes(context, {
+      event: { type: "session.idle", properties: { sessionID: "idle-1" } },
+    })
+    const coreNode = nodes.find((node) => node.id === "internal:core-session-state:event")
+    expect(coreNode).toBeDefined()
+
+    await coreNode?.invoke()
+
+    expect(calls).toEqual(["idle-1"])
+  })
+
   test("tool.execute.before contains task-tools-sanitizer internal node", () => {
     const context = createTestContext()
     const nodes = buildToolExecuteBeforeNodes(

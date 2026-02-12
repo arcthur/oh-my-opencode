@@ -122,6 +122,8 @@ export interface RuntimeAssemblyContext {
     onSessionCompacted: (sessionID: string) => void
   }
 
+  persistGovernanceTraceSnapshot?: (sessionID: string) => boolean
+
   resetMessageCursor?: (sessionID: string) => void
 
   swarmRuntime?: {

@@ -31,7 +31,9 @@ export {
   initGovernanceSession,
   getGovernanceSession,
   hasGovernanceSession,
+  persistGovernanceTraceSnapshot,
   cleanupGovernanceSession,
+  cleanupAllGovernanceSessions,
 
   // Hook integration
   executePreToolGovernance,

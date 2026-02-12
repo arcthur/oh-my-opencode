@@ -154,8 +154,10 @@ import {
   DEFAULT_SESSION_REFERENCE_CONFIG,
 } from "./config/schema"
 import {
+  cleanupAllGovernanceSessions,
   cleanupGovernanceSession,
   hasGovernanceSession,
+  persistGovernanceTraceSnapshot,
 } from "./features/governance";
 import { CATEGORY_DESCRIPTIONS, DEFAULT_CATEGORIES } from "./tools/delegate-task/constants";
 import { NON_INTERACTIVE_ENV } from "./hooks/non-interactive-env/constants";
@@ -573,6 +575,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task, {
     onShutdown: () => {
       tmuxParallelAgents?.cleanup();
+      if (governanceEnabled) {
+        try {
+          cleanupAllGovernanceSessions()
+        } catch (err) {
+          log("[governance] Global session cleanup error (non-fatal)", {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
     },
     parallelRuntimeConfig: pluginConfig.parallel_runtime ?? { enabled: true },
     taskConfig: pluginConfig,
@@ -945,6 +956,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     updateSessionAgent,
     getSessionAgent,
     sessionStateCoordinator,
+    persistGovernanceTraceSnapshot: governanceEnabled ? persistGovernanceTraceSnapshot : undefined,
     resetMessageCursor,
     swarmRuntime,
     skillMcpManager,

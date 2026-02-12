@@ -307,6 +307,20 @@ export function buildEventNodes(
         }
       }
 
+      if (event.type === "session.idle") {
+        const sessionID = props?.sessionID as string | undefined
+        if (sessionID) {
+          try {
+            context.persistGovernanceTraceSnapshot?.(sessionID)
+          } catch (error) {
+            log("[runtime:event] governance trace snapshot failed (non-fatal)", {
+              sessionID,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+      }
+
       if (event.type === "message.updated") {
         const info = props?.info as Record<string, unknown> | undefined
         const sessionID = info?.sessionID as string | undefined

@@ -6,11 +6,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { existsSync, readFileSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { homedir } from "node:os"
 import {
   initGovernanceSession,
   getGovernanceSession,
   hasGovernanceSession,
   cleanupGovernanceSession,
+  cleanupAllGovernanceSessions,
+  persistGovernanceTraceSnapshot,
   executePreToolGovernance,
   executePostToolGovernance,
   executeUserPromptGovernance,
@@ -96,6 +101,99 @@ describe("GovernanceIntegration", () => {
       cleanupGovernanceSession(testSessionId)
 
       expect(hasGovernanceSession(testSessionId)).toBe(false)
+    })
+
+    it("cleans up all active governance sessions and persists traces", async () => {
+      // #given
+      const sessionA = "test-session-integration-cleanup-a"
+      const sessionB = "test-session-integration-cleanup-b"
+      const tracePathA = join(homedir(), ".sisyphus", "traces", `${sessionA}.json`)
+      const tracePathB = join(homedir(), ".sisyphus", "traces", `${sessionB}.json`)
+      rmSync(tracePathA, { force: true })
+      rmSync(tracePathB, { force: true })
+
+      for (const sessionId of [sessionA, sessionB]) {
+        initGovernanceSession(sessionId, testCwd, {
+          enabled: true,
+          tracer: { enabled: true },
+          budget_monitor: { enabled: false },
+          ledger: { enabled: false },
+          checkpoint: { enabled: false },
+        })
+
+        executePreToolGovernance({
+          sessionId,
+          toolName: "Read",
+          toolInput: { file_path: "/tmp/demo.txt" },
+          toolUseId: `tool-${sessionId}`,
+          cwd: testCwd,
+        })
+
+        await executePostToolGovernance({
+          sessionId,
+          toolName: "Read",
+          toolInput: { file_path: "/tmp/demo.txt" },
+          toolOutput: { success: true },
+          toolUseId: `tool-${sessionId}`,
+          success: true,
+          cwd: testCwd,
+        })
+      }
+
+      // #when
+      cleanupAllGovernanceSessions()
+
+      // #then
+      expect(hasGovernanceSession(sessionA)).toBe(false)
+      expect(hasGovernanceSession(sessionB)).toBe(false)
+      expect(existsSync(tracePathA)).toBe(true)
+      expect(existsSync(tracePathB)).toBe(true)
+
+      rmSync(tracePathA, { force: true })
+      rmSync(tracePathB, { force: true })
+    })
+
+    it("persists trace snapshot before session deletion", async () => {
+      // #given
+      const snapshotSessionId = "test-session-integration-snapshot"
+      const tracePath = join(homedir(), ".sisyphus", "traces", `${snapshotSessionId}.json`)
+      rmSync(tracePath, { force: true })
+
+      initGovernanceSession(snapshotSessionId, testCwd, {
+        enabled: true,
+        tracer: { enabled: true },
+        budget_monitor: { enabled: false },
+        ledger: { enabled: false },
+        checkpoint: { enabled: false },
+      })
+      executePreToolGovernance({
+        sessionId: snapshotSessionId,
+        toolName: "Read",
+        toolInput: { file_path: "/tmp/demo.txt" },
+        toolUseId: "tool-snapshot-1",
+        cwd: testCwd,
+      })
+      await executePostToolGovernance({
+        sessionId: snapshotSessionId,
+        toolName: "Read",
+        toolInput: { file_path: "/tmp/demo.txt" },
+        toolOutput: { success: true },
+        toolUseId: "tool-snapshot-1",
+        success: true,
+        cwd: testCwd,
+      })
+
+      // #when
+      const saved = persistGovernanceTraceSnapshot(snapshotSessionId)
+
+      // #then
+      expect(saved).toBe(true)
+      expect(existsSync(tracePath)).toBe(true)
+      const persisted = readFileSync(tracePath, "utf-8")
+      expect(persisted.includes(snapshotSessionId)).toBe(true)
+
+      cleanupGovernanceSession(snapshotSessionId)
+      rmSync(tracePath, { force: true })
     })
   })
 
