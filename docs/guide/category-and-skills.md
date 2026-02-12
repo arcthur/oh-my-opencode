@@ -174,6 +174,7 @@ You can fine-tune categories in `oh-my-opencode.json`.
 | `tools` | object | Tool usage control (disable with `{ "tool_name": false }`) |
 | `maxTokens` | number | Maximum response token count |
 | `is_unstable_agent` | boolean | Mark agent as unstable - forces background mode for monitoring |
+| `disable` | boolean | Hide category from delegation category surfaces and block category routing when `true` |
 
 ### Example Configuration
 
@@ -203,6 +204,11 @@ You can fine-tune categories in `oh-my-opencode.json`.
       "tools": {
         "websearch_web_search_exa": false // Disable web search
       }
+    },
+
+    // 4. Disable a built-in category
+    "quick": {
+      "disable": true
     }
   },
   

@@ -493,7 +493,20 @@ Plan file: \`${safePlanPath}\`
 
 ${buildVerificationReminder(safeSessionId, verificationReminderMode)}
 
-**STEP 4: MARK COMPLETION IN TASKGRAPH (IMMEDIATELY)**
+**STEP 4: READ SUBAGENT NOTEPAD (LEARNINGS, ISSUES, PROBLEMS)**
+
+Read subagent notepad files now to propagate execution context:
+\`\`\`
+Glob(".sisyphus/notepads/${safePlanId}/*.md")
+\`\`\`
+Then \`Read\` each discovered file, especially:
+- \`learnings.md\`: reusable patterns and successful approaches
+- \`issues.md\`: blockers or gotchas found during implementation
+- \`problems.md\`: unresolved follow-ups and technical debt
+
+Use those findings to shape the next delegation and avoid repeated failures.
+
+**STEP 5: MARK COMPLETION IN TASKGRAPH (IMMEDIATELY)**
 
 RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
 
@@ -504,7 +517,7 @@ task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "c
 
 **DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
 
-**STEP 5: HANDOFF VERIFIED CHANGES**
+**STEP 6: HANDOFF VERIFIED CHANGES**
 
 - Stage ONLY the verified changes
 - ${
@@ -513,7 +526,7 @@ task_transition({ id: "<task_id>", expected_revision: <revision>, next_state: "c
      : "Do NOT auto-commit. Report verified delta and let the user decide commit timing."
  }
 
-**STEP 6: PROCEED TO NEXT TASK**
+**STEP 7: PROCEED TO NEXT TASK**
 
 - Use \`task_list({ ready_only: true, scope: "plan", container_id: "${safePlanId}" })\` to find the next ready task
 - Start immediately - DO NOT STOP

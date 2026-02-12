@@ -20,9 +20,18 @@ const mockUpdateConnectedProvidersCache = mock(async () => {})
 mock.module("./checker", () => ({
   getCachedVersion: mockGetCachedVersion,
   getLocalDevVersion: () => null,
+  getLocalDevPath: () => null,
+  isLocalDevMode: () => false,
   findPluginEntry: mockFindPluginEntry,
   getLatestVersion: mockGetLatestVersion,
   updatePinnedVersion: mockUpdatePinnedVersion,
+  checkForUpdate: async () => ({
+    needsUpdate: false,
+    currentVersion: null,
+    latestVersion: null,
+    isLocalDev: false,
+    isPinned: false,
+  }),
 }))
 
 mock.module("./cache", () => ({
@@ -40,11 +49,22 @@ mock.module("../../shared/config-errors", () => ({
 
 mock.module("../../shared/model-availability", () => ({
   isModelCacheAvailable: mockIsModelCacheAvailable,
+  fuzzyMatchModel: () => null,
+  isModelAvailable: () => true,
+  getConnectedProviders: async () => [],
+  fetchAvailableModels: async () => new Set<string>(),
+  isAnyFallbackModelAvailable: () => false,
+  isAnyProviderConnected: () => false,
+  __resetModelCache: () => {},
 }))
 
 mock.module("../../shared/connected-providers-cache", () => ({
   hasConnectedProvidersCache: mockHasConnectedProvidersCache,
   updateConnectedProvidersCache: mockUpdateConnectedProvidersCache,
+  readConnectedProvidersCache: () => [],
+  readProviderModelsCache: () => null,
+  hasProviderModelsCache: () => false,
+  writeProviderModelsCache: () => {},
 }))
 
 mock.module("../../shared/logger", () => ({

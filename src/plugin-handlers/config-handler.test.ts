@@ -361,6 +361,39 @@ describe("Prometheus category config resolution", () => {
     expect(config?.temperature).toBe(0.1)
   })
 
+  test("returns undefined when builtin category is disabled in user config", () => {
+    // #given
+    const categoryName = "ultrabrain"
+    const userCategories: Record<string, CategoryConfig> = {
+      ultrabrain: {
+        disable: true,
+      },
+    }
+
+    // #when
+    const config = resolveCategoryConfig(categoryName, userCategories)
+
+    // #then
+    expect(config).toBeUndefined()
+  })
+
+  test("returns undefined when custom category is disable=true", () => {
+    // #given
+    const categoryName = "my-custom"
+    const userCategories: Record<string, CategoryConfig> = {
+      "my-custom": {
+        model: "openai/gpt-5.3-codex",
+        disable: true,
+      },
+    }
+
+    // #when
+    const config = resolveCategoryConfig(categoryName, userCategories)
+
+    // #then
+    expect(config).toBeUndefined()
+  })
+
   test("returns undefined for unknown category", () => {
     // #given
     const categoryName = "nonexistent-category"

@@ -28,8 +28,8 @@ import type { OhMyOpenCodeConfig } from "../config";
 import { log, fetchAvailableModels, readConnectedProvidersCache, resolveModelPipeline } from "../shared";
 import { migrateAgentConfig } from "../shared/permission-compat";
 import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
+import { mergeCategories } from "../shared/merge-categories";
 import { PROMETHEUS_PERMISSION, PROMETHEUS_RUNTIME_PROMPT } from "../agents/prometheus";
-import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
 import type { ModelCacheState } from "../plugin-state";
 import type { CategoryConfig } from "../config/schema";
 
@@ -43,7 +43,8 @@ export function resolveCategoryConfig(
   categoryName: string,
   userCategories?: Record<string, CategoryConfig>
 ): CategoryConfig | undefined {
-  return userCategories?.[categoryName] ?? DEFAULT_CATEGORIES[categoryName];
+  const merged = mergeCategories(userCategories)
+  return merged[categoryName]
 }
 
 const CORE_AGENT_ORDER = ["sisyphus", "atlas", "hephaestus", "prometheus"] as const;

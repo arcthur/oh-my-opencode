@@ -1,6 +1,6 @@
 # Upstream Sync Notes (Fork Policy + Sync Anchors)
 
-> Last updated: 2026-02-09  
+> Last updated: 2026-02-12  
 > Fork branch: `dev` @ `9fcee7f5` *(worktree contains uncommitted sync work)*  
 > Upstream baseline: `dev` @ `368ac310` *(local clone: `../oh-my-opencode-upstream`)*  
 > merge-base: `66fd761a`  
@@ -540,3 +540,77 @@ Result:
 - Upstream commits in range: **56**
 - Missing commits in notes: **0**
 - Conclusion: full one-by-one coverage is recorded for `617d7f4f..368ac310`.
+
+### 2026-02-12 Addendum (Tip Window Review: `7e0ab828..d358e6e4`)
+
+Reviewed all non-merge commits in this window (25 total including CLA/release entries).  
+Functional commits were evaluated against fork boundaries and current runtime architecture.
+
+Adopted in fork runtime:
+- `9afd0d1d` (`src/cli/run/*`): pass `directory` into `event.subscribe({ query })`; add completion stabilization window in polling.
+- `c12c6fa0` (`src/hooks/prometheus-md-only/*`): agent detection now case-insensitive substring match (covers display names like `Prometheus (Plan Builder)`).
+- `ef1baea1` (`src/hooks/auto-slash-command/executor.ts`, `src/tools/slashcommand/tools.ts`): explicit unsupported guidance for namespaced marketplace commands (`/plugin:command`).
+- `d5fd918b` (fork-relevant subset):
+  - `src/hooks/comment-checker/index.ts`: guard `output.output` with null-safe string coercion.
+  - `src/hooks/task-resume-info/index.ts`: null-safe handling for MCP outputs without text payload.
+- `5d321516` (fork-adapted): `auto-update-checker` now respects user pinned plugin versions (notification-only; no config rewrite or install).
+- `b0c570e0` (fork-relevant subset):
+  - `src/features/background-agent/spawner.ts`
+  - `src/tools/delegate-task/executor.ts`
+  Removed child-session `permission.question=deny` override to avoid zombie subagent sessions; rely on prompt/tool restrictions.
+
+Not adopted (with reasons):
+- `bfe1730e` (`categories.disable` wave): broad schema/agent/category resolution protocol expansion; high blast radius for this fork’s customized delegation/category pipeline. Requires dedicated migration design, not opportunistic sync.
+- `fd99a29d` (Atlas boulder reminders): upstream `boulder`-specific behavior; outside fork-owned runtime boundary.
+- `d60697bb` (`boulder-state` + `atlas` chain): upstream state layer differs from fork (`work-state`/custom orchestration). Only reusable generic fix was already covered via Prometheus matching hardening.
+
+Verification status for this addendum:
+- Ran targeted tests for adopted surfaces:
+  - `src/cli/run/poll-for-completion.test.ts`
+  - `src/cli/run/runner.run.test.ts`
+  - `src/cli/run/runner.test.ts`
+  - `src/hooks/prometheus-md-only/index.test.ts`
+  - `src/hooks/comment-checker/index.test.ts`
+  - `src/hooks/task-resume-info/index.test.ts`
+  - `src/hooks/auto-slash-command/executor.test.ts`
+  - `src/tools/slashcommand/tools.test.ts`
+  - `src/features/background-agent/spawner.test.ts`
+  - `src/hooks/auto-update-checker/background-update-check.test.ts`
+  - `src/tools/delegate-task/tools.test.ts` (session title/metadata compatibility subset)
+
+### 2026-02-12 Addendum (Follow-up: Targeted Adoption for Previously Deferred Items)
+
+Re-evaluated the two deferred items from the tip-window review and adopted fork-compatible subsets:
+
+- `bfe1730e` (`categories.disable`) - **fork-adapted and adopted**:
+  - Added optional `disable?: boolean` to category schema.
+  - Added shared merge utility to produce a single source of truth for category visibility (`builtin + user - disabled`).
+  - Wired all category-consuming surfaces to the shared merge path:
+    - agent building/prompt surfaces
+    - Atlas category tables/decision matrix
+    - `delegate_task` category exposure and unknown-category error listing
+  - Added explicit runtime guard: disabled category resolves to `null` in category resolver.
+
+- `fd99a29d` (Atlas reminder behavior) - **partial fork-adapted adoption**:
+  - Adopted only the generic "read subagent notepad" reminder behavior in `execution-orchestrator`.
+  - Added an explicit step to read:
+    - `Glob(".sisyphus/notepads/${planId}/*.md")`
+    - then `Read` `learnings.md`, `issues.md`, `problems.md` when present.
+  - Kept fork boundary: no `boulder`-specific state or upstream workflow coupling was introduced.
+
+Still intentionally not adopted:
+- `d60697bb` and other `boulder-state` chain commits remain out-of-scope for this fork runtime architecture.
+
+Verification for this follow-up:
+- `bun run typecheck` (pass)
+- Targeted tests (pass):
+  - `src/shared/merge-categories.test.ts`
+  - `src/tools/delegate-task/categories.disable.test.ts`
+  - `src/tools/delegate-task/tools.disable-category.test.ts`
+  - `src/tools/delegate-task/tools.test.ts`
+  - `src/agents/atlas/agent.test.ts`
+  - `src/agents/utils.test.ts`
+  - `src/hooks/execution-orchestrator/index.test.ts`
+  - `src/config/schema.test.ts`
+- Full-suite note:
+  - A monolithic `bun test` run reported broad, cross-module failures that were not reproducible when rerunning representative failed files in isolation (e.g. poll-for-completion/runtime-tracker/execution-orchestrator/comment-checker all pass standalone), indicating existing suite-level instability rather than a localized regression from this follow-up.

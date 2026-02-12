@@ -1,6 +1,7 @@
 import type { CategoryConfig } from "../../config/schema"
 import type { AvailableAgent, AvailableSkill } from "../dynamic-agent-prompt-builder"
-import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "../../tools/delegate-task/constants"
+import { CATEGORY_DESCRIPTIONS } from "../../tools/delegate-task/constants"
+import { mergeCategories } from "../../shared/merge-categories"
 import { truncateDescription } from "../../shared/truncate-description"
 
 function formatCustomSkillsBlock(rows: string[], customSkills: AvailableSkill[], emphasisMarker: string): string {
@@ -35,7 +36,7 @@ ${rows.join("\n")}`
 }
 
 export function buildCategorySection(userCategories?: Record<string, CategoryConfig>): string {
-  const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
+  const allCategories = mergeCategories(userCategories)
   const rows = Object.entries(allCategories).map(([name, config]) => {
     const temp = config.temperature ?? 0.5
     return `| \`${name}\` | ${temp} | ${getCategoryDescription(name, userCategories)} |`
@@ -105,7 +106,7 @@ Use relevant skills in \`load_skills\` for each delegation.`
 }
 
 export function buildDecisionMatrix(agents: AvailableAgent[], userCategories?: Record<string, CategoryConfig>): string {
-  const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
+  const allCategories = mergeCategories(userCategories)
 
   const categoryRows = Object.entries(allCategories).map(([name]) =>
     `| ${getCategoryDescription(name, userCategories)} | \`category="${name}"\` |`

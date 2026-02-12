@@ -693,6 +693,20 @@ describe("CategoryConfigSchema", () => {
     // then
     expect(result.success).toBe(false)
   })
+
+  test("accepts disable as optional boolean", () => {
+    // given
+    const config = { model: "openai/gpt-5.2", disable: true }
+
+    // when
+    const result = CategoryConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.disable).toBe(true)
+    }
+  })
 })
 
 describe("BuiltinCategoryNameSchema", () => {

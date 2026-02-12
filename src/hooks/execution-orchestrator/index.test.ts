@@ -1221,6 +1221,21 @@ Implement atomic fix.
     expect(result.content).toContain("VERIFICATION LOOP (COMPACT)")
   })
 
+  test("full reminder includes subagent notepad read step", () => {
+    // #when
+    const result = buildOrchestratorReminderWithTelemetry(
+      "execution",
+      ".sisyphus/plans/execution/plan.md",
+      { total: 4, completed: 1 },
+      "ses_notepad001",
+      "full"
+    )
+
+    // #then
+    expect(result.content).toContain("READ SUBAGENT NOTEPAD")
+    expect(result.content).toContain('Glob(".sisyphus/notepads/execution/*.md")')
+  })
+
   test("reports field-truncation telemetry for oversized session id", () => {
     // #given
     const oversizedSessionId = `ses_${"b".repeat(5000)}`

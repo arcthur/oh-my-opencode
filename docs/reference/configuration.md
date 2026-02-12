@@ -696,7 +696,21 @@ Add custom categories in `oh-my-opencode.json`:
 }
 ```
 
-Each category supports: `model`, `variant`, `temperature`, `top_p`, `maxTokens`, `thinking`, `reasoningEffort`, `textVerbosity`, `tools`, `prompt_append`, `is_unstable_agent`, `description`.
+Each category supports: `model`, `variant`, `temperature`, `top_p`, `maxTokens`, `thinking`, `reasoningEffort`, `textVerbosity`, `tools`, `prompt_append`, `is_unstable_agent`, `description`, `disable`.
+
+`disable: true` removes the category from delegation-facing category surfaces and prevents routing by that category name.
+
+Example (disable a built-in category):
+
+```json
+{
+  "categories": {
+    "quick": {
+      "disable": true
+    }
+  }
+}
+```
 
 ## Model Selection System
 

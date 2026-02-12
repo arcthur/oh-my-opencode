@@ -1,10 +1,11 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import type { DelegateTaskArgs, ToolContextWithMetadata, DelegateTaskToolOptions } from "./types"
-import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "./constants"
+import { CATEGORY_DESCRIPTIONS } from "./constants"
 import { log } from "../../shared"
 import { RESEARCH_SCOPED_AGENTS, RESEARCH_ALLOWED_AGENTS } from "../../shared/agent-tool-restrictions"
 import { buildSystemContent } from "./prompt-builder"
 import type { AvailableCategory, AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
+import { mergeCategories } from "../../shared/merge-categories"
 import {
   resolveSkillContent,
   resolveContinuationContext,
@@ -25,7 +26,7 @@ export { buildSystemContent } from "./prompt-builder"
 export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefinition {
   const { userCategories } = options
 
-  const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
+  const allCategories = mergeCategories(userCategories)
   const categoryNames = Object.keys(allCategories)
   const categoryExamples = categoryNames.map(k => `'${k}'`).join(", ")
 

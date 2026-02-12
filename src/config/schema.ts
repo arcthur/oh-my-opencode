@@ -203,6 +203,8 @@ export const CategoryConfigSchema = z.object({
   is_unstable_agent: z.boolean().optional(),
   /** Human-readable description for this category */
   description: z.string().optional(),
+  /** Disable this category from prompts and delegate_task routing */
+  disable: z.boolean().optional(),
 })
 
 export const BuiltinCategoryNameSchema = z.enum([

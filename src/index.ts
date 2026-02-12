@@ -159,7 +159,8 @@ import {
   hasGovernanceSession,
   persistGovernanceTraceSnapshot,
 } from "./features/governance";
-import { CATEGORY_DESCRIPTIONS, DEFAULT_CATEGORIES } from "./tools/delegate-task/constants";
+import { CATEGORY_DESCRIPTIONS } from "./tools/delegate-task/constants";
+import { mergeCategories } from "./shared/merge-categories";
 import { NON_INTERACTIVE_ENV } from "./hooks/non-interactive-env/constants";
 
 type PluginHooks = Awaited<ReturnType<Plugin>>
@@ -829,9 +830,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     location: mapScopeToLocation(skill.scope),
   }));
 
-  const mergedCategories = pluginConfig.categories
-    ? { ...DEFAULT_CATEGORIES, ...pluginConfig.categories }
-    : DEFAULT_CATEGORIES;
+  const mergedCategories = mergeCategories(pluginConfig.categories)
 
   const availableCategories = Object.entries(mergedCategories).map(([name, categoryConfig]) => ({
     name,

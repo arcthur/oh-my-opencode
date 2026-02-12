@@ -2,7 +2,7 @@ import type { BackgroundManager } from "../../features/background-agent"
 import type { CategoriesConfig, GitMasterConfig, BrowserAutomationProvider } from "../../config/schema"
 import type { ModelFallbackInfo } from "../../features/task-toast-manager/types"
 import type { DelegateTaskArgs, ToolContextWithMetadata, OpencodeClient } from "./types"
-import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS, isPlanAgent } from "./constants"
+import { CATEGORY_DESCRIPTIONS, isPlanAgent } from "./constants"
 import { getTimingConfig } from "./timing"
 import { parseModelString, getMessageDir, formatDuration, formatDetailedError } from "./helpers"
 import { resolveCategoryConfig } from "./categories"
@@ -21,6 +21,7 @@ import { log, getAgentToolRestrictions, resolveModelPipeline, promptWithModelSug
 import { fetchAvailableModels, isModelAvailable } from "../../shared/model-availability"
 import { readConnectedProvidersCache } from "../../shared/connected-providers-cache"
 import { CATEGORY_MODEL_REQUIREMENTS } from "../../shared/model-requirements"
+import { mergeCategories } from "../../shared/merge-categories"
 
 const SISYPHUS_JUNIOR_AGENT = "sisyphus-junior"
 
@@ -971,6 +972,7 @@ export async function resolveCategoryExecution(
   systemDefaultModel: string | undefined
 ): Promise<CategoryResolutionResult> {
   const { client, userCategories, sisyphusJuniorModel } = executorCtx
+  const enabledCategories = mergeCategories(userCategories)
 
   const connectedProviders = readConnectedProvidersCache()
   const availableModels = await fetchAvailableModels(client, {
@@ -992,7 +994,7 @@ export async function resolveCategoryExecution(
       modelInfo: undefined,
       actualModel: undefined,
       isUnstableAgent: false,
-      error: `Unknown category: "${args.category}". Available: ${Object.keys({ ...DEFAULT_CATEGORIES, ...userCategories }).join(", ")}`,
+      error: `Unknown category: "${args.category}". Available: ${Object.keys(enabledCategories).join(", ")}`,
     }
   }
 
@@ -1075,7 +1077,7 @@ export async function resolveCategoryExecution(
   const categoryPromptAppend = resolved.promptAppend || undefined
 
   if (!categoryModel && !actualModel) {
-    const categoryNames = Object.keys({ ...DEFAULT_CATEGORIES, ...userCategories })
+    const categoryNames = Object.keys(enabledCategories)
     return {
       agentToUse: "",
       categoryModel: undefined,
