@@ -64,7 +64,7 @@ function isExternalLink(target: string): boolean {
 describe("README markdown links", () => {
   it("README.md and README.zh-cn.md local links resolve", () => {
     // #given
-    const rootDir = resolve(import.meta.dirname, "..")
+    const rootDir = resolve(import.meta.dirname, "../..")
     const files = [
       resolve(rootDir, "README.md"),
       resolve(rootDir, "README.zh-cn.md"),

@@ -1,16 +1,17 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 
 describe("experimental.session.compacting", () => {
   test("delegates compacting event to context-window-governor without hardcoded model fallback", () => {
     //#given
-    const indexUrl = new URL("./index.ts", import.meta.url)
-    const assemblyUrl = new URL(
-      "./hooks/runtime/assembly/experimental-session-compacting.ts",
-      import.meta.url
+    const indexPath = resolve(import.meta.dir, "../../src/index.ts")
+    const assemblyPath = resolve(
+      import.meta.dir,
+      "../../src/hooks/runtime/assembly/experimental-session-compacting.ts"
     )
-    const indexContent = readFileSync(indexUrl, "utf-8")
-    const assemblyContent = readFileSync(assemblyUrl, "utf-8")
+    const indexContent = readFileSync(indexPath, "utf-8")
+    const assemblyContent = readFileSync(assemblyPath, "utf-8")
     const hookIndex = indexContent.indexOf('"experimental.session.compacting"')
 
     //#when

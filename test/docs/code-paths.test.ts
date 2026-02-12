@@ -75,8 +75,8 @@ function isRepoPathCandidate(raw: string): boolean {
 describe("docs code path refs", () => {
   it("inline code path references exist in repo (docs tree)", () => {
     // #given all docs markdown files
-    const docsDir = import.meta.dirname
-    const repoRoot = resolve(docsDir, "..")
+    const repoRoot = resolve(import.meta.dirname, "../..")
+    const docsDir = resolve(repoRoot, "docs")
     const markdownFiles = listMarkdownFiles(docsDir)
 
     // #when validating inline code path references
@@ -101,4 +101,3 @@ describe("docs code path refs", () => {
     expect(errors, errors.join("\n")).toEqual([])
   })
 })
-

@@ -21,14 +21,16 @@
     "./schema.json": "./dist/oh-my-opencode.schema.json"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun --format esm --external @ast-grep/napi && tsc --emitDeclarationOnly && bun build src/cli/index.ts --outdir dist/cli --target bun --format esm --external @ast-grep/napi && bun run build:schema",
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm --external @ast-grep/napi && tsc -p tsconfig.build.json --emitDeclarationOnly && bun build src/cli/index.ts --outdir dist/cli --target bun --format esm --external @ast-grep/napi && bun run build:schema",
     "build:all": "bun run build && bun run build:binaries",
     "build:binaries": "bun run script/build-binaries.ts",
     "build:schema": "bun run script/build-schema.ts",
     "clean": "rm -rf dist",
     "postinstall": "node postinstall.mjs",
     "prepublishOnly": "bun run clean && bun run build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.src.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
+    "test:contracts": "bun test test/contracts",
+    "test:docs": "bun test test/docs",
     "test": "bun test"
   },
   "keywords": [

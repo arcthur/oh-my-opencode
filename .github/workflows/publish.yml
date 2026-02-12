@@ -52,7 +52,7 @@ jobs:
           # mock.module() can pollute Bun module cache between test files.
           # Discover tests dynamically and run each in a fresh process.
           mapfile -t mock_heavy_tests < <(
-            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "mock\\.module\\(" src
+            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "mock\\.module\\(" test bin script src
           )
 
           if [ "${#mock_heavy_tests[@]}" -eq 0 ]; then
@@ -71,10 +71,10 @@ jobs:
 
           # Run non-mock-heavy tests once to avoid mock.module() cache pollution.
           mapfile -t mock_heavy_tests < <(
-            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "mock\\.module\\(" src
+            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "mock\\.module\\(" test bin script src
           )
           mapfile -t all_tests < <(
-            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "." docs bin script src
+            rg -l --glob '**/*.test.ts' --glob '**/*.spec.ts' "." test bin script src
           )
 
           declare -A mock_heavy_lookup=()

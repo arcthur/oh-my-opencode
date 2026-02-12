@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
 const TARGET_FILES = [
   "src/agents/momus.ts",
@@ -28,7 +28,7 @@ const REQUIRED_CANONICAL_PLAN_PATTERN = /\.sisyphus\/plans\/[^`\s]+\/plan\.md/
 describe("prompt contract guard (execution ssot wording)", () => {
   test("target prompts use canonical plan path wording", () => {
     // #given
-    const repoRoot = new URL("../", import.meta.url).pathname
+    const repoRoot = resolve(import.meta.dir, "../..")
 
     // #when / #then
     for (const relativePath of TARGET_FILES) {

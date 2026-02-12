@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 
 describe("lifecycle surface compatibility", () => {
   test("registers command.execute.before hook with version gating", () => {
     //#given
-    const indexUrl = new URL("./index.ts", import.meta.url)
-    const content = readFileSync(indexUrl, "utf-8")
+    const indexPath = resolve(import.meta.dir, "../../src/index.ts")
+    const content = readFileSync(indexPath, "utf-8")
 
     //#when
     const versionConstantIndex = content.indexOf("OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION")
@@ -24,8 +25,8 @@ describe("lifecycle surface compatibility", () => {
 
   test("registers chat.headers hook with version gating", () => {
     //#given
-    const indexUrl = new URL("./index.ts", import.meta.url)
-    const content = readFileSync(indexUrl, "utf-8")
+    const indexPath = resolve(import.meta.dir, "../../src/index.ts")
+    const content = readFileSync(indexPath, "utf-8")
 
     //#when
     const versionConstantIndex = content.indexOf("OPENCODE_CHAT_HEADERS_HOOK_VERSION")
@@ -68,8 +69,8 @@ describe("lifecycle surface compatibility", () => {
 
   test("registers shell.env hook with version gating", () => {
     //#given
-    const indexUrl = new URL("./index.ts", import.meta.url)
-    const content = readFileSync(indexUrl, "utf-8")
+    const indexPath = resolve(import.meta.dir, "../../src/index.ts")
+    const content = readFileSync(indexPath, "utf-8")
 
     //#when
     const versionConstantIndex = content.indexOf("OPENCODE_SHELL_ENV_HOOK_VERSION")

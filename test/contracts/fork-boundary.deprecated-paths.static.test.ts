@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync } from "node:fs"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
 const DEPRECATED_UPSTREAM_PATHS = [
   "src/features/boulder-state",
@@ -15,7 +15,7 @@ const DEPRECATED_UPSTREAM_PATHS = [
 describe("fork boundary guard (deprecated upstream modules)", () => {
   test("deprecated upstream module paths must remain absent in this fork", () => {
     //#given
-    const repoRoot = new URL("../", import.meta.url).pathname
+    const repoRoot = resolve(import.meta.dir, "../..")
 
     //#when / #then
     for (const relativePath of DEPRECATED_UPSTREAM_PATHS) {

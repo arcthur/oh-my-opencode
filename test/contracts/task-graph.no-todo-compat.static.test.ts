@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
 type ForbiddenPattern = { name: string; regex: RegExp }
 type Violation = { filePath: string; line: number; pattern: string; text: string }
@@ -60,10 +60,10 @@ function findViolations(filePath: string, patterns: ForbiddenPattern[]): Violati
 describe("task graph v2 guard (no todo compatibility)", () => {
   test("forbidden todo/todowrite compatibility markers are absent in src/", () => {
     // #given
-    const sourceRoot = import.meta.dir
+    const sourceRoot = resolve(import.meta.dir, "../../src")
     expect(statSync(sourceRoot).isDirectory()).toBe(true)
 
-    const selfPath = join(sourceRoot, "task-graph.no-todo-compat.static.test.ts")
+    const selfPath = resolve(import.meta.dir, "task-graph.no-todo-compat.static.test.ts")
     const tsFiles = listTsFiles(sourceRoot, new Set([selfPath]))
 
     // #when
@@ -82,4 +82,3 @@ describe("task graph v2 guard (no todo compatibility)", () => {
     }
   })
 })
-

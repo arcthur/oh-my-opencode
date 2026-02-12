@@ -1,13 +1,14 @@
 import { describe, expect, it } from "bun:test"
 import { readFileSync } from "fs"
 import { resolve } from "path"
-import { BuiltinSkillNameSchema } from "../../src/config/schema"
+import { BuiltinSkillNameSchema } from "../../../src/config/schema"
 
 describe("docs/guide features coverage", () => {
   it("mentions all built-in skills", () => {
     // #given built-in skill names from schema
+    const repoRoot = resolve(import.meta.dirname, "../../..")
     const skillNames = [...BuiltinSkillNameSchema.options]
-    const markdownPath = resolve(import.meta.dirname, "features.md")
+    const markdownPath = resolve(repoRoot, "docs/guide/features.md")
     const markdown = readFileSync(markdownPath, "utf-8")
 
     // #when checking for skill name mentions
@@ -19,4 +20,3 @@ describe("docs/guide features coverage", () => {
     expect(missing, `Missing built-in skills in docs/guide/features.md: ${missing.join(", ")}`).toEqual([])
   })
 })
-

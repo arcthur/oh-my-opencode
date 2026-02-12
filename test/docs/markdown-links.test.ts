@@ -128,7 +128,8 @@ function getHeadingAnchors(markdown: string): Set<string> {
 describe("docs markdown links", () => {
   it("all local markdown links resolve", () => {
     // #given docs markdown files
-    const docsDir = import.meta.dirname
+    const repoRoot = resolve(import.meta.dirname, "../..")
+    const docsDir = resolve(repoRoot, "docs")
     const markdownFiles = listMarkdownFiles(docsDir)
 
     // #when validating local links

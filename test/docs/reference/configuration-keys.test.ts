@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import { readFileSync } from "fs"
 import { resolve } from "path"
-import { OhMyOpenCodeConfigSchema } from "../../src/config/schema"
+import { OhMyOpenCodeConfigSchema } from "../../../src/config/schema"
 
 function getTopLevelConfigKeys(): string[] {
   const schema = OhMyOpenCodeConfigSchema as unknown as {
@@ -20,8 +20,9 @@ function getTopLevelConfigKeys(): string[] {
 describe("docs/reference configuration coverage", () => {
   it("documents all top-level OhMyOpenCode config keys", () => {
     // #given top-level config keys from schema
+    const repoRoot = resolve(import.meta.dirname, "../../..")
     const keys = getTopLevelConfigKeys()
-    const markdownPath = resolve(import.meta.dirname, "configuration.md")
+    const markdownPath = resolve(repoRoot, "docs/reference/configuration.md")
     const markdown = readFileSync(markdownPath, "utf-8")
 
     // #when checking for key mentions in the configuration contract
@@ -31,4 +32,3 @@ describe("docs/reference configuration coverage", () => {
     expect(missing, `Missing keys in docs/reference/configuration.md: ${missing.join(", ")}`).toEqual([])
   })
 })
-

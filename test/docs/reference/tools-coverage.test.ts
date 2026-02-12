@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test"
 import { readFileSync } from "fs"
 import { resolve } from "path"
-import { builtinTools } from "../../src/tools"
+import { builtinTools } from "../../../src/tools"
 
 describe("docs/reference tools coverage", () => {
   it("documents the full plugin tool registry surface", () => {
     // #given tool names registered by this plugin
+    const repoRoot = resolve(import.meta.dirname, "../../..")
     const toolNames = [
       ...Object.keys(builtinTools),
       "background_output",
@@ -24,7 +25,7 @@ describe("docs/reference tools coverage", () => {
       "interactive_bash",
     ]
 
-    const markdownPath = resolve(import.meta.dirname, "tools.md")
+    const markdownPath = resolve(repoRoot, "docs/reference/tools.md")
     const markdown = readFileSync(markdownPath, "utf-8")
 
     // #when checking for tool name mentions

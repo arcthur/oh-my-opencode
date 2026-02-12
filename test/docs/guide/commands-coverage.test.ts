@@ -1,13 +1,14 @@
 import { describe, expect, it } from "bun:test"
 import { readFileSync } from "fs"
 import { resolve } from "path"
-import { BuiltinCommandNameSchema } from "../../src/config/schema"
+import { BuiltinCommandNameSchema } from "../../../src/config/schema"
 
 describe("docs/guide command coverage", () => {
   it("documents all built-in slash commands", () => {
     // #given built-in command names from schema
+    const repoRoot = resolve(import.meta.dirname, "../../..")
     const commandNames = [...BuiltinCommandNameSchema.options]
-    const markdownPath = resolve(import.meta.dirname, "features.md")
+    const markdownPath = resolve(repoRoot, "docs/guide/features.md")
     const markdown = readFileSync(markdownPath, "utf-8")
 
     // #when checking for /<command> mentions
@@ -17,4 +18,3 @@ describe("docs/guide command coverage", () => {
     expect(missing, `Missing built-in commands in docs/guide/features.md: ${missing.join(", ")}`).toEqual([])
   })
 })
-
