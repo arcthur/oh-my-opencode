@@ -563,6 +563,12 @@ Minimal config:
 }
 ```
 
+`planning_with_files.bdd_alignment` controls task-to-scenario alignment checks:
+
+- `off`: disable checks.
+- `warn` (default): inject warning context when tasks miss `Scenario Ref`.
+- `required`: block non-plan tool execution until missing `Scenario Ref` values are fixed.
+
 ## Tmux Parallel Agents
 
 `tmux_parallel_agents` configures tmux/worktree orchestration for background tasks and Swarm.

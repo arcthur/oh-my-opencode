@@ -105,6 +105,17 @@ describe("createBuiltinSkills", () => {
 		}
 	})
 
+	test("writing-plans template requires scenario mapping and negative verification", () => {
+		// given
+		const skills = createBuiltinSkills()
+		const writingPlans = skills.find((s) => s.name === "writing-plans")
+
+		// when / #then
+		expect(writingPlans).toBeDefined()
+		expect(writingPlans!.template).toContain("Scenario Ref")
+		expect(writingPlans!.template).toContain("Negative verification")
+	})
+
 	test("returns exactly 10 skills regardless of provider", () => {
 		// given
 

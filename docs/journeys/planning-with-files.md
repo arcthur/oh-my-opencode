@@ -114,6 +114,7 @@ Enable in `.opencode/oh-my-opencode.json`:
 |--------|---------|-------------|
 | `enabled` | `false` | Enable the planning-with-files pattern |
 | `directory` | `"plans"` | Deprecated and ignored (canonical path is fixed to `.sisyphus/plans/`) |
+| `bdd_alignment` | `"warn"` | BDD task alignment mode: `off` \| `warn` \| `required` |
 | `two_action_rule` | `true` | Remind to update findings after 2 research ops |
 | `three_strike_protocol` | `true` | Structured error handling with escalation |
 | `auto_reread` | `true` | Re-read task_plan before Write/Edit/Bash/NotebookEdit |

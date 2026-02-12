@@ -49,9 +49,10 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 
 1. Planning concepts: `docs/journeys/prometheus-planning.md`
 2. Planning with files: `docs/journeys/planning-with-files.md`
-3. Orchestration: `docs/guide/orchestration.md`
-4. Deterministic delegation context: `docs/journeys/context-packs-and-manifests.md`
-5. Feature catalog: `docs/guide/features.md`
+3. BDD ↔ plan contract: `docs/reference/planning-bdd-contract.md`
+4. Orchestration: `docs/guide/orchestration.md`
+5. Deterministic delegation context: `docs/journeys/context-packs-and-manifests.md`
+6. Feature catalog: `docs/guide/features.md`
 
 ## Where to Look in Code
 

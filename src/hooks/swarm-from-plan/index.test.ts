@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 import { createSwarmRuntimeService } from "../../features/sisyphus-swarm/runtime"
-import { addMember, createAgentIdentity, createTeam } from "../../features/sisyphus-swarm/team"
+import { addMemberAsync, createAgentIdentity, createTeam } from "../../features/sisyphus-swarm/team"
 import type { CoordinatorAgent } from "../../features/sisyphus-swarm/agent"
 
 const mockCreateCoordinator = mock(async () => ({ stub: true }))
@@ -143,7 +143,7 @@ describe("swarm-from-plan hook", () => {
       sessionId: "coord-existing",
     })
     createTeam(teamName, coordinator, config)
-    addMember(
+    await addMemberAsync(
       teamName,
       createAgentIdentity({
         name: "worker-existing",
@@ -194,7 +194,7 @@ describe("swarm-from-plan hook", () => {
       sessionId: "coord-existing",
     })
     createTeam(teamName, coordinator, config)
-    addMember(
+    await addMemberAsync(
       teamName,
       createAgentIdentity({
         name: "worker-existing",

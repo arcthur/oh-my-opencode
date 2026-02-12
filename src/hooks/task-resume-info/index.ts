@@ -20,16 +20,17 @@ function extractSessionId(output: string): string | null {
 export function createTaskResumeInfoHook() {
    const toolExecuteAfter = async (
      input: { tool: string; sessionID: string; callID: string },
-     output: { title: string; output: string; metadata: unknown }
+     output: { title: string; output: string | undefined; metadata: unknown }
    ) => {
      if (!TARGET_TOOLS.includes(input.tool)) return
-     if (output.output.startsWith("Error:") || output.output.startsWith("Failed")) return
-     if (output.output.includes("\nto continue:")) return
+     const outputText = output.output ?? ""
+     if (outputText.startsWith("Error:") || outputText.startsWith("Failed")) return
+     if (outputText.includes("\nto continue:")) return
 
-     const sessionId = extractSessionId(output.output)
+     const sessionId = extractSessionId(outputText)
      if (!sessionId) return
 
-     const mergedOutput = { output: output.output.trimEnd() }
+     const mergedOutput = { output: outputText.trimEnd() }
      const decision = appendBudgetedOutput({
        output: mergedOutput,
        sessionID: input.sessionID,

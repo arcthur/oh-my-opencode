@@ -3,13 +3,25 @@ export interface PlanTaskDefinition {
   title: string
   raw_block: string
   context_pack_ids: string[]
+  scenario_refs: string[]
   depends_on_task_numbers: number[]
 }
 
+export interface PlanBddAlignmentIssue {
+  task_number: number
+  title: string
+  reason: "missing_scenario_ref"
+}
+
 const SAFE_PACK_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/
+const SAFE_SCENARIO_REF_REGEX = /^[A-Za-z][A-Za-z0-9._:-]{0,63}$/
 
 function isSafePackId(id: string): boolean {
   return SAFE_PACK_ID_REGEX.test(id)
+}
+
+function isSafeScenarioRef(id: string): boolean {
+  return SAFE_SCENARIO_REF_REGEX.test(id)
 }
 
 function splitPackIds(raw: string): string[] {
@@ -50,6 +62,52 @@ function extractContextPackIdsFromBlock(block: string): string[] {
 
   const seen = new Set<string>()
   return ids.filter((id) => {
+    if (seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+}
+
+function splitScenarioRefs(raw: string): string[] {
+  return raw
+    .split(/[,\s]+/g)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && isSafeScenarioRef(s))
+}
+
+function extractScenarioRefsFromBlock(block: string): string[] {
+  const lines = block.split(/\r?\n/g)
+  const refs: string[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? ""
+    const match = line.match(
+      /^\s*(?:[-*]\s*)?Scenario\s+Ref(?:erence)?s?\s*:\s*(.*?)\s*$/i
+    )
+    if (!match) continue
+
+    const remainder = (match[1] ?? "").trim()
+    if (remainder.length > 0) {
+      refs.push(...splitScenarioRefs(remainder))
+      continue
+    }
+
+    // Multi-line bullet list form:
+    // Scenario Refs:
+    // - S-001
+    // - S-002
+    for (let j = i + 1; j < lines.length; j++) {
+      const next = (lines[j] ?? "").trim()
+      if (next.length === 0) break
+
+      const bullet = next.match(/^[-*]\s*([A-Za-z][A-Za-z0-9._:-]{0,63})\s*$/)
+      if (!bullet) break
+      if (isSafeScenarioRef(bullet[1]!)) refs.push(bullet[1]!)
+    }
+  }
+
+  const seen = new Set<string>()
+  return refs.filter((id) => {
     if (seen.has(id)) return false
     seen.add(id)
     return true
@@ -141,6 +199,7 @@ export function parsePlanTasksFromMarkdown(markdown: string): PlanTaskDefinition
           title: current.start.title,
           raw_block: rawBlock,
           context_pack_ids: extractContextPackIdsFromBlock(rawBlock),
+          scenario_refs: extractScenarioRefsFromBlock(rawBlock),
           depends_on_task_numbers: extractDependsOnTaskNumbersFromBlock(rawBlock),
         })
       }
@@ -158,6 +217,7 @@ export function parsePlanTasksFromMarkdown(markdown: string): PlanTaskDefinition
       title: current.start.title,
       raw_block: rawBlock,
       context_pack_ids: extractContextPackIdsFromBlock(rawBlock),
+      scenario_refs: extractScenarioRefsFromBlock(rawBlock),
       depends_on_task_numbers: extractDependsOnTaskNumbersFromBlock(rawBlock),
     })
   }
@@ -172,3 +232,12 @@ export function parsePlanTasksFromMarkdown(markdown: string): PlanTaskDefinition
   })
 }
 
+export function findPlanBddAlignmentIssues(markdown: string): PlanBddAlignmentIssue[] {
+  return parsePlanTasksFromMarkdown(markdown)
+    .filter((task) => task.scenario_refs.length === 0)
+    .map((task) => ({
+      task_number: task.task_number,
+      title: task.title,
+      reason: "missing_scenario_ref",
+    }))
+}

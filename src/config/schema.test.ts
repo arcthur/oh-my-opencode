@@ -898,6 +898,26 @@ describe("continuation_control schema", () => {
   })
 })
 
+describe("planning_with_files schema", () => {
+  test("applies bdd_alignment default as warn", () => {
+    // given
+    const config = {
+      planning_with_files: {
+        enabled: true,
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.planning_with_files?.bdd_alignment).toBe("warn")
+    }
+  })
+})
+
 describe("background_task.unstable_watchdog schema", () => {
   test("applies nested defaults when unstable_watchdog is configured", () => {
     // given

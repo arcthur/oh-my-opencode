@@ -536,6 +536,8 @@ export const PlanningWithFilesConfigSchema = z.object({
   enabled: z.boolean().default(false),
   /** Directory for planning files relative to .sisyphus/ (default: "plans") */
   directory: z.string().default("plans"),
+  /** BDD alignment gate for task Scenario Ref coverage (default: "warn") */
+  bdd_alignment: z.enum(["off", "warn", "required"]).default("warn"),
   /** Enable 2-action rule for findings updates (default: true) */
   two_action_rule: z.boolean().default(true),
   /** Enable 3-strike error protocol (default: true) */

@@ -65,9 +65,6 @@ export async function startTask(
     body: {
       parentID: input.parentSessionID,
       title: `Background: ${input.description}`,
-      permission: [
-        { permission: "question", action: "deny" as const, pattern: "*" },
-      ],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
     query: {

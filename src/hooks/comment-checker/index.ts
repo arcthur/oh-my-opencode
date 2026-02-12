@@ -91,7 +91,7 @@ export function createCommentCheckerHooks(config?: CommentCheckerConfig) {
 
     "tool.execute.after": async (
       input: { tool: string; sessionID: string; callID: string },
-      output: { title: string; output: string; metadata: unknown }
+      output: { title: string; output: string | undefined; metadata: unknown }
     ): Promise<void> => {
       debugLog("tool.execute.after:", { tool: input.tool, callID: input.callID })
       
@@ -105,7 +105,7 @@ export function createCommentCheckerHooks(config?: CommentCheckerConfig) {
       debugLog("processing pendingCall:", pendingCall)
 
       // Only skip if the output indicates a tool execution failure
-      const outputLower = output.output.toLowerCase()
+      const outputLower = (output.output ?? "").toLowerCase()
       const isToolFailure = 
         outputLower.includes("error:") || 
         outputLower.includes("failed to") ||

@@ -277,6 +277,7 @@ Parallel Speedup: ~40% faster than sequential
 
 > Implementation + Test = ONE Task. Never separate.
 > EVERY task MUST have: Recommended Agent Profile + Parallelization info.
+> EVERY task MUST include: \`Scenario Ref\` (at least one stable behavior-scenario identifier, e.g. \`S-001\`).
 
 - 1. [Task Title]
 
@@ -289,6 +290,9 @@ Parallel Speedup: ~40% faster than sequential
 
   **Context Packs (REQUIRED)**:
   - Context Packs: global, ...
+
+  **Scenario Ref (REQUIRED)**:
+  - Scenario Ref: S-001
 
   **Recommended Agent Profile**:
   > Select category + skills based on task domain. Justify each choice.

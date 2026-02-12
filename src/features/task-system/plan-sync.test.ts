@@ -37,7 +37,9 @@ describe("task-system/plan-sync", () => {
 ## Tasks
 
 - 1. Setup repo
+  Scenario Ref: S-001
 - 2. Implement feature
+  Scenario Ref: S-002
   Depends On: 1
 `
 
@@ -65,6 +67,8 @@ describe("task-system/plan-sync", () => {
     const task2 = byKey.get(`${planId}#2`)
     expect(task1).toBeTruthy()
     expect(task2).toBeTruthy()
+    expect(task1?.metadata?.scenarioRefs).toEqual(["S-001"])
+    expect(task2?.metadata?.scenarioRefs).toEqual(["S-002"])
     expect(task2?.depends_on).toEqual([task1!.id])
   })
 
@@ -101,4 +105,3 @@ describe("task-system/plan-sync", () => {
     expect(second.skipped.map((s) => s.reason)).toEqual(["already_exists", "already_exists"])
   })
 })
-

@@ -258,4 +258,5 @@ OpenCode's Prometheus is inspired by [Superpowers brainstorming](https://github.
 
 - [Orchestration Guide](../guide/orchestration.md) - How agents work together
 - [Planning to Execution](./planning-to-execution.md) - End-to-end planning pipeline
+- [Planning BDD Contract](../reference/planning-bdd-contract.md) - Single-SSOT boundary for behavior specs and execution tasks
 - [Category and Skills Guide](../guide/category-and-skills.md) - Task delegation

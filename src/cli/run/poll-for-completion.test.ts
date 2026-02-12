@@ -45,12 +45,37 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 3,
+      minStabilizationMs: 0,
     })
 
     //#then - exits with 0 but only after 3 consecutive checks
     expect(result).toBe(0)
     const statusCallCount = (ctx.client.session.status as ReturnType<typeof mock>).mock.calls.length
     expect(statusCallCount).toBeGreaterThanOrEqual(3)
+  })
+
+  it("does not check completion during stabilization period after first meaningful work", async () => {
+    //#given - session idle, meaningful work done, but stabilization period not elapsed
+    spyOn(console, "log").mockImplementation(() => {})
+    spyOn(console, "error").mockImplementation(() => {})
+    const ctx = createMockContext()
+    const eventState = createEventState()
+    eventState.mainSessionIdle = true
+    eventState.hasReceivedMeaningfulWork = true
+    const abortController = new AbortController()
+
+    //#when - abort before stabilization period elapses
+    setTimeout(() => abortController.abort(), 50)
+    const result = await pollForCompletion(ctx, eventState, abortController, {
+      pollIntervalMs: 10,
+      requiredConsecutive: 3,
+      minStabilizationMs: 60,
+    })
+
+    //#then - should abort without checking completion
+    expect(result).toBe(130)
+    const statusCallCount = (ctx.client.session.status as ReturnType<typeof mock>).mock.calls.length
+    expect(statusCallCount).toBe(0)
   })
 
   it("does not exit when currentTool is set - resets consecutive counter", async () => {
@@ -69,6 +94,7 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 3,
+      minStabilizationMs: 0,
     })
 
     //#then - should be aborted, not completed (tool blocked exit)
@@ -107,6 +133,7 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 3,
+      minStabilizationMs: 0,
     })
     const elapsedMs = Date.now() - startMs
 
@@ -130,6 +157,7 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 3,
+      minStabilizationMs: 0,
     })
 
     //#then
@@ -178,6 +206,7 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 2,
+      minStabilizationMs: 0,
     })
 
     //#then
@@ -197,6 +226,7 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 3,
+      minStabilizationMs: 0,
     })
 
     //#then
@@ -218,6 +248,7 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 3,
+      minStabilizationMs: 0,
     })
 
     //#then
@@ -244,6 +275,7 @@ describe("pollForCompletion", () => {
     const result = await pollForCompletion(ctx, eventState, abortController, {
       pollIntervalMs: 10,
       requiredConsecutive: 3,
+      minStabilizationMs: 0,
     })
 
     //#then - should NOT have exited with 0 (tool blocked it, then aborted)

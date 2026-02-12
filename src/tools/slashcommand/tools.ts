@@ -184,9 +184,9 @@ export function createSlashcommandTool(options: SlashcommandToolOptions = {}): T
       }
 
       return (
-        `Command "/${cmdName}" not found.\n\n` +
-        formatCommandList(commands) +
-        "\n\nTry a different name."
+        cmdName.includes(":")
+          ? `Marketplace plugin commands like "/${cmdName}" are not supported. Use .claude/commands/ for custom commands.\n\n${formatCommandList(commands)}`
+          : `Command "/${cmdName}" not found.\n\n${formatCommandList(commands)}\n\nTry a different name.`
       )
     },
   })

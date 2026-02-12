@@ -130,4 +130,18 @@ describe("slashcommand tool - command-only execution semantics", () => {
     expect(result).toContain('Command "/stop-continuation" not found.')
     expect(result).not.toContain("# /stop-continuation Command")
   })
+
+  it("returns marketplace guidance for namespaced commands", async () => {
+    // given
+    const commands = [createMockCommand("commit", "Create a git commit")]
+    const tool = createSlashcommandTool({ commands })
+
+    // when
+    const result = await tool.execute({ command: "daplug:run-prompt" } as never, {} as never)
+
+    // then
+    expect(result).toContain(
+      'Marketplace plugin commands like "/daplug:run-prompt" are not supported.'
+    )
+  })
 })

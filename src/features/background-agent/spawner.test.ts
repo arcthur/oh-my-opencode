@@ -54,8 +54,12 @@ describe("background-agent spawner", () => {
     // #then
     expect(mockGet).toHaveBeenCalledTimes(1)
     expect(mockCreate).toHaveBeenCalledTimes(1)
-    const createArgs = mockCreate.mock.calls[0]?.[0] as { query?: { directory?: string } } | undefined
+    const createArgs = mockCreate.mock.calls[0]?.[0] as {
+      query?: { directory?: string }
+      body?: { permission?: unknown }
+    } | undefined
     expect(createArgs?.query?.directory).toBe("/worktree-dir")
+    expect(createArgs?.body?.permission).toBeUndefined()
   })
 
   test("defaults to parent session directory when LaunchInput.directory is not set", async () => {
@@ -97,8 +101,12 @@ describe("background-agent spawner", () => {
     // #then
     expect(mockGet).toHaveBeenCalledTimes(1)
     expect(mockCreate).toHaveBeenCalledTimes(1)
-    const createArgs = mockCreate.mock.calls[0]?.[0] as { query?: { directory?: string } } | undefined
+    const createArgs = mockCreate.mock.calls[0]?.[0] as {
+      query?: { directory?: string }
+      body?: { permission?: unknown }
+    } | undefined
     expect(createArgs?.query?.directory).toBe("/parent-dir")
+    expect(createArgs?.body?.permission).toBeUndefined()
   })
 
   test("resumeTask should use model concurrency key when concurrencyGroup is missing", async () => {

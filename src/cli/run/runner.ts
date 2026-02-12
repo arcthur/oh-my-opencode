@@ -154,7 +154,7 @@ export async function run(options: RunOptions): Promise<number> {
         taskConfig: pluginConfig,
       }
 
-      const events = await client.event.subscribe()
+      const events = await client.event.subscribe({ query: { directory } })
       const eventState = createEventState()
       const eventProcessor = createSafeEventProcessor(
         processEvents(ctx, events.stream, eventState),

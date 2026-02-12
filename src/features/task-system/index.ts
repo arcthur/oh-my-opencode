@@ -61,7 +61,9 @@ export {
 } from "./query"
 
 export {
+  findPlanBddAlignmentIssues,
   parsePlanTasksFromMarkdown,
+  type PlanBddAlignmentIssue,
   type PlanTaskDefinition,
 } from "./plan-markdown"
 

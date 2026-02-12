@@ -705,9 +705,6 @@ export async function executeSyncTask(
       body: {
         parentID: parentContext.sessionID,
         title: `${args.description} (@${agentToUse} subagent)`,
-        permission: [
-          { permission: "question", action: "deny" as const, pattern: "*" },
-        ],
       } as any,
       query: {
         directory: worktreeDirectory ?? parentDirectory,

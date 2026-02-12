@@ -78,6 +78,7 @@ export function syncPlanTasksToTaskGraph(input: SyncPlanTasksInput): SyncPlanTas
           planTaskKey,
           planTaskNumber: planTask.task_number,
           contextPackIds: planTask.context_pack_ids,
+          scenarioRefs: planTask.scenario_refs,
         },
       },
       config
@@ -117,4 +118,3 @@ export function syncPlanTasksToTaskGraph(input: SyncPlanTasksInput): SyncPlanTas
 
   return { created, skipped }
 }
-

@@ -83,6 +83,12 @@ function getAgentFromSession(sessionID: string): string | undefined {
   return getSessionAgent(sessionID) ?? getAgentFromMessageFiles(sessionID)
 }
 
+function isPrometheusAgent(agentName: string | undefined): boolean {
+  if (!agentName) return false
+  const lowered = agentName.toLowerCase()
+  return PROMETHEUS_AGENTS.some((name) => lowered.includes(name.toLowerCase()))
+}
+
 export function createPrometheusMdOnlyHook(ctx: PluginInput) {
   return {
     "tool.execute.before": async (
@@ -91,7 +97,7 @@ export function createPrometheusMdOnlyHook(ctx: PluginInput) {
     ): Promise<void> => {
       const agentName = getAgentFromSession(input.sessionID)
 
-      if (!agentName || !PROMETHEUS_AGENTS.includes(agentName)) {
+      if (!isPrometheusAgent(agentName)) {
         return
       }
 

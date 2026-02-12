@@ -3422,6 +3422,7 @@ describe("sisyphus-task", () => {
 
       // then - title should follow OpenCode format
       expect(createBody.title).toBe("Implement feature X (@sisyphus-junior subagent)")
+      expect(createBody.permission).toBeUndefined()
     }, { timeout: 10000 })
 
     test("sync task output includes <task_metadata> block with session_id", async () => {

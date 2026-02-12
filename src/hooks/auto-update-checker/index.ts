@@ -1,5 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { getCachedVersion, getLocalDevVersion, findPluginEntry, getLatestVersion, updatePinnedVersion } from "./checker"
+import { getCachedVersion, getLocalDevVersion, findPluginEntry, getLatestVersion } from "./checker"
 import { invalidatePackage } from "./cache"
 import { PACKAGE_NAME } from "./constants"
 import { log } from "../../shared/logger"
@@ -100,7 +100,7 @@ export function createAutoUpdateCheckerHook(ctx: PluginInput, options: AutoUpdat
   }
 }
 
-async function runBackgroundUpdateCheck(
+export async function runBackgroundUpdateCheck(
   ctx: PluginInput,
   autoUpdate: boolean,
   getToastMessage: (isUpdate: boolean, latestVersion?: string) => string
@@ -139,13 +139,9 @@ async function runBackgroundUpdateCheck(
   }
 
   if (pluginInfo.isPinned) {
-    const updated = updatePinnedVersion(pluginInfo.configPath, pluginInfo.entry, latestVersion)
-    if (!updated) {
-      await showUpdateAvailableToast(ctx, latestVersion, getToastMessage)
-      log("[auto-update-checker] Failed to update pinned version in config")
-      return
-    }
-    log(`[auto-update-checker] Config updated: ${pluginInfo.entry} → ${PACKAGE_NAME}@${latestVersion}`)
+    await showUpdateAvailableToast(ctx, latestVersion, getToastMessage)
+    log(`[auto-update-checker] User-pinned version detected (${pluginInfo.entry}), skipping auto-update. Notification only.`)
+    return
   }
 
   invalidatePackage(PACKAGE_NAME)

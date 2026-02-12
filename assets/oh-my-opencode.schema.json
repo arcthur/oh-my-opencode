@@ -2532,6 +2532,15 @@
           "default": "plans",
           "type": "string"
         },
+        "bdd_alignment": {
+          "default": "warn",
+          "type": "string",
+          "enum": [
+            "off",
+            "warn",
+            "required"
+          ]
+        },
         "two_action_rule": {
           "default": true,
           "type": "boolean"

@@ -6,10 +6,12 @@ import { checkCompletionConditions } from "./completion"
 const DEFAULT_POLL_INTERVAL_MS = 500
 const DEFAULT_REQUIRED_CONSECUTIVE = 3
 const ERROR_GRACE_CYCLES = 3
+const MIN_STABILIZATION_MS = 10_000
 
 export interface PollOptions {
   pollIntervalMs?: number
   requiredConsecutive?: number
+  minStabilizationMs?: number
 }
 
 export async function pollForCompletion(
@@ -21,8 +23,11 @@ export async function pollForCompletion(
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
   const requiredConsecutive =
     options.requiredConsecutive ?? DEFAULT_REQUIRED_CONSECUTIVE
+  const minStabilizationMs =
+    options.minStabilizationMs ?? MIN_STABILIZATION_MS
   let consecutiveCompleteChecks = 0
   let errorCycleCount = 0
+  let firstWorkTimestamp: number | null = null
 
   while (!abortController.signal.aborted) {
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
@@ -54,6 +59,15 @@ export async function pollForCompletion(
     }
 
     if (!eventState.hasReceivedMeaningfulWork) {
+      consecutiveCompleteChecks = 0
+      continue
+    }
+
+    if (firstWorkTimestamp === null) {
+      firstWorkTimestamp = Date.now()
+    }
+
+    if (Date.now() - firstWorkTimestamp < minStabilizationMs) {
       consecutiveCompleteChecks = 0
       continue
     }

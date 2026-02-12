@@ -618,4 +618,138 @@ updated_at: "2026-02-06T00:00:00Z"
     expect(pending.merged).toContain("<plan-context>")
   })
 
+  test("emits BDD alignment warning when plan tasks miss scenario refs", async () => {
+    // given
+    await initializePlan(tmpDir, "bdd-warn-plan", "Goal")
+    const planPath = path.join(tmpDir, ".sisyphus", "plans", "bdd-warn-plan", "plan.md")
+    fs.writeFileSync(
+      planPath,
+      `# Plan: bdd-warn-plan
+
+## Tasks
+
+- 1. Setup repo
+  Scenario Ref: S-001
+
+- 2. Implement feature
+  Depends On: 1
+`
+    )
+
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, bdd_alignment: "warn" },
+      collector,
+    })
+
+    // when
+    await hook["tool.execute.before"]?.(
+      { tool: "Write", sessionID: "session-bdd-warn", callID: "call-bdd-warn" },
+      { args: { path: "src/file.ts", content: "export {}" } }
+    )
+
+    // then
+    expect(collector.hasPending("session-bdd-warn")).toBe(true)
+    const pending = collector.getPending("session-bdd-warn")
+    expect(pending.merged).toContain("Scenario Ref")
+    expect(pending.merged).toContain("Task 2")
+  })
+
+  test("blocks non-plan tool execution in required mode when scenario refs are missing", async () => {
+    // given
+    await initializePlan(tmpDir, "bdd-required-plan", "Goal")
+    const planPath = path.join(tmpDir, ".sisyphus", "plans", "bdd-required-plan", "plan.md")
+    fs.writeFileSync(
+      planPath,
+      `# Plan: bdd-required-plan
+
+## Tasks
+
+- 1. Setup repo
+  Scenario Ref: S-001
+
+- 2. Implement feature
+  Depends On: 1
+`
+    )
+
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, bdd_alignment: "required" },
+      collector,
+    })
+
+    // when / #then
+    await expect(
+      hook["tool.execute.before"]?.(
+        { tool: "Write", sessionID: "session-bdd-required", callID: "call-bdd-required-1" },
+        { args: { path: "src/file.ts", content: "export {}" } }
+      )
+    ).rejects.toThrow("Scenario Ref")
+
+    // when - editing plan.md should remain allowed for remediation
+    await expect(
+      hook["tool.execute.before"]?.(
+        { tool: "Edit", sessionID: "session-bdd-required", callID: "call-bdd-required-2" },
+        { args: { path: ".sisyphus/plans/bdd-required-plan/plan.md", old_string: "old", new_string: "new" } }
+      )
+    ).resolves.toBeUndefined()
+  })
+
+  test("blocks non-plan tool execution in required mode even when auto_reread is disabled", async () => {
+    // given
+    await initializePlan(tmpDir, "bdd-required-no-reread-plan", "Goal")
+    const planPath = path.join(
+      tmpDir,
+      ".sisyphus",
+      "plans",
+      "bdd-required-no-reread-plan",
+      "plan.md"
+    )
+    fs.writeFileSync(
+      planPath,
+      `# Plan: bdd-required-no-reread-plan
+
+## Tasks
+
+- 1. Setup repo
+  Scenario Ref: S-001
+
+- 2. Implement feature
+  Depends On: 1
+`
+    )
+
+    const collector = new ContextCollector()
+    const promptCalls: Array<{ sessionID: string; text: string }> = []
+    const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
+      config: { enabled: true, bdd_alignment: "required", auto_reread: false },
+      collector,
+    })
+
+    // when / #then
+    await expect(
+      hook["tool.execute.before"]?.(
+        { tool: "Write", sessionID: "session-bdd-required-no-reread", callID: "call-bdd-required-3" },
+        { args: { path: "src/file.ts", content: "export {}" } }
+      )
+    ).rejects.toThrow("Scenario Ref")
+
+    // when - editing plan.md should still be allowed for remediation
+    await expect(
+      hook["tool.execute.before"]?.(
+        { tool: "Edit", sessionID: "session-bdd-required-no-reread", callID: "call-bdd-required-4" },
+        {
+          args: {
+            path: ".sisyphus/plans/bdd-required-no-reread-plan/plan.md",
+            old_string: "old",
+            new_string: "new",
+          },
+        }
+      )
+    ).resolves.toBeUndefined()
+  })
+
 })

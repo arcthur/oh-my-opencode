@@ -46,6 +46,14 @@ describe("PROMETHEUS_SYSTEM_PROMPT planning policy", () => {
     expect(prompt).toContain("risks (required)")
   })
 
+  test("should require scenario references in task definitions", () => {
+    // #given
+    const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()
+
+    // #when / #then
+    expect(prompt).toContain("scenario ref")
+  })
+
   test("should include brainstorming mode invariants for non-trivial work", () => {
     // #given
     const prompt = PROMETHEUS_SYSTEM_PROMPT.toLowerCase()

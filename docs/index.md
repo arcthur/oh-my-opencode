@@ -48,6 +48,7 @@ Reference pages are stable, “look it up quickly” docs:
 - Skills: `docs/reference/skills.md`
 - Tools: `docs/reference/tools.md`
 - TaskGraph: `docs/reference/task-graph.md`
+- Planning BDD contract: `docs/reference/planning-bdd-contract.md`
 - Hooks: `docs/reference/hooks.md`
 - MCPs: `docs/reference/mcps.md`
 - Artifacts & paths: `docs/reference/artifacts-and-paths.md`

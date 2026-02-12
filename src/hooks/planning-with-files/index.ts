@@ -20,7 +20,12 @@ import {
 } from "../../features/planning-with-files/blocker-detection"
 import { sanitizePathSegment } from "../../shared/path-sanitizer"
 import { createWorkStateManager } from "../../features/work-state"
-import { listIncompleteTasks, listTaskNodes, syncPlanTasksToTaskGraph } from "../../features/task-system"
+import {
+  findPlanBddAlignmentIssues,
+  listIncompleteTasks,
+  listTaskNodes,
+  syncPlanTasksToTaskGraph,
+} from "../../features/task-system"
 import { log } from "../../shared/logger"
 import type { ContinuationIntent } from "../continuation-control"
 
@@ -159,6 +164,25 @@ function isPlanFilePath(filePath: string): boolean {
   return filePath.replace(/\\/g, "/").endsWith("/plan.md") || filePath.endsWith("plan.md")
 }
 
+function buildBddAlignmentContent(
+  planId: string,
+  issues: Array<{ task_number: number; title: string }>
+): string {
+  const preview = issues.slice(0, 8).map((issue) => `- Task ${issue.task_number}: ${issue.title}`)
+  const moreCount = Math.max(issues.length - preview.length, 0)
+  const suffix = moreCount > 0 ? `\n- ...and ${moreCount} more tasks` : ""
+
+  return `<bdd-alignment>
+## BDD Alignment Warning
+
+Missing Scenario Ref mapping in plan tasks:
+${preview.join("\n")}${suffix}
+
+Action:
+- Add \`Scenario Ref: S-xxx\` to each missing task in \`.sisyphus/plans/${planId}/plan.md\`
+</bdd-alignment>`
+}
+
 export function createPlanningWithFilesHook(
   ctx: PluginInput,
   options: PlanningWithFilesHookOptions
@@ -270,22 +294,78 @@ export function createPlanningWithFilesHook(
   ): Promise<void> => {
     toolArgsByCallID.set(input.callID, output.args)
 
+    let resolvedPlanId: string | null = null
+    let cachedPlanMarkdown: string | null | undefined
+
+    const ensurePlanMarkdown = async (): Promise<{
+      planId: string
+      planMarkdown: string
+    } | null> => {
+      if (!resolvedPlanId) {
+        resolvedPlanId = await resolveActivePlan(input.sessionID)
+      }
+      if (!resolvedPlanId) return null
+
+      if (cachedPlanMarkdown === undefined) {
+        cachedPlanMarkdown = await readPlan(ctx.directory, resolvedPlanId, config)
+      }
+      if (!cachedPlanMarkdown) return null
+
+      return {
+        planId: resolvedPlanId,
+        planMarkdown: cachedPlanMarkdown,
+      }
+    }
+
+    if (config.bdd_alignment !== "off") {
+      const planData = await ensurePlanMarkdown()
+      if (planData) {
+        const bddAlignmentIssues = findPlanBddAlignmentIssues(planData.planMarkdown)
+        if (bddAlignmentIssues.length > 0) {
+          const filePath = extractFilePath(output.args)
+          const editingPlanMarkdown = typeof filePath === "string" && isPlanFilePath(filePath)
+
+          collector.register(input.sessionID, {
+            id: "bdd-alignment-warning",
+            source: "planning-with-files",
+            priority: "high",
+            content: buildBddAlignmentContent(planData.planId, bddAlignmentIssues),
+            metadata: {
+              planId: planData.planId,
+              missingTaskNumbers: bddAlignmentIssues.map((issue) => issue.task_number),
+              mode: config.bdd_alignment,
+            },
+          })
+
+          if (config.bdd_alignment === "required" && !editingPlanMarkdown) {
+            const reason = bddAlignmentIssues
+              .slice(0, 5)
+              .map((issue) => `Task ${issue.task_number}: ${issue.title}`)
+              .join("\n")
+
+            // Guard against callID map growth when execution is blocked in before-hook.
+            toolArgsByCallID.delete(input.callID)
+            throw new Error(
+              `BDD alignment required: missing Scenario Ref in plan tasks.\n${reason}`
+            )
+          }
+        }
+      }
+    }
+
     if (!config.auto_reread) return
     if (!rereadTriggerTools.has(input.tool.toLowerCase())) return
 
-    const planId = await resolveActivePlan(input.sessionID)
-    if (!planId) return
-
-    const planMarkdown = await readPlan(ctx.directory, planId, config)
-    if (!planMarkdown) return
+    const planData = await ensurePlanMarkdown()
+    if (!planData) return
 
     collector.register(input.sessionID, {
       id: "plan-context",
       source: "planning-with-files",
       priority: "critical",
-      content: buildPlanContext(planMarkdown),
+      content: buildPlanContext(planData.planMarkdown),
       metadata: {
-        planId,
+        planId: planData.planId,
         triggerTool: input.tool,
       },
     })

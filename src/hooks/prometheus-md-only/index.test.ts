@@ -58,6 +58,46 @@ describe("prometheus-md-only", () => {
     resetOpenCodeStorageDirForTesting()
   })
 
+  describe("agent name matching", () => {
+    test("enforces restriction for display names containing Prometheus", async () => {
+      // given
+      setupMessageStorage(TEST_SESSION_ID, "Prometheus (Plan Builder)")
+      const hook = createPrometheusMdOnlyHook(createMockPluginInput())
+      const input = {
+        tool: "Write",
+        sessionID: TEST_SESSION_ID,
+        callID: "call-1",
+      }
+      const output = {
+        args: { filePath: "/path/to/file.ts" },
+      }
+
+      // when / #then
+      await expect(
+        hook["tool.execute.before"](input, output)
+      ).rejects.toThrow("can only write/edit .md files")
+    })
+
+    test("enforces restriction for uppercase PROMETHEUS", async () => {
+      // given
+      setupMessageStorage(TEST_SESSION_ID, "PROMETHEUS")
+      const hook = createPrometheusMdOnlyHook(createMockPluginInput())
+      const input = {
+        tool: "Write",
+        sessionID: TEST_SESSION_ID,
+        callID: "call-1",
+      }
+      const output = {
+        args: { filePath: "/path/to/file.ts" },
+      }
+
+      // when / #then
+      await expect(
+        hook["tool.execute.before"](input, output)
+      ).rejects.toThrow("can only write/edit .md files")
+    })
+  })
+
   describe("with Prometheus agent in message storage", () => {
     beforeEach(() => {
       setupMessageStorage(TEST_SESSION_ID, "prometheus")
