@@ -1,6 +1,6 @@
 import type { CheckDefinition } from "../types"
 import { getOpenCodeCheckDefinition } from "./opencode"
-import { getPluginCheckDefinition } from "./plugin"
+import { getPluginCheckDefinition, getPluginIntegrityCheckDefinition } from "./plugin"
 import { getConfigCheckDefinition } from "./config"
 import { getModelResolutionCheckDefinition } from "./model-resolution"
 import { getAuthCheckDefinitions } from "./auth"
@@ -27,6 +27,7 @@ export function getAllCheckDefinitions(): CheckDefinition[] {
   return [
     getOpenCodeCheckDefinition(),
     getPluginCheckDefinition(),
+    getPluginIntegrityCheckDefinition(),
     getConfigCheckDefinition(),
     getModelResolutionCheckDefinition(),
     ...getAuthCheckDefinitions(),

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import type { CheckResult, CheckDefinition, PluginInfo } from "../types"
 import { CHECK_IDS, CHECK_NAMES, PACKAGE_NAME } from "../constants"
 import { parseJsonc, getOpenCodeConfigPaths } from "../../../shared"
+import { discoverInstalledPlugins, validateDiscoveredPlugins } from "../../../features/claude-code-plugin-loader"
 
 function detectConfigPath(): { path: string; format: "json" | "jsonc" } | null {
   const paths = getOpenCodeConfigPaths({ binary: "opencode", version: null })
@@ -123,5 +124,61 @@ export function getPluginCheckDefinition(): CheckDefinition {
     category: "installation",
     check: checkPluginRegistration,
     critical: true,
+  }
+}
+
+function formatPluginValidationDetails(
+  report: ReturnType<typeof validateDiscoveredPlugins>
+): string[] {
+  const details: string[] = []
+  for (const pluginReport of report.reports) {
+    if (pluginReport.issues.length === 0) continue
+    const issueSummary = pluginReport.issues
+      .map((issue) => `${issue.severity.toUpperCase()}:${issue.code}`)
+      .join(", ")
+    details.push(`${pluginReport.pluginName} (${pluginReport.pluginKey}) -> ${issueSummary}`)
+  }
+  return details
+}
+
+export async function checkPluginComponentIntegrity(): Promise<CheckResult> {
+  const discovery = discoverInstalledPlugins()
+  const validation = validateDiscoveredPlugins(discovery.plugins, {
+    discoveryErrors: discovery.errors,
+  })
+
+  if (validation.summary.totalPlugins === 0) {
+    return {
+      name: CHECK_NAMES[CHECK_IDS.PLUGIN_COMPONENT_INTEGRITY],
+      status: "skip",
+      message: "No plugins found for integrity check",
+      details: ["No enabled Claude Code plugins are installed"],
+    }
+  }
+
+  if (validation.summary.errorCount > 0 || validation.summary.warningCount > 0) {
+    return {
+      name: CHECK_NAMES[CHECK_IDS.PLUGIN_COMPONENT_INTEGRITY],
+      status: "warn",
+      message: `Found plugin integrity issues (${validation.summary.errorCount} error(s), ${validation.summary.warningCount} warning(s))`,
+      details: formatPluginValidationDetails(validation),
+    }
+  }
+
+  return {
+    name: CHECK_NAMES[CHECK_IDS.PLUGIN_COMPONENT_INTEGRITY],
+    status: "pass",
+    message: `All ${validation.summary.validPlugins} plugin(s) passed integrity checks`,
+    details: [`Validated plugins: ${validation.summary.totalPlugins}`],
+  }
+}
+
+export function getPluginIntegrityCheckDefinition(): CheckDefinition {
+  return {
+    id: CHECK_IDS.PLUGIN_COMPONENT_INTEGRITY,
+    name: CHECK_NAMES[CHECK_IDS.PLUGIN_COMPONENT_INTEGRITY],
+    category: "installation",
+    check: checkPluginComponentIntegrity,
+    critical: false,
   }
 }

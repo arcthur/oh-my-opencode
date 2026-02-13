@@ -717,6 +717,54 @@ describe("Fork-only behavior", () => {
   })
 })
 
+describe("Plugin validation summary logging", () => {
+  test("logs validation summary when plugin loader provides validation data", async () => {
+    // #given
+    track(spyOn(pluginLoader, "loadAllPluginComponents")).mockResolvedValue({
+      commands: {},
+      skills: {},
+      agents: {},
+      mcpServers: {},
+      hooksConfigs: [],
+      plugins: [],
+      errors: [],
+      validation: {
+        totalPlugins: 2,
+        validPlugins: 1,
+        skippedPlugins: 1,
+        errorCount: 2,
+        warningCount: 1,
+      },
+    })
+
+    const pluginConfig: OhMyOpenCodeConfig = {}
+    const config: Record<string, unknown> = {
+      model: "anthropic/claude-opus-4-6",
+      agent: {},
+    }
+    const handler = createConfigHandler({
+      ctx: { directory: "/tmp" },
+      pluginConfig,
+      modelCacheState: {
+        anthropicContext1MEnabled: false,
+        modelContextLimitsCache: new Map(),
+      },
+    })
+
+    // #when
+    await handler(config)
+
+    // #then
+    const logSpy = shared.log as unknown as { mock: { calls: Array<[string, { validation?: unknown } | undefined]> } }
+    const hasValidationSummaryLog = logSpy.mock.calls.some(
+      ([message, payload]) =>
+        message.includes("Plugin validation summary")
+        && payload?.validation !== undefined
+    )
+    expect(hasValidationSummaryLog).toBe(true)
+  })
+})
+
 describe("Deadlock prevention - fetchAvailableModels must not receive client", () => {
   test("fetchAvailableModels should be called with undefined client to prevent deadlock during plugin init", async () => {
     // #given

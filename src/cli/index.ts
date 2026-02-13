@@ -5,6 +5,7 @@ import { run } from "./run"
 import { getLocalVersion } from "./get-local-version"
 import { doctor } from "./doctor"
 import { createMcpOAuthCommand } from "./mcp-oauth"
+import { validatePlugins } from "./plugin-validate"
 import type { InstallArgs } from "./types"
 import type { RunOptions } from "./run"
 import type { GetLocalVersionOptions } from "./get-local-version/types"
@@ -176,6 +177,29 @@ Categories:
       category: options.category,
     }
     const exitCode = await doctor(doctorOptions)
+    process.exit(exitCode)
+  })
+
+program
+  .command("validate-plugins")
+  .description("Validate Claude Code plugin integrity for runtime and CI")
+  .option("--json", "Output validation report in JSON format")
+  .option("--strict", "Treat warnings as failures")
+  .option("--path <dirOrManifest>", "Validate a specific plugin directory or plugin.json path")
+  .addHelpText("after", `
+Examples:
+  $ bunx oh-my-opencode validate-plugins
+  $ bunx oh-my-opencode validate-plugins --strict
+  $ bunx oh-my-opencode validate-plugins --json
+  $ bunx oh-my-opencode validate-plugins --path ~/.claude/plugins/my-plugin
+  $ bunx oh-my-opencode validate-plugins --path ~/.claude/plugins/my-plugin/.claude-plugin/plugin.json
+`)
+  .action(async (options) => {
+    const exitCode = await validatePlugins({
+      json: options.json ?? false,
+      strict: options.strict ?? false,
+      path: options.path,
+    })
     process.exit(exitCode)
   })
 

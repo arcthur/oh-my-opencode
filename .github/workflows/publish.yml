@@ -65,6 +65,9 @@ jobs:
         env:
           BUN_INSTALL_ALLOW_SCRIPTS: "@ast-grep/napi"
 
+      - name: Plugin validation gate
+        run: bun run check:plugin-validation
+
       - name: Calculate version
         id: version
         run: |

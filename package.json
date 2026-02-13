@@ -25,6 +25,7 @@
     "build:all": "bun run build && bun run build:binaries",
     "build:binaries": "bun run script/build-binaries.ts",
     "build:schema": "bun run script/build-schema.ts",
+    "check:plugin-validation": "bun run script/check-plugin-validation.ts",
     "clean": "rm -rf dist",
     "postinstall": "node postinstall.mjs",
     "prepublishOnly": "bun run clean && bun run build",

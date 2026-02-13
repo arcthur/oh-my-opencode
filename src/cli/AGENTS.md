@@ -2,15 +2,15 @@
 
 ## OVERVIEW
 
-CLI entry: `bunx oh-my-opencode`. 4 commands with Commander.js + @clack/prompts TUI.
+CLI entry: `bunx oh-my-opencode`. 5 commands with Commander.js + @clack/prompts TUI.
 
-**Commands**: install (interactive setup), doctor (14 health checks), run (session launcher), get-local-version
+**Commands**: install (interactive setup), doctor (15 health checks), run (session launcher), get-local-version, validate-plugins
 
 ## STRUCTURE
 
 ```
 cli/
-├── index.ts              # Commander.js entry (4 commands)
+├── index.ts              # Commander.js entry (5 commands)
 ├── install.ts            # Interactive TUI (542 lines)
 ├── config-manager.ts     # JSONC parsing (667 lines)
 ├── types.ts              # InstallArgs, InstallConfig
@@ -21,7 +21,7 @@ cli/
 │   ├── formatter.ts      # Colored output
 │   ├── constants.ts      # Check IDs, symbols
 │   ├── types.ts          # CheckResult, CheckDefinition (114 lines)
-│   └── checks/           # 14 checks, 23 files
+│   └── checks/           # 15 checks, 23 files
 │       ├── version.ts    # OpenCode + plugin version
 │       ├── config.ts     # JSONC validity, Zod
 │       ├── auth.ts       # Anthropic, OpenAI, Google
@@ -34,8 +34,9 @@ cli/
 │   └── index.ts          # Session launcher
 ├── mcp-oauth/
 │   └── index.ts          # MCP OAuth flow
-└── get-local-version/
-    └── index.ts          # Version detection
+├── get-local-version/
+│   └── index.ts          # Version detection
+└── plugin-validate.ts    # Plugin integrity validation command
 ```
 
 ## COMMANDS
@@ -43,15 +44,16 @@ cli/
 | Command | Purpose |
 |---------|---------|
 | `install` | Interactive setup with provider selection |
-| `doctor` | 14 health checks for diagnostics |
+| `doctor` | 15 health checks for diagnostics |
 | `run` | Launch session with task enforcement |
 | `get-local-version` | Version detection and update check |
+| `validate-plugins` | Validate plugin component integrity for runtime/CI |
 
-## DOCTOR CATEGORIES (14 Checks)
+## DOCTOR CATEGORIES (15 Checks)
 
 | Category | Checks |
 |----------|--------|
-| installation | opencode, plugin |
+| installation | opencode, plugin registration, plugin component integrity |
 | configuration | config validity, Zod, model-resolution |
 | authentication | anthropic, openai, google |
 | dependencies | ast-grep, comment-checker, gh-cli |

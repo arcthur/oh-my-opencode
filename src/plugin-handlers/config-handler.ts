@@ -111,6 +111,15 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       hooksConfigs: [] as { hooks?: Record<string, unknown> }[],
       plugins: [] as { name: string; version: string }[],
       errors: [] as { pluginKey: string; installPath: string; error: string }[],
+      validation: undefined as
+        | {
+          totalPlugins: number
+          validPlugins: number
+          skippedPlugins: number
+          errorCount: number
+          warningCount: number
+        }
+        | undefined,
     };
 
     let pluginComponents: typeof emptyPluginDefaults;
@@ -149,6 +158,12 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
 
     if (pluginComponents.errors.length > 0) {
       log(`Plugin load errors`, { errors: pluginComponents.errors });
+    }
+
+    if (pluginComponents.validation) {
+      log("Plugin validation summary", {
+        validation: pluginComponents.validation,
+      });
     }
 
     const includeClaudeSkillsForAwareness = pluginConfig.claude_code?.skills ?? true;

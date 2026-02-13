@@ -12,6 +12,7 @@ import { formatScopedDescription } from "../../shared/description-formatter"
 import { toOpenCodeDefinition } from "../../shared/collection-utils"
 import { expandEnvVarsInObject } from "../claude-code-mcp-loader/env-expander"
 import { transformMcpServer } from "../claude-code-mcp-loader/transformer"
+import { hasPluginValidationErrors, validateDiscoveredPlugins } from "./validation"
 import type { CommandDefinition, CommandFrontmatter } from "../claude-code-command-loader/types"
 import type { SkillMetadata } from "../opencode-skill-loader/types"
 import type { AgentFrontmatter } from "../claude-code-agent-loader/types"
@@ -27,6 +28,7 @@ import type {
   HooksConfig,
   ClaudeSettings,
   PluginLoaderOptions,
+  PluginComponentsResult,
 } from "./types"
 
 const CLAUDE_PLUGIN_ROOT_VAR = "${CLAUDE_PLUGIN_ROOT}"
@@ -421,28 +423,33 @@ export function loadPluginHooksConfigs(
   return configs
 }
 
-export interface PluginComponentsResult {
-  commands: Record<string, CommandDefinition>
-  skills: Record<string, CommandDefinition>
-  agents: Record<string, AgentConfig>
-  mcpServers: Record<string, McpServerConfig>
-  hooksConfigs: HooksConfig[]
-  plugins: LoadedPlugin[]
-  errors: PluginLoadError[]
-}
-
 export async function loadAllPluginComponents(options?: PluginLoaderOptions): Promise<PluginComponentsResult> {
   const { plugins, errors } = discoverInstalledPlugins(options)
+  const validationResult = validateDiscoveredPlugins(plugins, { discoveryErrors: errors })
+
+  for (const report of validationResult.reports.filter((item) => hasPluginValidationErrors(item))) {
+    log(`Skipping invalid plugin: ${report.pluginKey}`, {
+      plugin: report.pluginName,
+      issues: report.issues,
+    })
+  }
+
+  const loadablePluginKeys = new Set(
+    validationResult.reports
+      .filter((report) => !hasPluginValidationErrors(report))
+      .map((report) => report.pluginKey)
+  )
+  const loadablePlugins = plugins.filter((plugin) => loadablePluginKeys.has(plugin.pluginKey))
 
   const [commands, skills, agents, mcpServers, hooksConfigs] = await Promise.all([
-    Promise.resolve(loadPluginCommands(plugins)),
-    Promise.resolve(loadPluginSkillsAsCommands(plugins)),
-    Promise.resolve(loadPluginAgents(plugins)),
-    loadPluginMcpServers(plugins),
-    Promise.resolve(loadPluginHooksConfigs(plugins)),
+    Promise.resolve(loadPluginCommands(loadablePlugins)),
+    Promise.resolve(loadPluginSkillsAsCommands(loadablePlugins)),
+    Promise.resolve(loadPluginAgents(loadablePlugins)),
+    loadPluginMcpServers(loadablePlugins),
+    Promise.resolve(loadPluginHooksConfigs(loadablePlugins)),
   ])
 
-  log(`Loaded ${plugins.length} plugins with ${Object.keys(commands).length} commands, ${Object.keys(skills).length} skills, ${Object.keys(agents).length} agents, ${Object.keys(mcpServers).length} MCP servers`)
+  log(`Loaded ${loadablePlugins.length} plugins with ${Object.keys(commands).length} commands, ${Object.keys(skills).length} skills, ${Object.keys(agents).length} agents, ${Object.keys(mcpServers).length} MCP servers`)
 
   return {
     commands,
@@ -450,7 +457,8 @@ export async function loadAllPluginComponents(options?: PluginLoaderOptions): Pr
     agents,
     mcpServers,
     hooksConfigs,
-    plugins,
+    plugins: loadablePlugins,
     errors,
+    validation: validationResult.summary,
   }
 }

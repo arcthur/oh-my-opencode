@@ -186,6 +186,50 @@ export interface PluginLoadError {
   error: string
 }
 
+export type PluginValidationSeverity = "error" | "warn"
+
+export interface PluginValidationIssue {
+  severity: PluginValidationSeverity
+  code: string
+  message: string
+  path?: string
+}
+
+export interface PluginValidationReport {
+  pluginKey: string
+  pluginName: string
+  installPath: string
+  issues: PluginValidationIssue[]
+}
+
+export interface PluginValidationSummary {
+  totalPlugins: number
+  validPlugins: number
+  skippedPlugins: number
+  errorCount: number
+  warningCount: number
+}
+
+export interface PluginValidationResult {
+  summary: PluginValidationSummary
+  reports: PluginValidationReport[]
+}
+
+export interface PluginValidationOptions {
+  discoveryErrors?: PluginLoadError[]
+}
+
+export interface PluginComponentsResult {
+  commands: Record<string, unknown>
+  skills: Record<string, unknown>
+  agents: Record<string, unknown>
+  mcpServers: Record<string, unknown>
+  hooksConfigs: HooksConfig[]
+  plugins: LoadedPlugin[]
+  errors: PluginLoadError[]
+  validation?: PluginValidationSummary
+}
+
 /**
  * Claude settings from ~/.claude/settings.json
  */

@@ -21,6 +21,7 @@ export const STATUS_COLORS = {
 export const CHECK_IDS = {
   OPENCODE_INSTALLATION: "opencode-installation",
   PLUGIN_REGISTRATION: "plugin-registration",
+  PLUGIN_COMPONENT_INTEGRITY: "plugin-component-integrity",
   CONFIG_VALIDATION: "config-validation",
   MODEL_RESOLUTION: "model-resolution",
   AUTH_ANTHROPIC: "auth-anthropic",
@@ -41,6 +42,7 @@ export const CHECK_IDS = {
 export const CHECK_NAMES: Record<string, string> = {
   [CHECK_IDS.OPENCODE_INSTALLATION]: "OpenCode Installation",
   [CHECK_IDS.PLUGIN_REGISTRATION]: "Plugin Registration",
+  [CHECK_IDS.PLUGIN_COMPONENT_INTEGRITY]: "Plugin Component Integrity",
   [CHECK_IDS.CONFIG_VALIDATION]: "Configuration Validity",
   [CHECK_IDS.MODEL_RESOLUTION]: "Model Resolution",
   [CHECK_IDS.AUTH_ANTHROPIC]: "Anthropic (Claude) Auth",
