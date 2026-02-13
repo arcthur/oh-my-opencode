@@ -27,18 +27,19 @@ This document does **not** define the full OpenCode storage schema; it focuses o
 
 ## Configuration Files
 
-### Oh-My-OpenCode config (`oh-my-opencode.json` / `.jsonc`)
+### Oh-My-OpenCode config (`oh-my-opencode/` modular directory)
 
 The plugin loads and merges two configs:
 
 1. **User config** (base):
-   - `<OpenCodeConfigDir>/oh-my-opencode.jsonc` (preferred if present), else `.json`
+   - `<OpenCodeConfigDir>/oh-my-opencode/`
 2. **Project config** (override):
-   - `./.opencode/oh-my-opencode.jsonc` (preferred if present), else `.json`
+   - `./.opencode/oh-my-opencode/`
 
 Contract:
 
 - If both exist, project config **MUST** override user config.
+- Inside each directory, `*.json` / `*.jsonc` modules are merged in lexical filename order.
 - Arrays like `disabled_hooks` / `disabled_agents` / `disabled_mcps` are merged via **set union**.
 - Unknown keys are accepted but may be stripped by schema parsing.
 

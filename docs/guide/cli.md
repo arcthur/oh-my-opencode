@@ -152,10 +152,10 @@ Token storage: `~/.config/opencode/mcp-oauth.json` (permission `0600`).
 ## 8. Configuration Files
 
 Config lookup priority:
-1. `.opencode/oh-my-opencode.json` (or `.jsonc`)
-2. `~/.config/opencode/oh-my-opencode.json` (or `.jsonc`)
+1. `.opencode/oh-my-opencode/` (project modules)
+2. `~/.config/opencode/oh-my-opencode/` (user modules)
 
-JSONC is supported (comments + trailing commas).
+Each module file supports JSONC (comments + trailing commas) and files are merged in lexical filename order.
 
 ## 9. `version`
 

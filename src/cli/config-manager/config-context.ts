@@ -47,3 +47,7 @@ export function getConfigJsonc(): string {
 export function getOmoConfigPath(): string {
   return getConfigContext().paths.omoConfig
 }
+
+export function getOmoConfigDirPath(): string {
+  return getConfigContext().paths.omoConfigDir
+}

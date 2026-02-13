@@ -30,7 +30,7 @@ This document does **not** define each hook’s internal prompt text or heuristi
 
 ### `disabled_hooks`
 
-- Configuration key: `disabled_hooks` in `oh-my-opencode.json(c)`.
+- Configuration key: `disabled_hooks` in `oh-my-opencode/*.json`.
 - Merge rule: user config and project config are merged via **set union** (a hook disabled in either scope is disabled in the final config). See `src/plugin-config.ts`.
 - Contract: a hook name present in `disabled_hooks` **MUST** be treated as disabled by `isHookEnabled(...)` checks in `src/index.ts`.
 - Compatibility alias: `claude_code.hooks=false` disables the Claude Code bridge (`claude-code-hooks`) across events.

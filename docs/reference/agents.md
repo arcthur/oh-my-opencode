@@ -78,7 +78,7 @@ Oh-My-OpenCode provides an `agents` block for agent overrides (model, variant, t
 Implications:
 
 - If you attempt to override an agent not present in `AgentOverridesSchema`, the override **MUST NOT** take effect.
-- Some built-in agents (e.g., `hephaestus`) are created by the plugin but are not currently overrideable via `oh-my-opencode.json(c)` due to schema limitations.
+- Some built-in agents (e.g., `hephaestus`) are created by the plugin but are not currently overrideable via `oh-my-opencode/*.json` due to schema limitations.
 
 ### `categories` (category-based execution)
 

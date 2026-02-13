@@ -36,7 +36,7 @@ describe("model-resolution check", () => {
   })
 
   describe("getModelResolutionInfoWithOverrides", () => {
-    // given: User has overrides in oh-my-opencode.json
+    // given: User has overrides in modular oh-my-opencode config files
     // when: Getting resolution info with config
     // then: Shows user override in Step 1 position
 
@@ -253,12 +253,16 @@ describe("model-resolution check", () => {
       const originalConfigDir = process.env.OPENCODE_CONFIG_DIR
       const tempProjectRoot = mkdtempSync(join(tmpdir(), "omo-model-project-"))
       const tempConfigRoot = mkdtempSync(join(tmpdir(), "omo-model-config-"))
-      const userConfigPath = join(tempConfigRoot, "oh-my-opencode.json")
+      const userConfigDir = join(tempConfigRoot, "oh-my-opencode")
+      const userConfigPath = join(userConfigDir, "00-core.json")
+
+      mkdirSync(userConfigDir, { recursive: true })
 
       writeFileSync(
         userConfigPath,
         JSON.stringify(
           {
+            config_version: 1,
             agents: {
               oracle: {
                 model: "openai/gpt-5.2",

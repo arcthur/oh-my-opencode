@@ -333,7 +333,7 @@ delegate_task({
 You can define your own categories:
 
 ```json
-// .opencode/oh-my-opencode.json
+// .opencode/oh-my-opencode/00-core.json
 {
   "categories": {
     "unity-game-dev": {

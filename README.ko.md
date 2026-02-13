@@ -295,10 +295,10 @@ oh-my-opencode를 제거하려면:
 
    ```bash
    # Remove user config
-   rm -f ~/.config/opencode/oh-my-opencode.json
+   rm -rf ~/.config/opencode/oh-my-opencode
 
    # Remove project config (if exists)
-   rm -f .opencode/oh-my-opencode.json
+   rm -rf .opencode/oh-my-opencode
    ```
 
 3. **제거 확인**
@@ -329,7 +329,7 @@ oh-my-opencode를 제거하려면:
 자세한 내용은 전체 [구성 문서](docs/configurations.md)를 참조하세요.
 
 **빠른 개요:**
-- **구성 위치**: `.opencode/oh-my-opencode.json`(프로젝트) 또는 `~/.config/opencode/oh-my-opencode.json`(사용자)
+- **구성 위치**: `.opencode/oh-my-opencode/`(프로젝트) 또는 `~/.config/opencode/oh-my-opencode/`(사용자)
 - **JSONC 지원**: 주석 및 후행 쉼표 지원
 - **에이전트**: 모든 에이전트의 모델, 온도, 프롬프트 및 권한 재정의
 - **내장 스킬**: `playwright`(브라우저 자동화), `git-master`(원자적 커밋)

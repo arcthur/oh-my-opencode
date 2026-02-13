@@ -103,7 +103,7 @@ When you run `bunx oh-my-opencode install`, the installer asks which providers y
 - OpenCode Zen?
 - Z.ai Coding Plan?
 
-Based on your answers, it generates `~/.config/opencode/oh-my-opencode.json` with optimal model assignments for each agent and category.
+Based on your answers, it generates `~/.config/opencode/oh-my-opencode/00-core.json` with optimal model assignments for each agent and category.
 
 **2. At Runtime (Fallback Chain)**
 

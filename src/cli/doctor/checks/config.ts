@@ -1,33 +1,83 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 import type { CheckResult, CheckDefinition, ConfigInfo } from "../types"
 import { CHECK_IDS, CHECK_NAMES, PACKAGE_NAME } from "../constants"
-import { parseJsonc, detectConfigFile, getOpenCodeConfigDir } from "../../../shared"
+import { deepMerge, detectConfigFile, getOpenCodeConfigDir, parseJsonc } from "../../../shared"
 import { validateStrictOhMyOpenCodeConfig } from "../../../config"
 
 const USER_CONFIG_DIR = getOpenCodeConfigDir({ binary: "opencode" })
-const USER_CONFIG_BASE = join(USER_CONFIG_DIR, `${PACKAGE_NAME}`)
+const USER_CONFIG_BASE = join(USER_CONFIG_DIR, PACKAGE_NAME)
 const PROJECT_CONFIG_BASE = join(process.cwd(), ".opencode", PACKAGE_NAME)
 
-function findConfigPath(): { path: string; format: "json" | "jsonc" } | null {
-  const projectDetected = detectConfigFile(PROJECT_CONFIG_BASE)
-  if (projectDetected.format !== "none") {
-    return { path: projectDetected.path, format: projectDetected.format as "json" | "jsonc" }
+function listConfigModules(configDir: string): string[] {
+  if (!existsSync(configDir)) return []
+  try {
+    const stat = statSync(configDir)
+    if (!stat.isDirectory()) return []
+
+    return readdirSync(configDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")))
+      .map((entry) => join(configDir, entry.name))
+      .sort()
+  } catch {
+    return []
+  }
+}
+
+function findConfigPath(): { path: string; format: "modular" } | null {
+  const projectModules = listConfigModules(PROJECT_CONFIG_BASE)
+  if (projectModules.length > 0) {
+    return { path: PROJECT_CONFIG_BASE, format: "modular" }
   }
 
-  const userDetected = detectConfigFile(USER_CONFIG_BASE)
-  if (userDetected.format !== "none") {
-    return { path: userDetected.path, format: userDetected.format as "json" | "jsonc" }
+  const userModules = listConfigModules(USER_CONFIG_BASE)
+  if (userModules.length > 0) {
+    return { path: USER_CONFIG_BASE, format: "modular" }
   }
 
   return null
 }
 
+function findLegacyConfigPath(): { path: string; format: "json" | "jsonc" } | null {
+  const projectDetected = detectConfigFile(PROJECT_CONFIG_BASE)
+  if (projectDetected.format !== "none") {
+    return { path: projectDetected.path, format: projectDetected.format }
+  }
+
+  const userDetected = detectConfigFile(USER_CONFIG_BASE)
+  if (userDetected.format !== "none") {
+    return { path: userDetected.path, format: userDetected.format }
+  }
+
+  return null
+}
+
+function getLegacyConfigError(path: string): string {
+  return (
+    `Detected legacy single-file config at ${path}. ` +
+    "Legacy single-file config is no longer supported. " +
+    "Use modular config files in <configDir>/oh-my-opencode/*.json instead."
+  )
+}
+
 export function validateConfig(configPath: string): { valid: boolean; errors: string[] } {
   try {
-    const content = readFileSync(configPath, "utf-8")
-    const rawConfig = parseJsonc<Record<string, unknown>>(content)
-    const result = validateStrictOhMyOpenCodeConfig(rawConfig)
+    const modulePaths = listConfigModules(configPath)
+    if (modulePaths.length === 0) {
+      return { valid: false, errors: [`No config modules found in ${configPath}`] }
+    }
+
+    let mergedConfig: Record<string, unknown> = {}
+    for (const modulePath of modulePaths) {
+      const content = readFileSync(modulePath, "utf-8")
+      const rawModule = parseJsonc<unknown>(content)
+      if (!rawModule || typeof rawModule !== "object" || Array.isArray(rawModule)) {
+        return { valid: false, errors: [`Module root must be an object: ${modulePath}`] }
+      }
+      mergedConfig = deepMerge(mergedConfig, rawModule as Record<string, unknown>) ?? mergedConfig
+    }
+
+    const result = validateStrictOhMyOpenCodeConfig(mergedConfig)
 
     if (!result.success) {
       return { valid: false, errors: result.errors }
@@ -43,6 +93,17 @@ export function validateConfig(configPath: string): { valid: boolean; errors: st
 }
 
 export function getConfigInfo(): ConfigInfo {
+  const legacyConfigPath = findLegacyConfigPath()
+  if (legacyConfigPath) {
+    return {
+      exists: true,
+      path: legacyConfigPath.path,
+      format: legacyConfigPath.format,
+      valid: false,
+      errors: [getLegacyConfigError(legacyConfigPath.path)],
+    }
+  }
+
   const configPath = findConfigPath()
 
   if (!configPath) {
@@ -103,7 +164,7 @@ export async function checkConfigValidity(): Promise<CheckResult> {
   return {
     name: CHECK_NAMES[CHECK_IDS.CONFIG_VALIDATION],
     status: "pass",
-    message: `Valid ${info.format?.toUpperCase()} config`,
+    message: info.format === "modular" ? "Valid modular config" : `Valid ${info.format?.toUpperCase()} config`,
     details: [`Path: ${info.path}`],
   }
 }

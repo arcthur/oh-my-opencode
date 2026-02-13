@@ -70,7 +70,7 @@ delegate_task({
 background_output({ task_id: "bg_abc123" })
 ```
 
-Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](../reference/configuration.md#agents).
+Customize agent models, prompts, and permissions in `oh-my-opencode/*.json`. See [Configuration](../reference/configuration.md#agents).
 
 ---
 

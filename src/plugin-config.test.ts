@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { CURRENT_CONFIG_VERSION, type OhMyOpenCodeConfig } from "./config";
-import { loadConfigFromPath, loadPluginConfig, mergeConfigs } from "./plugin-config";
+import { loadConfigFromDirectory, loadPluginConfig, mergeConfigs } from "./plugin-config";
 
 function withVersion(config: Omit<OhMyOpenCodeConfig, "config_version">): OhMyOpenCodeConfig {
   return {
@@ -28,15 +28,19 @@ describe("config loading strictness", () => {
     }
   });
 
-  it("throws when config_version is missing in existing config", () => {
+  it("throws when config_version is missing in module config directory", () => {
     tempDir = mkdtempSync(join(tmpdir(), "omo-config-test-"));
-    const configPath = join(tempDir, "oh-my-opencode.json");
-    writeFileSync(configPath, JSON.stringify({ agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2));
+    const configDir = join(tempDir, "oh-my-opencode");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "agents.json"),
+      JSON.stringify({ agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2),
+    );
 
-    expect(() => loadConfigFromPath(configPath, {})).toThrow("config_version");
+    expect(() => loadConfigFromDirectory(configDir, {})).toThrow("config_version");
   });
 
-  it("throws when project config exists but invalid", () => {
+  it("throws when legacy project single-file config exists", () => {
     tempDir = mkdtempSync(join(tmpdir(), "omo-project-config-test-"));
     process.env.OPENCODE_CONFIG_DIR = join(tempDir, "user");
     mkdirSync(process.env.OPENCODE_CONFIG_DIR, { recursive: true });
@@ -46,10 +50,64 @@ describe("config loading strictness", () => {
     mkdirSync(projectConfigDir, { recursive: true });
     writeFileSync(
       join(projectConfigDir, "oh-my-opencode.json"),
-      JSON.stringify({ agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2),
+      JSON.stringify({ config_version: CURRENT_CONFIG_VERSION, agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2),
     );
 
-    expect(() => loadPluginConfig(projectRoot, {})).toThrow("config_version");
+    expect(() => loadPluginConfig(projectRoot, {})).toThrow("legacy single-file config");
+  });
+
+  it("loads and merges module files from user and project config directories", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "omo-modular-config-test-"));
+    process.env.OPENCODE_CONFIG_DIR = join(tempDir, "user");
+
+    const userConfigDir = join(process.env.OPENCODE_CONFIG_DIR, "oh-my-opencode");
+    mkdirSync(userConfigDir, { recursive: true });
+    writeFileSync(
+      join(userConfigDir, "00-core.json"),
+      JSON.stringify({ config_version: CURRENT_CONFIG_VERSION }, null, 2),
+    );
+    writeFileSync(
+      join(userConfigDir, "10-agents.json"),
+      JSON.stringify(
+        {
+          agents: {
+            oracle: { model: "openai/gpt-5.2" },
+          },
+          categories: {
+            quick: { model: "openai/gpt-5.1-codex-mini" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const projectConfigDir = join(tempDir, "project", ".opencode", "oh-my-opencode");
+    mkdirSync(projectConfigDir, { recursive: true });
+    writeFileSync(
+      join(projectConfigDir, "00-core.json"),
+      JSON.stringify({ config_version: CURRENT_CONFIG_VERSION }, null, 2),
+    );
+    writeFileSync(
+      join(projectConfigDir, "20-overrides.json"),
+      JSON.stringify(
+        {
+          agents: {
+            oracle: { temperature: 0.2 },
+            explore: { model: "anthropic/claude-haiku-4-5" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const config = loadPluginConfig(join(tempDir, "project"), {});
+
+    expect(config.agents?.oracle?.model).toBe("openai/gpt-5.2");
+    expect(config.agents?.oracle?.temperature).toBe(0.2);
+    expect(config.agents?.explore?.model).toBe("anthropic/claude-haiku-4-5");
+    expect(config.categories?.quick?.model).toBe("openai/gpt-5.1-codex-mini");
   });
 });
 

@@ -15,6 +15,7 @@ export interface OpenCodeConfigPaths {
   configJson: string
   configJsonc: string
   packageJson: string
+  omoConfigDir: string
   omoConfig: string
 }
 
@@ -106,7 +107,8 @@ export function getOpenCodeConfigPaths(options: OpenCodeConfigDirOptions): OpenC
     configJson: join(configDir, "opencode.json"),
     configJsonc: join(configDir, "opencode.jsonc"),
     packageJson: join(configDir, "package.json"),
-    omoConfig: join(configDir, "oh-my-opencode.json"),
+    omoConfigDir: join(configDir, "oh-my-opencode"),
+    omoConfig: join(configDir, "oh-my-opencode", "00-core.json"),
   }
 }
 

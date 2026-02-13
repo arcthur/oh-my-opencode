@@ -366,7 +366,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
                 if (key === "build") return false;
                 if (key === "plan" && replacePlan) return false;
                 // Filter out agents that oh-my-opencode provides to prevent
-                // OpenCode defaults from overwriting user config in oh-my-opencode.json
+                // OpenCode defaults from overwriting user config in oh-my-opencode modular files
                 // See: https://github.com/code-yeongyu/oh-my-opencode/issues/472
                 if (key in builtinAgents) return false;
                 return true;

@@ -10,7 +10,7 @@ This journey gives a practical, end-to-end debugging chain: reproduce → inspec
 ```mermaid
 flowchart TD
   Sym["Symptom observed"] --> Repro["Reproduce with minimal steps"]
-  Repro --> Conf["Validate config (oh-my-opencode.json)"]
+  Repro --> Conf["Validate config (oh-my-opencode/*.json)"]
   Conf --> Order["Verify hook ordering (runtime order + node wiring)"]
   Order --> Loc{"Where does it fail?"}
 

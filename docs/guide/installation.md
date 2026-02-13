@@ -97,7 +97,7 @@ Common validations include:
 ## Config Version Policy
 
 - This project supports the **latest config format only**.
-- `oh-my-opencode.json` / `oh-my-opencode.jsonc` MUST include `"config_version": 1`.
+- Modular config files in `oh-my-opencode/` are merged; at least one module MUST define `"config_version": 1`.
 - If an existing config file is invalid or uses a different version, startup/install will fail fast instead of silently falling back.
 
 ## Next Steps

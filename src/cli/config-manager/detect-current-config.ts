@@ -1,10 +1,53 @@
-import { existsSync, readFileSync } from "node:fs"
-import { parseJsonc } from "../../shared"
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
+import { join } from "node:path"
+import { deepMerge, parseJsonc } from "../../shared"
 import type { DetectedConfig } from "../types"
-import { getOmoConfigPath } from "./config-context"
+import { getOmoConfigDirPath } from "./config-context"
 import { normalizePluginList } from "./normalize-plugin-list"
 import { detectConfigFormat } from "./opencode-config-format"
 import { parseOpenCodeConfigFileWithError } from "./parse-opencode-config-file"
+
+function isConfigObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function loadMergedOmoConfig(): Record<string, unknown> | null {
+  const omoConfigDirPath = getOmoConfigDirPath()
+  if (!existsSync(omoConfigDirPath)) {
+    return null
+  }
+
+  try {
+    const stat = statSync(omoConfigDirPath)
+    if (!stat.isDirectory()) {
+      return null
+    }
+
+    const moduleFiles = readdirSync(omoConfigDirPath, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")))
+      .map((entry) => entry.name)
+      .sort()
+
+    if (moduleFiles.length === 0) {
+      return null
+    }
+
+    let mergedConfig: Record<string, unknown> = {}
+    for (const moduleFile of moduleFiles) {
+      const modulePath = join(omoConfigDirPath, moduleFile)
+      const content = readFileSync(modulePath, "utf-8")
+      const rawModule = parseJsonc<unknown>(content)
+      if (!isConfigObject(rawModule)) {
+        continue
+      }
+      mergedConfig = deepMerge(mergedConfig, rawModule) ?? mergedConfig
+    }
+
+    return mergedConfig
+  } catch {
+    return null
+  }
+}
 
 function detectProvidersFromOmoConfig(): {
   hasOpenAI: boolean
@@ -12,18 +55,12 @@ function detectProvidersFromOmoConfig(): {
   hasZaiCodingPlan: boolean
   hasKimiForCoding: boolean
 } {
-  const omoConfigPath = getOmoConfigPath()
-  if (!existsSync(omoConfigPath)) {
+  const omoConfig = loadMergedOmoConfig()
+  if (!omoConfig) {
     return { hasOpenAI: false, hasOpencodeZen: false, hasZaiCodingPlan: false, hasKimiForCoding: false }
   }
 
   try {
-    const content = readFileSync(omoConfigPath, "utf-8")
-    const omoConfig = parseJsonc<Record<string, unknown>>(content)
-    if (!omoConfig || typeof omoConfig !== "object") {
-      return { hasOpenAI: false, hasOpencodeZen: false, hasZaiCodingPlan: false, hasKimiForCoding: false }
-    }
-
     const configStr = JSON.stringify(omoConfig)
     const hasOpenAI = configStr.includes('"openai/')
     const hasOpencodeZen = configStr.includes('"opencode/')

@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { parseJsonc } from "../../shared"
 import type { ConfigMergeResult, InstallConfig } from "../types"
-import { getConfigDir, getOmoConfigPath } from "./config-context"
+import { getConfigDir, getOmoConfigDirPath, getOmoConfigPath } from "./config-context"
 import { deepMergeRecord } from "./deep-merge-record"
 import { ensureConfigDirectoryExists } from "./ensure-config-directory-exists"
 import { formatErrorWithSuggestion } from "./format-error-with-suggestion"
@@ -25,8 +25,11 @@ export function writeOmoConfig(installConfig: InstallConfig): ConfigMergeResult 
   }
 
   const omoConfigPath = getOmoConfigPath()
+  const omoConfigDirPath = getOmoConfigDirPath()
 
   try {
+    mkdirSync(omoConfigDirPath, { recursive: true })
+
     const newConfig = generateOmoConfig(installConfig)
 
     if (existsSync(omoConfigPath)) {

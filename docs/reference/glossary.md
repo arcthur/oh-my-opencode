@@ -106,7 +106,7 @@ Implementation: `src/features/cartography/`.
 
 The observability and control layer for long-running agent sessions. When enabled, provides execution tracing, budget monitoring, checkpointing, and audit logging.
 
-Configuration: `governance.enabled` in `oh-my-opencode.json`. Implementation: `src/features/governance/`.
+Configuration: `governance.enabled` in `oh-my-opencode/*.json`. Implementation: `src/features/governance/`.
 
 ### Semantic Checkpoint
 

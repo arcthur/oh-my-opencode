@@ -166,7 +166,7 @@ If \`git worktree remove\` fails due to uncommitted changes, DO NOT use \`--forc
 
 This repo includes a hook \`tmux-parallel-agents\` that can create tmux windows and worktrees for OpenCode background sessions.
 
-Configure it in \`oh-my-opencode.json\` via the top-level \`tmux_parallel_agents\` section:
+Configure it in \`.opencode/oh-my-opencode/*.json\` via the top-level \`tmux_parallel_agents\` section:
 
 \`\`\`jsonc
 {

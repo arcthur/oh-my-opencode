@@ -65,7 +65,7 @@ export interface PluginInfo {
 export interface ConfigInfo {
   exists: boolean
   path: string | null
-  format: "json" | "jsonc" | null
+  format: "json" | "jsonc" | "modular" | null
   valid: boolean
   errors: string[]
 }

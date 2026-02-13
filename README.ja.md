@@ -281,10 +281,10 @@ oh-my-opencode を削除するには：
 
    ```bash
    # ユーザー設定を削除
-   rm -f ~/.config/opencode/oh-my-opencode.json
+   rm -rf ~/.config/opencode/oh-my-opencode
 
    # プロジェクト設定を削除 (存在する場合)
-   rm -f .opencode/oh-my-opencode.json
+   rm -rf .opencode/oh-my-opencode
    ```
 
 3. **削除の確認**
@@ -316,7 +316,7 @@ oh-my-opencode を削除するには：
 詳細は [Configuration Documentation](docs/configurations.md) を参照してください。
 
 **概要：**
-- **設定ファイルの場所**: `.opencode/oh-my-opencode.json` (プロジェクト) または `~/.config/opencode/oh-my-opencode.json` (ユーザー)
+- **設定ファイルの場所**: `.opencode/oh-my-opencode/` (プロジェクト) または `~/.config/opencode/oh-my-opencode/` (ユーザー)
 - **JSONC のサポート**: コメントと末尾のカンマをサポート
 - **エージェント**: 任意のエージェントのモデル、温度、プロンプト、権限をオーバーライド
 - **内蔵スキル**: `playwright` (ブラウザ自動化), `git-master` (アトミックコミット)

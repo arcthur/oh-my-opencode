@@ -1,7 +1,7 @@
-import { readFileSync, existsSync } from "node:fs"
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs"
 import type { CheckResult, CheckDefinition } from "../types"
 import { CHECK_IDS, CHECK_NAMES } from "../constants"
-import { parseJsonc, detectConfigFile, getOpenCodeConfigPaths } from "../../../shared"
+import { deepMerge, getOpenCodeConfigPaths, parseJsonc } from "../../../shared"
 import {
   AGENT_MODEL_REQUIREMENTS,
   CATEGORY_MODEL_REQUIREMENTS,
@@ -87,23 +87,35 @@ interface OmoConfig {
 }
 
 function loadConfig(): OmoConfig | null {
-  const projectDetected = detectConfigFile(getProjectConfigBase())
-  if (projectDetected.format !== "none") {
-    try {
-      const content = readFileSync(projectDetected.path, "utf-8")
-      return parseJsonc<OmoConfig>(content)
-    } catch {
-      return null
-    }
-  }
+  const sources = [getProjectConfigBase(), getUserConfigBase()]
 
-  const userDetected = detectConfigFile(getUserConfigBase())
-  if (userDetected.format !== "none") {
+  for (const source of sources) {
+    if (!existsSync(source)) continue
+
     try {
-      const content = readFileSync(userDetected.path, "utf-8")
-      return parseJsonc<OmoConfig>(content)
+      const stat = statSync(source)
+      if (!stat.isDirectory()) continue
+
+      const moduleFiles = readdirSync(source, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")))
+        .map((entry) => entry.name)
+        .sort()
+
+      if (moduleFiles.length === 0) continue
+
+      let mergedConfig: Record<string, unknown> = {}
+      for (const moduleFile of moduleFiles) {
+        const modulePath = join(source, moduleFile)
+        const content = readFileSync(modulePath, "utf-8")
+        const parsed = parseJsonc<unknown>(content)
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          mergedConfig = deepMerge(mergedConfig, parsed as Record<string, unknown>) ?? mergedConfig
+        }
+      }
+
+      return mergedConfig as OmoConfig
     } catch {
-      return null
+      continue
     }
   }
 

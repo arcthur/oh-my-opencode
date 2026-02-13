@@ -3,7 +3,7 @@
  *
  * Loads conditional rules from:
  * 1. AGENTS.md files discovered in project tree
- * 2. Configuration file (oh-my-opencode.json)
+ * 2. Configuration modules (.opencode/oh-my-opencode/*.json)
  */
 
 import { readFileSync } from "node:fs"

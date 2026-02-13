@@ -93,15 +93,17 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 ## Config File Locations
 
 Config file locations (priority order):
-1. `.opencode/oh-my-opencode.json` (project)
+1. `.opencode/oh-my-opencode/` (project modular directory)
 2. User config (platform-specific):
 
-| Platform        | User Config Path                                                                                            |
-| --------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Windows**     | `~/.config/opencode/oh-my-opencode.json` (preferred) or `%APPDATA%\opencode\oh-my-opencode.json` (fallback) |
-| **macOS/Linux** | `~/.config/opencode/oh-my-opencode.json`                                                                    |
+| Platform | User Config Path |
+| --- | --- |
+| **Windows** | `~/.config/opencode/oh-my-opencode/` (preferred) or `%APPDATA%\opencode\oh-my-opencode\` (fallback) |
+| **macOS/Linux** | `~/.config/opencode/oh-my-opencode/` |
 
-Schema autocomplete supported:
+Each module file (`*.json` / `*.jsonc`) MUST be a JSON object. Files are merged in lexical filename order.
+
+Schema autocomplete is typically added in `00-core.json`:
 
 ```json
 {
@@ -112,12 +114,10 @@ Schema autocomplete supported:
 
 ## JSONC Support
 
-The `oh-my-opencode` configuration file supports JSONC (JSON with Comments):
+Each module file in `oh-my-opencode/` supports JSONC (JSON with Comments):
 - Line comments: `// comment`
 - Block comments: `/* comment */`
 - Trailing commas: `{ "key": "value", }`
-
-When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc` takes priority.
 
 **Example with comments:**
 
@@ -375,7 +375,7 @@ Fine-grained control over what agents can do:
 | `doom_loop`          | Allow infinite loop detection override | `ask` / `allow` / `deny`                                                    |
 | `external_directory` | Access files outside project root      | `ask` / `allow` / `deny`                                                    |
 
-Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
+Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode/*.json` or `.opencode/oh-my-opencode/*.json`:
 
 ```json
 {
@@ -401,7 +401,7 @@ Oh My OpenCode includes built-in skills that provide additional capabilities:
 - **systematic-debugging**: Hypothesis-driven debugging workflow (experiments, minimal fixes, verification).
 - **code-simplifier**: Behavior-preserving simplification pass to reduce complexity and improve readability.
 
-Disable schema-recognized built-in skills via `disabled_skills` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
+Disable schema-recognized built-in skills via `disabled_skills` in `~/.config/opencode/oh-my-opencode/*.json` or `.opencode/oh-my-opencode/*.json`:
 
 ```json
 {
@@ -819,7 +819,7 @@ delegate_task({
 
 **Custom Categories:**
 
-Add custom categories in `oh-my-opencode.json`:
+Add custom categories in `.opencode/oh-my-opencode/*.json`:
 
 ```json
 {
@@ -857,7 +857,7 @@ Example (disable a built-in category):
 
 Model selection has two layers:
 
-1. **Installer bootstrap** (`src/cli/model-fallback.ts`): writes initial `agents` / `categories` model defaults into `oh-my-opencode.json`.
+1. **Installer bootstrap** (`src/cli/model-fallback.ts`): writes initial `agents` / `categories` model defaults into `~/.config/opencode/oh-my-opencode/00-core.json`.
 2. **Runtime resolution** (`src/shared/model-requirements.ts`, `src/shared/model-resolution-pipeline.ts`): resolves final model by availability + fallback chain at runtime.
 
 ### Runtime Fallback Chains (source of truth)
@@ -923,7 +923,7 @@ The runtime fallback chain definitions themselves are in `src/shared/model-requi
 
 ### Manual Override
 
-You can always override automatic selection in `oh-my-opencode.json`:
+You can always override automatic selection in `.opencode/oh-my-opencode/*.json`:
 
 ```json
 {
@@ -983,7 +983,7 @@ Budget counters reset at the start of each user turn via `beginTurn()`.
 
 ## Hooks
 
-Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
+Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-my-opencode/*.json` or `.opencode/oh-my-opencode/*.json`:
 
 ```json
 {
@@ -1193,7 +1193,7 @@ Exa, Context7 and grep.app MCP enabled by default.
 - **context7**: Fetches up-to-date official documentation for libraries
 - **grep_app**: Ultra-fast code search across millions of public GitHub repositories via [grep.app](https://grep.app)
 
-Don't want them? Disable via `disabled_mcps` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
+Don't want them? Disable via `disabled_mcps` in `~/.config/opencode/oh-my-opencode/*.json` or `.opencode/oh-my-opencode/*.json`:
 
 ```json
 {
@@ -1207,7 +1207,7 @@ OpenCode provides LSP tools for analysis.
 Oh My OpenCode adds refactoring tools (rename, code actions).
 All OpenCode LSP configs and custom settings (from opencode.json) are supported, plus additional Oh My OpenCode-specific settings.
 
-Add LSP servers via the `lsp` option in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
+Add LSP servers via the `lsp` option in `~/.config/opencode/oh-my-opencode/*.json` or `.opencode/oh-my-opencode/*.json`:
 
 ```json
 {

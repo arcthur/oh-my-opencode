@@ -170,7 +170,9 @@ describe("config-manager upstream sync behaviors", () => {
 
   test("writeOmoConfig preserves fork-specific config blocks", () => {
     // #given
-    const omoConfigPath = join(tempDir, "oh-my-opencode.json")
+    const omoConfigDir = join(tempDir, "oh-my-opencode")
+    mkdirSync(omoConfigDir, { recursive: true })
+    const omoConfigPath = join(omoConfigDir, "00-core.json")
     writeFileSync(
       omoConfigPath,
       `{
@@ -205,7 +207,9 @@ describe("config-manager upstream sync behaviors", () => {
 
   test("writeOmoConfig fails when existing config is missing config_version", () => {
     // #given
-    const omoConfigPath = join(tempDir, "oh-my-opencode.json")
+    const omoConfigDir = join(tempDir, "oh-my-opencode")
+    mkdirSync(omoConfigDir, { recursive: true })
+    const omoConfigPath = join(omoConfigDir, "00-core.json")
     writeFileSync(
       omoConfigPath,
       `{

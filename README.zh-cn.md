@@ -291,10 +291,10 @@ curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads
 
    ```bash
    # 移除用户配置
-   rm -f ~/.config/opencode/oh-my-opencode.json
+   rm -rf ~/.config/opencode/oh-my-opencode
 
    # 移除项目配置（如果存在）
-   rm -f .opencode/oh-my-opencode.json
+   rm -rf .opencode/oh-my-opencode
    ```
 
 3. **验证移除**
@@ -326,7 +326,7 @@ curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads
 详细信息请参阅 [Configuration Documentation](docs/reference/configuration.md)。
 
 **概览：**
-- **配置文件位置**: `.opencode/oh-my-opencode.json` (项目级) 或 `~/.config/opencode/oh-my-opencode.json` (用户级)
+- **配置文件位置**: `.opencode/oh-my-opencode/` (项目级) 或 `~/.config/opencode/oh-my-opencode/` (用户级)
 - **JSONC 支持**: 支持注释和尾随逗号
 - **智能体**: 覆盖任何智能体的模型、温度、提示和权限
 - **内置技能**: `playwright` (浏览器自动化), `git-master` (原子提交)

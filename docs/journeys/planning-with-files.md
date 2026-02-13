@@ -92,7 +92,7 @@ Execution log for context continuity containing:
 
 ## Configuration
 
-Enable in `.opencode/oh-my-opencode.json`:
+Enable in `.opencode/oh-my-opencode/00-core.json`:
 
 ```json
 {

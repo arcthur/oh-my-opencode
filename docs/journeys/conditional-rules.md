@@ -59,7 +59,7 @@ The loader assigns higher priority to deeper (more specific) directories, so nes
 
 ### 2) Config-defined rules
 
-Rules can also be declared in `oh-my-opencode.json` under `conditional_rules.conditional_rules[]` with conditions such as:
+Rules can also be declared in `oh-my-opencode/*.json` under `conditional_rules.conditional_rules[]` with conditions such as:
 
 - `glob`: match file paths
 - `directory`: match directory scopes

@@ -73,7 +73,7 @@ See `src/features/claude-code-mcp-loader/loader.ts`.
 
 The Claude Code MCP loader is enabled by default and can be disabled via:
 
-- `claude_code: { mcp: false }` in `oh-my-opencode.json(c)`
+- `claude_code: { mcp: false }` in `oh-my-opencode/*.json`
 
 ## Skill-embedded MCP servers
 

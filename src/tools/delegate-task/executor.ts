@@ -1012,7 +1012,7 @@ export async function resolveCategoryExecution(
 
 Configure in one of:
 1. OpenCode: Set "model" in opencode.json
-2. Oh-My-OpenCode: Set category model in oh-my-opencode.json
+2. Oh-My-OpenCode: Set category model in .opencode/oh-my-opencode/*.json
 3. Provider: Connect a provider with available models
 
 Current category: ${args.category}

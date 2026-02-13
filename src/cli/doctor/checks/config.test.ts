@@ -55,8 +55,8 @@ describe("config check", () => {
       // given valid config
       getInfoSpy = spyOn(config, "getConfigInfo").mockReturnValue({
         exists: true,
-        path: "/home/user/.config/opencode/oh-my-opencode.json",
-        format: "json",
+        path: "/home/user/.config/opencode/oh-my-opencode",
+        format: "modular",
         valid: true,
         errors: [],
       })
@@ -66,15 +66,15 @@ describe("config check", () => {
 
       // then should pass
       expect(result.status).toBe("pass")
-      expect(result.message).toContain("JSON")
+      expect(result.message).toContain("modular")
     })
 
     it("returns fail when config has validation errors", async () => {
       // given invalid config
       getInfoSpy = spyOn(config, "getConfigInfo").mockReturnValue({
         exists: true,
-        path: "/home/user/.config/opencode/oh-my-opencode.json",
-        format: "json",
+        path: "/home/user/.config/opencode/oh-my-opencode",
+        format: "modular",
         valid: false,
         errors: ["agents.oracle: Invalid model format"],
       })

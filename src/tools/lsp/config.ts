@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "fs"
+import { existsSync, readFileSync, readdirSync, statSync } from "fs"
 import { join } from "path"
 import { BUILTIN_SERVERS, EXT_TO_LANG, LSP_INSTALL_HINTS } from "./constants"
 import type { ResolvedServer, ServerLookupResult } from "./types"
-import { getOpenCodeConfigDir, getDataDir } from "../../shared"
+import { deepMerge, getOpenCodeConfigDir, getDataDir, parseJsonc } from "../../shared"
 
 interface LspEntry {
   disabled?: boolean
@@ -26,7 +26,40 @@ interface ServerWithSource extends ResolvedServer {
 function loadJsonFile<T>(path: string): T | null {
   if (!existsSync(path)) return null
   try {
-    return JSON.parse(readFileSync(path, "utf-8")) as T
+    return parseJsonc<T>(readFileSync(path, "utf-8"))
+  } catch {
+    return null
+  }
+}
+
+function isConfigObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function loadModularConfigDirectory(path: string): ConfigJson | null {
+  if (!existsSync(path)) return null
+
+  try {
+    const stat = statSync(path)
+    if (!stat.isDirectory()) return null
+
+    const moduleFiles = readdirSync(path, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")))
+      .map((entry) => entry.name)
+      .sort()
+
+    if (moduleFiles.length === 0) return null
+
+    let merged: Record<string, unknown> = {}
+    for (const moduleFile of moduleFiles) {
+      const modulePath = join(path, moduleFile)
+      const parsed = loadJsonFile<unknown>(modulePath)
+      if (isConfigObject(parsed)) {
+        merged = deepMerge(merged, parsed) ?? merged
+      }
+    }
+
+    return merged as ConfigJson
   } catch {
     return null
   }
@@ -36,8 +69,8 @@ function getConfigPaths(): { project: string; user: string; opencode: string } {
   const cwd = process.cwd()
   const configDir = getOpenCodeConfigDir({ binary: "opencode" })
   return {
-    project: join(cwd, ".opencode", "oh-my-opencode.json"),
-    user: join(configDir, "oh-my-opencode.json"),
+    project: join(cwd, ".opencode", "oh-my-opencode"),
+    user: join(configDir, "oh-my-opencode"),
     opencode: join(configDir, "opencode.json"),
   }
 }
@@ -46,10 +79,10 @@ function loadAllConfigs(): Map<ConfigSource, ConfigJson> {
   const paths = getConfigPaths()
   const configs = new Map<ConfigSource, ConfigJson>()
 
-  const project = loadJsonFile<ConfigJson>(paths.project)
+  const project = loadModularConfigDirectory(paths.project)
   if (project) configs.set("project", project)
 
-  const user = loadJsonFile<ConfigJson>(paths.user)
+  const user = loadModularConfigDirectory(paths.user)
   if (user) configs.set("user", user)
 
   const opencode = loadJsonFile<ConfigJson>(paths.opencode)
