@@ -171,7 +171,7 @@ jobs:
         run: |
           gh workflow run publish-platform.yml \
             --repo ${{ github.repository }} \
-            --ref ${{ github.ref }} \
+            --ref v${{ needs.publish-main.outputs.version }} \
             -f version=${{ needs.publish-main.outputs.version }} \
             -f dist_tag=${{ needs.publish-main.outputs.dist_tag }}
         env:
