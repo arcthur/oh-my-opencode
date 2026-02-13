@@ -6,6 +6,10 @@ import type {
   ExecutionBudgetLimits,
   SessionExecutionBudgetManager,
 } from "../../../features/policy-runtime/execution-budget"
+import type {
+  AutoHandoffRequest,
+  AutoHandoffResult,
+} from "../../../features/session-handoff/types"
 import type { EventInput, MessageInput, ToolExecuteInput } from "../../../shared/hook-types"
 
 export type MaybePromiseVoid = Promise<void> | void
@@ -197,6 +201,7 @@ export interface RuntimeAssemblyContext {
     ["user.prompt.submit"]?: UserPromptSubmitHandler
     ["tool.execute.after"]?: ToolExecuteAfterHandler
     event?: EventHandler
+    requestAutoHandoff?: (request: AutoHandoffRequest) => Promise<AutoHandoffResult>
   }
 
   autoSlashCommand?: {
@@ -217,6 +222,24 @@ export interface RuntimeAssemblyContext {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     ["tool.execute.after"]?: ToolExecuteAfterHandler
     event?: EventHandler
+    getVerifierGuard?: (input: {
+      sessionID: string
+      callID?: string
+      tool: string
+      args: Record<string, unknown>
+    }) => {
+      blocked: boolean
+      reasonCode: string
+      missingEvidence: string[]
+      denialCount: number
+      details?: Record<string, unknown>
+    } | null
+    onPolicyContextPressure?: (input: {
+      sessionID: string
+      pressureRatio: number
+      estimatedRecentTokens: number
+      hardLimit: number
+    }) => void
     stopContinuation: (sessionID: string) => void
     isContinuationStopped: (sessionID: string) => boolean
     getContinuationRound: (sessionID: string) => number | undefined

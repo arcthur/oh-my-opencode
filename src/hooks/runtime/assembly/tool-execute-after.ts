@@ -108,6 +108,19 @@ function appendContextPressureHint(params: {
   })
 }
 
+function reportContextPressure(params: {
+  context: RuntimeAssemblyContext
+  input: ToolExecuteInput
+  snapshot: ExecutionBudgetSnapshot
+}): void {
+  params.context.workOrchestrator?.onPolicyContextPressure?.({
+    sessionID: params.input.sessionID,
+    pressureRatio: params.snapshot.pressureRatio,
+    estimatedRecentTokens: params.snapshot.estimatedRecentTokens,
+    hardLimit: params.snapshot.contextTokensHardLimit,
+  })
+}
+
 export function buildToolExecuteAfterNodes(
   context: RuntimeAssemblyContext,
   input: ToolExecuteInput,
@@ -264,6 +277,11 @@ export function buildToolExecuteAfterNodes(
 
       if (!decisions || decisions.length === 0) {
         if (executionBudget) {
+          reportContextPressure({
+            context,
+            input,
+            snapshot: executionBudget,
+          })
           appendContextPressureHint({
             context,
             input,
@@ -277,6 +295,11 @@ export function buildToolExecuteAfterNodes(
       enforcePolicyDecisionsOnToolAfter({ decisions, output })
 
       if (executionBudget) {
+        reportContextPressure({
+          context,
+          input,
+          snapshot: executionBudget,
+        })
         appendContextPressureHint({
           context,
           input,

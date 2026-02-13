@@ -2,16 +2,28 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { listTaskNodes } from "../../features/task-system"
+import { createTaskNode, listTaskNodes } from "../../features/task-system"
 import { createWorkStateManager, type WorkState } from "../../features/work-state"
 import { getMainSessionID, isSubagentSession, updateSessionAgent } from "../../features/claude-code-session-state"
 import { appendBudgetedOutput, injectBudgetedPrompt } from "../../features/context-view"
+import { DiscoveryChannel } from "../../features/discovery-channel"
+import {
+  VerifierGateStateStore,
+  buildVerifierMissingEvidenceGuidance,
+  classifyVerificationEvidence,
+  isWriteMutationTool,
+  type VerificationVerdict,
+} from "../../features/verifier-gate"
 import { findNearestMessageWithFields } from "../../features/hook-message-injector"
 import { getExecutionPolicy } from "../../features/orchestration/policy"
 import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
 import { getMessageDir, resolveExecutionOwnership } from "../../shared/session-utils"
 import type { BackgroundManager } from "../../features/background-agent"
+import type {
+  AutoHandoffRequest,
+  AutoHandoffResult,
+} from "../../features/session-handoff/types"
 import type { ContinuationIntent } from "./continuation"
 import { getGitDiffStats, type GitFileStat } from "./git-diff-stats"
 
@@ -669,16 +681,49 @@ interface SessionState {
   lastDirectWorkReminderAt?: number
   promptFailureCount: number
   verificationReminderCount: number
+  verifierGuardByCallID: Map<string, VerificationVerdict>
+  consecutiveContextPressureHits: number
+  autoHandoffTriggered: boolean
+  autoHandoffTriggeredAt?: number
+  lastAutoHandoffReason?: string
   reminderTelemetry: ReminderTelemetrySummary
 }
 
 const CONTINUATION_COOLDOWN_MS = 5000
 const DELEGATION_WARNING_COOLDOWN_MS = 30000
+const CONTEXT_PRESSURE_TRIGGER_RATIO = 0.9
 
 export interface ExecutionOrchestratorHookOptions {
   directory: string
   backgroundManager?: BackgroundManager
   taskConfig?: Partial<OhMyOpenCodeConfig>
+  verifierGate?: {
+    enabled?: boolean
+    evidence_ttl_ms?: number
+    require_lsp_clean?: boolean
+    require_test_or_build?: boolean
+    allow_no_code_change?: boolean
+  }
+  discoveryChannel?: {
+    enabled?: boolean
+    capture_delegate_output?: boolean
+    capture_assistant_updates?: boolean
+    marker_mode?: "xml" | "prefix" | "hybrid"
+    dedupe_window_ms?: number
+    max_open_items?: number
+    auto_task_create?: boolean
+  }
+  autoHandoff?: {
+    enabled?: boolean
+    trigger_verifier_denials?: number
+    trigger_context_pressure_hits?: number
+    trigger_prompt_failures?: number
+    cooldown_ms?: number
+    launch_mode?: "auto" | "preview"
+    stop_continuation_on_launch?: boolean
+  }
+  requestAutoHandoff?: (request: AutoHandoffRequest) => Promise<AutoHandoffResult>
+  markContinuationStopped?: (sessionID: string) => void
   /** Enable 2-action rule (remind to document research after 2 ops) */
   twoActionRule?: boolean
   /** Enable 3-strike protocol (track and guide error handling) */
@@ -717,6 +762,33 @@ export function createExecutionOrchestratorHook(
   ctx: PluginInput,
   options: ExecutionOrchestratorHookOptions
 ) {
+  const verifierGateConfig = {
+    enabled: options.verifierGate?.enabled ?? true,
+    evidenceTtlMs: options.verifierGate?.evidence_ttl_ms ?? 900_000,
+    requireLspClean: options.verifierGate?.require_lsp_clean ?? true,
+    requireTestOrBuild: options.verifierGate?.require_test_or_build ?? true,
+    allowNoCodeChange: options.verifierGate?.allow_no_code_change ?? true,
+  }
+  const autoHandoffConfig = {
+    enabled: options.autoHandoff?.enabled ?? true,
+    triggerVerifierDenials: options.autoHandoff?.trigger_verifier_denials ?? 2,
+    triggerContextPressureHits: options.autoHandoff?.trigger_context_pressure_hits ?? 2,
+    triggerPromptFailures: options.autoHandoff?.trigger_prompt_failures ?? 2,
+    cooldownMs: options.autoHandoff?.cooldown_ms ?? 600_000,
+    launchMode: options.autoHandoff?.launch_mode ?? "auto",
+    stopContinuationOnLaunch: options.autoHandoff?.stop_continuation_on_launch ?? true,
+  } as const
+  const discoveryChannelConfig = {
+    enabled: options.discoveryChannel?.enabled ?? true,
+    captureDelegateOutput: options.discoveryChannel?.capture_delegate_output ?? true,
+    captureAssistantUpdates: options.discoveryChannel?.capture_assistant_updates ?? true,
+    markerMode: options.discoveryChannel?.marker_mode ?? "hybrid",
+    dedupeWindowMs: options.discoveryChannel?.dedupe_window_ms ?? 1_800_000,
+    maxOpenItems: options.discoveryChannel?.max_open_items ?? 200,
+    autoTaskCreate: options.discoveryChannel?.auto_task_create ?? false,
+  } as const
+
+  let requestAutoHandoff = options.requestAutoHandoff
   const backgroundManager = options.backgroundManager
   const taskConfig = options.taskConfig ?? {}
   const twoActionRule = options.twoActionRule ?? false
@@ -727,6 +799,16 @@ export function createExecutionOrchestratorHook(
   const reportContinuationIntent = options.reportContinuationIntent
 
   const workStateManager = createWorkStateManager(ctx.directory)
+  const discoveryChannel = new DiscoveryChannel(options.directory, {
+    enabled: discoveryChannelConfig.enabled,
+    captureDelegateOutput: discoveryChannelConfig.captureDelegateOutput,
+    captureAssistantUpdates: discoveryChannelConfig.captureAssistantUpdates,
+    markerMode: discoveryChannelConfig.markerMode,
+    dedupeWindowMs: discoveryChannelConfig.dedupeWindowMs,
+    maxOpenItems: discoveryChannelConfig.maxOpenItems,
+    autoTaskCreate: discoveryChannelConfig.autoTaskCreate,
+  })
+  const verifierState = new VerifierGateStateStore(verifierGateConfig)
   const sessions = new Map<string, SessionState>()
   const archivedReminderTelemetryBySession = new Map<string, ReminderTelemetrySummary>()
   const persistedReminderTelemetryByPlan = new Map<string, ReminderTelemetrySummary>()
@@ -758,11 +840,281 @@ export function createExecutionOrchestratorHook(
       state = {
         promptFailureCount: 0,
         verificationReminderCount: 0,
+        verifierGuardByCallID: new Map<string, VerificationVerdict>(),
+        consecutiveContextPressureHits: 0,
+        autoHandoffTriggered: false,
         reminderTelemetry: createEmptyReminderTelemetrySummary(),
       }
       sessions.set(sessionID, state)
     }
     return state
+  }
+
+  function getActivePlanIdForSession(sessionID: string): string | undefined {
+    const workState = workStateManager.load()
+    if (!workState) return undefined
+    if (!workState.session_ids.includes(sessionID)) return undefined
+    return workState.plan_id
+  }
+
+  function captureDiscovery(input: {
+    sessionID: string
+    source: "delegate_output" | "assistant_update"
+    sourceEventId: string
+    retrievalPath: string
+    text: string
+  }): void {
+    if (!discoveryChannelConfig.enabled || !input.text.trim()) {
+      return
+    }
+
+    const planId = getActivePlanIdForSession(input.sessionID)
+    if (!planId) return
+
+    try {
+      const captured = discoveryChannel.capture({
+        planId,
+        text: input.text,
+        source: input.source,
+        sourceEventId: input.sourceEventId,
+        retrievalPath: input.retrievalPath,
+      })
+
+      if (captured.length > 0 && discoveryChannelConfig.autoTaskCreate) {
+        const existingTasks = listTaskNodes(
+          {
+            scope: "plan",
+            container_id: planId,
+            include_completed: true,
+          },
+          taskConfig
+        )
+        const existingTitles = new Set(
+          existingTasks
+            .map((task) => task.title.trim().toLowerCase())
+            .filter((title) => title.length > 0)
+        )
+
+        let createdCount = 0
+        for (const discovery of captured) {
+          const compactClaim = discovery.claim.replace(/\s+/g, " ").trim()
+          if (!compactClaim) continue
+          const title = `Discovery: ${compactClaim}`.slice(0, 180)
+          const normalizedTitle = title.toLowerCase()
+          if (existingTitles.has(normalizedTitle)) {
+            continue
+          }
+
+          try {
+            createTaskNode(
+              {
+                scope: "plan",
+                container_id: planId,
+                title,
+                description:
+                  `Captured from ${discovery.source}. ` +
+                  `Source event: ${discovery.sourceEventId}. ` +
+                  `Retrieval path: ${discovery.retrievalPath}`,
+                priority: -10,
+              },
+              taskConfig
+            )
+            existingTitles.add(normalizedTitle)
+            createdCount += 1
+          } catch (error) {
+            log(`[${HOOK_NAME}] Failed to create discovery task (fail-open)`, {
+              sessionID: input.sessionID,
+              planId,
+              discoveryId: discovery.id,
+              error: String(error),
+            })
+          }
+        }
+
+        if (createdCount > 0) {
+          log(`[${HOOK_NAME}] Auto-created discovery tasks`, {
+            sessionID: input.sessionID,
+            planId,
+            created: createdCount,
+          })
+        }
+      }
+    } catch (error) {
+      log(`[${HOOK_NAME}] Discovery capture failed (fail-open)`, {
+        sessionID: input.sessionID,
+        source: input.source,
+        error: String(error),
+      })
+    }
+  }
+
+  function getTopUnresolvedDiscoveries(sessionID: string, limit = 5): AutoHandoffRequest["unresolvedDiscoveries"] {
+    const planId = getActivePlanIdForSession(sessionID)
+    if (!planId) return []
+
+    return discoveryChannel.listUnresolved(planId, limit).map((entry) => ({
+      id: entry.id,
+      claim: entry.claim,
+      sourceEventId: entry.sourceEventId,
+      retrievalPath: entry.retrievalPath,
+    }))
+  }
+
+  function buildAutoHandoffGoal(sessionID: string, reason: string): string {
+    const workState = workStateManager.load()
+    if (workState) {
+      const progress = computeWorkProgress(workState.plan_id)
+      return `Continue plan "${workState.plan_id}" with fresh context.
+
+Reason: ${reason}
+Progress: ${progress.completed}/${progress.total} completed (remaining ${progress.remaining})
+Plan path: ${workState.execution_plan_path}`
+    }
+
+    return `Continue current session with fresh context. Reason: ${reason}`
+  }
+
+  async function triggerAutoHandoff(sessionID: string, reason: string): Promise<void> {
+    if (!autoHandoffConfig.enabled || !requestAutoHandoff) {
+      return
+    }
+
+    const state = getState(sessionID)
+    const now = Date.now()
+    if (state.autoHandoffTriggered) {
+      return
+    }
+    if (
+      state.autoHandoffTriggeredAt !== undefined
+      && now - state.autoHandoffTriggeredAt < autoHandoffConfig.cooldownMs
+    ) {
+      return
+    }
+
+    const request: AutoHandoffRequest = {
+      sessionID,
+      goal: buildAutoHandoffGoal(sessionID, reason),
+      reason,
+      launchMode: autoHandoffConfig.launchMode,
+      unresolvedDiscoveries: getTopUnresolvedDiscoveries(sessionID, 5),
+    }
+
+    state.autoHandoffTriggered = true
+    state.autoHandoffTriggeredAt = now
+    state.lastAutoHandoffReason = reason
+
+    try {
+      const result = await requestAutoHandoff(request)
+      const launched = result.status === "launched" && Boolean(result.newSessionId)
+      if (autoHandoffConfig.stopContinuationOnLaunch && launched) {
+        options.markContinuationStopped?.(sessionID)
+      }
+      log(`[${HOOK_NAME}] Auto handoff triggered`, {
+        sessionID,
+        reason,
+        status: result.status,
+        newSessionId: result.newSessionId,
+        fallbackPreview: result.fallbackPreview,
+      })
+    } catch (error) {
+      state.autoHandoffTriggered = false
+      log(`[${HOOK_NAME}] Auto handoff trigger failed`, {
+        sessionID,
+        reason,
+        error: String(error),
+      })
+    }
+  }
+
+  function getVerifierGuardPayload(input: {
+    sessionID: string
+    callID?: string
+    tool: string
+    args: Record<string, unknown>
+  }): {
+    blocked: boolean
+    reasonCode: string
+    missingEvidence: string[]
+    denialCount: number
+    details?: Record<string, unknown>
+  } | null {
+    const toolName = input.tool.toLowerCase()
+    if (toolName !== "task_transition") {
+      return null
+    }
+
+    const nextStateRaw = input.args.next_state ?? input.args.nextState
+    if (nextStateRaw !== "completed") {
+      return null
+    }
+
+    const verdict = verifierState.evaluateCompletion(input.sessionID)
+    const state = getState(input.sessionID)
+    if (input.callID) {
+      state.verifierGuardByCallID.set(input.callID, verdict)
+    }
+
+    if (
+      verdict.blocked
+      && verdict.denialCount >= autoHandoffConfig.triggerVerifierDenials
+    ) {
+      void triggerAutoHandoff(
+        input.sessionID,
+        `Verifier denied completion ${verdict.denialCount} times`
+      )
+    }
+
+    return {
+      blocked: verdict.blocked,
+      reasonCode: verdict.reasonCode,
+      missingEvidence: [...verdict.missingEvidence],
+      denialCount: verdict.denialCount,
+      details: {
+        hasCodeChanges: verdict.details.hasCodeChanges,
+        lastWriteAt: verdict.details.lastWriteAt,
+        lspEvidenceCount: verdict.details.lspEvidence.length,
+        testOrBuildEvidenceCount: verdict.details.testOrBuildEvidence.length,
+      },
+    }
+  }
+
+  function buildVerifierBlockError(verdict: VerificationVerdict): string {
+    const missing = verdict.missingEvidence.map((item) => `- ${item}`).join("\n")
+    const guidance = buildVerifierMissingEvidenceGuidance(verdict.missingEvidence)
+    return [
+      "[work-orchestrator] Verifier gate blocked task completion.",
+      "Missing evidence:",
+      missing || "- unknown",
+      guidance,
+    ].filter(Boolean).join("\n")
+  }
+
+  function onPolicyContextPressure(input: {
+    sessionID: string
+    pressureRatio: number
+    estimatedRecentTokens: number
+    hardLimit: number
+  }): void {
+    const state = getState(input.sessionID)
+    if (input.pressureRatio >= CONTEXT_PRESSURE_TRIGGER_RATIO) {
+      state.consecutiveContextPressureHits += 1
+      log(`[${HOOK_NAME}] Context pressure observed`, {
+        sessionID: input.sessionID,
+        pressureRatio: Number(input.pressureRatio.toFixed(3)),
+        estimatedRecentTokens: input.estimatedRecentTokens,
+        hardLimit: input.hardLimit,
+        consecutiveHits: state.consecutiveContextPressureHits,
+      })
+      if (state.consecutiveContextPressureHits >= autoHandoffConfig.triggerContextPressureHits) {
+        void triggerAutoHandoff(
+          input.sessionID,
+          `Context pressure persisted for ${state.consecutiveContextPressureHits} tool rounds`
+        )
+      }
+      return
+    }
+
+    state.consecutiveContextPressureHits = 0
   }
 
   function recordReminderTelemetry(
@@ -1078,6 +1430,12 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
       (total === 0
         ? `\n\n[Status: no plan tasks found in TaskGraph]\nCreate tasks with:\n- task_create({ title: \"1. ...\", scope: \"plan\", container_id: \"${planId}\" })`
         : `\n\n[Status: ${total - remaining}/${total} completed, ${remaining} remaining]`)
+    const discoveryReminder = discoveryChannelConfig.enabled
+      ? discoveryChannel.renderIdleReminder(planId, 5)
+      : null
+    const promptWithDiscovery = discoveryReminder
+      ? `${prompt}\n\n${discoveryReminder}`
+      : prompt
 
     try {
       log(`[${HOOK_NAME}] Injecting work continuation`, {
@@ -1125,7 +1483,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
           agent: EXECUTION_POLICY.owner,
           ...(model !== undefined ? { model } : {}),
           ...(variant !== undefined ? { variant } : {}),
-          text: prompt,
+          text: promptWithDiscovery,
         },
         onResult: (result) => {
           if (result.status === "accepted") {
@@ -1151,6 +1509,12 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
               error: String(result.error),
               promptFailureCount: state.promptFailureCount,
             })
+            if (state.promptFailureCount >= autoHandoffConfig.triggerPromptFailures) {
+              void triggerAutoHandoff(
+                sessionID,
+                `Continuation prompt failed ${state.promptFailureCount} times`
+              )
+            }
             return
           }
           state.promptFailureCount = 0
@@ -1167,10 +1531,26 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
         error: String(err),
         promptFailureCount: state.promptFailureCount,
       })
+      if (state.promptFailureCount >= autoHandoffConfig.triggerPromptFailures) {
+        void triggerAutoHandoff(
+          sessionID,
+          `Continuation prompt failed ${state.promptFailureCount} times`
+        )
+      }
     }
   }
 
   return {
+    setAutoHandoffRequester: (
+      requester: ((request: AutoHandoffRequest) => Promise<AutoHandoffResult>) | undefined
+    ): void => {
+      requestAutoHandoff = requester
+    },
+
+    getVerifierGuard: getVerifierGuardPayload,
+
+    onPolicyContextPressure,
+
     handler: async ({ event }: { event: { type: string; properties?: unknown } }): Promise<void> => {
       const props = event.properties as Record<string, unknown> | undefined
 
@@ -1281,6 +1661,24 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
         if (state) {
           state.lastEventWasAbortError = false
         }
+
+        if (discoveryChannelConfig.enabled && discoveryChannelConfig.captureAssistantUpdates) {
+          const role = info?.role
+          const content = info?.content
+          if (role === "assistant" && typeof content === "string" && content.trim().length > 0) {
+            const sourceEventId =
+              (info?.messageID as string | undefined)
+              ?? (props?.messageID as string | undefined)
+              ?? `message.updated:${Date.now()}`
+            captureDiscovery({
+              sessionID,
+              source: "assistant_update",
+              sourceEventId,
+              retrievalPath: "event.message.updated.assistant",
+              text: content,
+            })
+          }
+        }
         return
       }
 
@@ -1314,6 +1712,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
         if (sessionInfo?.id) {
           archiveReminderTelemetryForSession(sessionInfo.id)
           sessions.delete(sessionInfo.id)
+          verifierState.clearSession(sessionInfo.id)
           log(`[${HOOK_NAME}] Session deleted: cleaned up`, { sessionID: sessionInfo.id })
         }
         return
@@ -1325,6 +1724,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
         if (sessionID) {
           archiveReminderTelemetryForSession(sessionID)
           sessions.delete(sessionID)
+          verifierState.clearSession(sessionID)
           log(`[${HOOK_NAME}] Session compacted: cleaned up`, { sessionID })
         }
         return
@@ -1342,6 +1742,50 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
 
       if (!isExecutionModeSession(input.sessionID)) {
         return
+      }
+
+      if (input.tool.toLowerCase() === "task_transition") {
+        const args = output.args
+        const nextState = args.next_state ?? args.nextState
+        if (nextState === "completed") {
+          const state = getState(sessionID)
+          let verdict = input.callID
+            ? state.verifierGuardByCallID.get(input.callID)
+            : undefined
+
+          if (!verdict) {
+            const guard = getVerifierGuardPayload({
+              sessionID,
+              callID: input.callID,
+              tool: input.tool,
+              args,
+            })
+            if (input.callID) {
+              verdict = state.verifierGuardByCallID.get(input.callID)
+            } else if (guard) {
+              verdict = {
+                blocked: guard.blocked,
+                reasonCode: guard.reasonCode,
+                missingEvidence: guard.missingEvidence,
+                denialCount: guard.denialCount,
+                details: {
+                  hasCodeChanges: Boolean(guard.details?.hasCodeChanges),
+                  lastWriteAt: guard.details?.lastWriteAt as number | undefined,
+                  lspEvidence: [],
+                  testOrBuildEvidence: [],
+                },
+              }
+            }
+          }
+
+          if (input.callID) {
+            state.verifierGuardByCallID.delete(input.callID)
+          }
+
+          if (verdict?.blocked) {
+            throw new Error(buildVerifierBlockError(verdict))
+          }
+        }
       }
 
       if (input.tool === "task" || input.tool === "Task") {
@@ -1423,6 +1867,34 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
       const isExecutionMode = isExecutionModeSession(input.sessionID)
       const outputStr = output.output && typeof output.output === "string" ? output.output : ""
       const workState = workStateManager.load()
+      const rawArgs =
+        (output.metadata as { args?: unknown } | undefined)?.args
+        ?? (output as { args?: unknown }).args
+      const toolArgs =
+        rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs)
+          ? (rawArgs as Record<string, unknown>)
+          : undefined
+
+      if (isExecutionMode) {
+        if (isWriteMutationTool(input.tool)) {
+          const filePathRaw =
+            toolArgs?.filePath
+            ?? toolArgs?.path
+            ?? toolArgs?.file_path
+            ?? toolArgs?.file
+          const filePath = typeof filePathRaw === "string" ? filePathRaw : undefined
+          verifierState.markWrite(input.sessionID, filePath)
+        }
+
+        const evidence = classifyVerificationEvidence({
+          now: Date.now(),
+          tool: input.tool,
+          args: toolArgs,
+          output: outputStr,
+          metadata: output.metadata,
+        })
+        verifierState.recordEvidence(input.sessionID, evidence)
+      }
 
       // === Protocol handling (for any session with active work) ===
       if (workState && isExecutionMode) {
@@ -1541,6 +2013,16 @@ This helps maintain context across sessions and prevents knowledge loss.
 
       if (isBackgroundLaunch) {
         return
+      }
+
+      if (discoveryChannelConfig.enabled && discoveryChannelConfig.captureDelegateOutput) {
+        captureDiscovery({
+          sessionID: input.sessionID,
+          source: "delegate_output",
+          sourceEventId: input.callID ?? `delegate_task:${Date.now()}`,
+          retrievalPath: "tool.delegate_task.output",
+          text: delegateOutputStr,
+        })
       }
 
       if (output.output && typeof output.output === "string") {

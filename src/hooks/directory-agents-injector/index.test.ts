@@ -54,7 +54,10 @@ describe("directory-agents-injector budget integration", () => {
     mkdirSync(srcDir, { recursive: true })
     const targetFile = join(srcDir, "index.ts")
     writeFileSync(targetFile, "console.log('x')\n")
-    writeFileSync(join(srcDir, "AGENTS.md"), "Use strict typing.")
+    writeFileSync(
+      join(srcDir, "AGENTS.md"),
+      "Use strict typing.\nNever bypass validation steps."
+    )
     const hook = createDirectoryAgentsInjectorHook({
       directory: testDir,
       client: {},
@@ -69,11 +72,14 @@ describe("directory-agents-injector budget integration", () => {
     )
 
     // #then
-    expect(output.output).toContain("[Directory Context:")
+    expect(output.output).toContain("[Pointer Card]")
+    expect(output.output).toContain("Path:")
+    expect(output.output).toContain("Next: Read")
     expect(output.output).toContain("Use strict typing.")
+    expect(output.output).not.toContain("Never bypass validation steps.")
   })
 
-  test("skips AGENTS injection when budget drops the block", async () => {
+  test("falls back to minimal AGENTS pointer when budget drops the full card", async () => {
     // #given
     contextBudgetArbiter.setBudgetConfig({
       total_budget: 1,
@@ -99,6 +105,10 @@ describe("directory-agents-injector budget integration", () => {
     )
 
     // #then
-    expect(output.output).toBe("read result")
+    expect(output.output).toContain("read result")
+    expect(output.output).toContain("[Pointer]")
+    expect(output.output).toContain("Path:")
+    expect(output.output).toContain("Next: Read")
+    expect(output.output).not.toContain("[Pointer Card]")
   })
 })

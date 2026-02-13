@@ -211,4 +211,69 @@ describe("session-handoff hook", () => {
     // then
     expect(storage.saveHandoff).toHaveBeenCalledTimes(2)
   })
+
+  test("requestAutoHandoff launches new session in auto mode", async () => {
+    // given
+    const createSession = mock(async () => "ses_auto_handoff_1")
+    const sendPrompt = mock(async () => {})
+    const hook = createSessionHandoffHook({
+      config: { ...DEFAULT_HANDOFF_CONFIG, auto_extract: false },
+      cwd: "/project",
+      callLLM: async () => "{}",
+      createSession,
+      sendPrompt,
+    })
+
+    // when
+    const result = await hook.requestAutoHandoff?.({
+      sessionID: "session-auto-1",
+      goal: "Continue implementation",
+      reason: "Verifier denied completion twice",
+      launchMode: "auto",
+    })
+
+    // then
+    expect(result?.status).toBe("launched")
+    expect(result?.newSessionId).toBe("ses_auto_handoff_1")
+    expect(result?.fallbackPreview).toBe(false)
+    expect(createSession).toHaveBeenCalledTimes(1)
+    expect(sendPrompt).toHaveBeenCalledTimes(1)
+  })
+
+  test("requestAutoHandoff falls back to preview when launch fails", async () => {
+    // given
+    const createSession = mock(async () => {
+      throw new Error("permission denied")
+    })
+    const sendPrompt = mock(async () => {})
+    const hook = createSessionHandoffHook({
+      config: { ...DEFAULT_HANDOFF_CONFIG, auto_extract: false },
+      cwd: "/project",
+      callLLM: async () => "{}",
+      createSession,
+      sendPrompt,
+    })
+
+    // when
+    const result = await hook.requestAutoHandoff?.({
+      sessionID: "session-auto-2",
+      goal: "Continue implementation",
+      reason: "Context pressure persisted",
+      launchMode: "auto",
+      unresolvedDiscoveries: [
+        {
+          id: "dc_1",
+          claim: "Potential race condition in scheduler",
+          sourceEventId: "call_1",
+          retrievalPath: "tool.delegate_task.output",
+        },
+      ],
+    })
+
+    // then
+    expect(result?.status).toBe("preview")
+    expect(result?.fallbackPreview).toBe(true)
+    expect(result?.prompt).toContain("Potential race condition in scheduler")
+    expect(sendPrompt).toHaveBeenCalledTimes(0)
+  })
 })

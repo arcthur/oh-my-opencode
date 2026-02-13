@@ -7,7 +7,6 @@ import {
   clearInjectedPaths,
 } from "./storage";
 import { AGENTS_FILENAME } from "./constants";
-import { createDynamicTruncator } from "../../shared/dynamic-truncator";
 import { contextBudgetArbiter } from "../../features/context-view";
 
 interface ToolExecuteInput {
@@ -33,15 +32,32 @@ interface EventInput {
   };
 }
 
+function hasPointerFields(content: string): boolean {
+  return content.includes("Path:") && content.includes("Next: Read");
+}
+
 export function createDirectoryAgentsInjectorHook(ctx: PluginInput) {
   const sessionCaches = new Map<string, Set<string>>();
-  const truncator = createDynamicTruncator(ctx);
 
   function getSessionCache(sessionID: string): Set<string> {
     if (!sessionCaches.has(sessionID)) {
       sessionCaches.set(sessionID, loadInjectedPaths(sessionID));
     }
     return sessionCaches.get(sessionID)!;
+  }
+
+  function readSummaryLine(filePath: string): string | null {
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      const line = content
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .find((item) => item.length > 0);
+      if (!line) return null;
+      return line.slice(0, 120);
+    } catch {
+      return null;
+    }
   }
 
   function resolveFilePath(path: string): string | null {
@@ -92,12 +108,15 @@ export function createDirectoryAgentsInjectorHook(ctx: PluginInput) {
       if (cache.has(agentsDir)) continue;
 
       try {
-        const content = readFileSync(agentsPath, "utf-8");
-        const { result, truncated } = await truncator.truncate(sessionID, content);
-        const truncationNotice = truncated
-          ? `\n\n[Note: Content was truncated to save context window space. For full context, please read the file directly: ${agentsPath}]`
-          : "";
-        const injection = `\n\n[Directory Context: ${agentsPath}]\n${result}${truncationNotice}`;
+        const summary = readSummaryLine(agentsPath);
+        const summaryLine = summary ? `\nSummary: ${summary}` : "";
+        const injection = `
+
+[Pointer Card]
+Path: ${agentsPath}
+Why: Directory-specific AGENTS guidance may apply to this file scope.${summaryLine}
+Next: Read ${agentsPath}
+`;
         const decision = contextBudgetArbiter.decide({
           sessionID,
           source: "directory-agents",
@@ -106,8 +125,30 @@ export function createDirectoryAgentsInjectorHook(ctx: PluginInput) {
           priority: "normal",
           content: injection,
         });
-        if (!decision.accepted) continue;
-        output.output += decision.finalContent;
+        if (decision.accepted && hasPointerFields(decision.finalContent)) {
+          output.output += decision.finalContent;
+          cache.add(agentsDir);
+          continue;
+        }
+
+        const minimalPointer = `
+[Pointer]
+Path: ${agentsPath}
+Next: Read ${agentsPath}
+`;
+        const fallbackDecision = contextBudgetArbiter.decide({
+          sessionID,
+          source: "directory-agents",
+          channel: "tool-output",
+          id: `${agentsPath}:pointer-fallback`,
+          priority: "critical",
+          content: minimalPointer,
+        });
+        if (fallbackDecision.accepted && hasPointerFields(fallbackDecision.finalContent)) {
+          output.output += fallbackDecision.finalContent;
+        } else {
+          output.output += minimalPointer;
+        }
         cache.add(agentsDir);
       } catch {}
     }

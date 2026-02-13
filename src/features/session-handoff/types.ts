@@ -663,3 +663,51 @@ export interface ActiveHandoffResult {
   /** Key files included */
   keyFiles: string[]
 }
+
+/**
+ * Request for orchestrator-driven automatic handoff.
+ */
+export interface AutoHandoffRequest {
+  /** Source session ID */
+  sessionID: string
+
+  /** Goal/task for the transfer */
+  goal: string
+
+  /** Trigger reason (used for audit/debug) */
+  reason: string
+
+  /** Launch mode override (defaults from config when omitted) */
+  launchMode?: "auto" | "preview"
+
+  /** Optional unresolved discoveries to include in prompt context */
+  unresolvedDiscoveries?: Array<{
+    id: string
+    claim: string
+    sourceEventId?: string
+    retrievalPath?: string
+  }>
+}
+
+/**
+ * Result of automatic handoff request.
+ */
+export interface AutoHandoffResult {
+  /** Status of the handoff request */
+  status: "launched" | "preview" | "failed"
+
+  /** Generated handoff prompt (always returned for observability/fallback) */
+  prompt: string
+
+  /** User-facing summary */
+  message: string
+
+  /** Created handoff id when extraction succeeded */
+  handoffId?: string
+
+  /** New session id when launch mode is auto and launch succeeded */
+  newSessionId?: string
+
+  /** True when request failed and caller should use preview prompt fallback */
+  fallbackPreview: boolean
+}

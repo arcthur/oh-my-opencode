@@ -1,8 +1,13 @@
 import type { Hooks, PluginInput } from "@opencode-ai/plugin"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
-import { DEFAULT_CONTINUATION_CONTROL_CONFIG } from "../../config/schema"
+import {
+  DEFAULT_CONTINUATION_CONTROL_CONFIG,
+  DEFAULT_SESSION_HANDOFF_CONFIG,
+  DEFAULT_WORK_ORCHESTRATOR_CONFIG,
+} from "../../config/schema"
 import type { BackgroundManager } from "../../features/background-agent"
 import type { ContextCollector } from "../../features/context-injector"
+import type { AutoHandoffRequest, AutoHandoffResult } from "../../features/session-handoff/types"
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
 import { createContinuationControl, createDirectContinuationReporterForTesting, type ContinuationIntent, type ContinuationIntentOutcome, type ContinuationPromptModel, type ContinuationPromptPayload, type ContinuationRejectReason, type ContinuationSource } from "./continuation"
 import { createContinuationStopGuardHook } from "./stop-guard"
@@ -45,7 +50,10 @@ export interface WorkOrchestratorHookOptions {
     enabled?: boolean
     planning_with_files?: Partial<typeof DEFAULT_PLANNING_CONFIG>
     continuation_control?: Partial<typeof DEFAULT_CONTINUATION_CONTROL_CONFIG>
+    verifier_gate?: Partial<typeof DEFAULT_WORK_ORCHESTRATOR_CONFIG.verifier_gate>
+    discovery_channel?: Partial<typeof DEFAULT_WORK_ORCHESTRATOR_CONFIG.discovery_channel>
   }
+  auto_handoff?: Partial<typeof DEFAULT_SESSION_HANDOFF_CONFIG.auto_handoff>
   taskConfig?: Partial<OhMyOpenCodeConfig>
   collector?: ContextCollector
   backgroundManager?: BackgroundManager
@@ -61,6 +69,27 @@ export interface WorkOrchestratorHook extends Hooks {
   stopContinuation: (sessionID: string) => void
   isContinuationStopped: (sessionID: string) => boolean
   clearContinuationStop: (sessionID: string) => void
+  setAutoHandoffRequester: (
+    requester: ((request: AutoHandoffRequest) => Promise<AutoHandoffResult>) | undefined
+  ) => void
+  getVerifierGuard: (input: {
+    sessionID: string
+    callID?: string
+    tool: string
+    args: Record<string, unknown>
+  }) => {
+    blocked: boolean
+    reasonCode: string
+    missingEvidence: string[]
+    denialCount: number
+    details?: Record<string, unknown>
+  } | null
+  onPolicyContextPressure: (input: {
+    sessionID: string
+    pressureRatio: number
+    estimatedRecentTokens: number
+    hardLimit: number
+  }) => void
 }
 
 export function createWorkOrchestratorHook(
@@ -133,6 +162,18 @@ export function createWorkOrchestratorHook(
         directory: ctx.directory,
         backgroundManager: options.backgroundManager,
         taskConfig: options.taskConfig,
+        verifierGate: options.config?.verifier_gate,
+        discoveryChannel: options.config?.discovery_channel,
+        autoHandoff: options.auto_handoff,
+        markContinuationStopped: (sessionID) => {
+          stopGuard.stop(sessionID)
+          emitTransition({
+            sessionID,
+            phase: "lifecycle",
+            action: "auto-handoff-stop-continuation",
+            outcome: "applied",
+          })
+        },
         isContinuationStopped: stopGuard.isStopped,
         getContinuationRound: continuationControl.getCurrentRound,
         reportContinuationIntent,
@@ -159,6 +200,12 @@ export function createWorkOrchestratorHook(
     })
   }
 
+  const setAutoHandoffRequester = (
+    requester: ((request: AutoHandoffRequest) => Promise<AutoHandoffResult>) | undefined
+  ): void => {
+    executionHook?.setAutoHandoffRequester?.(requester)
+  }
+
   return {
     beginEvent: continuationControl.beginEvent,
     flushEvent: continuationControl.flushEvent,
@@ -167,6 +214,11 @@ export function createWorkOrchestratorHook(
     stopContinuation,
     isContinuationStopped: stopGuard.isStopped,
     clearContinuationStop,
+    setAutoHandoffRequester,
+    getVerifierGuard: (input) => executionHook?.getVerifierGuard?.(input) ?? null,
+    onPolicyContextPressure: (input) => {
+      executionHook?.onPolicyContextPressure?.(input)
+    },
 
     "chat.message": async (input, output) => {
       const wasStopped = stopGuard.isStopped(input.sessionID)

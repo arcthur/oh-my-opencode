@@ -54,7 +54,10 @@ describe("directory-readme-injector budget integration", () => {
     mkdirSync(srcDir, { recursive: true })
     const targetFile = join(srcDir, "index.ts")
     writeFileSync(targetFile, "console.log('x')\n")
-    writeFileSync(join(srcDir, "README.md"), "# module readme")
+    writeFileSync(
+      join(srcDir, "README.md"),
+      "# module readme\nDetailed implementation notes."
+    )
     const hook = createDirectoryReadmeInjectorHook({
       directory: testDir,
       client: {},
@@ -69,11 +72,14 @@ describe("directory-readme-injector budget integration", () => {
     )
 
     // #then
-    expect(output.output).toContain("[Project README:")
+    expect(output.output).toContain("[Pointer Card]")
+    expect(output.output).toContain("Path:")
+    expect(output.output).toContain("Next: Read")
     expect(output.output).toContain("# module readme")
+    expect(output.output).not.toContain("Detailed implementation notes.")
   })
 
-  test("skips README injection when budget drops the block", async () => {
+  test("falls back to minimal README pointer when budget drops the full card", async () => {
     // #given
     contextBudgetArbiter.setBudgetConfig({
       total_budget: 1,
@@ -99,6 +105,10 @@ describe("directory-readme-injector budget integration", () => {
     )
 
     // #then
-    expect(output.output).toBe("read result")
+    expect(output.output).toContain("read result")
+    expect(output.output).toContain("[Pointer]")
+    expect(output.output).toContain("Path:")
+    expect(output.output).toContain("Next: Read")
+    expect(output.output).not.toContain("[Pointer Card]")
   })
 })

@@ -624,6 +624,66 @@ Sources (current implementation):
 - `task-auto-continuation`
 - `unstable-agent-watchdog`
 
+### Completion Gate (`work_orchestrator.verifier_gate`)
+
+`verifier_gate` turns completion checks into a hard execution gate for `task_transition(next_state="completed")`.
+
+Configuration example:
+
+```jsonc
+{
+  "work_orchestrator": {
+    "verifier_gate": {
+      "enabled": true,
+      "evidence_ttl_ms": 900000,
+      "require_lsp_clean": true,
+      "require_test_or_build": true,
+      "allow_no_code_change": true
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `enabled` | `true` | Enable verifier hard gate |
+| `evidence_ttl_ms` | `900000` | Evidence validity window (ms) |
+| `require_lsp_clean` | `true` | Require clean `lsp_diagnostics` evidence |
+| `require_test_or_build` | `true` | Require at least one successful test/build/typecheck command when code changed |
+| `allow_no_code_change` | `true` | Allow completion when no source write/edit occurred |
+
+### Discovery Channel (`work_orchestrator.discovery_channel`)
+
+`discovery_channel` captures deferred findings (for example `<discovery>...</discovery>` or `DISCOVERY:` markers) into a persistent ledger under `.sisyphus/plans/<plan>/discoveries.jsonl`.
+
+Configuration example:
+
+```jsonc
+{
+  "work_orchestrator": {
+    "discovery_channel": {
+      "enabled": true,
+      "capture_delegate_output": true,
+      "capture_assistant_updates": true,
+      "marker_mode": "hybrid",
+      "dedupe_window_ms": 1800000,
+      "max_open_items": 200,
+      "auto_task_create": false
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `enabled` | `true` | Enable discovery capture |
+| `capture_delegate_output` | `true` | Parse `delegate_task` outputs for discovery markers |
+| `capture_assistant_updates` | `true` | Parse assistant streaming updates for discovery markers |
+| `marker_mode` | `hybrid` | Marker parser mode: `xml` \| `prefix` \| `hybrid` |
+| `dedupe_window_ms` | `1800000` | Time window for claim dedupe |
+| `max_open_items` | `200` | Max unresolved discoveries retained per plan |
+| `auto_task_create` | `false` | Auto-create low-priority plan tasks from newly captured discovery claims (deduped by title) |
+
 ## Ralph Loop
 
 `ralph_loop` configures the `ralph-loop` hook and the `/ralph-loop` and `/ulw-loop` workflows.
@@ -1157,6 +1217,15 @@ Session handoff enables knowledge transfer between sessions by extracting and in
       "max_artifacts": 20,
       "generate_embeddings": true
     },
+    "auto_handoff": {
+      "enabled": true,
+      "trigger_verifier_denials": 2,
+      "trigger_context_pressure_hits": 2,
+      "trigger_prompt_failures": 2,
+      "cooldown_ms": 600000,
+      "launch_mode": "auto",
+      "stop_continuation_on_launch": true
+    },
     "reference": {
       "enabled": true,
       "strip_from_prompt": false,
@@ -1188,6 +1257,20 @@ Session handoff enables knowledge transfer between sessions by extracting and in
 | `extractor.max_decisions` | `10` | Maximum decisions to extract per session |
 | `extractor.max_artifacts` | `20` | Maximum artifacts to track |
 | `extractor.generate_embeddings` | `true` | Generate embedding index for semantic search |
+
+### Auto Handoff Configuration
+
+`session_handoff.auto_handoff` controls orchestrator-triggered automatic handoff (non-manual `/handoff`) when sessions repeatedly fail verifier/continuation or hit sustained context pressure.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `auto_handoff.enabled` | `true` | Enable automatic handoff trigger path |
+| `auto_handoff.trigger_verifier_denials` | `2` | Consecutive verifier denial threshold |
+| `auto_handoff.trigger_context_pressure_hits` | `2` | Consecutive context pressure threshold |
+| `auto_handoff.trigger_prompt_failures` | `2` | Consecutive continuation prompt failure threshold |
+| `auto_handoff.cooldown_ms` | `600000` | Cooldown between auto handoff triggers |
+| `auto_handoff.launch_mode` | `auto` | `auto` creates a new session, `preview` returns prompt only |
+| `auto_handoff.stop_continuation_on_launch` | `true` | Stop continuation loop only when auto handoff successfully launches a new session |
 
 ### Session Reference Syntax
 

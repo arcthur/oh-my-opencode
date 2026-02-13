@@ -57,6 +57,8 @@ export type {
   // Active handoff types
   ActiveHandoffRequest,
   ActiveHandoffResult,
+  AutoHandoffRequest,
+  AutoHandoffResult,
   // Config types (re-exported from schema)
   SessionHandoffConfig,
   ExtractorConfig,

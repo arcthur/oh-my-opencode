@@ -228,6 +228,7 @@ Note:
 - Global concurrency admission is provided by `parallel_runtime`, not by this hook.
 - `tmux-parallel-agents` uses tmux metadata (`@omo_*`) in `event(session.created/deleted/idle)` for recovery and cleanup, and manages lifecycle by stable `window_id/pane_id`.
 - On background-task paths, the hook prioritizes precise mapping via internal correlation (`__tmux_task_id` -> `BackgroundTask.tmuxTaskId`), then falls back to title/FIFO matching when needed.
+- `work-orchestrator` now computes verifier guard payload (`payload.guards.verifier.*`) for `task_transition(next_state=completed)`; policy hard clauses can deny completion before governance pre-tool.
 
 ### `tool.execute.after`
 
@@ -272,6 +273,11 @@ Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes `work-
 Notes:
 - `session-state-repair` is wired as an internal runtime node on `event(type="session.error")`, not as a standalone OpenCode hook surface.
 - For `assistant_prefill_unsupported`, the runtime sends a best-effort `continue` for the main session to unstick the conversation.
+- Auto handoff trigger signals are sourced from `work-orchestrator` runtime state:
+  - consecutive verifier denials,
+  - consecutive policy context-pressure hits,
+  - consecutive continuation prompt failures.
+  When thresholds are reached, `work-orchestrator` calls `session-handoff.requestAutoHandoff(...)`. Continuation stop is applied only when a new session is actually launched.
 
 ### `experimental.chat.messages.transform`
 

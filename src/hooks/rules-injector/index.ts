@@ -15,7 +15,6 @@ import {
   loadInjectedRules,
   saveInjectedRules,
 } from "./storage";
-import { createDynamicTruncator } from "../../shared/dynamic-truncator";
 import { getRuleInjectionFilePath } from "./output-path";
 import { contextBudgetArbiter } from "../../features/context-view";
 
@@ -45,18 +44,21 @@ interface EventInput {
 interface RuleToInject {
   relativePath: string;
   matchReason: string;
-  content: string;
+  summary?: string;
   distance: number;
 }
 
 const TRACKED_TOOLS = ["read", "write", "edit", "multiedit"];
+
+function hasPointerFields(content: string): boolean {
+  return content.includes("Path:") && content.includes("Next: Read");
+}
 
 export function createRulesInjectorHook(ctx: PluginInput) {
   const sessionCaches = new Map<
     string,
     { contentHashes: Set<string>; realPaths: Set<string> }
   >();
-  const truncator = createDynamicTruncator(ctx);
 
   function getSessionCache(sessionID: string): {
     contentHashes: Set<string>;
@@ -72,6 +74,15 @@ export function createRulesInjectorHook(ctx: PluginInput) {
     if (!path) return null;
     if (path.startsWith("/")) return path;
     return resolve(ctx.directory, path);
+  }
+
+  function buildRuleSummary(body: string): string | undefined {
+    const line = body
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .find((item) => item.length > 0);
+    if (!line) return undefined;
+    return line.slice(0, 120);
   }
 
 
@@ -116,7 +127,7 @@ export function createRulesInjectorHook(ctx: PluginInput) {
         toInject.push({
           relativePath,
           matchReason,
-          content: body,
+          summary: buildRuleSummary(body),
           distance: candidate.distance,
         });
 
@@ -130,11 +141,14 @@ export function createRulesInjectorHook(ctx: PluginInput) {
     toInject.sort((a, b) => a.distance - b.distance);
 
     for (const rule of toInject) {
-      const { result, truncated } = await truncator.truncate(sessionID, rule.content);
-      const truncationNotice = truncated
-        ? `\n\n[Note: Content was truncated to save context window space. For full context, please read the file directly: ${rule.relativePath}]`
-        : "";
-      const injection = `\n\n[Rule: ${rule.relativePath}]\n[Match: ${rule.matchReason}]\n${result}${truncationNotice}`;
+      const summaryLine = rule.summary ? `\nSummary: ${rule.summary}` : "";
+      const injection = `
+
+[Pointer Card]
+Path: ${rule.relativePath}
+Why: Rule matched (${rule.matchReason}).${summaryLine}
+Next: Read ${rule.relativePath}
+`;
       const decision = contextBudgetArbiter.decide({
         sessionID,
         source: "rules-injector",
@@ -143,8 +157,29 @@ export function createRulesInjectorHook(ctx: PluginInput) {
         priority: "high",
         content: injection,
       });
-      if (!decision.accepted) continue;
-      output.output += decision.finalContent;
+      if (decision.accepted && hasPointerFields(decision.finalContent)) {
+        output.output += decision.finalContent;
+        continue;
+      }
+
+      const minimalPointer = `
+[Pointer]
+Path: ${rule.relativePath}
+Next: Read ${rule.relativePath}
+`;
+      const fallbackDecision = contextBudgetArbiter.decide({
+        sessionID,
+        source: "rules-injector",
+        channel: "tool-output",
+        id: `${rule.relativePath}:pointer-fallback`,
+        priority: "critical",
+        content: minimalPointer,
+      });
+      if (fallbackDecision.accepted && hasPointerFields(fallbackDecision.finalContent)) {
+        output.output += fallbackDecision.finalContent;
+      } else {
+        output.output += minimalPointer;
+      }
     }
 
     saveInjectedRules(sessionID, cache);

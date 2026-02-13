@@ -18,7 +18,10 @@ describe("rules-injector budget integration", () => {
     mkdirSync(join(TEST_DIR, "src"), { recursive: true })
     mkdirSync(join(TEST_DIR, ".github"), { recursive: true })
     writeFileSync(SOURCE_FILE, "export const a = 1\n")
-    writeFileSync(COPILOT_INSTRUCTIONS_FILE, "Apply coding standards")
+    writeFileSync(
+      COPILOT_INSTRUCTIONS_FILE,
+      "Apply coding standards\nDo not skip typecheck."
+    )
 
     contextBudgetArbiter.resetForTesting()
   })
@@ -49,11 +52,14 @@ describe("rules-injector budget integration", () => {
     )
 
     // #then
-    expect(output.output).toContain("[Rule:")
+    expect(output.output).toContain("[Pointer Card]")
+    expect(output.output).toContain("Path:")
+    expect(output.output).toContain("Next: Read")
     expect(output.output).toContain("Apply coding standards")
+    expect(output.output).not.toContain("Do not skip typecheck.")
   })
 
-  test("skips rule injection when budget drops the block", async () => {
+  test("falls back to minimal rule pointer when budget drops the full card", async () => {
     // #given
     const sessionID = `rules-budget-drop-${Date.now()}-${Math.random()}`
     contextBudgetArbiter.setBudgetConfig({
@@ -80,6 +86,10 @@ describe("rules-injector budget integration", () => {
     )
 
     // #then
-    expect(output.output).toBe("base output")
+    expect(output.output).toContain("base output")
+    expect(output.output).toContain("[Pointer]")
+    expect(output.output).toContain("Path:")
+    expect(output.output).toContain("Next: Read")
+    expect(output.output).not.toContain("[Pointer Card]")
   })
 })

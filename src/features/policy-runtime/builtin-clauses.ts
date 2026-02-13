@@ -14,6 +14,9 @@ const WRITE_EXISTING_BLOCK_MESSAGE = "File already exists. Use edit tool instead
 const PROMETHEUS_MD_ONLY_MESSAGE =
   "[policy-runtime] Prometheus can only write/edit .md files inside .sisyphus/ directory."
 
+const VERIFIER_GATE_BLOCK_MESSAGE =
+  "[policy-runtime] Verifier gate blocked completion. Run lsp_diagnostics on changed files and run at least one successful test/build/typecheck command before task_transition(next_state=completed)."
+
 export function getBuiltinPolicyClauses(): ContractClause[] {
   return [
     {
@@ -42,6 +45,33 @@ export function getBuiltinPolicyClauses(): ContractClause[] {
         createdAt: Date.now(),
       },
       reasonCode: "WRITE_EXISTING_FILE_GUARD",
+    },
+    {
+      id: "builtin:policy-verifier-completion-guard",
+      description: "Block task_transition(completed) when verifier evidence is missing",
+      hookPoints: ["tool.execute.before"],
+      enforcement: "hard",
+      selector: { toolName: ["task_transition", "TaskTransition"] },
+      condition: {
+        equals: {
+          "payload.guardsVersion": 1,
+          "payload.guards.verifier.blocked": true,
+        },
+      },
+      action: {
+        type: "deny",
+        message: VERIFIER_GATE_BLOCK_MESSAGE,
+      },
+      priority: 15,
+      conflictResolution: "most-restrictive",
+      enabled: true,
+      version: 1,
+      provenance: {
+        author: "oh-my-opencode",
+        source: "builtin",
+        createdAt: Date.now(),
+      },
+      reasonCode: "VERIFIER_GATE_BLOCK_COMPLETION",
     },
     {
       id: "builtin:policy-subagent-question-guard",

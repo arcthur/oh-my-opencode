@@ -61,6 +61,18 @@ A handoff is a structured package (not free-form prose) that typically includes:
 2. When the session becomes idle, the hook extracts and saves a handoff (subject to thresholds like minimum messages / file changes).
 3. In a later session, your first prompt triggers auto-injection of the most relevant handoffs for the same project.
 
+### Auto Handoff Flow (orchestrator-triggered)
+
+In addition to manual `/handoff`, the runtime supports automatic handoff requests:
+
+1. `work-orchestrator` observes repeated failure patterns (verifier denials, sustained context pressure, or continuation prompt failures).
+2. It calls `session-handoff.requestAutoHandoff(...)` with a generated goal and trigger reason.
+3. If launch succeeds (`launch_mode=auto`), a new session is created and primed.
+4. If launch fails, the flow degrades to preview prompt (fail-open, no context loss).
+5. Continuation stop is applied only when step 3 launches a new session.
+
+This path is controlled by `session_handoff.auto_handoff.*`.
+
 ### Manual Flow (`/handoff`)
 
 The handoff hook supports a self-contained command surface:
@@ -97,6 +109,7 @@ Important: current implementation resolves references **only from stored handoff
 Key knobs:
 
 - `session_handoff.*`: enable/disable, extraction thresholds, expiry, max injected count, extractor model, and embedding generation.
+- `session_handoff.auto_handoff`: trigger thresholds, cooldown, and launch mode for orchestrator-driven handoff.
 - `session_handoff.reference`: enable/disable `@session:` parsing and semantic query thresholds.
 - Top-level `session_reference` is not supported in latest-only mode.
 

@@ -19,7 +19,7 @@ import {
   updateSessionAgent,
 } from "../../features/claude-code-session-state"
 import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
-import { createTaskNode, transitionTaskNode } from "../../features/task-system"
+import { createTaskNode, listTaskNodes, transitionTaskNode } from "../../features/task-system"
 import { contextBudgetArbiter } from "../../features/context-view"
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
@@ -1402,6 +1402,514 @@ Implement atomic fix.
 
     // #then
     expect(output.output).toBe("Subagent done\nSession ID: ses_plain123")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("blocks task_transition completed when verifier evidence is missing", async () => {
+    // #given
+    const sessionID = "execution-verifier-missing"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+
+    await hook["tool.execute.after"](
+      { tool: "Write", sessionID, callID: "verifier-write-1" },
+      {
+        title: "write",
+        output: "ok",
+        metadata: {
+          success: true,
+          args: { file_path: "src/verifier.ts" },
+        },
+      }
+    )
+
+    // #when / #then
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "verifier-transition-1" },
+        {
+          args: {
+            id: "task-1",
+            expected_revision: 1,
+            next_state: "completed",
+          },
+          message: "",
+        }
+      )
+    ).rejects.toThrow("Verifier gate blocked task completion")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("allows task_transition completed when verifier evidence is valid", async () => {
+    // #given
+    const sessionID = "execution-verifier-pass"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+
+    await hook["tool.execute.after"](
+      { tool: "Write", sessionID, callID: "verifier-write-2" },
+      {
+        title: "write",
+        output: "ok",
+        metadata: {
+          success: true,
+          args: { file_path: "src/verifier-pass.ts" },
+        },
+      }
+    )
+    await hook["tool.execute.after"](
+      { tool: "lsp_diagnostics", sessionID, callID: "verifier-lsp-2" },
+      {
+        title: "lsp_diagnostics",
+        output: "No diagnostics found.",
+        metadata: {
+          success: true,
+          args: { paths: ["src/verifier-pass.ts"] },
+        },
+      }
+    )
+    await hook["tool.execute.after"](
+      { tool: "bash", sessionID, callID: "verifier-bash-2" },
+      {
+        title: "bash",
+        output: "All tests passed",
+        metadata: {
+          success: true,
+          exitCode: 0,
+          args: { command: "bun test src/verifier-pass.test.ts" },
+        },
+      }
+    )
+
+    // #when / #then
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "verifier-transition-2" },
+        {
+          args: {
+            id: "task-2",
+            expected_revision: 1,
+            next_state: "completed",
+          },
+          message: "",
+        }
+      )
+    ).resolves.toBeUndefined()
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("expires verifier evidence by TTL and blocks completion", async () => {
+    // #given
+    const sessionID = "execution-verifier-ttl"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const hook = createExecutionOrchestratorHook(createMockPluginInput(), {
+      verifierGate: {
+        evidence_ttl_ms: 1,
+      },
+    })
+
+    const originalNow = Date.now
+    let now = 1000
+    Date.now = () => now
+
+    try {
+      await hook["tool.execute.after"](
+        { tool: "Write", sessionID, callID: "ttl-write" },
+        {
+          title: "write",
+          output: "ok",
+          metadata: {
+            success: true,
+            args: { file_path: "src/ttl.ts" },
+          },
+        }
+      )
+      await hook["tool.execute.after"](
+        { tool: "lsp_diagnostics", sessionID, callID: "ttl-lsp" },
+        {
+          title: "lsp",
+          output: "No diagnostics",
+          metadata: {
+            success: true,
+            args: { paths: ["src/ttl.ts"] },
+          },
+        }
+      )
+      await hook["tool.execute.after"](
+        { tool: "bash", sessionID, callID: "ttl-bash" },
+        {
+          title: "bash",
+          output: "ok",
+          metadata: {
+            success: true,
+            exitCode: 0,
+            args: { command: "bun test src/ttl.test.ts" },
+          },
+        }
+      )
+
+      now += 5
+
+      // #when / #then
+      await expect(
+        hook["tool.execute.before"](
+          { tool: "task_transition", sessionID, callID: "ttl-transition" },
+          {
+            args: {
+              id: "task-ttl",
+              expected_revision: 1,
+              next_state: "completed",
+            },
+            message: "",
+          }
+        )
+      ).rejects.toThrow("Verifier gate blocked task completion")
+    } finally {
+      Date.now = originalNow
+      cleanupMessageStorage(sessionID)
+    }
+  })
+
+  test("allows completion when no code changes occurred and allow_no_code_change is enabled", async () => {
+    // #given
+    const sessionID = "execution-verifier-no-code-change"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const hook = createExecutionOrchestratorHook(createMockPluginInput())
+
+    // #when / #then
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "no-code-transition" },
+        {
+          args: {
+            id: "task-no-code",
+            expected_revision: 1,
+            next_state: "completed",
+          },
+          message: "",
+        }
+      )
+    ).resolves.toBeUndefined()
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("triggers auto handoff after consecutive verifier denials", async () => {
+    // #given
+    const sessionID = "execution-auto-handoff-verifier"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const requestAutoHandoff = mock(async () => ({
+      status: "preview" as const,
+      prompt: "handoff prompt",
+      message: "preview",
+      fallbackPreview: true,
+    }))
+    const markContinuationStopped = mock(() => {})
+    const hook = createExecutionOrchestratorHook(createMockPluginInput(), {
+      requestAutoHandoff,
+      markContinuationStopped,
+      autoHandoff: {
+        trigger_verifier_denials: 2,
+        cooldown_ms: 600000,
+      },
+    })
+
+    await hook["tool.execute.after"](
+      { tool: "Write", sessionID, callID: "auto-write" },
+      {
+        title: "write",
+        output: "ok",
+        metadata: {
+          success: true,
+          args: { file_path: "src/auto.ts" },
+        },
+      }
+    )
+
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "auto-transition-1" },
+        { args: { id: "task-1", expected_revision: 1, next_state: "completed" }, message: "" }
+      )
+    ).rejects.toThrow("Verifier gate blocked task completion")
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "auto-transition-2" },
+        { args: { id: "task-1", expected_revision: 1, next_state: "completed" }, message: "" }
+      )
+    ).rejects.toThrow("Verifier gate blocked task completion")
+    await flushMicrotasks()
+
+    // #then
+    expect(requestAutoHandoff).toHaveBeenCalledTimes(1)
+    expect(markContinuationStopped).not.toHaveBeenCalled()
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("stops continuation only when auto handoff launches a new session", async () => {
+    // #given
+    const sessionID = "execution-auto-handoff-stop-on-launch"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const requestAutoHandoff = mock(async () => ({
+      status: "launched" as const,
+      prompt: "handoff prompt",
+      message: "launched",
+      newSessionId: "ses_auto_launch",
+      fallbackPreview: false,
+    }))
+    const markContinuationStopped = mock(() => {})
+    const hook = createExecutionOrchestratorHook(createMockPluginInput(), {
+      requestAutoHandoff,
+      markContinuationStopped,
+      autoHandoff: {
+        trigger_verifier_denials: 2,
+      },
+    })
+
+    await hook["tool.execute.after"](
+      { tool: "Write", sessionID, callID: "auto-write-stop" },
+      {
+        title: "write",
+        output: "ok",
+        metadata: {
+          success: true,
+          args: { file_path: "src/auto-stop.ts" },
+        },
+      }
+    )
+
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "auto-stop-transition-1" },
+        { args: { id: "task-1", expected_revision: 1, next_state: "completed" }, message: "" }
+      )
+    ).rejects.toThrow("Verifier gate blocked task completion")
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "auto-stop-transition-2" },
+        { args: { id: "task-1", expected_revision: 1, next_state: "completed" }, message: "" }
+      )
+    ).rejects.toThrow("Verifier gate blocked task completion")
+    await flushMicrotasks()
+
+    // #then
+    expect(requestAutoHandoff).toHaveBeenCalledTimes(1)
+    expect(markContinuationStopped).toHaveBeenCalledTimes(1)
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("includes unresolved discoveries in auto handoff request payload", async () => {
+    // #given
+    const sessionID = "execution-auto-handoff-discovery"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const requestAutoHandoff = mock(async () => ({
+      status: "preview" as const,
+      prompt: "handoff prompt",
+      message: "preview",
+      fallbackPreview: true,
+    }))
+    const hook = createExecutionOrchestratorHook(createMockPluginInput(), {
+      requestAutoHandoff,
+      autoHandoff: {
+        trigger_verifier_denials: 2,
+      },
+    })
+
+    await hook["tool.execute.after"](
+      { tool: "delegate_task", sessionID, callID: "discovery-call-1" },
+      {
+        title: "delegate_task",
+        output: "DISCOVERY: race in retry queue\nSession ID: ses_d1",
+        metadata: {},
+      }
+    )
+    await hook["tool.execute.after"](
+      { tool: "Write", sessionID, callID: "discovery-write-1" },
+      {
+        title: "write",
+        output: "ok",
+        metadata: {
+          success: true,
+          args: { file_path: "src/discovery.ts" },
+        },
+      }
+    )
+
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "discovery-transition-1" },
+        { args: { id: "task-1", expected_revision: 1, next_state: "completed" }, message: "" }
+      )
+    ).rejects.toThrow()
+    await expect(
+      hook["tool.execute.before"](
+        { tool: "task_transition", sessionID, callID: "discovery-transition-2" },
+        { args: { id: "task-1", expected_revision: 1, next_state: "completed" }, message: "" }
+      )
+    ).rejects.toThrow()
+    await flushMicrotasks()
+
+    // #then
+    expect(requestAutoHandoff).toHaveBeenCalledTimes(1)
+    const requestPayload = requestAutoHandoff.mock.calls[0]?.[0] as {
+      unresolvedDiscoveries?: Array<{ claim: string; sourceEventId?: string; retrievalPath?: string }>
+    }
+    expect(requestPayload.unresolvedDiscoveries?.length).toBeGreaterThan(0)
+    expect(requestPayload.unresolvedDiscoveries?.[0]?.claim).toContain("race in retry queue")
+    expect(requestPayload.unresolvedDiscoveries?.[0]?.sourceEventId).toBe("discovery-call-1")
+    expect(requestPayload.unresolvedDiscoveries?.[0]?.retrievalPath).toBe("tool.delegate_task.output")
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("auto_task_create creates discovery follow-up tasks when enabled", async () => {
+    // #given
+    const sessionID = "execution-discovery-auto-task"
+    const planId = "execution"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: planId,
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+
+    const hook = createExecutionOrchestratorHook(createMockPluginInput(), {
+      discoveryChannel: {
+        enabled: true,
+        capture_delegate_output: true,
+        auto_task_create: true,
+      },
+    })
+
+    // #when
+    await hook["tool.execute.after"](
+      { tool: "delegate_task", sessionID, callID: "discovery-auto-task-1" },
+      {
+        title: "delegate_task",
+        output: "DISCOVERY: race in retry queue\nDISCOVERY: race in retry queue",
+        metadata: {},
+      }
+    )
+
+    // #then
+    const tasks = listTaskNodes(
+      {
+        scope: "plan",
+        container_id: planId,
+        include_completed: true,
+      },
+      TEST_TASK_CONFIG
+    )
+    const discoveryTasks = tasks.filter((task) => task.title.includes("Discovery: race in retry queue"))
+    expect(discoveryTasks).toHaveLength(1)
+
+    cleanupMessageStorage(sessionID)
+  })
+
+  test("triggers auto handoff after consecutive context-pressure hits", async () => {
+    // #given
+    const sessionID = "execution-auto-handoff-pressure"
+    setupMessageStorage(sessionID, "atlas")
+    writeWorkState(TEST_DIR, {
+      plan_id: "execution",
+      execution_plan_path: ".sisyphus/plans/execution/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      session_ids: [sessionID],
+    })
+    const requestAutoHandoff = mock(async () => ({
+      status: "launched" as const,
+      prompt: "handoff prompt",
+      message: "launched",
+      newSessionId: "ses_new_auto",
+      fallbackPreview: false,
+    }))
+    const hook = createExecutionOrchestratorHook(createMockPluginInput(), {
+      requestAutoHandoff,
+      autoHandoff: {
+        trigger_context_pressure_hits: 2,
+        cooldown_ms: 600000,
+      },
+    })
+
+    // #when
+    ;(hook as unknown as {
+      onPolicyContextPressure: (input: {
+        sessionID: string
+        pressureRatio: number
+        estimatedRecentTokens: number
+        hardLimit: number
+      }) => void
+    }).onPolicyContextPressure({
+      sessionID,
+      pressureRatio: 0.95,
+      estimatedRecentTokens: 950,
+      hardLimit: 1000,
+    })
+    ;(hook as unknown as {
+      onPolicyContextPressure: (input: {
+        sessionID: string
+        pressureRatio: number
+        estimatedRecentTokens: number
+        hardLimit: number
+      }) => void
+    }).onPolicyContextPressure({
+      sessionID,
+      pressureRatio: 0.96,
+      estimatedRecentTokens: 960,
+      hardLimit: 1000,
+    })
+    await flushMicrotasks()
+
+    // #then
+    expect(requestAutoHandoff).toHaveBeenCalledTimes(1)
 
     cleanupMessageStorage(sessionID)
   })

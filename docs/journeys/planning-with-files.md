@@ -64,6 +64,7 @@ Every complex task creates three markdown files plus a YAML ledger:
 ├── ledger.yaml    # Runtime errors/blockers/decisions
 ├── findings.md    # Research results (2-action rule)
 ├── progress.md    # Session logs, phase transitions
+└── discoveries.jsonl  # Deferred findings captured from DISCOVERY markers
 ```
 
 Shared runtime state is persisted in `.sisyphus/work.yaml` (single active plan).
@@ -259,6 +260,20 @@ When a phase transitions to `complete`, the agent receives a reflection prompt e
 **Update plan.md if any changes are needed, then continue.**
 </phase-reflection>
 ```
+
+### 6. Completion Gate + Deferred Discoveries
+
+Execution completion is now gated by verifier evidence:
+
+- `task_transition(next_state=completed)` is denied when verifier evidence is missing (`lsp_diagnostics` and/or test-build evidence, per config).
+- The gate is hard-enforced via policy/runtime guards (`payload.guards.verifier.*`).
+
+Deferred findings are persisted in `.sisyphus/plans/{plan}/discoveries.jsonl`:
+
+- Sources: delegate output markers and assistant update markers (`<discovery>...</discovery>` / `DISCOVERY:`).
+- Purpose: prevent “noticed but dropped” issues from disappearing during long execution loops.
+- Auto handoff path carries top unresolved discoveries into the next session when triggered.
+- Optional `work_orchestrator.discovery_channel.auto_task_create=true` creates low-priority plan tasks for newly captured discoveries (deduped by title).
 
 This enables graph-like navigation instead of linear Phase 1 → Phase 2 → Phase 3 execution.
 

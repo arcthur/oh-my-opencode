@@ -11,6 +11,8 @@ import { isAbsolute, relative } from "node:path"
 import type {
   SessionHandoffConfig,
   ActiveHandoffRequest,
+  AutoHandoffRequest,
+  AutoHandoffResult,
   SessionRuntimeState,
   HandoffIndexEntry,
   RecoveryPattern,
@@ -42,6 +44,8 @@ import type { RegisterContextOptions } from "../context-injector/types"
 import { buildEmbeddingIndexEntries, generateEmbeddingVectors } from "./embeddings"
 import type { SessionReferenceConfig } from "../../config/schema"
 import { executeActiveHandoff, buildQuickHandoff } from "./launcher"
+import { createWorkStateManager } from "../work-state"
+import { loadDiscoveryEntries } from "../discovery-channel/store"
 import { parseHandoffCommand, isManagementCommand, type ParsedHandoffCommand, type ManagementSubcommand } from "./command-parser"
 import {
   RecoveryPatternDetector,
@@ -112,6 +116,10 @@ export interface SessionHandoffHookContext {
   }
   /** Scoring configuration for injection (optional) */
   scoringConfig?: InjectorScoringConfig
+  /** Session launcher for auto handoff (optional) */
+  createSession?: (title?: string) => Promise<string>
+  /** Prompt sender for auto handoff (optional) */
+  sendPrompt?: (sessionId: string, prompt: string) => Promise<void>
   /** Enable recovery pattern detection (default: true) */
   enableRecoveryPatterns?: boolean
   /** Enable citation tracking (default: true) */
@@ -134,11 +142,21 @@ export function createSessionHandoffHook(ctx: SessionHandoffHookContext) {
     embed,
     sessionReferenceConfig,
     scoringConfig,
+    createSession,
+    sendPrompt,
     enableRecoveryPatterns = true,
     enableCitationTracking = true,
   } = ctx
 
-  const deps: ExtractorDependencies = { callLLM }
+  const deps: ExtractorDependencies & {
+    createSession?: (title?: string) => Promise<string>
+    sendPrompt?: (sessionId: string, prompt: string) => Promise<void>
+  } = {
+    callLLM,
+    createSession,
+    sendPrompt,
+  }
+  const workStateManager = createWorkStateManager(cwd)
 
   // Citation tracker for updating handoff metrics
   const citationTracker = enableCitationTracking
@@ -873,6 +891,21 @@ No session state found. Please try again after some interaction in this session.
     }
 
     const extState = getExtendedState(sessionID)
+    const workState = workStateManager.load()
+    const unresolvedDiscoveries =
+      workState && workState.session_ids.includes(sessionID)
+        ? loadDiscoveryEntries(cwd, workState.plan_id)
+          .filter((entry) => entry.status === "open")
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 5)
+        : []
+    const goalWithDiscoveries =
+      unresolvedDiscoveries.length > 0
+        ? `${goal}
+
+Unresolved discoveries to carry:
+${unresolvedDiscoveries.map((entry) => `- ${entry.claim}`).join("\n")}`
+        : goal
 
     // Check if we have enough context for full extraction
     const hasEnoughContext = extState.messages.length >= 3 || extState.fileChanges.size >= 1
@@ -881,7 +914,7 @@ No session state found. Please try again after some interaction in this session.
       if (hasEnoughContext) {
         // Full extraction with LLM
         const request: ActiveHandoffRequest = {
-          goal,
+          goal: goalWithDiscoveries,
           sourceSessionId: sessionID,
           projectPath: cwd,
           launchMode: "preview",
@@ -891,7 +924,7 @@ No session state found. Please try again after some interaction in this session.
 
         log("[session-handoff] active handoff executed", {
           sessionID,
-          goal,
+          goal: goalWithDiscoveries,
           handoffId: result.handoffPackage.id,
           decisionsTransferred: result.decisionsTransferred,
           antiPatternsTransferred: result.antiPatternsTransferred,
@@ -912,11 +945,11 @@ ${result.prompt}
 **Next Steps**: Start a new session and paste the prompt above, or the context has been saved for automatic injection.`
       } else {
         // Quick handoff without LLM extraction
-        const { prompt, summary } = buildQuickHandoff(goal, state, sessionID)
+        const { prompt, summary } = buildQuickHandoff(goalWithDiscoveries, state, sessionID)
 
         log("[session-handoff] quick handoff executed", {
           sessionID,
-          goal,
+          goal: goalWithDiscoveries,
           fileChanges: state.fileChanges.size,
         })
 
@@ -948,6 +981,109 @@ ${prompt}
 Failed to create handoff: ${String(error)}
 
 Please try again or use \`/handoff list\` to see existing handoffs.`
+    }
+  }
+
+  function buildAutoHandoffGoal(
+    goal: string,
+    reason: string,
+    discoveries?: AutoHandoffRequest["unresolvedDiscoveries"]
+  ): string {
+    const normalizedReason = reason.trim()
+    const unresolved = discoveries?.filter((item) => item.claim.trim().length > 0) ?? []
+    if (unresolved.length === 0) {
+      return normalizedReason ? `${goal}\n\nTrigger reason: ${normalizedReason}` : goal
+    }
+
+    const topDiscoveries = unresolved.slice(0, 5)
+    const discoveryLines = topDiscoveries.map((item) => {
+      const source = item.sourceEventId ? ` (source=${item.sourceEventId})` : ""
+      return `- ${item.claim}${source}`
+    })
+
+    return `${goal}
+
+Trigger reason: ${normalizedReason}
+
+Unresolved discoveries to carry forward:
+${discoveryLines.join("\n")}`
+  }
+
+  async function requestAutoHandoff(request: AutoHandoffRequest): Promise<AutoHandoffResult> {
+    const state = sessionStates.get(request.sessionID) ?? getState(request.sessionID)
+    const extState = getExtendedState(request.sessionID)
+    const launchMode = request.launchMode ?? config.auto_handoff?.launch_mode ?? "auto"
+    const goal = buildAutoHandoffGoal(request.goal, request.reason, request.unresolvedDiscoveries)
+    const hasEnoughContext = extState.messages.length >= 3 || extState.fileChanges.size >= 1
+
+    try {
+      if (hasEnoughContext) {
+        const activeRequest: ActiveHandoffRequest = {
+          goal,
+          sourceSessionId: request.sessionID,
+          projectPath: cwd,
+          launchMode,
+        }
+        const result = await executeActiveHandoff(activeRequest, deps, extState, config)
+        const launched = Boolean(result.newSessionId)
+
+        return {
+          status: launched ? "launched" : "preview",
+          prompt: result.prompt,
+          message: result.message,
+          handoffId: result.handoffPackage.id,
+          newSessionId: result.newSessionId,
+          fallbackPreview: launchMode === "auto" && !launched,
+        }
+      }
+
+      const quick = buildQuickHandoff(goal, state, request.sessionID)
+
+      if (launchMode === "auto" && deps.createSession && deps.sendPrompt) {
+        try {
+          const newSessionId = await deps.createSession(`auto-handoff: ${goal.slice(0, 48)}`)
+          await deps.sendPrompt(newSessionId, quick.prompt)
+          return {
+            status: "launched",
+            prompt: quick.prompt,
+            message: `${quick.summary}\n\nThe new session has started.`,
+            newSessionId,
+            fallbackPreview: false,
+          }
+        } catch (launchError) {
+          log("[session-handoff] auto handoff launch failed; falling back to preview", {
+            sessionID: request.sessionID,
+            reason: request.reason,
+            error: String(launchError),
+          })
+          return {
+            status: "preview",
+            prompt: quick.prompt,
+            message: `${quick.summary}\n\nAuto launch failed, fallback to preview mode.`,
+            fallbackPreview: true,
+          }
+        }
+      }
+
+      return {
+        status: "preview",
+        prompt: quick.prompt,
+        message: `${quick.summary}\n\nPreview mode.`,
+        fallbackPreview: launchMode === "auto",
+      }
+    } catch (error) {
+      const fallbackPrompt = buildQuickHandoff(goal, state, request.sessionID).prompt
+      log("[session-handoff] requestAutoHandoff failed", {
+        sessionID: request.sessionID,
+        reason: request.reason,
+        error: String(error),
+      })
+      return {
+        status: "failed",
+        prompt: fallbackPrompt,
+        message: `Auto handoff failed: ${String(error)}`,
+        fallbackPreview: true,
+      }
     }
   }
 
@@ -1229,9 +1365,11 @@ ${HANDOFF_RESULT_TAG_CLOSE}`
       parseSessionReferences,
       parseHandoffCommand,
       handleHandoffCommand,
+      requestAutoHandoff,
       getState: (sessionId: string) => sessionStates.get(sessionId),
       clearState: (sessionId: string) => sessionStates.delete(sessionId),
     },
+    requestAutoHandoff,
   }
 }
 

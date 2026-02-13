@@ -374,10 +374,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       Math.min(12000, Math.floor(activeBudgetProfile.context_tokens_hard_limit / 100))
     )
     const reservedBudget = Math.max(0, hardBudget - targetBudget)
+    const pointerSourceLimit = Math.max(40, Math.min(200, Math.floor(targetBudget * 0.12)))
     contextCollector.setBudgetConfig({
       total_budget: hardBudget,
       reserved_budget: reservedBudget,
       overflow_strategy: "drop-low-priority",
+      source_limits: {
+        "directory-agents": pointerSourceLimit,
+        "directory-readme": pointerSourceLimit,
+        "rules-injector": pointerSourceLimit,
+      },
+    })
+  } else {
+    contextCollector.setBudgetConfig({
+      source_limits: {
+        "directory-agents": 120,
+        "directory-readme": 120,
+        "rules-injector": 120,
+      },
     })
   }
 
@@ -541,6 +555,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   workOrchestrator = isHookEnabled("work-orchestrator")
     ? createWorkOrchestratorHook(ctx, {
         config: workOrchestratorConfig,
+        auto_handoff: pluginConfig.session_handoff?.auto_handoff,
         collector: contextCollector,
         backgroundManager,
         taskConfig: pluginConfig,
@@ -693,8 +708,33 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           : async () => "{}", // Fallback to metadata extraction if summarizer unavailable
         embed: embedForHandoff,
         collector: contextCollector,
+        createSession: async (title) => {
+          const created = await ctx.client.session.create({
+            body: {
+              title: title ?? "auto-handoff",
+            } as any,
+            query: {
+              directory: ctx.directory,
+            },
+          })
+          if (created.error || !created.data?.id) {
+            throw new Error(String(created.error ?? "failed to create session"))
+          }
+          return created.data.id
+        },
+        sendPrompt: async (sessionId, prompt) => {
+          await ctx.client.session.prompt({
+            path: { id: sessionId },
+            body: {
+              agent: "atlas",
+              parts: [{ type: "text", text: prompt }],
+            },
+          })
+        },
       })
     : null;
+
+  workOrchestrator?.setAutoHandoffRequester(sessionHandoffHook?.requestAutoHandoff)
 
   if (sessionStateRepair && taskAutoContinuation) {
     sessionStateRepair.setOnAbortCallback(taskAutoContinuation.markRecovering);

@@ -931,6 +931,106 @@ describe("continuation_control schema", () => {
   })
 })
 
+describe("verifier_gate and discovery_channel schema", () => {
+  test("applies defaults for verifier_gate and discovery_channel", () => {
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion({
+      work_orchestrator: {
+        verifier_gate: {},
+        discovery_channel: {},
+      },
+    }))
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.work_orchestrator?.verifier_gate).toEqual({
+        enabled: true,
+        evidence_ttl_ms: 900000,
+        require_lsp_clean: true,
+        require_test_or_build: true,
+        allow_no_code_change: true,
+      })
+      expect(result.data.work_orchestrator?.discovery_channel).toEqual({
+        enabled: true,
+        capture_delegate_output: true,
+        capture_assistant_updates: true,
+        marker_mode: "hybrid",
+        dedupe_window_ms: 1800000,
+        max_open_items: 200,
+        auto_task_create: false,
+      })
+    }
+  })
+
+  test("rejects unknown key inside verifier_gate", () => {
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion({
+      work_orchestrator: {
+        verifier_gate: {
+          enabled: true,
+          unknown_option: true,
+        },
+      },
+    }))
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys"
+            && issue.path.join(".") === "work_orchestrator.verifier_gate"
+            && issue.keys.includes("unknown_option")
+        )
+      ).toBe(true)
+    }
+  })
+})
+
+describe("session_handoff.auto_handoff schema", () => {
+  test("applies defaults for auto_handoff", () => {
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion({
+      session_handoff: {
+        auto_handoff: {},
+      },
+    }))
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.session_handoff?.auto_handoff).toEqual({
+        enabled: true,
+        trigger_verifier_denials: 2,
+        trigger_context_pressure_hits: 2,
+        trigger_prompt_failures: 2,
+        cooldown_ms: 600000,
+        launch_mode: "auto",
+        stop_continuation_on_launch: true,
+      })
+    }
+  })
+
+  test("rejects unknown key inside session_handoff.auto_handoff", () => {
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion({
+      session_handoff: {
+        auto_handoff: {
+          enabled: true,
+          unknown_option: 1,
+        },
+      },
+    }))
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys"
+            && issue.path.join(".") === "session_handoff.auto_handoff"
+            && issue.keys.includes("unknown_option")
+        )
+      ).toBe(true)
+    }
+  })
+})
+
 describe("planning_with_files schema", () => {
   test("does not expose removed directory key", () => {
     // #then

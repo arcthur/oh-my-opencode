@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { existsSync, readFileSync } from "fs"
-import { dirname, resolve } from "path"
+import { basename, dirname, resolve } from "path"
 
 type MarkdownLink = {
   sourceFile: string
@@ -61,13 +61,31 @@ function isExternalLink(target: string): boolean {
   )
 }
 
+const OPTIONAL_LOCALIZED_README_FILES = new Set([
+  "readme.zh-cn.md",
+  "readme.ja.md",
+  "readme.ko.md",
+])
+
+function isOptionalLocalizedReadmePath(pathLike: string): boolean {
+  return OPTIONAL_LOCALIZED_README_FILES.has(basename(pathLike).toLowerCase())
+}
+
 describe("README markdown links", () => {
-  it("README.md and README.zh-cn.md local links resolve", () => {
+  it("README.md and optional localized README files local links resolve", () => {
     // #given
     const rootDir = resolve(import.meta.dirname, "../..")
-    const files = [
+    const requiredFiles = [
       resolve(rootDir, "README.md"),
+    ]
+    const optionalFiles = [
       resolve(rootDir, "README.zh-cn.md"),
+      resolve(rootDir, "README.ja.md"),
+      resolve(rootDir, "README.ko.md"),
+    ]
+    const files = [
+      ...requiredFiles,
+      ...optionalFiles.filter((filePath) => existsSync(filePath)),
     ]
 
     // #when
@@ -88,6 +106,9 @@ describe("README markdown links", () => {
         const resolvedPath = resolve(dirname(filePath), decodedPath)
 
         if (!existsSync(resolvedPath)) {
+          if (isOptionalLocalizedReadmePath(decodedPath)) {
+            continue
+          }
           errors.push(`${filePath}:${link.lineNumber} missing link target "${target}" (resolved: ${resolvedPath})`)
         }
       }

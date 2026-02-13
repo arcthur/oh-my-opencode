@@ -648,6 +648,41 @@ export const ContinuationControlConfigSchema = z.object({
 /** Default continuation-control configuration */
 export const DEFAULT_CONTINUATION_CONTROL_CONFIG = ContinuationControlConfigSchema.parse({})
 
+/** Verifier Gate configuration - hard completion gate for task_transition(completed) */
+export const VerifierGateConfigSchema = z.object({
+  /** Enable verifier gate enforcement (default: true) */
+  enabled: z.boolean().default(true),
+  /** Evidence time-to-live in milliseconds (default: 15 minutes) */
+  evidence_ttl_ms: z.number().min(10_000).max(86_400_000).default(900_000),
+  /** Require clean LSP diagnostics evidence for changed files (default: true) */
+  require_lsp_clean: z.boolean().default(true),
+  /** Require at least one successful test/build/typecheck command when code changed (default: true) */
+  require_test_or_build: z.boolean().default(true),
+  /** Allow completion without verifier evidence if no code changes detected (default: true) */
+  allow_no_code_change: z.boolean().default(true),
+}).strict()
+
+/** Discovery marker parsing mode */
+export const DiscoveryMarkerModeSchema = z.enum(["xml", "prefix", "hybrid"])
+
+/** Discovery Channel configuration - captures deferred findings to persistent ledger */
+export const DiscoveryChannelConfigSchema = z.object({
+  /** Enable discovery capture and persistence (default: true) */
+  enabled: z.boolean().default(true),
+  /** Parse delegate_task outputs for discovery markers (default: true) */
+  capture_delegate_output: z.boolean().default(true),
+  /** Parse assistant message updates for discovery markers (default: true) */
+  capture_assistant_updates: z.boolean().default(true),
+  /** Marker parser mode (default: hybrid) */
+  marker_mode: DiscoveryMarkerModeSchema.default("hybrid"),
+  /** Deduplication time window in milliseconds (default: 30 minutes) */
+  dedupe_window_ms: z.number().min(60_000).max(86_400_000).default(1_800_000),
+  /** Maximum unresolved discovery entries to keep per plan (default: 200) */
+  max_open_items: z.number().min(10).max(5000).default(200),
+  /** Auto-create TaskGraph items from discovery entries (default: false) */
+  auto_task_create: z.boolean().default(false),
+}).strict()
+
 /** Unified Work Orchestrator Configuration */
 export const WorkOrchestratorConfigSchema = z.object({
   /** Enable unified planning + execution orchestration (default: true) */
@@ -656,6 +691,24 @@ export const WorkOrchestratorConfigSchema = z.object({
   planning_with_files: PlanningWithFilesConfigSchema.default(DEFAULT_PLANNING_WITH_FILES_CONFIG),
   /** Embedded continuation arbitration configuration */
   continuation_control: ContinuationControlConfigSchema.default(DEFAULT_CONTINUATION_CONTROL_CONFIG),
+  /** Hard completion verifier gate configuration */
+  verifier_gate: VerifierGateConfigSchema.default({
+    enabled: true,
+    evidence_ttl_ms: 900_000,
+    require_lsp_clean: true,
+    require_test_or_build: true,
+    allow_no_code_change: true,
+  }),
+  /** Deferred discovery capture configuration */
+  discovery_channel: DiscoveryChannelConfigSchema.default({
+    enabled: true,
+    capture_delegate_output: true,
+    capture_assistant_updates: true,
+    marker_mode: "hybrid",
+    dedupe_window_ms: 1_800_000,
+    max_open_items: 200,
+    auto_task_create: false,
+  }),
 }).strict()
 
 /** Default work-orchestrator configuration */
@@ -1121,6 +1174,24 @@ export const HandoffExtractorConfigSchema = z.object({
 }).strict()
 
 /** Session Handoff Configuration - knowledge transfer between sessions */
+export const SessionAutoHandoffConfigSchema = z.object({
+  /** Enable automatic handoff trigger from orchestrator signals (default: true) */
+  enabled: z.boolean().default(true),
+  /** Trigger threshold: consecutive verifier denials (default: 2) */
+  trigger_verifier_denials: z.number().min(1).max(20).default(2),
+  /** Trigger threshold: consecutive context pressure hits (default: 2) */
+  trigger_context_pressure_hits: z.number().min(1).max(20).default(2),
+  /** Trigger threshold: consecutive continuation prompt failures (default: 2) */
+  trigger_prompt_failures: z.number().min(1).max(20).default(2),
+  /** Cooldown between auto handoff triggers in milliseconds (default: 10 minutes) */
+  cooldown_ms: z.number().min(60_000).max(86_400_000).default(600_000),
+  /** Auto handoff launch mode */
+  launch_mode: z.enum(["auto", "preview"]).default("auto"),
+  /** Stop continuation loop when auto handoff is launched (default: true) */
+  stop_continuation_on_launch: z.boolean().default(true),
+}).strict()
+
+/** Session Handoff Configuration - knowledge transfer between sessions */
 export const SessionHandoffConfigSchema = z.object({
   /** Enable session handoff feature (default: true) */
   enabled: z.boolean().default(true),
@@ -1144,6 +1215,16 @@ export const SessionHandoffConfigSchema = z.object({
     max_decisions: 10,
     max_artifacts: 20,
     generate_embeddings: true,
+  }),
+  /** Auto handoff trigger policy */
+  auto_handoff: SessionAutoHandoffConfigSchema.default({
+    enabled: true,
+    trigger_verifier_denials: 2,
+    trigger_context_pressure_hits: 2,
+    trigger_prompt_failures: 2,
+    cooldown_ms: 600_000,
+    launch_mode: "auto",
+    stop_continuation_on_launch: true,
   }),
   /** Session reference configuration (@session:id syntax). */
   reference: SessionReferenceConfigSchema.optional(),
@@ -1217,6 +1298,9 @@ export type ParallelRuntimeMode = z.infer<typeof ParallelRuntimeModeSchema>
 export type ParallelRuntimeConfig = z.infer<typeof ParallelRuntimeConfigSchema>
 export type ContinuationControlPriority = z.infer<typeof ContinuationControlPrioritySchema>
 export type ContinuationControlConfig = z.infer<typeof ContinuationControlConfigSchema>
+export type VerifierGateConfig = z.infer<typeof VerifierGateConfigSchema>
+export type DiscoveryMarkerMode = z.infer<typeof DiscoveryMarkerModeSchema>
+export type DiscoveryChannelConfig = z.infer<typeof DiscoveryChannelConfigSchema>
 export type WorkOrchestratorConfig = z.infer<typeof WorkOrchestratorConfigSchema>
 export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>
 export type TmuxParallelAgentsConfig = z.infer<typeof TmuxParallelAgentsConfigSchema>
@@ -1263,6 +1347,7 @@ export type ConfigRule = z.infer<typeof ConfigRuleSchema>
 export type ConditionalRulesConfig = z.infer<typeof ConditionalRulesConfigSchema>
 export type SessionHandoffConfig = z.infer<typeof SessionHandoffConfigSchema>
 export type HandoffExtractorConfig = z.infer<typeof HandoffExtractorConfigSchema>
+export type SessionAutoHandoffConfig = z.infer<typeof SessionAutoHandoffConfigSchema>
 export type SessionReferenceConfig = z.infer<typeof SessionReferenceConfigSchema>
 export type SessionReferenceResolveOptions = z.infer<typeof SessionReferenceResolveOptionsSchema>
 export type SisyphusTasksConfig = z.infer<typeof SisyphusTasksConfigSchema>

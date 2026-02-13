@@ -7,7 +7,6 @@ import {
   clearInjectedPaths,
 } from "./storage";
 import { README_FILENAME } from "./constants";
-import { createDynamicTruncator } from "../../shared/dynamic-truncator";
 import { contextBudgetArbiter } from "../../features/context-view";
 
 interface ToolExecuteInput {
@@ -33,15 +32,32 @@ interface EventInput {
   };
 }
 
+function hasPointerFields(content: string): boolean {
+  return content.includes("Path:") && content.includes("Next: Read");
+}
+
 export function createDirectoryReadmeInjectorHook(ctx: PluginInput) {
   const sessionCaches = new Map<string, Set<string>>();
-  const truncator = createDynamicTruncator(ctx);
 
   function getSessionCache(sessionID: string): Set<string> {
     if (!sessionCaches.has(sessionID)) {
       sessionCaches.set(sessionID, loadInjectedPaths(sessionID));
     }
     return sessionCaches.get(sessionID)!;
+  }
+
+  function readSummaryLine(filePath: string): string | null {
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      const line = content
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .find((item) => item.length > 0);
+      if (!line) return null;
+      return line.slice(0, 120);
+    } catch {
+      return null;
+    }
   }
 
   function resolveFilePath(path: string): string | null {
@@ -87,12 +103,15 @@ export function createDirectoryReadmeInjectorHook(ctx: PluginInput) {
       if (cache.has(readmeDir)) continue;
 
       try {
-        const content = readFileSync(readmePath, "utf-8");
-        const { result, truncated } = await truncator.truncate(sessionID, content);
-        const truncationNotice = truncated
-          ? `\n\n[Note: Content was truncated to save context window space. For full context, please read the file directly: ${readmePath}]`
-          : "";
-        const injection = `\n\n[Project README: ${readmePath}]\n${result}${truncationNotice}`;
+        const summary = readSummaryLine(readmePath);
+        const summaryLine = summary ? `\nSummary: ${summary}` : "";
+        const injection = `
+
+[Pointer Card]
+Path: ${readmePath}
+Why: Nearby README may contain module assumptions and runbook details.${summaryLine}
+Next: Read ${readmePath}
+`;
         const decision = contextBudgetArbiter.decide({
           sessionID,
           source: "directory-readme",
@@ -101,8 +120,30 @@ export function createDirectoryReadmeInjectorHook(ctx: PluginInput) {
           priority: "normal",
           content: injection,
         });
-        if (!decision.accepted) continue;
-        output.output += decision.finalContent;
+        if (decision.accepted && hasPointerFields(decision.finalContent)) {
+          output.output += decision.finalContent;
+          cache.add(readmeDir);
+          continue;
+        }
+
+        const minimalPointer = `
+[Pointer]
+Path: ${readmePath}
+Next: Read ${readmePath}
+`;
+        const fallbackDecision = contextBudgetArbiter.decide({
+          sessionID,
+          source: "directory-readme",
+          channel: "tool-output",
+          id: `${readmePath}:pointer-fallback`,
+          priority: "critical",
+          content: minimalPointer,
+        });
+        if (fallbackDecision.accepted && hasPointerFields(fallbackDecision.finalContent)) {
+          output.output += fallbackDecision.finalContent;
+        } else {
+          output.output += minimalPointer;
+        }
         cache.add(readmeDir);
       } catch {}
     }

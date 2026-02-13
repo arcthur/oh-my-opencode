@@ -76,3 +76,10 @@ Notes:
 - `hard` decisions must map to enforceable hook points; non-enforceable points downgrade to `soft/audit`.
 - The evaluator is async by default and stays out of hot path execution.
 - Clauses that depend on guard payload shape (`payload.guards.*`) require `guardsVersion=1`; incompatible/missing versions fail fast to avoid silent policy drift.
+- Pointer-only document injection is enabled for:
+  - `directory-agents-injector`
+  - `directory-readme-injector`
+  - `rules-injector`
+  Instead of injecting full document bodies, these hooks inject pointer cards (`Path`, `Why`, `Next: Read ...`) to reduce token pressure and preserve retrievability.
+- Source budgets are explicitly tightened for pointer-card injectors via ContextView `source_limits`, preventing passive doc dumps from crowding out active execution context.
+- If full pointer cards are budget-rejected, injectors fall back to minimal pointers (`Path` + `Next: Read ...`) so traceability is preserved.

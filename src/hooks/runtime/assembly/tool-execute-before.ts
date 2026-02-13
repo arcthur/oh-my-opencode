@@ -72,6 +72,12 @@ function resolvePolicyGuards(
     : true
   const normalizedFilePath = filePath?.toLowerCase().replace(/\\/g, "/") ?? ""
   const prompt = typeof args.prompt === "string" ? args.prompt : undefined
+  const verifierGuard = context.workOrchestrator?.getVerifierGuard?.({
+    sessionID: input.sessionID,
+    callID: input.callID,
+    tool: input.tool,
+    args,
+  })
 
   return {
     writeExistingFile: {
@@ -115,6 +121,15 @@ function resolvePolicyGuards(
           maxToolCalls: executionBudget.maxToolCalls,
           elapsedMs: executionBudget.elapsedMs,
           wallClockMs: executionBudget.wallClockMs,
+        }
+      : undefined,
+    verifier: verifierGuard
+      ? {
+          blocked: verifierGuard.blocked,
+          reasonCode: verifierGuard.reasonCode,
+          missingEvidence: verifierGuard.missingEvidence,
+          denialCount: verifierGuard.denialCount,
+          details: verifierGuard.details,
         }
       : undefined,
   }

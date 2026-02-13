@@ -46,6 +46,7 @@ function createPolicyContext(overrides?: Partial<RuntimeAssemblyContext>): Runti
     pluginConfig: config,
     directory: process.cwd(),
     workOrchestrator: {
+      getVerifierGuard: () => null,
       stopContinuation: () => {},
       isContinuationStopped: () => false,
       getContinuationRound: () => undefined,
@@ -229,6 +230,64 @@ describe("tool.execute.before policy migration", () => {
     })
 
     expect(capturedPayload?.guardsVersion).toBe(1)
+  })
+
+  test("blocks task_transition completed when verifier guard is blocked", async () => {
+    const context = createPolicyContext({
+      workOrchestrator: {
+        getVerifierGuard: () => ({
+          blocked: true,
+          reasonCode: "VERIFIER_EVIDENCE_MISSING",
+          missingEvidence: ["lsp_diagnostics", "test_or_build"],
+          denialCount: 2,
+        }),
+        stopContinuation: () => {},
+        isContinuationStopped: () => false,
+        getContinuationRound: () => undefined,
+      },
+    })
+
+    await expect(
+      dispatchToolBefore({
+        context,
+        input: { tool: "task_transition", sessionID: "s-v1", callID: "c-v1" },
+        output: {
+          args: {
+            id: "task-1",
+            next_state: "completed",
+          },
+        },
+      })
+    ).rejects.toThrow("Verifier gate blocked completion")
+  })
+
+  test("allows task_transition completed when verifier guard passes", async () => {
+    const context = createPolicyContext({
+      workOrchestrator: {
+        getVerifierGuard: () => ({
+          blocked: false,
+          reasonCode: "VERIFIER_EVIDENCE_OK",
+          missingEvidence: [],
+          denialCount: 0,
+        }),
+        stopContinuation: () => {},
+        isContinuationStopped: () => false,
+        getContinuationRound: () => undefined,
+      },
+    })
+
+    await expect(
+      dispatchToolBefore({
+        context,
+        input: { tool: "task_transition", sessionID: "s-v2", callID: "c-v2" },
+        output: {
+          args: {
+            id: "task-1",
+            next_state: "completed",
+          },
+        },
+      })
+    ).resolves.toBeUndefined()
   })
 
   test("enforces max_tool_calls execution budget", async () => {
