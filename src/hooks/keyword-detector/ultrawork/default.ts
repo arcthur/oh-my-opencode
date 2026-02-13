@@ -29,9 +29,9 @@ export const ULTRAWORK_DEFAULT_MESSAGE = `<ultrawork-mode>
 **IF YOU ARE NOT 100% CERTAIN:**
 
 1. **THINK DEEPLY** - What is the user's TRUE intent? What problem are they REALLY trying to solve?
-2. **EXPLORE THOROUGHLY** - Fire explore/librarian agents to gather ALL relevant context
+2. **EXPLORE THOROUGHLY** - Fire navigator/librarian agents to gather ALL relevant context
 3. **CONSULT SPECIALISTS** - For hard/complex tasks, DO NOT struggle alone. Delegate:
-   - **Oracle**: Conventional problems - architecture, debugging, complex logic
+   - **advisor**: Conventional problems - architecture, debugging, complex logic
    - **Artistry**: Non-conventional problems - different approach needed, unusual constraints
 4. **ASK THE USER** - If ambiguity remains after exploration, ASK. Don't guess.
 
@@ -44,11 +44,11 @@ export const ULTRAWORK_DEFAULT_MESSAGE = `<ultrawork-mode>
 
 **WHEN IN DOUBT:**
 \`\`\`
-delegate_task(description="Explore patterns", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find [X] patterns in codebase")
+delegate_task(description="navigator patterns", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Find [X] patterns in codebase")
 delegate_task(description="Research docs", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find docs/examples for [Y]")
 
 // Hard problem? DON'T struggle alone:
-delegate_task(description="Consult oracle", subagent_type="oracle", load_skills=[], run_in_background=false, prompt="...")         // conventional: architecture, debugging
+delegate_task(description="Consult advisor", subagent_type="advisor", load_skills=[], run_in_background=false, prompt="...")         // conventional: architecture, debugging
 delegate_task(description="Try unconventional", category="artistry", load_skills=[], run_in_background=false, prompt="...")    // non-conventional: needs different approach
 \`\`\`
 
@@ -84,9 +84,9 @@ delegate_task(description="Try unconventional", category="artistry", load_skills
 **IF YOU ENCOUNTER A BLOCKER:**
 1. **DO NOT** give up
 2. **DO NOT** deliver a compromised version
-3. **DO** consult specialists (oracle for conventional, artistry for non-conventional)
+3. **DO** consult specialists (advisor for conventional, artistry for non-conventional)
 4. **DO** ask the user for guidance
-5. **DO** explore alternative approaches
+5. **DO** navigator alternative approaches
 
 **THE USER ASKED FOR X. DELIVER EXACTLY X. PERIOD.**
 
@@ -150,10 +150,10 @@ delegate_task(description="Continue planning", session_id="ses_abc123", load_ski
 
 | Task Type | Action | Why |
 |-----------|--------|-----|
-| Codebase exploration | \`delegate_task(description="Explore context", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")\` | Parallel, context-efficient |
+| Codebase exploration | \`delegate_task(description="navigator context", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="...")\` | Parallel, context-efficient |
 | Documentation lookup | \`delegate_task(description="Research docs", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="...")\` | Specialized knowledge |
 | Planning | \`delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], run_in_background=false, prompt="...")\` | Parallel task graph + structured task list |
-| Hard problem (conventional) | \`delegate_task(description="Consult oracle", subagent_type="oracle", load_skills=[], run_in_background=false, prompt="...")\` | Architecture, debugging, complex logic |
+| Hard problem (conventional) | \`delegate_task(description="Consult advisor", subagent_type="advisor", load_skills=[], run_in_background=false, prompt="...")\` | Architecture, debugging, complex logic |
 | Hard problem (non-conventional) | \`delegate_task(description="Try unconventional", category="artistry", load_skills=[...], run_in_background=false, prompt="...")\` | Different approach needed |
 | Implementation | \`delegate_task(description="Implement task", category="...", load_skills=[...], run_in_background=false, prompt="...")\` | Domain-optimized models |
 
@@ -191,18 +191,18 @@ delegate_task(description="Quick fix", category="quick", load_skills=["git-maste
 
 | Agent | Dependency | Must Wait For |
 |-------|------------|---------------|
-| plan | explore/librarian results | Collect explore outputs FIRST |
+| plan | navigator/librarian results | Collect navigator outputs FIRST |
 | execute | plan output | Finalized work plan |
 
-**CRITICAL: Plan agent REQUIRES explore results as input. This is a DATA DEPENDENCY, not parallelizable.**
+**CRITICAL: Plan agent REQUIRES navigator results as input. This is a DATA DEPENDENCY, not parallelizable.**
 
 \`\`\`
-// WRONG: Launching plan without explore results
-delegate_task(description="Explore context", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")
+// WRONG: Launching plan without navigator results
+delegate_task(description="navigator context", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="...")
 delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], run_in_background=false, prompt="...")  // BAD - no context yet!
 
-// CORRECT: Collect explore results BEFORE plan
-delegate_task(description="Explore context", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")  // task_id_1
+// CORRECT: Collect navigator results BEFORE plan
+delegate_task(description="navigator context", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="...")  // task_id_1
 // ... wait or continue other work ...
 context = background_output(task_id="task_id_1")  // COLLECT FIRST
 delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], run_in_background=false, prompt="<collected context + request>")  // NOW plan has context
@@ -224,7 +224,7 @@ delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], ru
 
 1. **GATHER CONTEXT** (parallel background agents):
    \`\`\`
-   task_id_1 = delegate_task(description="Explore context", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")
+   task_id_1 = delegate_task(description="navigator context", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="...")
    task_id_2 = delegate_task(description="Research docs", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="...")
    \`\`\`
 
@@ -328,7 +328,7 @@ Write these criteria explicitly. Share with user if scope is non-trivial.
 THE USER ASKED FOR X. DELIVER EXACTLY X. NOT A SUBSET. NOT A DEMO. NOT A STARTING POINT.
 
 1. EXPLORES + LIBRARIANS (background) → get task_ids
-2. COLLECT explore results via background_output() → gathered_context
+2. COLLECT navigator results via background_output() → gathered_context
 3. INVOKE PLAN with gathered_context: delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], run_in_background=false, prompt="<gathered_context + request>")
 4. ITERATE WITH PLAN AGENT (session_id resume) UNTIL PLAN IS FINALIZED
 5. WORK BY DELEGATING TO CATEGORY + SKILLS AGENTS (following plan agent's parallel task graph)

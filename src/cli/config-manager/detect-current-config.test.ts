@@ -47,10 +47,10 @@ describe("detect-current-config", () => {
       JSON.stringify(
         {
           agents: {
-            oracle: { model: "openai/gpt-5.2" },
-            explore: { model: "opencode/gpt-5-nano" },
+            advisor: { model: "openai/gpt-5.2" },
+            navigator: { model: "opencode/gpt-5-nano" },
             librarian: { model: "zai-coding-plan/glm-4.7" },
-            metis: { model: "kimi-for-coding/k2p5" },
+            "scope-analyst": { model: "kimi-for-coding/k2p5" },
           },
         },
         null,
@@ -69,4 +69,3 @@ describe("detect-current-config", () => {
     expect(detected.hasKimiForCoding).toBe(true)
   })
 })
-

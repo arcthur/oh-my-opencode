@@ -20,7 +20,7 @@ describe("task-system/storage", () => {
     workspace = join(tmpdir(), `task-system-storage-${Date.now()}`)
     mkdirSync(workspace, { recursive: true })
     config = {
-      sisyphus: {
+      orchestrator: {
         tasks: {
           enabled: true,
           storage_path: workspace,

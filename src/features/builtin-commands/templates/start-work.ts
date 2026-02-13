@@ -1,28 +1,28 @@
-export const START_WORK_TEMPLATE = `You are starting an Atlas execution work session.
+export const START_WORK_TEMPLATE = `You are starting an workflow-automator execution work session.
 
 ## WHAT TO DO
 
 1. **Find available plans**:
-   - Plan artifact: \`.sisyphus/plans/<planId>/plan.md\`
+   - Plan artifact: \`.orchestrator/plans/<planId>/plan.md\`
 
-2. **Check for active work state**: Read \`.sisyphus/work.yaml\` if it exists
+2. **Check for active work state**: Read \`.orchestrator/work.yaml\` if it exists
 
 3. **Decision logic**:
-   - If \`.sisyphus/work.yaml\` exists AND plan is NOT complete in TaskGraph:
+   - If \`.orchestrator/work.yaml\` exists AND plan is NOT complete in TaskGraph:
      - **APPEND** current session to session_ids
      - Continue work on existing plan
    - If no active plan OR plan is complete:
-     - List available plan IDs (from \`.sisyphus/plans/*/plan.md\`)
+     - List available plan IDs (from \`.orchestrator/plans/*/plan.md\`)
      - If ONE plan: auto-select it
      - If MULTIPLE plans: show list with timestamps, ask user to select
 
 4. **Create/Update work.yaml**:
    \`\`\`yaml
    schema_version: 6
-   executor: atlas
+   executor: workflow-automator
    plan_id: plan-name
-   execution_plan_path: .sisyphus/plans/plan-name/plan.md
-   runtime_ledger_path: .sisyphus/plans/plan-name/ledger.yaml
+   execution_plan_path: .orchestrator/plans/plan-name/plan.md
+   runtime_ledger_path: .orchestrator/plans/plan-name/ledger.yaml
    started_at: ISO_TIMESTAMP
    session_ids:
      - session_id_1

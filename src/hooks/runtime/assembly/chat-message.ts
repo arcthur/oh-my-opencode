@@ -82,11 +82,11 @@ export function buildChatMessageNodes(
     })
   }
 
-  if (context.sisyphusContextualInjector?.["chat.message"]) {
+  if (context.orchestratorContextualInjector?.["chat.message"]) {
     nodes.push({
-      id: "sisyphus-contextual-injector:chat.message",
+      id: "orchestrator-contextual-injector:chat.message",
       invoke: async () => {
-        await context.sisyphusContextualInjector?.["chat.message"]?.(input, output)
+        await context.orchestratorContextualInjector?.["chat.message"]?.(input, output)
       },
     })
   }

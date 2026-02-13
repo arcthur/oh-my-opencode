@@ -22,7 +22,7 @@ tools/
 ├── grep/             # Custom grep with timeout (60s, 10MB)
 ├── glob/             # 60s timeout, 100 file limit
 ├── interactive-bash/ # Tmux session management
-├── look-at/          # Multimodal PDF/image
+├── look-at/          # interpreter PDF/image
 ├── skill/            # Skill execution
 ├── skill-mcp/        # Skill MCP operations
 ├── slashcommand/     # Slash command dispatch

@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test"
-import type { CoordinatorAgent, WorkerAgent } from "../features/sisyphus-swarm/agent"
-import { createSwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
-import type { SwarmOrchestrator } from "../features/sisyphus-swarm/tmux"
+import type { CoordinatorAgent, WorkerAgent } from "../features/orchestrator-swarm/agent"
+import { createSwarmRuntimeService } from "../features/orchestrator-swarm/runtime"
+import type { SwarmOrchestrator } from "../features/orchestrator-swarm/tmux"
 import { createSwarmTool } from "./swarm"
 
 describe("swarm tool runtime integration", () => {

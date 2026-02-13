@@ -27,7 +27,7 @@ hooks/
 ├── keyword-detector/           # ultrawork/search/analyze modes
 ├── question-label-truncator/   # Truncates question option labels
 ├── policy-runtime (internal)   # Contract-based guard/modify/deny pipeline
-├── sisyphus-junior-notepad/    # Injects notepad context for Junior tasks
+├── specialist-notepad/    # Injects notepad context for Junior tasks
 ├── delegation-nudge-agent-usage/ # Nudges to use specialized agents/tools
 ├── delegation-nudge-category-skill/ # Reminds orchestrators of category+skills
 ├── non-interactive-env/        # Non-TTY environment handling
@@ -51,7 +51,7 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 
 **chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → swarmFromPlan → workOrchestrator → preCompletionVerification → (ralphLoop start/cancel)
 
-**tool.execute.before** (high-level): questionLabelTruncator → policy-enforce(pre-tool) → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → workOrchestrator → delegationValidateDecision → sisyphusJuniorNotepad → tmuxParallelAgents → swarmAgent → silentToolOutput
+**tool.execute.before** (high-level): questionLabelTruncator → policy-enforce(pre-tool) → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → workOrchestrator → delegationValidateDecision → specialistNotepad → tmuxParallelAgents → swarmAgent → silentToolOutput
 
 **tool.execute.after** (high-level): workOrchestrator → policy-enforce(post-tool) → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → user/org memory → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → delegationNudgeAgentUsage → delegationNudgeCategorySkill → interactiveBashSession → editFailureGuidance → delegationFailureGuidance → taskResumeInfo → sessionHandoffHook → swarmAgent
 

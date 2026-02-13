@@ -15,7 +15,7 @@ Generate hierarchical AGENTS.md files. Root + complexity-scored subdirectories.
 ## Workflow (High-Level)
 
 1. **Discovery + Analysis** (concurrent)
-   - Fire background explore agents immediately
+   - Fire background navigator agents immediately
    - Main session: bash structure + LSP codemap + read existing AGENTS.md
 2. **Score & Decide** - Determine AGENTS.md locations from merged findings
 3. **Generate** - Root first, then subdirs in parallel
@@ -24,7 +24,7 @@ Generate hierarchical AGENTS.md files. Root + complexity-scored subdirectories.
 <critical>
 **Use TaskGraph for ALL phases. Mark in_progress → completed in real-time.**
 \`\`\`
-task_create({ title: "discovery Fire explore agents + LSP codemap + read existing", priority: 100 })
+task_create({ title: "discovery Fire navigator agents + LSP codemap + read existing", priority: 100 })
 task_create({ title: "scoring Score directories, determine locations", priority: 100 })
 task_create({ title: "generate Generate AGENTS.md files (root + subdirs)", priority: 100 })
 task_create({ title: "review Deduplicate, validate, trim", priority: 50 })
@@ -37,22 +37,22 @@ task_create({ title: "review Deduplicate, validate, trim", priority: 50 })
 
 **Mark "discovery" as in_progress.**
 
-### Fire Background Explore Agents IMMEDIATELY
+### Fire Background navigator Agents IMMEDIATELY
 
 Don't wait—these run async while main session works.
 
 \`\`\`
 // Fire all at once, collect results later
-delegate_task(description="Project structure", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Project structure: PREDICT standard patterns for detected language → REPORT deviations only")
-delegate_task(description="Entry points", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Entry points: FIND main files → REPORT non-standard organization")
-delegate_task(description="Conventions", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Conventions: FIND config files (.eslintrc, pyproject.toml, .editorconfig) → REPORT project-specific rules")
-delegate_task(description="Anti-pattern scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Anti-patterns: FIND 'DO NOT', 'NEVER', 'ALWAYS', 'DEPRECATED' comments → LIST forbidden patterns")
-delegate_task(description="Build/CI scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Build/CI: FIND .github/workflows, Makefile → REPORT non-standard patterns")
-delegate_task(description="Test patterns", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Test patterns: FIND test configs, test structure → REPORT unique conventions")
+delegate_task(description="Project structure", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Project structure: PREDICT standard patterns for detected language → REPORT deviations only")
+delegate_task(description="Entry points", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Entry points: FIND main files → REPORT non-standard organization")
+delegate_task(description="Conventions", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Conventions: FIND config files (.eslintrc, pyproject.toml, .editorconfig) → REPORT project-specific rules")
+delegate_task(description="Anti-pattern scan", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Anti-patterns: FIND 'DO NOT', 'NEVER', 'ALWAYS', 'DEPRECATED' comments → LIST forbidden patterns")
+delegate_task(description="Build/CI scan", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Build/CI: FIND .github/workflows, Makefile → REPORT non-standard patterns")
+delegate_task(description="Test patterns", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Test patterns: FIND test configs, test structure → REPORT unique conventions")
 \`\`\`
 
 <dynamic-agents>
-**DYNAMIC AGENT SPAWNING**: After bash analysis, spawn ADDITIONAL explore agents based on project scale:
+**DYNAMIC AGENT SPAWNING**: After bash analysis, spawn ADDITIONAL navigator agents based on project scale:
 
 | Factor | Threshold | Additional Agents |
 |--------|-----------|-------------------|
@@ -74,9 +74,9 @@ max_depth=$(find . -type d -not -path '*/node_modules/*' -not -path '*/.git/*' |
 Example spawning:
 \`\`\`
 // 500 files, 50k lines, depth 6, 15 large files → spawn 5+5+2+1 = 13 additional agents
-delegate_task(description="Large file analysis", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Large file analysis: FIND files >500 lines, REPORT complexity hotspots")
-delegate_task(description="Deep modules scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Deep modules at depth 4+: FIND hidden patterns, internal conventions")
-delegate_task(description="Cross-cutting scan", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Cross-cutting concerns: FIND shared utilities across directories")
+delegate_task(description="Large file analysis", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Large file analysis: FIND files >500 lines, REPORT complexity hotspots")
+delegate_task(description="Deep modules scan", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Deep modules at depth 4+: FIND hidden patterns, internal conventions")
+delegate_task(description="Cross-cutting scan", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Cross-cutting concerns: FIND shared utilities across directories")
 // ... more based on calculation
 \`\`\`
 </dynamic-agents>
@@ -127,7 +127,7 @@ LspWorkspaceSymbols(filePath=".", query="function")
 LspFindReferences(filePath="...", line=X, character=Y)
 \`\`\`
 
-**LSP Fallback**: If unavailable, rely on explore agents + AST-grep.
+**LSP Fallback**: If unavailable, rely on navigator agents + AST-grep.
 
 ### Collect Background Results
 
@@ -136,7 +136,7 @@ LspFindReferences(filePath="...", line=X, character=Y)
 for each task_id: background_output(task_id="...")
 \`\`\`
 
-**Merge: bash + LSP + existing + explore findings. Mark "discovery" as completed.**
+**Merge: bash + LSP + existing + navigator findings. Mark "discovery" as completed.**
 
 ---
 
@@ -151,7 +151,7 @@ for each task_id: background_output(task_id="...")
 | File count | 3x | >20 | bash |
 | Subdir count | 2x | >5 | bash |
 | Code ratio | 2x | >70% | bash |
-| Unique patterns | 1x | Has own config | explore |
+| Unique patterns | 1x | Has own config | navigator |
 | Module boundary | 2x | Has index.ts/__init__.py | bash |
 | Symbol density | 2x | >30 symbols | LSP |
 | Export count | 2x | >10 exports | LSP |
@@ -290,7 +290,7 @@ Hierarchy:
 ## Anti-Patterns
 
 - **Static agent count**: MUST vary agents based on project size/depth
-- **Sequential execution**: MUST parallel (explore + LSP concurrent)
+- **Sequential execution**: MUST parallel (navigator + LSP concurrent)
 - **Ignoring existing**: ALWAYS read existing first, even with --create-new
 - **Over-documenting**: Not every dir needs AGENTS.md
 - **Redundancy**: Child never repeats parent

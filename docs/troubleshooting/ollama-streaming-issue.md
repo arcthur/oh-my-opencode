@@ -8,7 +8,7 @@ When using Ollama as a provider with oh-my-opencode agents, you may encounter:
 JSON Parse error: Unexpected EOF
 ```
 
-This occurs when agents attempt tool calls (e.g., `explore` agent using `mcp_grep_search`).
+This occurs when agents attempt tool calls (e.g., `navigator` agent using `mcp_grep_search`).
 
 ## Root Cause
 
@@ -55,7 +55,7 @@ Configure your Ollama provider to use `stream: false`:
 If you need streaming, avoid agents that use tools:
 
 - **Safe**: simple text generation, non-tool tasks
-- **Problematic**: any agent with tool calls (explore, librarian, etc.)
+- **Problematic**: any agent with tool calls (navigator, librarian, etc.)
 
 ### Option 3: Wait for SDK Fix (Long-term)
 

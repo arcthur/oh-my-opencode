@@ -62,7 +62,7 @@ The `tmux-parallel-agents` hook is a pure infrastructure layer (windows, worktre
 - Manual workflow cheat sheet (built-in skill): `src/features/builtin-skills/skills/parallel-agents.ts`
 - Background tasks: `src/features/background-agent/` and `src/tools/delegate-task/`
 - Tmux integration: `src/hooks/tmux-parallel-agents/`
-- Swarm core: `src/features/sisyphus-swarm/`
+- Swarm core: `src/features/orchestrator-swarm/`
 - Swarm agent hook: `src/hooks/swarm-agent.ts`
 
 ## Operational Notes (Safety / UX)

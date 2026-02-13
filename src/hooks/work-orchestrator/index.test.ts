@@ -315,14 +315,14 @@ describe("work-orchestrator unified hook", () => {
     // #given
     await initializePlan(tmpDir, "plan-exec", "Execute safely")
     createWorkStateManager(tmpDir).initializePlan("plan-exec", "ses-exec", undefined)
-    updateSessionAgent("ses-exec", "atlas")
+    updateSessionAgent("ses-exec", "workflow-automator")
     createTaskNode(
       { scope: "plan", container_id: "plan-exec", title: "1. Task 1" },
       {
-        sisyphus: {
+        orchestrator: {
           tasks: {
             enabled: true,
-            storage_path: path.join(tmpDir, ".sisyphus", "tasks"),
+            storage_path: path.join(tmpDir, ".orchestrator", "tasks"),
           },
         },
       }
@@ -335,10 +335,10 @@ describe("work-orchestrator unified hook", () => {
         planning_with_files: { enabled: false },
       },
       taskConfig: {
-        sisyphus: {
+        orchestrator: {
           tasks: {
             enabled: true,
-            storage_path: path.join(tmpDir, ".sisyphus", "tasks"),
+            storage_path: path.join(tmpDir, ".orchestrator", "tasks"),
           },
         },
       },

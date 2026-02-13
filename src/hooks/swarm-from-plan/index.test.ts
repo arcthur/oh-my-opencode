@@ -5,13 +5,13 @@ import { createHash } from "node:crypto"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
-import { createSwarmRuntimeService } from "../../features/sisyphus-swarm/runtime"
-import { addMemberAsync, createAgentIdentity, createTeam } from "../../features/sisyphus-swarm/team"
-import type { CoordinatorAgent } from "../../features/sisyphus-swarm/agent"
+import { createSwarmRuntimeService } from "../../features/orchestrator-swarm/runtime"
+import { addMemberAsync, createAgentIdentity, createTeam } from "../../features/orchestrator-swarm/team"
+import type { CoordinatorAgent } from "../../features/orchestrator-swarm/agent"
 
 const mockCreateCoordinator = mock(async () => ({ stub: true }))
 
-mock.module("../../features/sisyphus-swarm/agent", () => ({
+mock.module("../../features/orchestrator-swarm/agent", () => ({
   createCoordinator: mockCreateCoordinator,
 }))
 
@@ -43,17 +43,17 @@ describe("swarm-from-plan hook", () => {
     mkdirSync(projectDir, { recursive: true })
     mkdirSync(tasksDir, { recursive: true })
 
-    mkdirSync(join(projectDir, ".sisyphus", "plans"), { recursive: true })
+    mkdirSync(join(projectDir, ".orchestrator", "plans"), { recursive: true })
 
     // Minimal work.yaml (v6)
     writeFileSync(
-      join(projectDir, ".sisyphus", "work.yaml"),
+      join(projectDir, ".orchestrator", "work.yaml"),
       [
         `schema_version: 6`,
-        `executor: "atlas"`,
+        `executor: "workflow-automator"`,
         `plan_id: "demo"`,
-        `execution_plan_path: ".sisyphus/plans/demo/plan.md"`,
-        `runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml"`,
+        `execution_plan_path: ".orchestrator/plans/demo/plan.md"`,
+        `runtime_ledger_path: ".orchestrator/plans/demo/ledger.yaml"`,
         `started_at: "2026-02-05T00:00:00Z"`,
         `session_ids: ["ses_main"]`,
         `protocol:`,
@@ -68,21 +68,21 @@ describe("swarm-from-plan hook", () => {
     )
 
     // Plan + manifest
-    mkdirSync(join(projectDir, ".sisyphus", "plans", "demo"), { recursive: true })
+    mkdirSync(join(projectDir, ".orchestrator", "plans", "demo"), { recursive: true })
     writeFileSync(
-      join(projectDir, ".sisyphus", "plans", "demo", "plan.md"),
+      join(projectDir, ".orchestrator", "plans", "demo", "plan.md"),
       `# Demo\n\n## Tasks\n\n- 1. Task A\n\n  Context Packs: global\n`,
       "utf-8"
     )
     writeFileSync(
-      join(projectDir, ".sisyphus", "plans", "demo", "ledger.yaml"),
+      join(projectDir, ".orchestrator", "plans", "demo", "ledger.yaml"),
       `schema_version: 1\nplan_id: demo\nerrors: []\nblockers: []\ndecisions: []\nupdated_at: "2026-02-05T00:00:00Z"\n`,
       "utf-8"
     )
     config = {
-      sisyphus: {
+      orchestrator: {
         tasks: { enabled: true, storage_path: tasksDir },
-        swarm: { enabled: true, storage_path: join(projectDir, ".sisyphus", "teams"), ui_mode: "toast", swarm_first: true, worker_count: 0 },
+        swarm: { enabled: true, storage_path: join(projectDir, ".orchestrator", "teams"), ui_mode: "toast", swarm_first: true, worker_count: 0 },
       },
       tmux_parallel_agents: { enabled: false },
     }
@@ -136,7 +136,7 @@ describe("swarm-from-plan hook", () => {
     // #given
     const { createSwarmFromPlanHook } = await import("./index")
     const runtime = createSwarmRuntimeService()
-    const planPath = join(projectDir, ".sisyphus", "plans", "demo", "plan.md")
+    const planPath = join(projectDir, ".orchestrator", "plans", "demo", "plan.md")
     const teamName = buildExpectedTeamId("demo", planPath)
 
     const coordinator = createAgentIdentity({
@@ -187,7 +187,7 @@ describe("swarm-from-plan hook", () => {
     // #given
     const { createSwarmFromPlanHook } = await import("./index")
     const runtime = createSwarmRuntimeService()
-    const planPath = join(projectDir, ".sisyphus", "plans", "demo", "plan.md")
+    const planPath = join(projectDir, ".orchestrator", "plans", "demo", "plan.md")
     const teamName = buildExpectedTeamId("demo", planPath)
 
     const coordinator = createAgentIdentity({

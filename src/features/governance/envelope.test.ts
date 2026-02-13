@@ -324,10 +324,10 @@ describe("EnvelopeFactory", () => {
 
   describe("forAgent", () => {
     it("creates envelope for agent", () => {
-      const envelope = factory.forAgent("explore", { task: "search" })
+      const envelope = factory.forAgent("navigator", { task: "search" })
 
       expect(envelope.metadata.source.type).toBe("agent")
-      expect(envelope.metadata.source.id).toBe("explore")
+      expect(envelope.metadata.source.id).toBe("navigator")
     })
   })
 

@@ -11,19 +11,19 @@
 
 > [!NOTE]
 >
-> [![Sisyphus Labs — Sisyphus is the agent that codes like your team.](./.github/assets/sisyphuslabs.png?v=2)](https://sisyphuslabs.ai)
-> > **We're building a fully productized version of Sisyphus to define the future of frontier agents. <br />Join the waitlist [here](https://sisyphuslabs.ai).**
+> [![Orchestrator Labs — orchestrator is the agent that codes like your team.](./.github/assets/orchestrator-labs.png?v=2)](https://github.com/code-yeongyu/oh-my-opencode)
+> > **We're building a fully productized orchestrator workflow to define the future of frontier agents.**
 
 > [!TIP]
 >
-> [![Oh My OpenCode 3.0 is now stable!](./.github/assets/orchestrator-sisyphus.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0)
+> [![Oh My OpenCode 3.0 is now stable!](./.github/assets/orchestrator-release.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0)
 > > **Oh My OpenCode 3.0 is now stable! Use `oh-my-opencode@latest` to install it.**
 >
 > Be with us!
 >
 > | [<img alt="Discord link" src="https://img.shields.io/discord/1452487457085063218?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=flat-square" width="156px" />](https://discord.gg/PUwSMR9XNk) | Join our [Discord community](https://discord.gg/PUwSMR9XNk) to connect with contributors and fellow `oh-my-opencode` users. |
 > | :-----| :----- |
-> | [<img alt="X link" src="https://img.shields.io/badge/Follow-%40justsisyphus-00CED1?style=flat-square&logo=x&labelColor=black" width="156px" />](https://x.com/justsisyphus) | News and updates for `oh-my-opencode` used to be posted on my X account. <br /> Since it was suspended mistakenly, [@justsisyphus](https://x.com/justsisyphus) now posts updates on my behalf. |
+> | [<img alt="Release link" src="https://img.shields.io/badge/Updates-Releases-00CED1?style=flat-square&logo=github&labelColor=black" width="156px" />](https://github.com/code-yeongyu/oh-my-opencode/releases) | Track all updates from [GitHub Releases](https://github.com/code-yeongyu/oh-my-opencode/releases). |
 > | [<img alt="GitHub Follow" src="https://img.shields.io/github/followers/code-yeongyu?style=flat-square&logo=github&labelColor=black&color=24292f" width="156px" />](https://github.com/code-yeongyu) | Follow [@code-yeongyu](https://github.com/code-yeongyu) on GitHub for more projects. |
 
 <!-- <CENTERED SECTION FOR GITHUB DISPLAY> -->
@@ -37,7 +37,7 @@
 
 </div>
 
-> This is coding on steroids—`oh-my-opencode` in action. Run background agents, call specialized agents like oracle, librarian, and frontend engineer. Use crafted LSP/AST tools, curated MCPs, and a full Claude Code compatibility layer.
+> This is coding on steroids—`oh-my-opencode` in action. Run background agents, call specialized agents like advisor, librarian, and frontend engineer. Use crafted LSP/AST tools, curated MCPs, and a full Claude Code compatibility layer.
 
 # Claude OAuth Access Notice
 
@@ -85,7 +85,7 @@ Yes, technically possible. But I cannot recommend using it.
 
 > "It made me cancel my Cursor subscription. Unbelievable things are happening in the open source community." - [Arthur Guiot](https://x.com/arthur_guiot/status/2008736347092382053?s=20)
 
-> "If Claude Code does in 7 days what a human does in 3 months, Sisyphus does it in 1 hour. It just works until the task is done. It is a discipline agent." — B, Quant Researcher
+> "If Claude Code does in 7 days what a human does in 3 months, orchestrator does it in 1 hour. It just works until the task is done. It is a discipline agent." — B, Quant Researcher
 
 > "Knocked out 8000 eslint warnings with Oh My Opencode, just in a day" — [Jacob Ferrari](https://x.com/jacobferrari_/status/2003258761952289061)
 
@@ -113,9 +113,9 @@ Yes, technically possible. But I cannot recommend using it.
   - [Just Skip Reading This Readme](#just-skip-reading-this-readme)
     - [It's the Age of Agents](#its-the-age-of-agents)
     - [🪄 The Magic Word: `ultrawork`](#-the-magic-word-ultrawork)
-    - [For Those Who Want to Read: Meet Sisyphus](#for-those-who-want-to-read-meet-sisyphus)
+    - [For Those Who Want to Read: Meet orchestrator](#for-those-who-want-to-read-meet-orchestrator)
       - [Just Install This](#just-install-this)
-    - [For Those Who Want Autonomy: Meet Hephaestus](#for-those-who-want-autonomy-meet-hephaestus)
+    - [For Those Who Want Autonomy: Meet executor](#for-those-who-want-autonomy-meet-executor)
   - [Installation](#installation)
     - [For Humans](#for-humans)
     - [For LLM Agents](#for-llm-agents)
@@ -128,7 +128,7 @@ Yes, technically possible. But I cannot recommend using it.
       - [Permission Options](#permission-options)
     - [Built-in Skills](#built-in-skills)
     - [Git Master](#git-master)
-    - [Sisyphus Agent](#sisyphus-agent)
+    - [orchestrator Agent](#orchestrator-agent)
     - [Background Tasks](#background-tasks)
     - [Categories](#categories)
     - [Hooks](#hooks)
@@ -181,27 +181,27 @@ Hey please read this readme and tell me why it is different from other agent har
 
 That's it. All the features we provide will work like magic—parallel agents, background tasks, deep exploration, and relentless execution until completion. The agent figures out the rest automatically.
 
-### For Those Who Want to Read: Meet Sisyphus
+### For Those Who Want to Read: Meet orchestrator
 
-![Meet Sisyphus](.github/assets/sisyphus.png)
+![Meet orchestrator](.github/assets/orchestrator-agent.png)
 
-In greek mythology, Sisyphus was condemned to roll a boulder up a hill for eternity as punishment for deceiving the gods. LLM Agents haven't really done anything wrong, yet they too roll their "stones"—their thoughts—every single day.
+In greek mythology, orchestrator was condemned to roll a boulder up a hill for eternity as punishment for deceiving the gods. LLM Agents haven't really done anything wrong, yet they too roll their "stones"—their thoughts—every single day.
 My life is no different. Looking back, we are not so different from these agents.
 **Yes! LLM Agents are no different from us. They can write code as brilliant as ours and work just as excellently—if you give them great tools and solid teammates.**
 
-Meet our main agent: Sisyphus (Opus 4.6 High). Below are the tools Sisyphus uses to keep that boulder rolling.
+Meet our main agent: orchestrator (Opus 4.6 High). Below are the tools orchestrator uses to keep that boulder rolling.
 
 *Everything below is customizable. Take what you want. All features are enabled by default. You don't have to do anything. Battery Included, works out of the box.*
 
-- Sisyphus's Teammates (Curated Agents)
-  - Hephaestus: Autonomous deep worker, goal-oriented execution (GPT 5.3 Codex Medium) — *The Legitimate Craftsman*
-  - Oracle: Design, debugging (GPT 5.2 Medium)
+- orchestrator's Teammates (Curated Agents)
+  - executor: Autonomous deep worker, goal-oriented execution (GPT 5.3 Codex Medium) — *The Legitimate Craftsman*
+  - advisor: Design, debugging (GPT 5.2 Medium)
   - Frontend UI/UX Engineer: Frontend development (Gemini 3 Pro)
-  - Librarian: Official docs, open source implementations, codebase exploration (Claude Sonnet 4.5)
-  - Explore: Blazing fast codebase exploration (Contextual Grep) (Grok Code Fast / Claude Haiku fallback)
+  - librarian: Official docs, open source implementations, codebase exploration (Claude Sonnet 4.5)
+  - navigator: Blazing fast codebase exploration (Contextual Grep) (Grok Code Fast / Claude Haiku fallback)
 - Full LSP / AstGrep Support: Refactor decisively.
-- Task Continuation Enforcer: Forces the agent to continue if it quits halfway. **This is what keeps Sisyphus rolling that boulder.**
-- Comment Checker: Prevents AI from adding excessive comments. Code generated by Sisyphus should be indistinguishable from human-written code.
+- Task Continuation Enforcer: Forces the agent to continue if it quits halfway. **This is what keeps orchestrator rolling that boulder.**
+- Comment Checker: Prevents AI from adding excessive comments. Code generated by orchestrator should be indistinguishable from human-written code.
 - Claude Code Compatibility: Command, Agent, Skill, MCP, Hook(PreToolUse, PostToolUse, UserPromptSubmit, Stop)
 - Curated MCPs:
   - Exa (Web Search)
@@ -217,14 +217,14 @@ You can learn a lot from [overview page](docs/guide/overview.md), but following 
 
 Just by installing this, you make your agents to work like:
 
-1. Sisyphus doesn't waste time hunting for files himself; he keeps the main agent's context lean. Instead, he fires off background tasks to faster, cheaper models in parallel to map the territory for him.
-1. Sisyphus leverages LSP for refactoring; it's more deterministic, safer, and surgical.
-1. When the heavy lifting requires a UI touch, Sisyphus delegates frontend tasks directly to Gemini 3 Pro.
-1. If Sisyphus gets stuck in a loop or hits a wall, he doesn't keep banging his head—he calls GPT 5.2 for high-IQ strategic backup.
-1. Working with a complex open-source framework? Sisyphus spawns subagents to digest the raw source code and documentation in real-time. He operates with total contextual awareness.
-1. When Sisyphus touches comments, he either justifies their existence or nukes them. He keeps your codebase clean.
-1. Sisyphus is bound by TaskGraph. If he doesn't finish what he started, the system forces him back into "bouldering" mode. Your task gets done, period.
-1. Honestly, don't even bother reading the docs. Just write your prompt. Include the 'ultrawork' keyword. Sisyphus will analyze the structure, gather the context, dig through external source code, and just keep bouldering until the job is 100% complete.
+1. orchestrator doesn't waste time hunting for files himself; he keeps the main agent's context lean. Instead, he fires off background tasks to faster, cheaper models in parallel to map the territory for him.
+1. orchestrator leverages LSP for refactoring; it's more deterministic, safer, and surgical.
+1. When the heavy lifting requires a UI touch, orchestrator delegates frontend tasks directly to Gemini 3 Pro.
+1. If orchestrator gets stuck in a loop or hits a wall, he doesn't keep banging his head—he calls GPT 5.2 for high-IQ strategic backup.
+1. Working with a complex open-source framework? orchestrator spawns subagents to digest the raw source code and documentation in real-time. He operates with total contextual awareness.
+1. When orchestrator touches comments, he either justifies their existence or nukes them. He keeps your codebase clean.
+1. orchestrator is bound by TaskGraph. If he doesn't finish what he started, the system forces him back into "bouldering" mode. Your task gets done, period.
+1. Honestly, don't even bother reading the docs. Just write your prompt. Include the 'ultrawork' keyword. orchestrator will analyze the structure, gather the context, dig through external source code, and just keep bouldering until the job is 100% complete.
 1. Actually, typing 'ultrawork' is too much effort. Just type 'ulw'. Just ulw. Sip your coffee. Your work is done.
 
 Need to look something up? It scours official docs, your entire codebase history, and public GitHub implementations—using not just grep but built-in LSP tools and AST-Grep.
@@ -236,20 +236,20 @@ Need to look something up? It scours official docs, your entire codebase history
 
 If you don't want all this, as mentioned, you can just pick and choose specific features.
 
-### For Those Who Want Autonomy: Meet Hephaestus
+### For Those Who Want Autonomy: Meet executor
 
-![Meet Hephaestus](.github/assets/hephaestus.png)
+![Meet executor](.github/assets/executor-agent.png)
 
-In Greek mythology, Hephaestus was the god of forge, fire, metalworking, and craftsmanship—the divine blacksmith who crafted weapons for the gods with unmatched precision and dedication.
-**Meet our autonomous deep worker: Hephaestus (GPT 5.3 Codex Medium). The Legitimate Craftsman Agent.**
+In Greek mythology, executor was the god of forge, fire, metalworking, and craftsmanship—the divine blacksmith who crafted weapons for the gods with unmatched precision and dedication.
+**Meet our autonomous deep worker: executor (GPT 5.3 Codex Medium). The Legitimate Craftsman Agent.**
 
-*Why "Legitimate"? When Anthropic blocked third-party access citing ToS violations, the community started joking about "legitimate" usage. Hephaestus embraces this irony—he's the craftsman who builds things the right way, methodically and thoroughly, without cutting corners.*
+*Why "Legitimate"? When Anthropic blocked third-party access citing ToS violations, the community started joking about "legitimate" usage. executor embraces this irony—he's the craftsman who builds things the right way, methodically and thoroughly, without cutting corners.*
 
-Hephaestus is inspired by [AmpCode's deep mode](https://ampcode.com)—autonomous problem-solving with thorough research before decisive action. He doesn't need step-by-step instructions; give him a goal and he'll figure out the rest.
+executor is inspired by [AmpCode's deep mode](https://ampcode.com)—autonomous problem-solving with thorough research before decisive action. He doesn't need step-by-step instructions; give him a goal and he'll figure out the rest.
 
 **Key Characteristics:**
 - **Goal-Oriented**: Give him an objective, not a recipe. He determines the steps himself.
-- **Explores Before Acting**: Fires 2-5 parallel explore/librarian agents before writing a single line of code.
+- **Explores Before Acting**: Fires 2-5 parallel navigator/librarian agents before writing a single line of code.
 - **End-to-End Completion**: Doesn't stop until the task is 100% done with evidence of verification.
 - **Pattern Matching**: Searches existing codebase to match your project's style—no AI slop.
 - **Legitimate Precision**: Crafts code like a master blacksmith—surgical, minimal, exactly what's needed.
@@ -313,7 +313,7 @@ We have lots of features that you'll think should obviously exist, and once you 
 See the full [Features Documentation](docs/guide/features.md) for detailed information.
 
 **Quick Overview:**
-- **Agents**: Sisyphus (the main agent), Prometheus (planner), Oracle (architecture/debugging), Librarian (docs/code search), Explore (fast codebase grep), Multimodal Looker
+- **Agents**: orchestrator (the main agent), planner (planner), advisor (architecture/debugging), librarian (docs/code search), navigator (fast codebase grep), interpreter
 - **Background Agents**: Run multiple agents in parallel like a real dev team
 - **LSP & AST Tools**: Refactoring, rename, diagnostics, AST-aware code search
 - **Context Injection**: Auto-inject AGENTS.md, README.md, conditional rules
@@ -332,7 +332,7 @@ See the full [Configuration Documentation](docs/reference/configuration.md) for 
 - **JSONC Support**: Comments and trailing commas supported
 - **Agents**: Override models, temperatures, prompts, and permissions for any agent
 - **Built-in Skills**: `playwright` (browser automation), `git-master` (atomic commits)
-- **Sisyphus Agent**: Main orchestrator with Prometheus planning + Metis/Momus review pipeline
+- **orchestrator Agent**: Main orchestrator with planner planning + scope-analyst/reviewer review pipeline
 - **Background Tasks**: Configure concurrency limits per provider/model
 - **Categories**: Domain-specific task delegation (`visual`, `business-logic`, custom)
 - **Hooks**: 25+ built-in hooks, all configurable via `disabled_hooks`
@@ -384,7 +384,7 @@ I have no affiliation with any project or model mentioned here. This is purely p
   - Actually, I'll spread the word. Let's see who wins.
 - If you're on [1.0.132](https://github.com/sst/opencode/releases/tag/v1.0.132) or older, an OpenCode bug may break config.
   - [The fix](https://github.com/sst/opencode/pull/5040) was merged after 1.0.132—use a newer version.
-    - Fun fact: That PR was discovered and fixed thanks to OhMyOpenCode's Librarian, Explore, and Oracle setup.
+    - Fun fact: That PR was discovered and fixed thanks to OhMyOpenCode's librarian, navigator, and advisor setup.
 
 ## Loved by professionals at
 

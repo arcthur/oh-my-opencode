@@ -42,12 +42,12 @@ Examples:
 
 Model Providers (Priority: Native > Copilot > OpenCode Zen > Z.ai > Kimi):
   Claude        Native anthropic/ models (Opus, Sonnet, Haiku)
-  OpenAI        Native openai/ models (GPT-5.2 for Oracle)
+  OpenAI        Native openai/ models (GPT-5.2 for advisor)
   Gemini        Native google/ models (Gemini 3 Pro, Flash)
   Copilot       github-copilot/ models (fallback)
   OpenCode Zen  opencode/ models (opencode/claude-opus-4-6, etc.)
-  Z.ai          zai-coding-plan/glm-4.7 (Librarian priority)
-  Kimi          kimi-for-coding/k2p5 (Sisyphus/Prometheus fallback)
+  Z.ai          zai-coding-plan/glm-4.7 (librarian priority)
+  Kimi          kimi-for-coding/k2p5 (orchestrator/planner fallback)
 `)
   .action(async (options) => {
     const args: InstallArgs = {
@@ -70,7 +70,7 @@ program
   .allowUnknownOption()
   .passThroughOptions()
   .description("Run opencode with task/background completion enforcement")
-  .option("-a, --agent <name>", "Agent to use (default: from CLI/env/config, fallback: Sisyphus)")
+  .option("-a, --agent <name>", "Agent to use (default: from CLI/env/config, fallback: orchestrator)")
   .option("-d, --directory <path>", "Working directory")
   .option("-t, --timeout <ms>", "Timeout in milliseconds (default: 30 minutes)", parseInt)
   .option("-p, --port <port>", "Server port (attaches if port already in use)", parseInt)
@@ -81,7 +81,7 @@ program
   .addHelpText("after", `
 Examples:
   $ bunx oh-my-opencode run "Fix the bug in index.ts"
-  $ bunx oh-my-opencode run --agent Sisyphus "Implement feature X"
+  $ bunx oh-my-opencode run --agent orchestrator "Implement feature X"
   $ bunx oh-my-opencode run --timeout 3600000 "Large refactoring task"
   $ bunx oh-my-opencode run --port 4321 "Fix the bug"
   $ bunx oh-my-opencode run --attach http://127.0.0.1:4321 "Fix the bug"
@@ -93,10 +93,10 @@ Agent resolution order:
   1) --agent flag
   2) OPENCODE_DEFAULT_AGENT
   3) .opencode/oh-my-opencode/*.json "default_run_agent"
-  4) Sisyphus (fallback)
+  4) orchestrator (fallback)
 
 Available core agents:
-  Sisyphus, Hephaestus, Prometheus
+  orchestrator, executor, planner
 
 Unlike 'opencode run', this command waits until:
   - All tasks are completed or cancelled

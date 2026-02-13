@@ -16,15 +16,15 @@ import type { OhMyOpenCodeConfig } from "../config/schema"
 import {
   isSwarmAgent,
   getSwarmEnvContext,
-} from "../features/sisyphus-swarm/tmux"
+} from "../features/orchestrator-swarm/tmux"
 import {
   WorkerAgent,
   createWorker,
   CoordinatorAgent,
   createCoordinator,
   type TaskInfo,
-} from "../features/sisyphus-swarm/agent"
-import type { SwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
+} from "../features/orchestrator-swarm/agent"
+import type { SwarmRuntimeService } from "../features/orchestrator-swarm/runtime"
 import { log } from "../shared/logger"
 
 export interface SwarmAgentHookOptions {

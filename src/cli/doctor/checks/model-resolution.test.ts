@@ -15,11 +15,11 @@ describe("model-resolution check", () => {
       const info = getModelResolutionInfo()
 
       // then: Should have agent entries
-      const sisyphus = info.agents.find((a) => a.name === "sisyphus")
-      expect(sisyphus).toBeDefined()
-      expect(sisyphus!.requirement.fallbackChain[0]?.model).toBe("claude-opus-4-6")
-      expect(sisyphus!.requirement.fallbackChain[0]?.providers).toContain("anthropic")
-      expect(sisyphus!.requirement.fallbackChain[0]?.providers).toContain("github-copilot")
+      const orchestrator = info.agents.find((a) => a.name === "orchestrator")
+      expect(orchestrator).toBeDefined()
+      expect(orchestrator!.requirement.fallbackChain[0]?.model).toBe("claude-opus-4-6")
+      expect(orchestrator!.requirement.fallbackChain[0]?.providers).toContain("anthropic")
+      expect(orchestrator!.requirement.fallbackChain[0]?.providers).toContain("github-copilot")
     })
 
     it("returns category requirements with provider chains", async () => {
@@ -43,20 +43,20 @@ describe("model-resolution check", () => {
     it("shows user override for agent when configured", async () => {
       const { getModelResolutionInfoWithOverrides } = await import("./model-resolution")
 
-      // given: User has override for oracle agent
+      // given: User has override for advisor agent
       const mockConfig = {
         agents: {
-          oracle: { model: "anthropic/claude-opus-4-6" },
+          advisor: { model: "anthropic/claude-opus-4-6" },
         },
       }
 
       const info = getModelResolutionInfoWithOverrides(mockConfig)
 
-      // then: Oracle should show the override
-      const oracle = info.agents.find((a) => a.name === "oracle")
-      expect(oracle).toBeDefined()
-      expect(oracle!.userOverride).toBe("anthropic/claude-opus-4-6")
-      expect(oracle!.effectiveResolution).toBe("User override: anthropic/claude-opus-4-6")
+      // then: advisor should show the override
+      const advisor = info.agents.find((a) => a.name === "advisor")
+      expect(advisor).toBeDefined()
+      expect(advisor!.userOverride).toBe("anthropic/claude-opus-4-6")
+      expect(advisor!.effectiveResolution).toBe("User override: anthropic/claude-opus-4-6")
     })
 
     it("shows user override for category when configured", async () => {
@@ -87,20 +87,20 @@ describe("model-resolution check", () => {
       const info = getModelResolutionInfoWithOverrides(mockConfig)
 
       // then: Should show provider fallback chain
-      const sisyphus = info.agents.find((a) => a.name === "sisyphus")
-      expect(sisyphus).toBeDefined()
-      expect(sisyphus!.userOverride).toBeUndefined()
-      expect(sisyphus!.effectiveResolution).toContain("Provider fallback:")
-      expect(sisyphus!.effectiveResolution).toContain("anthropic")
+      const orchestrator = info.agents.find((a) => a.name === "orchestrator")
+      expect(orchestrator).toBeDefined()
+      expect(orchestrator!.userOverride).toBeUndefined()
+      expect(orchestrator!.effectiveResolution).toContain("Provider fallback:")
+      expect(orchestrator!.effectiveResolution).toContain("anthropic")
     })
 
     it("captures user variant for agent when configured", async () => {
       const { getModelResolutionInfoWithOverrides } = await import("./model-resolution")
 
-      // given: User has model + variant override for oracle agent
+      // given: User has model + variant override for advisor agent
       const mockConfig = {
         agents: {
-          oracle: { model: "openai/gpt-5.2", variant: "xhigh" },
+          advisor: { model: "openai/gpt-5.2", variant: "xhigh" },
         },
       }
 
@@ -108,10 +108,10 @@ describe("model-resolution check", () => {
       const info = getModelResolutionInfoWithOverrides(mockConfig)
 
       // then
-      const oracle = info.agents.find((a) => a.name === "oracle")
-      expect(oracle).toBeDefined()
-      expect(oracle!.userOverride).toBe("openai/gpt-5.2")
-      expect(oracle!.userVariant).toBe("xhigh")
+      const advisor = info.agents.find((a) => a.name === "advisor")
+      expect(advisor).toBeDefined()
+      expect(advisor!.userOverride).toBe("openai/gpt-5.2")
+      expect(advisor!.userVariant).toBe("xhigh")
     })
 
     it("captures user variant for category when configured", async () => {
@@ -264,7 +264,7 @@ describe("model-resolution check", () => {
           {
             config_version: 1,
             agents: {
-              oracle: {
+              advisor: {
                 model: "openai/gpt-5.2",
               },
             },
@@ -283,7 +283,7 @@ describe("model-resolution check", () => {
         const result = await checkModelResolution()
 
         // #then
-        expect(result.details?.some((line) => line.includes("● oracle: openai/gpt-5.2"))).toBe(true)
+        expect(result.details?.some((line) => line.includes("● advisor: openai/gpt-5.2"))).toBe(true)
       } finally {
         process.chdir(originalCwd)
         if (originalConfigDir === undefined) {

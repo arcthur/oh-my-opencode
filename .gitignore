@@ -1,5 +1,5 @@
 # Dependencies
-.sisyphus/
+.orchestrator/
 node_modules/
 
 # Build output

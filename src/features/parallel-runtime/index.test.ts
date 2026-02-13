@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { SISYPHUS_PROJECT_ROOT_ENV } from "../sisyphus-tasks/storage"
+import { ORCHESTRATOR_PROJECT_ROOT_ENV } from "../orchestrator-tasks/storage"
 import {
   acquireSlot,
   getRuntimeSnapshot,
@@ -15,17 +15,17 @@ describe("parallel-runtime", () => {
   let prevRoot: string | undefined
 
   beforeEach(() => {
-    prevRoot = process.env[SISYPHUS_PROJECT_ROOT_ENV]
+    prevRoot = process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
     projectRoot = join(tmpdir(), `parallel-runtime-test-${Date.now()}-${Math.random().toString(16).slice(2)}`)
     mkdirSync(projectRoot, { recursive: true })
-    process.env[SISYPHUS_PROJECT_ROOT_ENV] = projectRoot
+    process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = projectRoot
   })
 
   afterEach(() => {
     if (prevRoot) {
-      process.env[SISYPHUS_PROJECT_ROOT_ENV] = prevRoot
+      process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = prevRoot
     } else {
-      delete process.env[SISYPHUS_PROJECT_ROOT_ENV]
+      delete process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
     }
     if (existsSync(projectRoot)) {
       rmSync(projectRoot, { recursive: true })

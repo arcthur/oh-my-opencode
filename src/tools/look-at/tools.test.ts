@@ -105,7 +105,7 @@ describe("look-at tool", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "sisyphus",
+        agent: "orchestrator",
         abort: new AbortController().signal,
       }
 
@@ -118,7 +118,7 @@ describe("look-at tool", () => {
       // then
       expect(result).toContain("Error: Failed to analyze file")
       expect(result).toContain("malformed response")
-      expect(result).toContain("multimodal-looker")
+      expect(result).toContain("interpreter")
       expect(result).toContain("image/png")
     })
 
@@ -150,7 +150,7 @@ describe("look-at tool", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "sisyphus",
+        agent: "orchestrator",
         abort: new AbortController().signal,
       }
 
@@ -185,7 +185,7 @@ describe("look-at tool", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "sisyphus",
+        agent: "orchestrator",
         abort: new AbortController().signal,
       }
 
@@ -202,7 +202,7 @@ describe("look-at tool", () => {
   })
 
   describe("createLookAt model passthrough", () => {
-    test("passes multimodal-looker model and variant to session.prompt when available", async () => {
+    test("passes interpreter model and variant to session.prompt when available", async () => {
       // given
       let promptBody: any
 
@@ -211,7 +211,7 @@ describe("look-at tool", () => {
           agents: async () => ({
             data: [
               {
-                name: "multimodal-looker",
+                name: "interpreter",
                 mode: "subagent",
                 model: { providerID: "google", modelID: "gemini-3-flash" },
                 variant: "vision-high",
@@ -245,7 +245,7 @@ describe("look-at tool", () => {
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
-        agent: "sisyphus",
+        agent: "orchestrator",
         abort: new AbortController().signal,
       }
 

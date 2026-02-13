@@ -1,9 +1,17 @@
-import { describe, it, expect, mock, spyOn } from "bun:test"
+import { afterEach, beforeEach, describe, it, expect, mock, spyOn } from "bun:test"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
 import type { RunContext, Todo, ChildSession, SessionStatus } from "./types"
+import type { OhMyOpenCodeConfig } from "../../config"
 import { createEventState } from "./events"
 import { pollForCompletion } from "./poll-for-completion"
 
+let taskStorage: string
+
 const createMockContext = (overrides: {
+  directory?: string
+  taskConfig?: Partial<OhMyOpenCodeConfig>
   todo?: Todo[]
   childrenBySession?: Record<string, ChildSession[]>
   statuses?: Record<string, SessionStatus>
@@ -13,9 +21,18 @@ const createMockContext = (overrides: {
   }>
 } = {}): RunContext => {
   const {
+    directory = "/test",
     todo = [],
     childrenBySession = { "test-session": [] },
     statuses = {},
+    taskConfig = {
+      orchestrator: {
+        tasks: {
+          enabled: true,
+          storage_path: taskStorage,
+        },
+      },
+    },
     mainSessionMessages = [
       {
         info: { id: "msg-1", role: "user" },
@@ -40,12 +57,24 @@ const createMockContext = (overrides: {
       },
     } as unknown as RunContext["client"],
     sessionID: "test-session",
-    directory: "/test",
+    directory,
     abortController: new AbortController(),
+    taskConfig,
   }
 }
 
 describe("pollForCompletion", () => {
+  beforeEach(() => {
+    taskStorage = join(tmpdir(), `cli-poll-for-completion-task-storage-${Date.now()}`)
+    mkdirSync(taskStorage, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(taskStorage)) {
+      rmSync(taskStorage, { recursive: true, force: true })
+    }
+  })
+
   it("requires consecutive stability checks before exiting - not immediate", async () => {
     //#given - 0 todos, 0 children, session idle, meaningful work done
     spyOn(console, "log").mockImplementation(() => {})
@@ -273,7 +302,7 @@ describe("pollForCompletion", () => {
   })
 
   it("simulates race condition: brief idle with 0 todos does not cause immediate exit", async () => {
-    //#given - simulate Sisyphus outputting text, session goes idle briefly, then tool fires
+    //#given - simulate orchestrator outputting text, session goes idle briefly, then tool fires
     spyOn(console, "log").mockImplementation(() => {})
     spyOn(console, "error").mockImplementation(() => {})
     const ctx = createMockContext()

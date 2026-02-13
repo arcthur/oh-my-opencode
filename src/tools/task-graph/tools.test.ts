@@ -13,7 +13,7 @@ describe("task-graph tools", () => {
     workspace = join(tmpdir(), `task-graph-tools-${Date.now()}`)
     mkdirSync(workspace, { recursive: true })
     config = {
-      sisyphus: {
+      orchestrator: {
         tasks: {
           enabled: true,
           storage_path: workspace,

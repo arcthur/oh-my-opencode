@@ -277,10 +277,10 @@ describe("generateOmoConfig - model fallback system", () => {
     // #when generating config
     const result = generateOmoConfig(config)
 
-    // #then Sisyphus uses Claude (OR logic - at least one provider available)
+    // #then orchestrator uses Claude (OR logic - at least one provider available)
     expect(result.$schema).toBe("https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json")
     expect(result.agents).toBeDefined()
-    expect((result.agents as Record<string, { model: string }>).sisyphus.model).toBe("anthropic/claude-opus-4-6")
+    expect((result.agents as Record<string, { model: string }>).orchestrator.model).toBe("anthropic/claude-opus-4-6")
   })
 
   test("generates native opus models when Claude max20 subscription", () => {
@@ -299,8 +299,8 @@ describe("generateOmoConfig - model fallback system", () => {
     // #when generating config
     const result = generateOmoConfig(config)
 
-    // #then Sisyphus uses Claude (OR logic - at least one provider available)
-    expect((result.agents as Record<string, { model: string }>).sisyphus.model).toBe("anthropic/claude-opus-4-6")
+    // #then orchestrator uses Claude (OR logic - at least one provider available)
+    expect((result.agents as Record<string, { model: string }>).orchestrator.model).toBe("anthropic/claude-opus-4-6")
   })
 
   test("uses github-copilot sonnet fallback when only copilot available", () => {
@@ -319,8 +319,8 @@ describe("generateOmoConfig - model fallback system", () => {
     // #when generating config
     const result = generateOmoConfig(config)
 
-    // #then Sisyphus uses Copilot (OR logic - copilot is in claude-opus-4-5 providers)
-    expect((result.agents as Record<string, { model: string }>).sisyphus.model).toBe("github-copilot/claude-opus-4.6")
+    // #then orchestrator uses Copilot (OR logic - copilot is in claude-opus-4-5 providers)
+    expect((result.agents as Record<string, { model: string }>).orchestrator.model).toBe("github-copilot/claude-opus-4.6")
   })
 
   test("uses ultimate fallback when no providers configured", () => {
@@ -339,9 +339,9 @@ describe("generateOmoConfig - model fallback system", () => {
     // #when generating config
     const result = generateOmoConfig(config)
 
-    // #then Sisyphus is omitted (requires all fallback providers)
+    // #then orchestrator is omitted (requires all fallback providers)
     expect(result.$schema).toBe("https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json")
-    expect((result.agents as Record<string, { model: string }>).sisyphus).toBeUndefined()
+    expect((result.agents as Record<string, { model: string }>).orchestrator).toBeUndefined()
   })
 
   test("uses zai-coding-plan/glm-4.7 for librarian when Z.ai available", () => {
@@ -362,8 +362,8 @@ describe("generateOmoConfig - model fallback system", () => {
 
     // #then librarian should use zai-coding-plan/glm-4.7
     expect((result.agents as Record<string, { model: string }>).librarian.model).toBe("zai-coding-plan/glm-4.7")
-    // #then Sisyphus uses Claude (OR logic)
-    expect((result.agents as Record<string, { model: string }>).sisyphus.model).toBe("anthropic/claude-opus-4-6")
+    // #then orchestrator uses Claude (OR logic)
+    expect((result.agents as Record<string, { model: string }>).orchestrator.model).toBe("anthropic/claude-opus-4-6")
   })
 
   test("uses native OpenAI models when only ChatGPT available", () => {
@@ -382,15 +382,15 @@ describe("generateOmoConfig - model fallback system", () => {
     // #when generating config
     const result = generateOmoConfig(config)
 
-    // #then Sisyphus is omitted (requires all fallback providers)
-    expect((result.agents as Record<string, { model: string }>).sisyphus).toBeUndefined()
-    // #then Oracle should use native OpenAI (first fallback entry)
-    expect((result.agents as Record<string, { model: string }>).oracle.model).toBe("openai/gpt-5.2")
-    // #then multimodal-looker should use native OpenAI (fallback within native tier)
-    expect((result.agents as Record<string, { model: string }>)["multimodal-looker"].model).toBe("openai/gpt-5.2")
+    // #then orchestrator is omitted (requires all fallback providers)
+    expect((result.agents as Record<string, { model: string }>).orchestrator).toBeUndefined()
+    // #then advisor should use native OpenAI (first fallback entry)
+    expect((result.agents as Record<string, { model: string }>).advisor.model).toBe("openai/gpt-5.2")
+    // #then interpreter should use native OpenAI (fallback within native tier)
+    expect((result.agents as Record<string, { model: string }>)["interpreter"].model).toBe("openai/gpt-5.2")
   })
 
-  test("uses haiku for explore when Claude max20", () => {
+  test("uses haiku for navigator when Claude max20", () => {
     // #given user has Claude max20
     const config: InstallConfig = {
       hasClaude: true,
@@ -406,11 +406,11 @@ describe("generateOmoConfig - model fallback system", () => {
     // #when generating config
     const result = generateOmoConfig(config)
 
-    // #then explore should use haiku (max20 plan uses Claude quota)
-    expect((result.agents as Record<string, { model: string }>).explore.model).toBe("anthropic/claude-haiku-4-5")
+    // #then navigator should use haiku (max20 plan uses Claude quota)
+    expect((result.agents as Record<string, { model: string }>).navigator.model).toBe("anthropic/claude-haiku-4-5")
   })
 
-  test("uses haiku for explore regardless of max20 flag", () => {
+  test("uses haiku for navigator regardless of max20 flag", () => {
     // #given user has Claude but not max20
     const config: InstallConfig = {
       hasClaude: true,
@@ -426,7 +426,7 @@ describe("generateOmoConfig - model fallback system", () => {
     // #when generating config
     const result = generateOmoConfig(config)
 
-    // #then explore should use haiku (isMax20 doesn't affect explore anymore)
-    expect((result.agents as Record<string, { model: string }>).explore.model).toBe("anthropic/claude-haiku-4-5")
+    // #then navigator should use haiku (isMax20 doesn't affect navigator anymore)
+    expect((result.agents as Record<string, { model: string }>).navigator.model).toBe("anthropic/claude-haiku-4-5")
   })
 })

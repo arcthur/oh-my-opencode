@@ -21,7 +21,7 @@ import { readConnectedProvidersCache } from "../../shared/connected-providers-ca
 import { CATEGORY_MODEL_REQUIREMENTS } from "../../shared/model-requirements"
 import { mergeCategories } from "../../shared/merge-categories"
 
-const SISYPHUS_JUNIOR_AGENT = "sisyphus-junior"
+const ORCHESTRATOR_JUNIOR_AGENT = "specialist"
 
 export interface ExecutorContext {
   manager: BackgroundManager
@@ -29,7 +29,7 @@ export interface ExecutorContext {
   directory: string
   userCategories?: CategoriesConfig
   gitMasterConfig?: GitMasterConfig
-  sisyphusJuniorModel?: string
+  specialistModel?: string
   browserProvider?: BrowserAutomationProvider
   onSyncSessionCreated?: (event: { sessionID: string; parentID: string; title: string }) => Promise<void>
 }
@@ -894,7 +894,7 @@ export async function resolveCategoryExecution(
   inheritedModel: string | undefined,
   systemDefaultModel: string | undefined
 ): Promise<CategoryResolutionResult> {
-  const { client, userCategories, sisyphusJuniorModel } = executorCtx
+  const { client, userCategories, specialistModel } = executorCtx
   const enabledCategories = mergeCategories(userCategories)
 
   const connectedProviders = readConnectedProvidersCache()
@@ -926,12 +926,12 @@ export async function resolveCategoryExecution(
   let modelInfo: ModelFallbackInfo | undefined
   let categoryModel: { providerID: string; modelID: string; variant?: string } | undefined
 
-  const overrideModel = sisyphusJuniorModel
+  const overrideModel = specialistModel
   const explicitCategoryModel = userCategories?.[args.category!]?.model
 
   if (!requirement) {
-    // Precedence: explicit category model > sisyphus-junior default > category resolved model
-    // This keeps `sisyphus-junior.model` useful as a global default while allowing
+    // Precedence: explicit category model > specialist default > category resolved model
+    // This keeps `specialist.model` useful as a global default while allowing
     // per-category overrides via `categories[category].model`.
     actualModel = explicitCategoryModel ?? overrideModel ?? resolved.model
     if (actualModel) {
@@ -1026,7 +1026,7 @@ Available categories: ${categoryNames.join(", ")}`,
     (unstableModel ? unstableModel.includes("gemini") || unstableModel.includes("minimax") : false)
 
   return {
-    agentToUse: SISYPHUS_JUNIOR_AGENT,
+    agentToUse: ORCHESTRATOR_JUNIOR_AGENT,
     categoryModel,
     categoryPromptAppend,
     modelInfo,
@@ -1049,13 +1049,13 @@ export async function resolveSubagentExecution(
 
   const agentName = args.subagent_type.trim()
 
-  if (agentName.toLowerCase() === SISYPHUS_JUNIOR_AGENT.toLowerCase()) {
+  if (agentName.toLowerCase() === ORCHESTRATOR_JUNIOR_AGENT.toLowerCase()) {
     return {
       agentToUse: "",
       categoryModel: undefined,
-      error: `Cannot use subagent_type="${SISYPHUS_JUNIOR_AGENT}" directly. Use category parameter instead (e.g., ${categoryExamples}).
+      error: `Cannot use subagent_type="${ORCHESTRATOR_JUNIOR_AGENT}" directly. Use category parameter instead (e.g., ${categoryExamples}).
 
-Sisyphus-Junior is spawned automatically when you specify a category. Pick the appropriate category for your task domain.`,
+specialist is spawned automatically when you specify a category. Pick the appropriate category for your task domain.`,
     }
   }
 
@@ -1063,7 +1063,7 @@ Sisyphus-Junior is spawned automatically when you specify a category. Pick the a
     return {
       agentToUse: "",
       categoryModel: undefined,
-      error: `You are prometheus. You cannot delegate to prometheus via delegate_task.
+      error: `You are planner. You cannot delegate to planner via delegate_task.
 
 Create the work plan directly - that's your job as the planning agent.`,
     }

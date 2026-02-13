@@ -6,9 +6,9 @@ import type { PolicyDecision } from "../../../contracts"
 import type { ToolExecuteInput } from "../../../shared/hook-types"
 import type { ExecutionBudgetSnapshot } from "../../../features/policy-runtime"
 import {
-  PROMETHEUS_MUTATION_TOOLS,
-  PROMETHEUS_AGENTS,
-} from "../../../features/policy-runtime/prometheus-policy"
+  PLANNER_MUTATION_TOOLS,
+  PLANNER_AGENTS,
+} from "../../../features/policy-runtime/planner-policy"
 import { SYSTEM_DIRECTIVE_PREFIX } from "../../../shared/system-directive"
 import { existsSync } from "node:fs"
 import { isAbsolute, join, normalize, relative, resolve, sep } from "node:path"
@@ -22,21 +22,21 @@ function resolveFilePath(args: Record<string, unknown>): string | undefined {
   return typeof value === "string" ? value : undefined
 }
 
-function isPrometheusAgent(agentName: string | undefined): boolean {
+function isPlannerAgent(agentName: string | undefined): boolean {
   if (!agentName) {
     return false
   }
   const lowered = agentName.toLowerCase()
-  return PROMETHEUS_AGENTS.some((name) => lowered.includes(name.toLowerCase()))
+  return PLANNER_AGENTS.some((name) => lowered.includes(name.toLowerCase()))
 }
 
-function isAllowedPrometheusFile(filePath: string, workspaceRoot: string): boolean {
+function isAllowedPlannerFile(filePath: string, workspaceRoot: string): boolean {
   const resolved = resolve(workspaceRoot, filePath)
   const rel = relative(workspaceRoot, resolved)
   if (rel.startsWith("..") || isAbsolute(rel)) {
     return false
   }
-  if (!/\.sisyphus[/\\]/i.test(rel)) {
+  if (!/\.orchestrator[/\\]/i.test(rel)) {
     return false
   }
   return resolved.toLowerCase().endsWith(".md")
@@ -58,17 +58,17 @@ function resolvePolicyGuards(
     : undefined
 
   const fileExists = resolvedPath ? existsSync(resolvedPath) : false
-  const sisyphusRoot = join(cwd, ".sisyphus") + sep
-  const isSisyphusMarkdown =
+  const orchestratorRoot = join(cwd, ".orchestrator") + sep
+  const isOrchestratorMarkdown =
     Boolean(resolvedPath)
-    && Boolean(resolvedPath?.startsWith(sisyphusRoot))
+    && Boolean(resolvedPath?.startsWith(orchestratorRoot))
     && Boolean(resolvedPath?.toLowerCase().endsWith(".md"))
 
   const sessionAgent = context.getSessionAgent?.(input.sessionID)
-  const prometheusAgent = isPrometheusAgent(sessionAgent)
-  const prometheusBlockedTool = PROMETHEUS_MUTATION_TOOLS.includes(toolName)
-  const prometheusAllowedFile = filePath
-    ? isAllowedPrometheusFile(filePath, cwd)
+  const plannerAgent = isPlannerAgent(sessionAgent)
+  const plannerBlockedTool = PLANNER_MUTATION_TOOLS.includes(toolName)
+  const plannerAllowedFile = filePath
+    ? isAllowedPlannerFile(filePath, cwd)
     : true
   const normalizedFilePath = filePath?.toLowerCase().replace(/\\/g, "/") ?? ""
   const prompt = typeof args.prompt === "string" ? args.prompt : undefined
@@ -85,7 +85,7 @@ function resolvePolicyGuards(
         toolNameLower === "write"
         && Boolean(filePath)
         && fileExists
-        && !isSisyphusMarkdown,
+        && !isOrchestratorMarkdown,
       filePath,
       resolvedPath,
     },
@@ -94,24 +94,24 @@ function resolvePolicyGuards(
         (toolNameLower === "question" || toolNameLower === "askuserquestion")
         && isSubagentSession(input.sessionID),
     },
-    prometheus: {
-      isPrometheus: prometheusAgent,
+    planner: {
+      isPlanner: plannerAgent,
       blockedWrite:
-        prometheusAgent
-        && prometheusBlockedTool
+        plannerAgent
+        && plannerBlockedTool
         && Boolean(filePath)
-        && !prometheusAllowedFile,
+        && !plannerAllowedFile,
       taskWarning:
-        prometheusAgent
+        plannerAgent
         && (toolNameLower === "task" || toolNameLower === "delegate_task")
         && Boolean(prompt)
         && !prompt!.includes(SYSTEM_DIRECTIVE_PREFIX),
       planReminder:
-        prometheusAgent
-        && prometheusBlockedTool
+        plannerAgent
+        && plannerBlockedTool
         && Boolean(filePath)
-        && prometheusAllowedFile
-        && normalizedFilePath.includes(".sisyphus/plans/"),
+        && plannerAllowedFile
+        && normalizedFilePath.includes(".orchestrator/plans/"),
       filePath,
       agent: sessionAgent,
     },
@@ -329,11 +329,11 @@ export function buildToolExecuteBeforeNodes(
     })
   }
 
-  if (context.sisyphusContextualInjector?.["tool.execute.before"]) {
+  if (context.orchestratorContextualInjector?.["tool.execute.before"]) {
     nodes.push({
-      id: "sisyphus-contextual-injector:tool.execute.before",
+      id: "orchestrator-contextual-injector:tool.execute.before",
       invoke: async () => {
-        await context.sisyphusContextualInjector?.["tool.execute.before"]?.(input, output)
+        await context.orchestratorContextualInjector?.["tool.execute.before"]?.(input, output)
       },
     })
   }
@@ -347,11 +347,11 @@ export function buildToolExecuteBeforeNodes(
     })
   }
 
-  if (context.sisyphusJuniorNotepad?.["tool.execute.before"]) {
+  if (context.specialistNotepad?.["tool.execute.before"]) {
     nodes.push({
-      id: "sisyphus-junior-notepad:tool.execute.before",
+      id: "specialist-notepad:tool.execute.before",
       invoke: async () => {
-        await context.sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output)
+        await context.specialistNotepad?.["tool.execute.before"]?.(input, output)
       },
     })
   }

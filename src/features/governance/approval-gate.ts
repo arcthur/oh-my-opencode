@@ -40,7 +40,7 @@ export interface ApprovalGateConfig {
   /** Enable ledger integration for audit logging */
   enableLedger?: boolean
 
-  /** Ledger base directory (defaults to ~/.sisyphus/ledger) */
+  /** Ledger base directory (defaults to ~/.orchestrator/ledger) */
   ledgerBaseDir?: string
 }
 

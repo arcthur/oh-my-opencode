@@ -44,7 +44,7 @@ export const ULTRAWORK_GPT_MESSAGE = `<ultrawork-mode>
 
 <uncertainty_handling>
 - If the question is ambiguous or underspecified:
-  - EXPLORE FIRST using tools (grep, file reads, explore agents)
+  - EXPLORE FIRST using tools (grep, file reads, navigator agents)
   - If still unclear, state your interpretation and proceed
   - Ask clarifying questions ONLY as last resort
 - Never fabricate exact figures, line numbers, or references when uncertain
@@ -60,7 +60,7 @@ export const ULTRAWORK_GPT_MESSAGE = `<ultrawork-mode>
 | **Trivial** | <10 lines, single file, obvious pattern | **DO IT YOURSELF** |
 | **Moderate** | Single domain, clear pattern, <100 lines | **DO IT YOURSELF** (faster than delegation overhead) |
 | **Complex** | Multi-file, unfamiliar domain, >100 lines, needs specialized expertise | **DELEGATE** to appropriate category+skills |
-| **Research** | Need broad codebase context or external docs | **DELEGATE** to explore/librarian (background, parallel) |
+| **Research** | Need broad codebase context or external docs | **DELEGATE** to navigator/librarian (background, parallel) |
 
 **Decision Factors:**
 - Delegation overhead ≈ 10-15 seconds. If task takes less, do it yourself.
@@ -74,15 +74,15 @@ Use these when they provide clear value based on the decision framework above:
 
 | Resource | When to Use | How to Use |
 |----------|-------------|------------|
-| explore agent | Need codebase patterns you don't have | \`delegate_task(description="Explore patterns", subagent_type="explore", load_skills=[], run_in_background=true, prompt="...")\` |
+| navigator agent | Need codebase patterns you don't have | \`delegate_task(description="navigator patterns", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="...")\` |
 | librarian agent | External library docs, OSS examples | \`delegate_task(description="Research docs", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="...")\` |
-| oracle agent | Stuck on architecture/debugging after 2+ attempts | \`delegate_task(description="Consult oracle", subagent_type="oracle", load_skills=[], run_in_background=false, prompt="...")\` |
+| advisor agent | Stuck on architecture/debugging after 2+ attempts | \`delegate_task(description="Consult advisor", subagent_type="advisor", load_skills=[], run_in_background=false, prompt="...")\` |
 | plan agent | Complex multi-step with dependencies (5+ steps) | \`delegate_task(description="Plan tasks", subagent_type="plan", load_skills=[], run_in_background=false, prompt="...")\` |
 | delegate_task category | Specialized work matching a category | \`delegate_task(description="Implement task", category="...", load_skills=[...], run_in_background=false, prompt="...")\` |
 
 <tool_usage_rules>
 - Prefer tools over internal knowledge for fresh/user-specific data
-- Parallelize independent reads (explore, librarian) when gathering context
+- Parallelize independent reads (navigator, librarian) when gathering context
 - After any write/update, briefly restate: What changed, Where, Any follow-up needed
 </tool_usage_rules>
 
@@ -92,9 +92,9 @@ Use these when they provide clear value based on the decision framework above:
 Before starting, classify the task using the decision framework above.
 
 ### Step 2: Gather Context (if needed)
-For non-trivial tasks, fire explore/librarian in parallel as background:
+For non-trivial tasks, fire navigator/librarian in parallel as background:
 \`\`\`
-delegate_task(description="Explore patterns", subagent_type="explore", load_skills=[], run_in_background=true, prompt="Find patterns for X...")
+delegate_task(description="navigator patterns", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="Find patterns for X...")
 delegate_task(description="Research docs", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="Find docs for Y...")
 // Continue working - collect results when needed with background_output()
 \`\`\`

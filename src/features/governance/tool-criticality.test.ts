@@ -160,13 +160,13 @@ describe("ToolCriticalityRegistry", () => {
 
     it("returns preview for Task", () => {
       const preview = registry.getPreview("Task", {
-        subagent_type: "explore",
+        subagent_type: "navigator",
         prompt: "Search for files",
       })
 
       expect(preview).toBeDefined()
       expect(preview?.title).toBe("Delegate Task")
-      expect(preview?.affectedItems[0].identifier).toBe("explore")
+      expect(preview?.affectedItems[0].identifier).toBe("navigator")
     })
 
     it("returns undefined for unknown tools", () => {

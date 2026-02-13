@@ -17,7 +17,7 @@ The codebase is the source of truth; these docs are meant to help you navigate a
 Journeys are “how to accomplish X” guides that connect multiple subsystems and point you at the right references:
 
 - Planning → execution: `docs/journeys/planning-to-execution.md`
-- Prometheus planning: `docs/journeys/prometheus-planning.md`
+- planner planning: `docs/journeys/planner-planning.md`
 - Planning protocol (work-orchestrator): `docs/journeys/planning-with-files.md`
 - Session handoff & session reference: `docs/journeys/session-handoff-and-reference.md`
 - Conditional rules: `docs/journeys/conditional-rules.md`
@@ -27,7 +27,7 @@ Journeys are “how to accomplish X” guides that connect multiple subsystems a
 - Cross-session continuity: `docs/journeys/cross-session-continuity.md`
 - Background tasks & parallelism: `docs/journeys/background-and-parallelism.md`
 - Parallel agents (worktrees / tmux / swarm): `docs/journeys/parallel-agents.md`
-- Swarm coordination (Sisyphus Swarm): `docs/journeys/swarm-coordination.md`
+- Swarm coordination (orchestrator Swarm): `docs/journeys/swarm-coordination.md`
 - Browser automation: `docs/journeys/browser-automation.md`
 - Delegation safety (delegation-validate-decision): `docs/journeys/delegation-safety.md`
 - Extensibility (add hooks/tools/skills): `docs/journeys/extensibility.md`

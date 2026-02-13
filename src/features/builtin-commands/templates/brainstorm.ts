@@ -1,6 +1,6 @@
 export const BRAINSTORM_TEMPLATE = `# Brainstorm Command
 
-Start Prometheus Phase 0 brainstorming workflow for this request.
+Start planner Phase 0 brainstorming workflow for this request.
 
 ## Required Behavior
 
@@ -18,6 +18,6 @@ Start Prometheus Phase 0 brainstorming workflow for this request.
    - data flow
    - error handling
    - testing strategy
-7. Write validated design doc to \`.sisyphus/designs/{topic-slug}.md\`.
+7. Write validated design doc to \`.orchestrator/designs/{topic-slug}.md\`.
 8. Do NOT implement code. Continue Interview Mode toward plan generation.
 `

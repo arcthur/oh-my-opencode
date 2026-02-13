@@ -100,8 +100,8 @@ function resolveModelFromChain(
   return null
 }
 
-function getSisyphusFallbackChain(): FallbackEntry[] {
-  return AGENT_MODEL_REQUIREMENTS.sisyphus.fallbackChain
+function getOrchestratorFallbackChain(): FallbackEntry[] {
+  return AGENT_MODEL_REQUIREMENTS.orchestrator.fallbackChain
 }
 
 function isAnyFallbackEntryAvailable(
@@ -146,7 +146,7 @@ export function generateModelConfig(config: InstallConfig): GeneratedOmoConfig {
       $schema: SCHEMA_URL,
       agents: Object.fromEntries(
         Object.entries(AGENT_MODEL_REQUIREMENTS)
-          .filter(([role, req]) => !(role === "sisyphus" && req.requiresAnyModel))
+          .filter(([role, req]) => !(role === "orchestrator" && req.requiresAnyModel))
           .map(([role]) => [role, { model: ULTIMATE_FALLBACK }])
       ),
       categories: Object.fromEntries(
@@ -164,7 +164,7 @@ export function generateModelConfig(config: InstallConfig): GeneratedOmoConfig {
       continue
     }
 
-    if (role === "explore") {
+    if (role === "navigator") {
       if (avail.native.claude) {
         agents[role] = { model: "anthropic/claude-haiku-4-5" }
       } else if (avail.opencodeZen) {
@@ -177,8 +177,8 @@ export function generateModelConfig(config: InstallConfig): GeneratedOmoConfig {
       continue
     }
 
-    if (role === "sisyphus") {
-      const fallbackChain = getSisyphusFallbackChain()
+    if (role === "orchestrator") {
+      const fallbackChain = getOrchestratorFallbackChain()
       if (req.requiresAnyModel && !isAnyFallbackEntryAvailable(fallbackChain, avail)) {
         continue
       }

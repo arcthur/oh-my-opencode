@@ -214,7 +214,7 @@ describe("config-manager upstream sync behaviors", () => {
       omoConfigPath,
       `{
   "agents": {
-    "oracle": {
+    "advisor": {
       "model": "openai/gpt-5.2"
     }
   }

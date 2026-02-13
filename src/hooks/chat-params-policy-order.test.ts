@@ -9,7 +9,7 @@ describe("chat.params policy order", () => {
     await runChatParamsPolicyPipeline({
       input: {
         sessionID: "s1",
-        agent: "sisyphus",
+        agent: "orchestrator",
         model: { providerID: "openai", modelID: "gpt-5.3-codex" },
         provider: { id: "openai" },
         message: { variant: "max" },

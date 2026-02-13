@@ -295,7 +295,7 @@ export interface TransferManifest {
  * Never expose raw token counts - use qualitative descriptions
  */
 export const PHASE_DESCRIPTIONS: Record<BudgetPhase, string> = {
-  healthy: "You have plenty of capacity to explore thoroughly.",
+  healthy: "You have plenty of capacity to navigator thoroughly.",
   midpoint: "Good progress. Continue with your current approach.",
   wrapUp: "Begin consolidating your work toward deliverables.",
   critical: "Focus only on essential remaining tasks.",

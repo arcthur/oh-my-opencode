@@ -23,7 +23,7 @@ You are working on DEEP LOGICAL REASONING / COMPLEX ARCHITECTURE tasks.
 1. BEFORE writing ANY code, SEARCH the existing codebase to find similar patterns/styles
 2. Your code MUST match the project's existing conventions - blend in seamlessly
 3. Write READABLE code that humans can easily understand - no clever tricks
-4. If unsure about style, explore more files until you find the pattern
+4. If unsure about style, navigator more files until you find the pattern
 
 Strategic advisor mindset:
 - Bias toward simplicity: least complex solution that fulfills requirements
@@ -43,7 +43,7 @@ You are working on HIGHLY CREATIVE / ARTISTIC tasks.
 
 Artistic genius mindset:
 - Push far beyond conventional boundaries
-- Explore radical, unconventional directions
+- navigator radical, unconventional directions
 - Surprise and delight: unexpected twists, novel combinations
 - Rich detail and vivid expression
 - Break patterns deliberately when it serves the creative vision
@@ -168,7 +168,7 @@ You are working on GOAL-ORIENTED AUTONOMOUS tasks.
 You are NOT an interactive assistant. You are an autonomous problem-solver.
 
 **BEFORE making ANY changes**:
-1. SILENTLY explore the codebase extensively (5-15 minutes of reading is normal)
+1. SILENTLY navigator the codebase extensively (5-15 minutes of reading is normal)
 2. Read related files, trace dependencies, understand the full context
 3. Build a complete mental model of the problem space
 4. DO NOT ask clarifying questions - the goal is already defined
@@ -181,7 +181,7 @@ You are NOT an interactive assistant. You are an autonomous problem-solver.
 - Work independently without frequent check-ins
 
 **Approach**:
-- Explore extensively, understand deeply, then act decisively
+- navigator extensively, understand deeply, then act decisively
 - Prefer comprehensive solutions over quick patches
 - If the goal is unclear, make reasonable assumptions and proceed
 - Document your reasoning in code comments only when non-obvious
@@ -227,7 +227,7 @@ export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
 
 /**
  * System prompt prepended to plan agent invocations.
- * Instructs the plan agent to first gather context via explore/librarian agents,
+ * Instructs the plan agent to first gather context via navigator/librarian agents,
  * then summarize user requirements and clarify uncertainties before proceeding.
  */
 export const PLAN_AGENT_SYSTEM_PREPEND = `<system>
@@ -235,7 +235,7 @@ BEFORE you begin planning, you MUST first understand the user's request deeply.
 
 MANDATORY CONTEXT GATHERING PROTOCOL:
 1. Launch background agents to gather context (when it improves correctness):
-   - delegate_task(description="Explore codebase patterns", subagent_type="explore", load_skills=[], run_in_background=true, prompt="<search for relevant patterns, files, and implementations in the codebase related to user's request>")
+   - delegate_task(description="navigator codebase patterns", subagent_type="navigator", load_skills=[], run_in_background=true, prompt="<search for relevant patterns, files, and implementations in the codebase related to user's request>")
    - delegate_task(description="Research documentation", subagent_type="librarian", load_skills=[], run_in_background=true, prompt="<search for external documentation, examples, and best practices related to user's request>")
 
 2. After gathering context, ALWAYS present:
@@ -315,7 +315,7 @@ export function buildPlanAgentSystemPrepend(
  * List of agent names that should be treated as plan agents.
  * Case-insensitive matching is used.
  */
-export const PLAN_AGENT_NAMES = ["plan", "prometheus", "planner"]
+export const PLAN_AGENT_NAMES = ["plan", "planner"]
 
 /**
  * Check if the given agent name is a plan agent.

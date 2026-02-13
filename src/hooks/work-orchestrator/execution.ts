@@ -30,11 +30,11 @@ import { getGitDiffStats, type GitFileStat } from "./git-diff-stats"
 export const HOOK_NAME = "work-orchestrator:execution"
 
 /**
- * Cross-platform check if a path is inside .sisyphus/ directory.
+ * Cross-platform check if a path is inside .orchestrator/ directory.
  * Handles both forward slashes (Unix) and backslashes (Windows).
  */
-function isSisyphusPath(filePath: string): boolean {
-  return /\.sisyphus[/\\]/.test(filePath)
+function isOrchestratorPath(filePath: string): boolean {
+  return /\.orchestrator[/\\]/.test(filePath)
 }
 
 const WRITE_EDIT_TOOLS = ["Write", "Edit", "write", "edit"]
@@ -61,12 +61,12 @@ ${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)}
 ${statusLine}
 
 Executor: ${input.executorName}
-Path: \`${input.filePath}\` (outside \`.sisyphus/\`)
+Path: \`${input.filePath}\` (outside \`.orchestrator/\`)
 
-Atlas rule:
+workflow-automator rule:
 - Delegate implementation via \`delegate_task\`
 - Verify results with your own tool calls
-- Keep direct edits limited to \`.sisyphus/*\` artifacts or tiny verification-only fixes
+- Keep direct edits limited to \`.orchestrator/*\` artifacts or tiny verification-only fixes
 
 Next action:
 \`\`\`typescript
@@ -83,11 +83,11 @@ delegate_task(
 `
 }
 
-const ATLAS_WORK_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
+const WORKFLOW_AUTOMATOR_WORK_CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.WORK_CONTINUATION)}
 
-ATLAS EXECUTION CONTINUATION
+WORKFLOW-AUTOMATOR EXECUTION CONTINUATION
 
-You are Atlas, the execution orchestrator for this plan.
+You are workflow-automator, the execution orchestrator for this plan.
 Continue deterministic execution using work state + TaskGraph SSOT.
 
 RULES:
@@ -103,8 +103,8 @@ Plan file: \`{PLAN_PATH}\`
 TaskGraph scope: \`plan\`
 TaskGraph container_id: \`{PLAN_NAME}\``
 
-const EXECUTION_AGENT_LABEL = "Atlas"
-const DEFAULT_COMPLETION_FALLBACK_AGENT = "sisyphus"
+const EXECUTION_AGENT_LABEL = "workflow-automator"
+const DEFAULT_COMPLETION_FALLBACK_AGENT = "orchestrator"
 
 const VERIFICATION_REMINDER = `**MANDATORY: WHAT YOU MUST DO RIGHT NOW**
 
@@ -319,7 +319,7 @@ const REMINDER_TELEMETRY_SNAPSHOT_VERSION = 1
 const REMINDER_TELEMETRY_FILE_NAME = "orchestrator-reminder-telemetry.json"
 
 function getReminderTelemetryPath(workspaceDir: string, planId: string): string {
-  return join(workspaceDir, ".sisyphus", "plans", planId, REMINDER_TELEMETRY_FILE_NAME)
+  return join(workspaceDir, ".orchestrator", "plans", planId, REMINDER_TELEMETRY_FILE_NAME)
 }
 
 function cloneReminderTelemetrySummary(summary: ReminderTelemetrySummary): ReminderTelemetrySummary {
@@ -509,7 +509,7 @@ ${buildVerificationReminder(safeSessionId, verificationReminderMode)}
 
 Read subagent notepad files now to propagate execution context:
 \`\`\`
-Glob(".sisyphus/notepads/${safePlanId}/*.md")
+Glob(".orchestrator/notepads/${safePlanId}/*.md")
 \`\`\`
 Then \`Read\` each discovered file, especially:
 - \`learnings.md\`: reusable patterns and successful approaches
@@ -651,7 +651,7 @@ export function formatFileChanges(stats: GitFileStat[], notepadPath?: string): s
   )
 
   if (notepadPath) {
-    const notepadStat = stats.find((s) => s.path.includes("notepad") || s.path.includes(".sisyphus"))
+    const notepadStat = stats.find((s) => s.path.includes("notepad") || s.path.includes(".orchestrator"))
     if (notepadStat) {
       lines.push("[NOTEPAD UPDATED]")
       lines.push(`  ${notepadStat.path}  (+${notepadStat.added})`)
@@ -1309,7 +1309,7 @@ Plan path: ${workState.execution_plan_path}`
     reminderTelemetry: ReminderTelemetrySummary
   ): string | null {
     try {
-      const completionPath = join(options.directory, ".sisyphus", "plans", planId, "completion.md")
+      const completionPath = join(options.directory, ".orchestrator", "plans", planId, "completion.md")
       mkdirSync(dirname(completionPath), { recursive: true })
       const completedAt = new Date().toISOString()
       const content = `# Plan Complete
@@ -1424,7 +1424,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
       return
     }
 
-    const prompt = ATLAS_WORK_CONTINUATION_PROMPT
+    const prompt = WORKFLOW_AUTOMATOR_WORK_CONTINUATION_PROMPT
       .replace(/{PLAN_NAME}/g, planId)
       .replace(/{PLAN_PATH}/g, planPath) +
       (total === 0
@@ -1799,7 +1799,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
       // Check Write/Edit tools for orchestrator - inject strong warning
       if (WRITE_EDIT_TOOLS.includes(input.tool)) {
         const filePath = (output.args.filePath ?? output.args.path ?? output.args.file) as string | undefined
-        if (filePath && !isSisyphusPath(filePath)) {
+        if (filePath && !isOrchestratorPath(filePath)) {
           const state = getState(sessionID)
           const shouldWarn = shouldEmitDelegationWarning(state)
           if (!shouldWarn) {
@@ -1968,7 +1968,7 @@ This helps maintain context across sessions and prevents knowledge loss.
         if (!filePath) {
           filePath = output.metadata?.filePath as string | undefined
         }
-        if (filePath && !isSisyphusPath(filePath)) {
+        if (filePath && !isOrchestratorPath(filePath)) {
           const state = getState(input.sessionID)
           const shouldRemind = shouldEmitDirectWorkReminder(state)
           if (!shouldRemind) {

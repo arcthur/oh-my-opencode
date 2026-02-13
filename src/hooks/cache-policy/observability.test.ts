@@ -13,7 +13,7 @@ describe("cache-policy observability logging", () => {
 
   const createInput = (providerID: string) => ({
     sessionID: "session-cache-policy-observe",
-    agent: { name: "sisyphus" },
+    agent: { name: "orchestrator" },
     model: { providerID, modelID: "test-model" },
     provider: { id: providerID },
     message: { variant: "max" },

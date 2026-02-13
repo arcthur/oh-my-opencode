@@ -81,11 +81,11 @@ export function buildEventNodes(
     })
   }
 
-  if (context.sisyphusContextualInjector?.event) {
+  if (context.orchestratorContextualInjector?.event) {
     nodes.push({
-      id: "sisyphus-contextual-injector:event",
+      id: "orchestrator-contextual-injector:event",
       invoke: async () => {
-        await context.sisyphusContextualInjector?.event?.(input)
+        await context.orchestratorContextualInjector?.event?.(input)
       },
     })
   }

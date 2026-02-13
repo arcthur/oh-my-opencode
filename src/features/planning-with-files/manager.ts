@@ -2,10 +2,10 @@
  * Planning with Files Manager
  *
  * Canonical layout (single plan directory model):
- * .sisyphus/plans/{planId}/plan.md
- * .sisyphus/plans/{planId}/ledger.yaml
- * .sisyphus/plans/{planId}/findings.md
- * .sisyphus/plans/{planId}/progress.md
+ * .orchestrator/plans/{planId}/plan.md
+ * .orchestrator/plans/{planId}/ledger.yaml
+ * .orchestrator/plans/{planId}/findings.md
+ * .orchestrator/plans/{planId}/progress.md
  *
  * Note: TaskGraph is the execution source of truth.
  * plan.md is a human-readable artifact and should not be treated as SSOT.
@@ -43,7 +43,7 @@ export function getPlanDir(
   planId: string,
   _config: PlanningWithFilesConfig = DEFAULT_PLANNING_CONFIG
 ): string {
-  return path.join(cwd, ".sisyphus", "plans", planId)
+  return path.join(cwd, ".orchestrator", "plans", planId)
 }
 
 export function getExecutionPlanPath(
@@ -160,7 +160,7 @@ export async function detectActivePlan(
     if (fs.existsSync(activePlanPath)) return activePlanId
   }
 
-  const plansDir = path.join(cwd, ".sisyphus", "plans")
+  const plansDir = path.join(cwd, ".orchestrator", "plans")
   try {
     const entries = await fs.promises.readdir(plansDir, { withFileTypes: true })
     let latestPlanId: string | null = null

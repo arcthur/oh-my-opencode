@@ -37,7 +37,7 @@ describe("config loading strictness", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "agents.json"),
-      JSON.stringify({ agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2),
+      JSON.stringify({ agents: { advisor: { model: "openai/gpt-5.2" } } }, null, 2),
     );
 
     expect(() => loadConfigFromDirectory(configDir, {})).toThrow("config_version");
@@ -57,7 +57,7 @@ describe("config loading strictness", () => {
         {
           config_version: CURRENT_CONFIG_VERSION,
           architecture_version: 2,
-          agents: { oracle: { model: "openai/gpt-5.2" } },
+          agents: { advisor: { model: "openai/gpt-5.2" } },
         },
         null,
         2
@@ -86,7 +86,7 @@ describe("config loading strictness", () => {
       JSON.stringify(
         {
           agents: {
-            oracle: { model: "openai/gpt-5.2" },
+            advisor: { model: "openai/gpt-5.2" },
           },
           categories: {
             quick: { model: "openai/gpt-5.1-codex-mini" },
@@ -112,8 +112,8 @@ describe("config loading strictness", () => {
       JSON.stringify(
         {
           agents: {
-            oracle: { temperature: 0.2 },
-            explore: { model: "anthropic/claude-haiku-4-5" },
+            advisor: { temperature: 0.2 },
+            navigator: { model: "anthropic/claude-haiku-4-5" },
           },
         },
         null,
@@ -123,9 +123,9 @@ describe("config loading strictness", () => {
 
     const config = loadPluginConfig(join(tempDir, "project"), {});
 
-    expect(config.agents?.oracle?.model).toBe("openai/gpt-5.2");
-    expect(config.agents?.oracle?.temperature).toBe(0.2);
-    expect(config.agents?.explore?.model).toBe("anthropic/claude-haiku-4-5");
+    expect(config.agents?.advisor?.model).toBe("openai/gpt-5.2");
+    expect(config.agents?.advisor?.temperature).toBe(0.2);
+    expect(config.agents?.navigator?.model).toBe("anthropic/claude-haiku-4-5");
     expect(config.categories?.quick?.model).toBe("openai/gpt-5.1-codex-mini");
   });
 });
@@ -209,22 +209,22 @@ describe("mergeConfigs", () => {
     it("should deep merge agents", () => {
       const base: OhMyOpenCodeConfig = withVersion({
         agents: {
-          oracle: { model: "openai/gpt-5.2" },
+          advisor: { model: "openai/gpt-5.2" },
         },
       });
 
       const override: OhMyOpenCodeConfig = withVersion({
         agents: {
-          oracle: { temperature: 0.5 },
-          explore: { model: "anthropic/claude-haiku-4-5" },
+          advisor: { temperature: 0.5 },
+          navigator: { model: "anthropic/claude-haiku-4-5" },
         },
       });
 
       const result = mergeConfigs(base, override);
 
-      expect(result.agents?.oracle?.model).toBe("openai/gpt-5.2");
-      expect(result.agents?.oracle?.temperature).toBe(0.5);
-      expect(result.agents?.explore?.model).toBe("anthropic/claude-haiku-4-5");
+      expect(result.agents?.advisor?.model).toBe("openai/gpt-5.2");
+      expect(result.agents?.advisor?.temperature).toBe(0.5);
+      expect(result.agents?.navigator?.model).toBe("anthropic/claude-haiku-4-5");
     });
 
     it("should merge disabled arrays without duplicates", () => {

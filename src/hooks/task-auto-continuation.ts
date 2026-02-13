@@ -16,7 +16,7 @@ import type { ContinuationIntent } from "./work-orchestrator"
 
 const HOOK_NAME = "task-auto-continuation"
 
-const DEFAULT_SKIP_AGENTS = ["prometheus", "compaction"]
+const DEFAULT_SKIP_AGENTS = ["planner", "compaction"]
 
 export interface TaskAutoContinuationHookOptions {
   backgroundManager?: BackgroundManager

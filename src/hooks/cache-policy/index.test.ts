@@ -16,7 +16,7 @@ interface ChatParamsOutput {
 function createInput(providerID: string, modelID = "test-model"): ChatParamsInput {
   return {
     sessionID: "session-cache-policy",
-    agent: { name: "sisyphus" },
+    agent: { name: "orchestrator" },
     model: { providerID, modelID },
     provider: { id: providerID },
     message: { variant: "max" },

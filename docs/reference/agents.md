@@ -30,15 +30,15 @@ This document does **not** restate every agent’s full prompt (those live in `s
 
 The built-in agent names surfaced by configuration (`BuiltinAgentNameSchema`) are:
 
-- `sisyphus` (primary user-facing agent)
-- `atlas` (plan execution orchestrator for `/start-work`)
-- `hephaestus` (high-autonomy executor)
-- `oracle` (high-accuracy consultation)
+- `orchestrator` (primary user-facing agent)
+- `workflow-automator` (plan execution orchestrator for `/start-work`)
+- `executor` (high-autonomy executor)
+- `advisor` (high-accuracy consultation)
 - `librarian` (docs and research)
-- `explore` (codebase exploration)
-- `multimodal-looker` (image/PDF inspection)
-- `metis` (pre-planning analysis)
-- `momus` (plan review)
+- `navigator` (codebase exploration)
+- `interpreter` (image/PDF inspection)
+- `scope-analyst` (pre-planning analysis)
+- `reviewer` (plan review)
 
 Contract:
 
@@ -50,9 +50,9 @@ Contract:
 
 In addition to the built-in set above, the runtime agent table can include “derived” or “compatibility” agents that are produced by the config handler:
 
-- `sisyphus-junior`: a focused executor used by `delegate_task({ category: ... })`.
-- `prometheus`: the strategic plan agent used in the Metis → Prometheus → Momus pipeline.
-- `OpenCode-Builder`: an optional builder agent (enabled via `sisyphus_agent.default_builder_enabled`).
+- `specialist`: a focused executor used by `delegate_task({ category: ... })`.
+- `planner`: the strategic plan agent used in the scope-analyst → planner → reviewer pipeline.
+- `OpenCode-Builder`: an optional builder agent (enabled via `orchestrator_agent.default_builder_enabled`).
 - `build` / `plan`: OpenCode default agent slots that may be demoted or replaced depending on configuration.
 
 Contract:
@@ -78,7 +78,7 @@ Oh-My-OpenCode provides an `agents` block for agent overrides (model, variant, t
 Implications:
 
 - If you attempt to override an agent not present in `AgentOverridesSchema`, the override **MUST NOT** take effect.
-- Some built-in agents (e.g., `hephaestus`) are created by the plugin but are not currently overrideable via `oh-my-opencode/*.json` due to schema limitations.
+- Some built-in agents (e.g., `executor`) are created by the plugin but are not currently overrideable via `oh-my-opencode/*.json` due to schema limitations.
 
 ### `categories` (category-based execution)
 
@@ -105,14 +105,14 @@ Later layers override earlier layers for the same agent name.
 The plugin enforces additional permission constraints after agent assembly (defense-in-depth).
 Notable enforced behaviors include:
 
-- `sisyphus`, `atlas`, `hephaestus`, and `prometheus` are allowed `delegate_task`.
-- `sisyphus-junior` has `delegate_task` in research-scoped mode (explore/librarian only, no categories, no skill injection). `task` is forcibly denied regardless of config-layer overrides.
+- `orchestrator`, `workflow-automator`, `executor`, and `planner` are allowed `delegate_task`.
+- `specialist` has `delegate_task` in research-scoped mode (navigator/librarian only, no categories, no skill injection). `task` is forcibly denied regardless of config-layer overrides.
 
 See `src/plugin-handlers/config-handler.ts`.
 
 ## Planning Pipeline Note
 
-The planning pipeline uses Metis (pre-planning consultant) for intent classification and scope analysis, Prometheus for plan generation, and Momus (plan reviewer) for blocking-issue verification.
+The planning pipeline uses scope-analyst (pre-planning consultant) for intent classification and scope analysis, planner for plan generation, and reviewer (plan reviewer) for blocking-issue verification.
 
 ## See Also
 

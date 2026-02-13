@@ -295,11 +295,11 @@ type BackgroundOutputMessage = {
 }
 
 describe("background_output metadata title resolution", () => {
-  test("uses category label for sisyphus-junior tasks", async () => {
+  test("uses category label for specialist tasks", async () => {
     // given
     const task = createTask({
       id: "task-meta-1",
-      agent: "sisyphus-junior",
+      agent: "specialist",
       category: "deep",
       description: "Investigate flaky test",
       status: "running",
@@ -324,11 +324,11 @@ describe("background_output metadata title resolution", () => {
     expect(metadataInput?.metadata?.task_id).toBe("task-meta-1")
   })
 
-  test("uses agent label for non-sisyphus-junior tasks", async () => {
+  test("uses agent label for non-specialist tasks", async () => {
     // given
     const task = createTask({
       id: "task-meta-2",
-      agent: "oracle",
+      agent: "advisor",
       description: "Summarize logs",
       status: "running",
     })
@@ -348,8 +348,8 @@ describe("background_output metadata title resolution", () => {
     await tool.execute({ task_id: "task-meta-2" }, contextWithMeta)
 
     // then
-    expect(metadataInput?.title).toBe("oracle - Summarize logs")
-    expect(metadataInput?.metadata?.agent).toBe("oracle")
+    expect(metadataInput?.title).toBe("advisor - Summarize logs")
+    expect(metadataInput?.metadata?.agent).toBe("advisor")
   })
 })
 
@@ -361,7 +361,7 @@ describe("background_task session id fallback", () => {
         id: "bg_pending_1",
         sessionID: undefined,
         description: "queued task",
-        agent: "explore",
+        agent: "navigator",
         status: "pending",
       }),
     } as any
@@ -380,7 +380,7 @@ describe("background_task session id fallback", () => {
       {
         description: "queued task",
         prompt: "run queued background task",
-        agent: "explore",
+        agent: "navigator",
       },
       contextWithMeta
     )

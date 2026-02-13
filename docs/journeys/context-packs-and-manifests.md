@@ -5,7 +5,7 @@
 You want delegation to be **repeatable and reviewable**:
 - The right specs / conventions / “do-not-do” guardrails should reliably reach every subagent.
 - You should not have to manually paste context or hope the orchestrator “remembers to read X”.
-- Context should be **versionable** (in `.sisyphus/`) and **auditable** (you can inspect what was injected and why).
+- Context should be **versionable** (in `.orchestrator/`) and **auditable** (you can inspect what was injected and why).
 
 Context Packs and Context Manifests turn “context selection” into a first-class planning artifact, and make prompt injection deterministic at `delegate_task` boundaries.
 
@@ -13,14 +13,14 @@ Context Packs and Context Manifests turn “context selection” into a first-cl
 
 ```mermaid
 flowchart TD
-  U["User request"] --> P["Prometheus planning"]
-  P --> PlanSpec["Plan spec → .sisyphus/plans/<planId>/plan.md"]
-  P --> CM["Context manifest → .sisyphus/context-manifests/<planId>.md"]
+  U["User request"] --> P["planner planning"]
+  P --> PlanSpec["Plan spec → .orchestrator/plans/<planId>/plan.md"]
+  P --> CM["Context manifest → .orchestrator/context-manifests/<planId>.md"]
 
   PlanSpec --> SW["/start-work"]
-  SW --> WS["Work state → .sisyphus/work.yaml"]
-  SW --> PLAN["Execution plan → .sisyphus/plans/<planId>/plan.md"]
-  WS --> AT["Atlas Execution Mode orchestrates"]
+  SW --> WS["Work state → .orchestrator/work.yaml"]
+  SW --> PLAN["Execution plan → .orchestrator/plans/<planId>/plan.md"]
+  WS --> AT["workflow-automator Execution Mode orchestrates"]
 
   AT --> DT["delegate_task prompt includes: Context Packs: ..."]
   DT --> HOOK["context-manifest-injector (tool.execute.before)"]
@@ -43,7 +43,7 @@ Pack IDs are intentionally boring: stable, composable building blocks.
 
 The **Context Manifest** is a per-plan artifact that defines the pack catalog:
 
-- Path: `.sisyphus/context-manifests/{planId}.md`
+- Path: `.orchestrator/context-manifests/{planId}.md`
 - Format: Markdown + an embedded JSON payload between markers:
 
 ```text
@@ -56,15 +56,15 @@ This keeps it human-readable (Markdown) and machine-parseable (JSON block).
 
 ## How to Use (Practitioner Workflow)
 
-### Step 1: Prometheus generates both artifacts
+### Step 1: planner generates both artifacts
 
-For a plan `{planId}`, Prometheus should write:
-- `.sisyphus/plans/{planId}/plan.md` (plan spec)
-- `.sisyphus/context-manifests/{planId}.md`
+For a plan `{planId}`, planner should write:
+- `.orchestrator/plans/{planId}/plan.md` (plan spec)
+- `.orchestrator/context-manifests/{planId}.md`
 
 When you run `/start-work`, execution mode binds:
-- `.sisyphus/plans/{planId}/plan.md` (plan spec)
-- `.sisyphus/tasks/plan/{planId}/task_*.json` (TaskGraph task SSOT)
+- `.orchestrator/plans/{planId}/plan.md` (plan spec)
+- `.orchestrator/tasks/plan/{planId}/task_*.json` (TaskGraph task SSOT)
 
 The plan template enforces that each task includes:
 
@@ -76,13 +76,13 @@ This line is the selection mechanism for deterministic injection.
 
 ### Step 2: Start work (so `work.yaml` exists)
 
-Run `/start-work` so the system records the active plan in `.sisyphus/work.yaml`.
+Run `/start-work` so the system records the active plan in `.orchestrator/work.yaml`.
 
 The injector resolves the manifest path from `work.yaml.plan_id`.
 
 ### Step 3: Delegate as usual
 
-When Atlas Execution Mode calls `delegate_task(...)`, it copies the task’s `Context Packs:` line into the delegation prompt.
+When workflow-automator Execution Mode calls `delegate_task(...)`, it copies the task’s `Context Packs:` line into the delegation prompt.
 
 The injector hook then appends the corresponding pack content (rendered) right before the tool executes.
 
@@ -93,8 +93,8 @@ The injector hook then appends the corresponding pack content (rendered) right b
 Hook: `context-manifest-injector` (runs on `tool.execute.before` for `delegate_task`)
 
 1. Parse pack IDs from the prompt (`Context Packs:`)
-2. Load `.sisyphus/work.yaml` → `plan_id`
-3. Read `.sisyphus/context-manifests/{plan_id}.md`
+2. Load `.orchestrator/work.yaml` → `plan_id`
+3. Read `.orchestrator/context-manifests/{plan_id}.md`
 4. Parse the `[CONTEXT_MANIFEST]...[/CONTEXT_MANIFEST]` JSON
 5. Render the selected packs into a stable markdown snippet
 6. Append snippet to the `delegate_task` prompt
@@ -145,7 +145,7 @@ Item kinds are intentionally limited:
       "title": "Global guardrails + repo conventions",
       "items": [
         { "kind": "doc", "ref": "docs/guide/orchestration.md", "why": "Execution workflow + SSOT expectations" },
-        { "kind": "code", "ref": "src/agents/sisyphus/index.ts", "why": "Delegation prompt structure expectations" }
+        { "kind": "code", "ref": "src/agents/orchestrator/index.ts", "why": "Delegation prompt structure expectations" }
       ]
     }
   ]
@@ -158,8 +158,8 @@ Item kinds are intentionally limited:
 ### “It didn’t inject anything”
 
 Check these first:
-- You ran `/start-work` and `.sisyphus/work.yaml` exists.
-- `work.yaml.plan_id` matches the manifest filename: `.sisyphus/context-manifests/{plan_id}.md`.
+- You ran `/start-work` and `.orchestrator/work.yaml` exists.
+- `work.yaml.plan_id` matches the manifest filename: `.orchestrator/context-manifests/{plan_id}.md`.
 - Your `delegate_task` prompt includes `Context Packs: ...`.
 - The manifest contains a valid JSON block and `schemaVersion: 2`.
 - Pack IDs in the prompt are safe (invalid IDs are ignored).
@@ -173,5 +173,5 @@ This is expected when packs exceed the default caps. Keep packs small and split 
 
 - Hook: `src/hooks/context-manifest-injector/`
 - Parser/renderer: `src/features/context-manifests/`
-- Prometheus plan template: `src/agents/prometheus/plan-template.ts`
+- planner plan template: `src/agents/planner/plan-template.ts`
 - Orchestration overview: `docs/guide/orchestration.md`

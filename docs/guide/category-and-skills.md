@@ -44,10 +44,10 @@ delegate_task({
 })
 ```
 
-### Sisyphus-Junior (Delegated Executor)
+### specialist (Delegated Executor)
 
-When you use a Category, a special agent called **Sisyphus-Junior** performs the work.
-- **Characteristic**: `delegate_task` is **research-scoped** only (explore/librarian, no categories, `load_skills=[]`); `task` is denied.
+When you use a Category, a special agent called **specialist** performs the work.
+- **Characteristic**: `delegate_task` is **research-scoped** only (navigator/librarian, no categories, `load_skills=[]`); `task` is denied.
 - **Purpose**: Prevents infinite delegation loops and ensures focus on the assigned task.
 
 ---

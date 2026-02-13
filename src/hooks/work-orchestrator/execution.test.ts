@@ -23,16 +23,16 @@ import { createTaskNode, listTaskNodes, transitionTaskNode } from "../../feature
 import { contextBudgetArbiter } from "../../features/context-view"
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
-  const sisyphusDir = join(directory, ".sisyphus")
-  if (!existsSync(sisyphusDir)) {
-    mkdirSync(sisyphusDir, { recursive: true })
+  const orchestratorDir = join(directory, ".orchestrator")
+  if (!existsSync(orchestratorDir)) {
+    mkdirSync(orchestratorDir, { recursive: true })
   }
 
   const planId = state.plan_id ?? "test-plan"
-  const canonicalPlanPath = `.sisyphus/plans/${planId}/plan.md`
-  const canonicalLedgerPath = `.sisyphus/plans/${planId}/ledger.yaml`
+  const canonicalPlanPath = `.orchestrator/plans/${planId}/plan.md`
+  const canonicalLedgerPath = `.orchestrator/plans/${planId}/ledger.yaml`
   const canonicalPlanAbsPath = join(directory, canonicalPlanPath)
-  const canonicalPlanDir = join(directory, ".sisyphus", "plans", planId)
+  const canonicalPlanDir = join(directory, ".orchestrator", "plans", planId)
   mkdirSync(canonicalPlanDir, { recursive: true })
 
   const rawPath = state.execution_plan_path
@@ -57,7 +57,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
   const fullState: WorkState = {
     schema_version: 6,
-    executor: state.executor ?? "atlas",
+    executor: state.executor ?? "workflow-automator",
     plan_id: planId,
     execution_plan_path: canonicalPlanPath,
     runtime_ledger_path: canonicalLedgerPath,
@@ -74,17 +74,17 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
     last_updated: state.last_updated,
   }
 
-  writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
+  writeFileSync(join(orchestratorDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
 }
 
 describe("work-orchestrator execution phase", () => {
   const TEST_DIR = join(tmpdir(), "work-orchestrator-execution-test")
   const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-work-orchestrator-execution-test")
   const TEST_TASK_CONFIG = {
-    sisyphus: {
+    orchestrator: {
       tasks: {
         enabled: true,
-        storage_path: join(TEST_DIR, ".sisyphus", "tasks"),
+        storage_path: join(TEST_DIR, ".orchestrator", "tasks"),
       },
     },
   } as const
@@ -157,7 +157,7 @@ describe("work-orchestrator execution phase", () => {
     if (!existsSync(TEST_DIR)) {
       mkdirSync(TEST_DIR, { recursive: true })
     }
-    mkdirSync(join(TEST_DIR, ".sisyphus"), { recursive: true })
+    mkdirSync(join(TEST_DIR, ".orchestrator"), { recursive: true })
   })
 
   afterEach(() => {
@@ -172,16 +172,16 @@ describe("work-orchestrator execution phase", () => {
     // #given
     const sessionID = "main-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
-    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
-    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    const planPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".orchestrator", "plans", "execution"), { recursive: true })
     writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -200,27 +200,27 @@ describe("work-orchestrator execution phase", () => {
     // #then
     expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
     const args = mockInput._promptMock.mock.calls[0][0]
-    expect(args.body.agent).toBe("atlas")
+    expect(args.body.agent).toBe("workflow-automator")
     expect(args.body.parts[0].text).toContain("WORK CONTINUATION")
 
     cleanupMessageStorage(sessionID)
   })
 
-  test("injects atlas continuation for atlas execution session on idle", async () => {
+  test("injects workflow-automator continuation for workflow-automator execution session on idle", async () => {
     // #given
-    const sessionID = "atlas-main-session"
+    const sessionID = "workflow-automator-main-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
-    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
-    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    const planPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".orchestrator", "plans", "execution"), { recursive: true })
     writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -239,26 +239,26 @@ describe("work-orchestrator execution phase", () => {
     // #then
     expect(mockInput._promptMock).toHaveBeenCalledTimes(1)
     const args = mockInput._promptMock.mock.calls[0][0]
-    expect(args.body.agent).toBe("atlas")
-    expect(args.body.parts[0].text).toContain("ATLAS EXECUTION CONTINUATION")
+    expect(args.body.agent).toBe("workflow-automator")
+    expect(args.body.parts[0].text).toContain("WORKFLOW-AUTOMATOR EXECUTION CONTINUATION")
 
     cleanupMessageStorage(sessionID)
   })
 
   test("does not run continuation when work-state schema is legacy", async () => {
     // #given
-    const sessionID = "legacy-sisyphus-session"
+    const sessionID = "legacy-orchestrator-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
-    mkdirSync(join(TEST_DIR, ".sisyphus"), { recursive: true })
+    mkdirSync(join(TEST_DIR, ".orchestrator"), { recursive: true })
     writeFileSync(
-      join(TEST_DIR, ".sisyphus", "work.yaml"),
+      join(TEST_DIR, ".orchestrator", "work.yaml"),
       `schema_version: 4
-executor: sisyphus
+executor: orchestrator
 plan_id: execution
-execution_plan_path: .sisyphus/plans/execution/plan.md
-runtime_ledger_path: .sisyphus/plans/execution/ledger.yaml
+execution_plan_path: .orchestrator/plans/execution/plan.md
+runtime_ledger_path: .orchestrator/plans/execution/ledger.yaml
 started_at: "2026-02-06T00:00:00Z"
 session_ids:
   - ${sessionID}
@@ -289,14 +289,14 @@ decisions: []
 
   test("does not continue when execution caller metadata is unavailable", async () => {
     // #given
-    const sessionID = "atlas-no-metadata-session"
+    const sessionID = "workflow-automator-no-metadata-session"
     setMainSession(sessionID)
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -318,15 +318,15 @@ decisions: []
 
   test("does not run execution continuation when explicit non-orchestrator agent is active", async () => {
     // #given
-    const sessionID = "atlas-prometheus-session"
+    const sessionID = "workflow-automator-planner-session"
     setMainSession(sessionID)
-    updateSessionAgent(sessionID, "prometheus")
+    updateSessionAgent(sessionID, "planner")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -346,17 +346,17 @@ decisions: []
     expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
   })
 
-  test("does not inject continuation when atlas plan tasks are fully completed", async () => {
+  test("does not inject continuation when workflow-automator plan tasks are fully completed", async () => {
     // #given
-    const sessionID = "atlas-complete-session"
+    const sessionID = "workflow-automator-complete-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -395,16 +395,16 @@ decisions: []
 
   test("runs completion routine when plan tasks are fully completed", async () => {
     // #given
-    const sessionID = "atlas-completion-routine-session"
+    const sessionID = "workflow-automator-completion-routine-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
-    updateSessionAgent(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
+    updateSessionAgent(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -425,7 +425,7 @@ decisions: []
 
     const mockInput = createMockPluginInput()
     const hook = createExecutionOrchestratorHook(mockInput)
-    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+    const completionPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "completion.md")
 
     // #when
     await hook.handler({
@@ -437,29 +437,29 @@ decisions: []
     await flushMicrotasks()
 
     // #then
-    expect(existsSync(join(TEST_DIR, ".sisyphus", "work.yaml"))).toBe(false)
+    expect(existsSync(join(TEST_DIR, ".orchestrator", "work.yaml"))).toBe(false)
     expect(existsSync(completionPath)).toBe(true)
     const completionContent = readFileSync(completionPath, "utf-8")
     expect(completionContent).toContain("Plan Complete")
     expect(completionContent).toContain("## Reminder Telemetry")
     expect(completionContent).toContain("Total reminders: 0")
-    expect(getSessionAgent(sessionID)).toBe("sisyphus")
+    expect(getSessionAgent(sessionID)).toBe("orchestrator")
 
     cleanupMessageStorage(sessionID)
   })
 
   test("records reminder telemetry counts in completion artifact", async () => {
     // #given
-    const sessionID = "atlas-completion-telemetry-session"
+    const sessionID = "workflow-automator-completion-telemetry-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
-    updateSessionAgent(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
+    updateSessionAgent(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -475,7 +475,7 @@ decisions: []
       output: "Subagent done\nSession ID: ses_completiontelemetry001",
       metadata: {},
     }
-    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+    const completionPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "completion.md")
 
     // #when
     await hook["tool.execute.after"](
@@ -514,16 +514,16 @@ decisions: []
 
   test("preserves reminder telemetry across session.compacted before completion", async () => {
     // #given
-    const sessionID = "atlas-completion-telemetry-compacted-session"
+    const sessionID = "workflow-automator-completion-telemetry-compacted-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
-    updateSessionAgent(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
+    updateSessionAgent(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -539,7 +539,7 @@ decisions: []
       output: "Subagent done\nSession ID: ses_completiontelemetry002",
       metadata: {},
     }
-    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+    const completionPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "completion.md")
 
     // #when
     await hook["tool.execute.after"](
@@ -576,16 +576,16 @@ decisions: []
 
   test("preserves reminder telemetry across hook recreation (process restart simulation)", async () => {
     // #given
-    const sessionID = "atlas-completion-telemetry-restart-session"
+    const sessionID = "workflow-automator-completion-telemetry-restart-session"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
-    updateSessionAgent(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
+    updateSessionAgent(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -601,7 +601,7 @@ decisions: []
       output: "Subagent done\nSession ID: ses_completiontelemetry003",
       metadata: {},
     }
-    const completionPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "completion.md")
+    const completionPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "completion.md")
 
     // #when
     await firstHook["tool.execute.after"](
@@ -640,12 +640,12 @@ decisions: []
     // #given
     const sessionID = "main-session-reporter"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -687,12 +687,12 @@ decisions: []
     // #given
     const sessionID = "main-session-reporter-await"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -724,12 +724,12 @@ decisions: []
     // #given
     const sessionID = "main-session-reject-grace"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -767,12 +767,12 @@ decisions: []
     // #given
     const sessionID = "main-session-stop-guard"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -800,11 +800,11 @@ decisions: []
     // #given
     const sessionID = "main-session-prompt-failure"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -841,11 +841,11 @@ decisions: []
     // #given
     const sessionID = "main-session-compacted-reset"
     setMainSession(sessionID)
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -887,11 +887,11 @@ decisions: []
   test("blocks direct task tool in execution mode", async () => {
     // #given
     const sessionID = "execution-task-warning"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -910,11 +910,11 @@ decisions: []
   test("blocks delegate_task when execution-mode prompt is missing required structure", async () => {
     // #given
     const sessionID = "execution-bad-delegate-prompt"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -938,11 +938,11 @@ decisions: []
   test("allows delegate_task when execution-mode prompt includes required sections", async () => {
     // #given
     const sessionID = "execution-good-delegate-prompt"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -971,7 +971,7 @@ Implement atomic fix for login validator.
 - Do NOT skip verification
 
 ## 6. CONTEXT
-- Plan: .sisyphus/plans/execution/plan.md
+- Plan: .orchestrator/plans/execution/plan.md
 - Dependencies: login test fixtures already exist
 - Inherited Wisdom: strict token parsing is required for security
 `
@@ -994,15 +994,15 @@ Implement atomic fix for login validator.
     cleanupMessageStorage(sessionID)
   })
 
-  test("injects single-task directive for atlas execution profile delegation", async () => {
+  test("injects single-task directive for workflow-automator execution profile delegation", async () => {
     // #given
-    const sessionID = "atlas-good-delegate-prompt"
-    setupMessageStorage(sessionID, "atlas")
+    const sessionID = "workflow-automator-good-delegate-prompt"
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      executor: "atlas",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      executor: "workflow-automator",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1030,7 +1030,7 @@ Implement atomic fix.
 - Skip verification
 
 ## 6. CONTEXT
-- Plan: .sisyphus/plans/execution/plan.md
+- Plan: .orchestrator/plans/execution/plan.md
 - Current focus: task-1
 - Notes: follow repository style
 `,
@@ -1039,7 +1039,7 @@ Implement atomic fix.
     }
 
     // #when
-    await hook["tool.execute.before"]({ tool: "delegate_task", sessionID, callID: "call-atlas-prompt" }, output)
+    await hook["tool.execute.before"]({ tool: "delegate_task", sessionID, callID: "call-workflow-automator-prompt" }, output)
 
     // #then
     expect(output.args.prompt).toContain("SINGLE TASK ONLY")
@@ -1047,14 +1047,14 @@ Implement atomic fix.
     cleanupMessageStorage(sessionID)
   })
 
-  test("warns on direct write outside .sisyphus in execution mode", async () => {
+  test("warns on direct write outside .orchestrator in execution mode", async () => {
     // #given
     const sessionID = "execution-write-warning"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1076,11 +1076,11 @@ Implement atomic fix.
   test("uses unified delegation-required format for before/after write warnings", async () => {
     // #given
     const sessionID = "execution-write-warning-unified"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1111,11 +1111,11 @@ Implement atomic fix.
   test("applies cooldown to repeated delegation-required warnings in execution mode", async () => {
     // #given
     const sessionID = "execution-write-warning-cooldown"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1140,20 +1140,20 @@ Implement atomic fix.
     cleanupMessageStorage(sessionID)
   })
 
-  test("does not warn for write inside .sisyphus", async () => {
+  test("does not warn for write inside .orchestrator", async () => {
     // #given
     const sessionID = "execution-write-plan"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
     const hook = createExecutionOrchestratorHook(createMockPluginInput())
     const output = {
-      args: { filePath: ".sisyphus/plans/execution/plan.md" },
+      args: { filePath: ".orchestrator/plans/execution/plan.md" },
       message: "",
     }
 
@@ -1204,7 +1204,7 @@ Implement atomic fix.
   test("reports compact reminder telemetry without downgrade", () => {
     // #given
     const planId = "execution"
-    const planPath = ".sisyphus/plans/execution/plan.md"
+    const planPath = ".orchestrator/plans/execution/plan.md"
 
     // #when
     const result = buildOrchestratorReminderWithTelemetry(
@@ -1228,7 +1228,7 @@ Implement atomic fix.
     // #when
     const result = buildOrchestratorReminderWithTelemetry(
       "execution",
-      ".sisyphus/plans/execution/plan.md",
+      ".orchestrator/plans/execution/plan.md",
       { total: 4, completed: 1 },
       "ses_notepad001",
       "full"
@@ -1236,7 +1236,7 @@ Implement atomic fix.
 
     // #then
     expect(result.content).toContain("READ SUBAGENT NOTEPAD")
-    expect(result.content).toContain('Glob(".sisyphus/notepads/execution/*.md")')
+    expect(result.content).toContain('Glob(".orchestrator/notepads/execution/*.md")')
   })
 
   test("reports field-truncation telemetry for oversized session id", () => {
@@ -1246,7 +1246,7 @@ Implement atomic fix.
     // #when
     const result = buildOrchestratorReminderWithTelemetry(
       "execution",
-      ".sisyphus/plans/execution/plan.md",
+      ".orchestrator/plans/execution/plan.md",
       { total: 2, completed: 1 },
       oversizedSessionId,
       "full"
@@ -1280,16 +1280,16 @@ Implement atomic fix.
   test("transforms delegate_task output in execution mode", async () => {
     // #given
     const sessionID = "execution-delegate"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
-    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
-    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    const planPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".orchestrator", "plans", "execution"), { recursive: true })
     writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1314,16 +1314,16 @@ Implement atomic fix.
   test("uses compact verification reminder after first delegation completion in same session", async () => {
     // #given
     const sessionID = "execution-delegate-compact-reminder"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
-    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
-    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    const planPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".orchestrator", "plans", "execution"), { recursive: true })
     writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1353,16 +1353,16 @@ Implement atomic fix.
   test("falls back to ultra-compact reminder when orchestration reminder exceeds budget", async () => {
     // #given
     const sessionID = "execution-delegate-ultra-compact"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
 
-    const planPath = join(TEST_DIR, ".sisyphus", "plans", "execution", "plan.md")
-    mkdirSync(join(TEST_DIR, ".sisyphus", "plans", "execution"), { recursive: true })
+    const planPath = join(TEST_DIR, ".orchestrator", "plans", "execution", "plan.md")
+    mkdirSync(join(TEST_DIR, ".orchestrator", "plans", "execution"), { recursive: true })
     writeFileSync(planPath, "# Plan\n\n## Tasks\n\n- 1. Task 1\n- 2. Task 2\n")
 
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1387,8 +1387,8 @@ Implement atomic fix.
 
   test("skips orchestration transform outside execution mode", async () => {
     // #given
-    const sessionID = "regular-sisyphus"
-    setupMessageStorage(sessionID, "atlas")
+    const sessionID = "regular-orchestrator"
+    setupMessageStorage(sessionID, "workflow-automator")
 
     const hook = createExecutionOrchestratorHook(createMockPluginInput())
     const output = {
@@ -1409,11 +1409,11 @@ Implement atomic fix.
   test("blocks task_transition completed when verifier evidence is missing", async () => {
     // #given
     const sessionID = "execution-verifier-missing"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const hook = createExecutionOrchestratorHook(createMockPluginInput())
@@ -1451,11 +1451,11 @@ Implement atomic fix.
   test("allows task_transition completed when verifier evidence is valid", async () => {
     // #given
     const sessionID = "execution-verifier-pass"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const hook = createExecutionOrchestratorHook(createMockPluginInput())
@@ -1516,11 +1516,11 @@ Implement atomic fix.
   test("expires verifier evidence by TTL and blocks completion", async () => {
     // #given
     const sessionID = "execution-verifier-ttl"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const hook = createExecutionOrchestratorHook(createMockPluginInput(), {
@@ -1594,11 +1594,11 @@ Implement atomic fix.
   test("allows completion when no code changes occurred and allow_no_code_change is enabled", async () => {
     // #given
     const sessionID = "execution-verifier-no-code-change"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const hook = createExecutionOrchestratorHook(createMockPluginInput())
@@ -1624,11 +1624,11 @@ Implement atomic fix.
   test("triggers auto handoff after consecutive verifier denials", async () => {
     // #given
     const sessionID = "execution-auto-handoff-verifier"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const requestAutoHandoff = mock(async () => ({
@@ -1683,11 +1683,11 @@ Implement atomic fix.
   test("stops continuation only when auto handoff launches a new session", async () => {
     // #given
     const sessionID = "execution-auto-handoff-stop-on-launch"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const requestAutoHandoff = mock(async () => ({
@@ -1742,11 +1742,11 @@ Implement atomic fix.
   test("includes unresolved discoveries in auto handoff request payload", async () => {
     // #given
     const sessionID = "execution-auto-handoff-discovery"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const requestAutoHandoff = mock(async () => ({
@@ -1813,11 +1813,11 @@ Implement atomic fix.
     // #given
     const sessionID = "execution-discovery-auto-task"
     const planId = "execution"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: planId,
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
 
@@ -1857,11 +1857,11 @@ Implement atomic fix.
   test("triggers auto handoff after consecutive context-pressure hits", async () => {
     // #given
     const sessionID = "execution-auto-handoff-pressure"
-    setupMessageStorage(sessionID, "atlas")
+    setupMessageStorage(sessionID, "workflow-automator")
     writeWorkState(TEST_DIR, {
       plan_id: "execution",
-      execution_plan_path: ".sisyphus/plans/execution/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/execution/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/execution/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/execution/ledger.yaml",
       session_ids: [sessionID],
     })
     const requestAutoHandoff = mock(async () => ({

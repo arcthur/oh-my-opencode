@@ -56,10 +56,10 @@ export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefini
 MUTUALLY EXCLUSIVE: Provide EITHER category OR subagent_type, not both (unless continuing a session).
 
 - load_skills: ALWAYS REQUIRED. Pass [] if no skills needed, but IT IS HIGHLY RECOMMENDED to pass proper skills (e.g., ["playwright"], ["git-master", "frontend-ui-ux"]).
-- category: Use predefined category → Spawns Sisyphus-Junior with category config
+- category: Use predefined category → Spawns specialist with category config
   Available categories:
 ${categoryList}
-- subagent_type: Use specific agent directly (e.g., "oracle", "explore")
+- subagent_type: Use specific agent directly (e.g., "advisor", "navigator")
 - run_in_background: ALWAYS REQUIRED. true=async (returns task_id), false=sync (waits for result). Use run_in_background=true ONLY for parallel exploration with 5+ independent queries.
 - session_id: Existing Task session to continue (from previous task output). Continues agent with FULL CONTEXT PRESERVED - saves tokens, maintains continuity.
 - command: The command that triggered this task (optional, for slash command tracking).
@@ -91,7 +91,7 @@ Prompts MUST be in English.`
       subagent_type: tool.schema
         .string()
         .optional()
-        .describe("Agent name (e.g., 'oracle', 'explore'). Mutually exclusive with category."),
+        .describe("Agent name (e.g., 'advisor', 'navigator'). Mutually exclusive with category."),
       session_id: tool.schema.string().optional().describe("Existing Task session to continue"),
       command: tool.schema
         .string()
@@ -102,13 +102,13 @@ Prompts MUST be in English.`
       const ctx = toolContext as ToolContextWithMetadata
 
       if (args.category) {
-        if (args.subagent_type && args.subagent_type !== "sisyphus-junior") {
-          log("[task] category provided - overriding subagent_type to sisyphus-junior", {
+        if (args.subagent_type && args.subagent_type !== "specialist") {
+          log("[task] category provided - overriding subagent_type to specialist", {
             category: args.category,
             subagent_type: args.subagent_type,
           })
         }
-        args.subagent_type = "sisyphus-junior"
+        args.subagent_type = "specialist"
       }
       await ctx.metadata?.({
         title: args.description,
@@ -132,13 +132,13 @@ Prompts MUST be in English.`
       const runInBackground = args.run_in_background === true
 
       // Research scope enforcement: agents in RESEARCH_SCOPED_AGENTS can only
-      // use subagent_type with explore/librarian, no categories, no skill injection.
+      // use subagent_type with navigator/librarian, no categories, no skill injection.
       const callerAgent = ctx.agent?.toLowerCase()
       const isResearchScoped = callerAgent ? RESEARCH_SCOPED_AGENTS.has(callerAgent) : false
 
       if (isResearchScoped) {
         if (args.category) {
-          return `Research-scoped agent "${ctx.agent}" cannot use category-based delegation. Use subagent_type with explore or librarian instead.`
+          return `Research-scoped agent "${ctx.agent}" cannot use category-based delegation. Use subagent_type with navigator or librarian instead.`
         }
         if (args.subagent_type && !RESEARCH_ALLOWED_AGENTS.has(args.subagent_type.toLowerCase())) {
           return `Research-scoped agent "${ctx.agent}" can only delegate to: ${[...RESEARCH_ALLOWED_AGENTS].join(", ")}. Got: "${args.subagent_type}".`
@@ -151,7 +151,7 @@ Prompts MUST be in English.`
           const continuation = await resolveContinuationContext(args.session_id, options.client)
           const continuationAgent = continuation.agent?.toLowerCase()
           if (!continuationAgent) {
-            return `Research-scoped agent "${ctx.agent}" cannot continue session "${args.session_id}" because target agent could not be resolved. Start a new session with subagent_type="explore" or "librarian".`
+            return `Research-scoped agent "${ctx.agent}" cannot continue session "${args.session_id}" because target agent could not be resolved. Start a new session with subagent_type="navigator" or "librarian".`
           }
           if (!RESEARCH_ALLOWED_AGENTS.has(continuationAgent)) {
             return `Research-scoped agent "${ctx.agent}" cannot continue session "${args.session_id}" because it belongs to "${continuation.agent}". Allowed agents: ${[...RESEARCH_ALLOWED_AGENTS].join(", ")}.`

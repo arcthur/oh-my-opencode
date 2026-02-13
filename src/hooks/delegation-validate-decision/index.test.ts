@@ -42,7 +42,7 @@ describe("delegation-validate-decision hook", () => {
               type: "text",
               text: `<delegation-decision>
 {
-  "agent": "oracle",
+  "agent": "advisor",
   "taskType": "exploration",
   "complexity": "trivial",
   "domain": "general",

@@ -1,14 +1,14 @@
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { ensureDir, getProjectRoot, writeJsonAtomic } from "../sisyphus-tasks/storage"
-import { withLock } from "../sisyphus-swarm/sync/semaphore"
+import { ensureDir, getProjectRoot, writeJsonAtomic } from "../orchestrator-tasks/storage"
+import { withLock } from "../orchestrator-swarm/sync/semaphore"
 import type { ParallelRuntimeConfig, RuntimeState } from "./types"
 
 const RUNTIME_SCHEMA_VERSION = 1
 const STATE_FILENAME = "state.json"
 
 export function getParallelRuntimeDir(): string {
-  return join(getProjectRoot(), ".sisyphus", "runtime", "parallel")
+  return join(getProjectRoot(), ".orchestrator", "runtime", "parallel")
 }
 
 export function getParallelRuntimeStatePath(): string {

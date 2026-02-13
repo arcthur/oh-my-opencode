@@ -2,7 +2,7 @@
  * WorkStateManager
  *
  * Unified state management for orchestrator workflows.
- * Single source of truth: .sisyphus/work.yaml
+ * Single source of truth: .orchestrator/work.yaml
  */
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
@@ -112,7 +112,7 @@ export class WorkStateManager {
 
     this.state = {
       schema_version: 6,
-      executor: "atlas",
+      executor: "workflow-automator",
       plan_id: planId,
       execution_plan_path: selectedExecutionPlanPath,
       runtime_ledger_path: canonicalRuntimeLedgerPath,

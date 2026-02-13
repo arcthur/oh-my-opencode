@@ -1,6 +1,8 @@
 import pc from "picocolors"
+import { isAbsolute, join } from "node:path"
 import { countIncompleteTasks } from "../../features/task-system"
 import { resolveActiveTaskSelector } from "../../features/work-state"
+import type { OhMyOpenCodeConfig } from "../../config"
 import type { RunContext, ChildSession, SessionStatus } from "./types"
 
 export async function checkCompletionConditions(ctx: RunContext): Promise<boolean> {
@@ -26,7 +28,8 @@ export async function checkCompletionConditions(ctx: RunContext): Promise<boolea
 
 async function areAllTasksComplete(ctx: RunContext): Promise<boolean> {
   const resolved = resolveActiveTaskSelector(ctx.directory, ctx.sessionID)
-  const incompleteTasks = countIncompleteTasks(resolved.selector, ctx.taskConfig ?? {})
+  const taskConfig = resolveTaskConfigForDirectory(ctx.taskConfig, ctx.directory)
+  const incompleteTasks = countIncompleteTasks(resolved.selector, taskConfig)
 
   if (incompleteTasks > 0) {
     console.log(pc.dim(`  Waiting: ${incompleteTasks} tasks remaining`))
@@ -34,6 +37,30 @@ async function areAllTasksComplete(ctx: RunContext): Promise<boolean> {
   }
 
   return true
+}
+
+function resolveTaskConfigForDirectory(
+  config: Partial<OhMyOpenCodeConfig> | undefined,
+  directory: string
+): Partial<OhMyOpenCodeConfig> {
+  const baseConfig = config ?? {}
+  const storagePath = baseConfig.orchestrator?.tasks?.storage_path ?? ".orchestrator/tasks"
+
+  if (isAbsolute(storagePath)) {
+    return baseConfig
+  }
+
+  return {
+    ...baseConfig,
+    orchestrator: {
+      ...baseConfig.orchestrator,
+      tasks: {
+        ...baseConfig.orchestrator?.tasks,
+        enabled: baseConfig.orchestrator?.tasks?.enabled ?? true,
+        storage_path: join(directory, storagePath),
+      },
+    },
+  }
 }
 
 async function areAllChildrenIdle(ctx: RunContext): Promise<boolean> {

@@ -1,7 +1,7 @@
 import { extname, basename } from "node:path"
 import { pathToFileURL } from "node:url"
 import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin"
-import { LOOK_AT_DESCRIPTION, MULTIMODAL_LOOKER_AGENT } from "./constants"
+import { LOOK_AT_DESCRIPTION, INTERPRETER_AGENT } from "./constants"
 import type { LookAtArgs } from "./types"
 import { findByNameCaseInsensitive, log, promptWithModelSuggestionRetry } from "../../shared"
 
@@ -144,7 +144,7 @@ Original error: ${createResult.error}`
         }
         const agents = ((agentsResult as { data?: AgentInfo[] })?.data ?? agentsResult) as AgentInfo[] | undefined
         if (agents?.length) {
-          const matchedAgent = findByNameCaseInsensitive(agents, MULTIMODAL_LOOKER_AGENT)
+          const matchedAgent = findByNameCaseInsensitive(agents, INTERPRETER_AGENT)
           if (matchedAgent?.model) {
             agentModel = matchedAgent.model
           }
@@ -153,7 +153,7 @@ Original error: ${createResult.error}`
           }
         }
       } catch (error) {
-        log("[look_at] Failed to resolve multimodal-looker model info", error)
+        log("[look_at] Failed to resolve interpreter model info", error)
       }
 
       log(`[look_at] Sending prompt with file passthrough to session ${sessionID}`)
@@ -162,7 +162,7 @@ Original error: ${createResult.error}`
         await promptWithModelSuggestionRetry(ctx.client, {
           path: { id: sessionID },
           body: {
-            agent: MULTIMODAL_LOOKER_AGENT,
+            agent: INTERPRETER_AGENT,
             tools: {
               task: false,
               look_at: false,
@@ -207,10 +207,10 @@ Original error: ${createResult.error}`
             && (promptErrorMessage.includes("EOF") || promptErrorMessage.includes("parse"))
 
           if (isJsonParseError) {
-            return `Error: Failed to analyze file - received malformed response from multimodal-looker agent.
+            return `Error: Failed to analyze file - received malformed response from interpreter agent.
 
 This typically occurs when:
-1. The multimodal-looker model is not available or not connected
+1. The interpreter model is not available or not connected
 2. The model does not support this file type (${mimeType})
 3. The API returned an empty or truncated response
 
@@ -225,9 +225,9 @@ Try:
 Original error: ${promptErrorMessage}`
           }
 
-          return `Error: Failed to send prompt to multimodal-looker agent: ${promptErrorMessage}`
+          return `Error: Failed to send prompt to interpreter agent: ${promptErrorMessage}`
         }
-        return `Error: No response from multimodal-looker agent`
+        return `Error: No response from interpreter agent`
       }
 
       log(`[look_at] Found assistant message with ${lastAssistantMessage.parts.length} parts`)

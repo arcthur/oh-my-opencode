@@ -285,8 +285,8 @@ Looking for new plans...`
 
 ## No Plans Found
 
-No plan directories found at .sisyphus/plans/
-Use Prometheus to create a work plan first: /plan "your task"`
+No plan directories found at .orchestrator/plans/
+Use planner to create a work plan first: /plan "your task"`
           } else {
             contextInfo += `
 

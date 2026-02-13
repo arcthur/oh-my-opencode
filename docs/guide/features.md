@@ -10,40 +10,40 @@ Oh-My-OpenCode provides multiple specialized AI agents (core, planning, and deri
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
-| **Sisyphus** | `anthropic/claude-opus-4-6` | **The default orchestrator.** Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. TaskGraph-driven workflow with extended thinking (32k budget). |
-| **Atlas** | `anthropic/claude-opus-4-6` | **Execution orchestrator for `/start-work`.** Runs deterministic TaskGraph progression with strict delegation and verification loops. |
-| **hephaestus** | `openai/gpt-5.3-codex` | Autonomous deep worker for goal-oriented execution. Explores thoroughly, then drives end-to-end implementation with high autonomy. |
-| **oracle** | `openai/gpt-5.2` | Architecture decisions, code review, debugging. Read-only consultation - stellar logical reasoning and deep analysis. Inspired by AmpCode. |
+| **orchestrator** | `anthropic/claude-opus-4-6` | **The default orchestrator.** Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. TaskGraph-driven workflow with extended thinking (32k budget). |
+| **workflow-automator** | `anthropic/claude-opus-4-6` | **Execution orchestrator for `/start-work`.** Runs deterministic TaskGraph progression with strict delegation and verification loops. |
+| **executor** | `openai/gpt-5.3-codex` | Autonomous deep worker for goal-oriented execution. Explores thoroughly, then drives end-to-end implementation with high autonomy. |
+| **advisor** | `openai/gpt-5.2` | Architecture decisions, code review, debugging. Read-only consultation - stellar logical reasoning and deep analysis. Inspired by AmpCode. |
 | **librarian** | `zai-coding-plan/glm-4.7` | Multi-repo analysis, documentation lookup, OSS implementation examples. Deep codebase understanding with evidence-based answers. Inspired by AmpCode. |
-| **explore** | `github-copilot/grok-code-fast-1` | Fast codebase exploration and contextual grep. Falls back to Claude Haiku / GPT-5 Nano when preferred provider is unavailable. Inspired by Claude Code. |
-| **multimodal-looker** | `google/gemini-3-flash` | Visual content specialist. Analyzes PDFs, images, diagrams to extract information. Saves tokens by having another agent process media. |
+| **navigator** | `github-copilot/grok-code-fast-1` | Fast codebase exploration and contextual grep. Falls back to Claude Haiku / GPT-5 Nano when preferred provider is unavailable. Inspired by Claude Code. |
+| **interpreter** | `google/gemini-3-flash` | Visual content specialist. Analyzes PDFs, images, diagrams to extract information. Saves tokens by having another agent process media. |
 
 ### Planning Agents
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
-| **Prometheus** | `anthropic/claude-opus-4-6` | Strategic planner with interview mode. Creates detailed work plans through iterative questioning. |
-| **Metis** | `anthropic/claude-opus-4-6` | Pre-planning consultant - analyzes requests for hidden intentions, ambiguities, and AI failure points before planning. |
-| **Momus** | `openai/gpt-5.2` | Plan reviewer - verifies plan executability and catches blocking issues with practical focus. |
+| **planner** | `anthropic/claude-opus-4-6` | Strategic planner with interview mode. Creates detailed work plans through iterative questioning. |
+| **scope-analyst** | `anthropic/claude-opus-4-6` | Pre-planning consultant - analyzes requests for hidden intentions, ambiguities, and AI failure points before planning. |
+| **reviewer** | `openai/gpt-5.2` | Plan reviewer - verifies plan executability and catches blocking issues with practical focus. |
 
 ### Invoking Agents
 
 The main agent invokes these automatically, but you can call them explicitly:
 
 ```
-Ask @oracle to review this design and propose an architecture
+Ask @advisor to review this design and propose an architecture
 Ask @librarian how this is implemented - why does the behavior keep changing?
-Ask @explore for the policy on this feature
+Ask @navigator for the policy on this feature
 ```
 
 ### Tool Restrictions
 
 | Agent | Restrictions |
 |-------|-------------|
-| oracle | Read-only: cannot write, edit, or delegate |
+| advisor | Read-only: cannot write, edit, or delegate |
 | librarian | Cannot write, edit, or delegate |
-| explore | Cannot write, edit, or delegate |
-| multimodal-looker | Allowlist only: `read` |
+| navigator | Cannot write, edit, or delegate |
+| interpreter | Allowlist only: `read` |
 
 ### Background Agents
 
@@ -56,7 +56,7 @@ Run agents in the background and continue working:
 ```
 # Launch in background
 delegate_task({
-  subagent_type: "explore",
+  subagent_type: "navigator",
   load_skills: [],
   description: "auth inventory",
   prompt: "Find auth implementations in this repo. Return file paths + key patterns.",
@@ -222,12 +222,12 @@ Commands are slash-triggered workflows that execute predefined templates.
 | Command | Description |
 |---------|-------------|
 | `/init-deep` | Initialize hierarchical AGENTS.md knowledge base |
-| `/brainstorm` | Enter Prometheus brainstorming mode for design-first exploration |
+| `/brainstorm` | Enter planner brainstorming mode for design-first exploration |
 | `/ralph-loop` | Start self-referential development loop until completion |
 | `/ulw-loop` | Start ultrawork loop - continues with ultrawork mode |
 | `/cancel-ralph` | Cancel active Ralph Loop |
 | `/refactor` | Intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification |
-| `/start-work` | Start Atlas execution session from Prometheus plan |
+| `/start-work` | Start workflow-automator execution session from planner plan |
 | `/stop-continuation` | Stop continuation mechanisms for the current session |
 
 ### Command: /init-deep
@@ -251,7 +251,7 @@ project/
 
 ### Command: /brainstorm
 
-**Purpose**: Force entry into Prometheus Brainstorming Mode (Phase 0) before plan generation
+**Purpose**: Force entry into planner Brainstorming Mode (Phase 0) before plan generation
 
 **Usage**:
 ```
@@ -262,7 +262,7 @@ project/
 - Runs recon first (code patterns, docs, recent commits)
 - Asks one question at a time
 - Explores 2-3 approaches with trade-offs and recommendation
-- Validates design in incremental sections, then writes `.sisyphus/designs/{topic-slug}.md`
+- Validates design in incremental sections, then writes `.orchestrator/designs/{topic-slug}.md`
 
 ### Command: /ralph-loop
 
@@ -308,14 +308,14 @@ Everything runs at maximum intensity - parallel agents, background tasks, aggres
 
 ### Command: /start-work
 
-**Purpose**: Start execution from a Prometheus-generated plan
+**Purpose**: Start execution from a planner-generated plan
 
 **Usage**:
 ```
 /start-work [plan-name]
 ```
 
-Uses Atlas Execution Mode to execute planned tasks systematically.
+Uses workflow-automator Execution Mode to execute planned tasks systematically.
 
 ### Command: /stop-continuation
 
@@ -436,7 +436,7 @@ Note: `task-resume-info` is an internal runtime node (`internal:task-resume-info
 | Hook | Event | Description |
 |------|-------|-------------|
 | **policy-runtime (phase 5a clauses)** | `tool.execute.before` | Enforces write safety and planner constraints via contract clauses instead of standalone hooks. |
-| **sisyphus-junior-notepad** | `tool.execute.before` | Injects notepad context only when delegating to `sisyphus-junior`. |
+| **specialist-notepad** | `tool.execute.before` | Injects notepad context only when delegating to `specialist`. |
 | **anthropic-effort** | `chat.params` | Tunes Anthropic effort/variant params outside runtime dispatcher ordering. |
 
 ### Claude Code Hooks Integration
@@ -501,7 +501,7 @@ Disable specific hooks in config:
 
 | Tool | Description |
 |------|-------------|
-| **delegate_task** | Category-based task delegation. Supports categories (visual, business-logic) or direct agent targeting. Research-scoped mode for explore/librarian-only access. |
+| **delegate_task** | Category-based task delegation. Supports categories (visual, business-logic) or direct agent targeting. Research-scoped mode for navigator/librarian-only access. |
 | **background_output** | Retrieve background task results |
 | **background_cancel** | Cancel running background tasks |
 
@@ -635,7 +635,7 @@ MCP configs support environment variable expansion: `${VAR}`.
 
 | Data | Location | Format |
 |------|----------|--------|
-| TaskGraph Nodes | `.sisyphus/tasks/<scope>/<container>/task_*.json` | Fork-owned TaskGraph V2 storage |
+| TaskGraph Nodes | `.orchestrator/tasks/<scope>/<container>/task_*.json` | Fork-owned TaskGraph V2 storage |
 | Transcripts | `~/.claude/transcripts/` | JSONL |
 
 ### Compatibility Toggles

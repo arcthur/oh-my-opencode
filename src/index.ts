@@ -33,10 +33,10 @@ import {
   createSwarmFromPlanHook,
   createAntiSlopEnforcerHook,
   createPreCompletionVerificationHook,
-  createSisyphusContextualInjectorHook,
+  createOrchestratorContextualInjectorHook,
   createDelegationValidateDecisionHook,
   createDelegationNudgeCategorySkillHook,
-  createSisyphusJuniorNotepadHook,
+  createSpecialistNotepadHook,
   createTmuxParallelAgentsHook,
   createConditionalRulesHooks,
   createSessionHandoffHook,
@@ -128,7 +128,7 @@ import {
 import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
-import { createSwarmRuntimeService } from "./features/sisyphus-swarm/runtime";
+import { createSwarmRuntimeService } from "./features/orchestrator-swarm/runtime";
 import { HookNameSchema, type HookName } from "./config";
 import {
   log,
@@ -352,7 +352,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const autoUpdateChecker = isHookEnabled("auto-update-checker")
     ? safeCreateHook("auto-update-checker", () => createAutoUpdateCheckerHook(ctx, {
         showStartupToast: isHookEnabled("startup-toast"),
-        isSisyphusEnabled: pluginConfig.sisyphus_agent?.disabled !== true,
+        isOrchestratorEnabled: pluginConfig.orchestrator_agent?.disabled !== true,
         autoUpdate: pluginConfig.auto_update ?? true,
       }), { enabled: safeHookEnabled })
     : null;
@@ -613,8 +613,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createPreCompletionVerificationHook(ctx, undefined, pluginConfig)
     : null;
 
-  const sisyphusContextualInjector = isHookEnabled("sisyphus-contextual-injector")
-    ? createSisyphusContextualInjectorHook(ctx)
+  const orchestratorContextualInjector = isHookEnabled("orchestrator-contextual-injector")
+    ? createOrchestratorContextualInjectorHook(ctx)
     : null;
 
   const delegationValidateDecision = isHookEnabled("delegation-validate-decision")
@@ -625,10 +625,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   // Complements delegation-validate-decision (pre-tool validation)
   let delegationNudgeCategorySkill: ReturnType<typeof createDelegationNudgeCategorySkillHook> | null = null;
 
-  // Sisyphus-junior notepad: dynamic injection of notepad context
-  // Saves tokens by only injecting when delegating to sisyphus-junior
-  const sisyphusJuniorNotepad = isHookEnabled("sisyphus-junior-notepad")
-    ? createSisyphusJuniorNotepadHook(ctx)
+  // Orchestrator-junior notepad: dynamic injection of notepad context
+  // Saves tokens by only injecting when delegating to specialist
+  const specialistNotepad = isHookEnabled("specialist-notepad")
+    ? createSpecialistNotepadHook(ctx)
     : null;
 
   // Tmux parallel agents: auto-create tmux windows for background tasks
@@ -641,7 +641,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
 
   // Swarm agent: auto-initialize worker when running with OPENCODE_SWARM_* env vars
-  // Enables multi-agent coordination via Sisyphus Swarm
+  // Enables multi-agent coordination via orchestrator Swarm
   const swarmAgent = isHookEnabled("swarm-agent")
     ? createSwarmAgentHook(ctx, { config: pluginConfig, runtime: swarmRuntime })
     : null;
@@ -739,7 +739,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           await ctx.client.session.prompt({
             path: { id: sessionId },
             body: {
-              agent: "atlas",
+              agent: "workflow-automator",
               parts: [{ type: "text", text: prompt }],
             },
           })
@@ -944,7 +944,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     swarmFromPlan: optional(swarmFromPlan),
     workOrchestrator: optional(workOrchestrator),
     preCompletionVerification: optional(preCompletionVerification),
-    sisyphusContextualInjector: optional(sisyphusContextualInjector),
+    orchestratorContextualInjector: optional(orchestratorContextualInjector),
     ralphLoop: optional(ralphLoop),
     userMemory: optional(userMemory),
     orgMemory: optional(orgMemory),
@@ -972,7 +972,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     nonInteractiveEnv: optional(nonInteractiveEnv),
     commentChecker: optional(commentChecker),
     delegationValidateDecision: optional(delegationValidateDecision),
-    sisyphusJuniorNotepad: optional(sisyphusJuniorNotepad),
+    specialistNotepad: optional(specialistNotepad),
     contextManifestInjector: optional(contextManifestInjector),
     silentToolOutput: optional(silentToolOutput),
     antiSlopEnforcer: optional(antiSlopEnforcer),

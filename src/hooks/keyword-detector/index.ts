@@ -48,7 +48,7 @@ export function createKeywordDetectorHook(ctx: PluginInput, collector?: ContextC
       }
 
       // Skip keyword detection for background task sessions to prevent mode injection
-      // (e.g., [analyze-mode]) which incorrectly triggers Prometheus restrictions
+      // (e.g., [analyze-mode]) which incorrectly triggers planner restrictions
       const isBackgroundTaskSession = isSubagentSession(input.sessionID)
       if (isBackgroundTaskSession) {
         return

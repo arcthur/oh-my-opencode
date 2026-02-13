@@ -4,7 +4,7 @@ import {
   BuiltinCategoryNameSchema,
   CategoryConfigSchema,
   PlanningWithFilesConfigSchema,
-  SisyphusTasksConfigSchema,
+  OrchestratorTasksConfigSchema,
   HookNameSchema,
   OhMyOpenCodeConfigSchema,
   SessionReferenceConfigSchema,
@@ -638,11 +638,11 @@ describe("AgentOverrideConfigSchema", () => {
 })
 
 describe("legacy multi-plan config cleanup", () => {
-  test("rejects agents.prometheus.model as string[]", () => {
+  test("rejects agents.planner.model as string[]", () => {
     // given
     const config = {
       agents: {
-        prometheus: {
+        planner: {
           model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
         },
       },
@@ -655,11 +655,11 @@ describe("legacy multi-plan config cleanup", () => {
     expect(result.success).toBe(false)
   })
 
-  test("rejects model array for non-prometheus agents", () => {
+  test("rejects model array for non-planner agents", () => {
     // given
     const config = {
       agents: {
-        sisyphus: {
+        orchestrator: {
           model: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"],
         },
       },
@@ -793,12 +793,12 @@ describe("BuiltinCategoryNameSchema", () => {
   })
 })
 
-describe("Sisyphus-Junior agent override", () => {
-  test("schema accepts agents['Sisyphus-Junior'] and retains the key after parsing", () => {
+describe("specialist agent override", () => {
+  test("schema accepts agents['specialist'] and retains the key after parsing", () => {
     // given
     const config = {
       agents: {
-        "sisyphus-junior": {
+        "specialist": {
           model: "openai/gpt-5.2",
           temperature: 0.2,
         },
@@ -811,18 +811,18 @@ describe("Sisyphus-Junior agent override", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.["sisyphus-junior"]).toBeDefined()
-      expect(result.data.agents?.["sisyphus-junior"]?.model).toBe("openai/gpt-5.2")
-      expect(result.data.agents?.["sisyphus-junior"]?.temperature).toBe(0.2)
+      expect(result.data.agents?.["specialist"]).toBeDefined()
+      expect(result.data.agents?.["specialist"]?.model).toBe("openai/gpt-5.2")
+      expect(result.data.agents?.["specialist"]?.temperature).toBe(0.2)
     }
   })
 
-  test("schema accepts Sisyphus-Junior with prompt_append", () => {
+  test("schema accepts specialist with prompt_append", () => {
     // given
     const config = {
       agents: {
-        "sisyphus-junior": {
-          prompt_append: "Additional instructions for Sisyphus-Junior",
+        "specialist": {
+          prompt_append: "Additional instructions for specialist",
         },
       },
     }
@@ -833,17 +833,17 @@ describe("Sisyphus-Junior agent override", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.["sisyphus-junior"]?.prompt_append).toBe(
-        "Additional instructions for Sisyphus-Junior"
+      expect(result.data.agents?.["specialist"]?.prompt_append).toBe(
+        "Additional instructions for specialist"
       )
     }
   })
 
-  test("schema accepts Sisyphus-Junior with tools override", () => {
+  test("schema accepts specialist with tools override", () => {
     // given
     const config = {
       agents: {
-        "sisyphus-junior": {
+        "specialist": {
           tools: {
             read: true,
             write: false,
@@ -858,7 +858,7 @@ describe("Sisyphus-Junior agent override", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.["sisyphus-junior"]?.tools).toEqual({
+      expect(result.data.agents?.["specialist"]?.tools).toEqual({
         read: true,
         write: false,
       })
@@ -866,12 +866,12 @@ describe("Sisyphus-Junior agent override", () => {
   })
 })
 
-describe("Atlas agent surface", () => {
-  test("schema accepts agents.atlas overrides", () => {
+describe("workflow-automator agent surface", () => {
+  test("schema accepts agents.workflow-automator overrides", () => {
     // given
     const config = {
       agents: {
-        atlas: {
+        "workflow-automator": {
           model: "openai/gpt-5.2",
           temperature: 0.1,
         },
@@ -884,15 +884,15 @@ describe("Atlas agent surface", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.agents?.atlas?.model).toBe("openai/gpt-5.2")
-      expect(result.data.agents?.atlas?.temperature).toBe(0.1)
+      expect(result.data.agents?.["workflow-automator"]?.model).toBe("openai/gpt-5.2")
+      expect(result.data.agents?.["workflow-automator"]?.temperature).toBe(0.1)
     }
   })
 
-  test("schema accepts atlas in disabled_agents", () => {
+  test("schema accepts workflow-automator in disabled_agents", () => {
     // given
     const config = {
-      disabled_agents: ["atlas"],
+      disabled_agents: ["workflow-automator"],
     }
 
     // when
@@ -901,7 +901,7 @@ describe("Atlas agent surface", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.disabled_agents).toEqual(["atlas"])
+      expect(result.data.disabled_agents).toEqual(["workflow-automator"])
     }
   })
 })
@@ -1169,22 +1169,22 @@ describe("latest-only removed config keys", () => {
   test("does not expose removed keys in schema surface", () => {
     // #then
     expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("multi_plan_pipeline")
-    expect(Object.keys(SisyphusTasksConfigSchema.shape)).not.toContain("claude_code_compat")
+    expect(Object.keys(OrchestratorTasksConfigSchema.shape)).not.toContain("claude_code_compat")
     expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("context_window_governor")
     expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("tool_output_truncator")
     expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("context_budget")
     expect(HookNameSchema.options).not.toContain("think-mode")
     expect(HookNameSchema.options).not.toContain("tool-output-truncator")
     expect(HookNameSchema.options).not.toContain("context-window-governor")
-    expect(HookNameSchema.options).not.toContain("prometheus-md-only")
+    expect(HookNameSchema.options).not.toContain("planner-md-only")
     expect(HookNameSchema.options).not.toContain("delegation-block-subagent-question")
     expect(HookNameSchema.options).not.toContain("write-existing-file-guard")
   })
 
-  test("rejects sisyphus.tasks.claude_code_compat", () => {
+  test("rejects orchestrator.tasks.claude_code_compat", () => {
     // given
     const config = {
-      sisyphus: {
+      orchestrator: {
         tasks: {
           enabled: true,
           claude_code_compat: true,
@@ -1202,7 +1202,7 @@ describe("latest-only removed config keys", () => {
         result.error.issues.some(
           (issue) =>
             issue.code === "unrecognized_keys" &&
-            issue.path.join(".") === "sisyphus.tasks" &&
+            issue.path.join(".") === "orchestrator.tasks" &&
             issue.keys.includes("claude_code_compat")
         )
       ).toBe(true)
@@ -1239,11 +1239,11 @@ describe("latest-only removed config keys", () => {
 })
 
 describe("strict nested unknown-key rejection", () => {
-  test("rejects unknown key inside agents.oracle", () => {
+  test("rejects unknown key inside agents.advisor", () => {
     // #given
     const config = {
       agents: {
-        oracle: {
+        advisor: {
           model: "openai/gpt-5.2",
           typo_key: true,
         },
@@ -1319,10 +1319,10 @@ describe("strict nested unknown-key rejection", () => {
     }
   })
 
-  test("rejects unknown key inside sisyphus.swarm", () => {
+  test("rejects unknown key inside orchestrator.swarm", () => {
     // #given
     const config = {
-      sisyphus: {
+      orchestrator: {
         swarm: {
           enabled: true,
           mailbox_consume_mode: "fifo",

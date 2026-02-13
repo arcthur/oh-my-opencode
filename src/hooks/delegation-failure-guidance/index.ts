@@ -21,12 +21,12 @@ export const DELEGATE_TASK_ERROR_PATTERNS: DelegateTaskErrorPattern[] = [
   {
     pattern: "category OR subagent_type",
     errorType: "mutual_exclusion",
-    fixHint: "Provide ONLY one of: category (e.g., 'general', 'quick') OR subagent_type (e.g., 'oracle', 'explore')",
+    fixHint: "Provide ONLY one of: category (e.g., 'general', 'quick') OR subagent_type (e.g., 'advisor', 'navigator')",
   },
   {
     pattern: "Must provide either category or subagent_type",
     errorType: "missing_category_or_agent",
-    fixHint: "Add either category='general' OR subagent_type='explore'",
+    fixHint: "Add either category='general' OR subagent_type='navigator'",
   },
   {
     pattern: "Unknown category",
@@ -46,7 +46,7 @@ export const DELEGATE_TASK_ERROR_PATTERNS: DelegateTaskErrorPattern[] = [
   {
     pattern: "Cannot call primary agent",
     errorType: "primary_agent",
-    fixHint: "Primary agents cannot be called via delegate_task. Use a subagent like 'explore', 'oracle', or 'librarian'",
+    fixHint: "Primary agents cannot be called via delegate_task. Use a subagent like 'navigator', 'advisor', or 'librarian'",
   },
   {
     pattern: "Skills not found",
@@ -109,7 +109,7 @@ Example of CORRECT call:
 delegate_task(
   description="Task description",
   prompt="Detailed prompt...",
-  category="unspecified-low",  // OR subagent_type="explore"
+  category="unspecified-low",  // OR subagent_type="navigator"
   run_in_background=false,
   load_skills=[]
 )

@@ -10,7 +10,7 @@ import { TARGET_TOOLS, AGENT_TOOLS, REMINDER_MESSAGE } from "./constants";
 import type { AgentUsageState } from "./types";
 
 const TARGET_AGENTS = new Set([
-  "sisyphus",
+  "orchestrator",
 ]);
 
 interface ToolExecuteInput {

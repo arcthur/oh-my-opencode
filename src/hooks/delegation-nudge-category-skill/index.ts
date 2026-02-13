@@ -9,7 +9,7 @@ import { contextBudgetArbiter } from "../../features/context-view"
  * These are orchestrator agents that delegate work to specialized agents.
  */
 const TARGET_AGENTS = new Set([
-  "sisyphus",
+  "orchestrator",
 ])
 
 /**

@@ -73,7 +73,7 @@ describe("createAutoSlashCommandHook", () => {
       expect(output.parts[0].text).toContain("# /stop-continuation Command")
     })
 
-    it("should switch session agent to prometheus for /brainstorm", async () => {
+    it("should switch session agent to planner for /brainstorm", async () => {
       // given a brainstorm slash command
       const hook = createAutoSlashCommandHook()
       const sessionID = `test-session-brainstorm-agent-${Date.now()}`
@@ -86,7 +86,7 @@ describe("createAutoSlashCommandHook", () => {
       // then should inject template and update session agent
       expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
       expect(output.parts[0].text).toContain("# /brainstorm Command")
-      expect(getSessionAgent(sessionID)).toBe("prometheus")
+      expect(getSessionAgent(sessionID)).toBe("planner")
 
       clearSessionAgent(sessionID)
     })
@@ -336,7 +336,7 @@ describe("createAutoSlashCommandHook", () => {
       expect(output.parts[0].text).toContain("# /stop-continuation Command")
     })
 
-    it("should switch session agent to prometheus for brainstorm command", async () => {
+    it("should switch session agent to planner for brainstorm command", async () => {
       // given
       const hook = createAutoSlashCommandHook()
       const sessionID = `test-session-command-before-brainstorm-${Date.now()}`
@@ -349,7 +349,7 @@ describe("createAutoSlashCommandHook", () => {
       // then
       expect(output.parts[0].text).toContain(AUTO_SLASH_COMMAND_TAG_OPEN)
       expect(output.parts[0].text).toContain("# /brainstorm Command")
-      expect(getSessionAgent(sessionID)).toBe("prometheus")
+      expect(getSessionAgent(sessionID)).toBe("planner")
 
       clearSessionAgent(sessionID)
     })

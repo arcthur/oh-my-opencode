@@ -4,7 +4,7 @@
  * Persists execution traces to disk for post-session debugging.
  * Traces are stored in compressed format to reduce storage.
  *
- * Location: ~/.sisyphus/traces/{sessionId}.json
+ * Location: ~/.orchestrator/traces/{sessionId}.json
  */
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, unlinkSync, statSync } from "node:fs"
@@ -110,7 +110,7 @@ export interface TraceListEntry {
 // Configuration
 // ============================================================================
 
-const TRACES_DIR = join(homedir(), ".sisyphus", "traces")
+const TRACES_DIR = join(homedir(), ".orchestrator", "traces")
 const MAX_TIMELINE_EVENTS = 100
 const MAX_TRACES_RETENTION = 50 // Keep last 50 traces
 const CRITICAL_NODE_TYPES: TraceNode["type"][] = ["tool", "agent", "decision", "checkpoint"]

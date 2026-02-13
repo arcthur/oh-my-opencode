@@ -65,7 +65,7 @@ Options:
 
 | Option | Description |
 |--------|-------------|
-| `-a, --agent <name>` | Agent override (`Sisyphus`, `Hephaestus`, `Prometheus`, etc.) |
+| `-a, --agent <name>` | Agent override (`orchestrator`, `executor`, `planner`, etc.) |
 | `-d, --directory <path>` | Working directory for the prompt call |
 | `-t, --timeout <ms>` | Timeout in milliseconds (default: **30 minutes**; set `0` to disable) |
 | `-p, --port <port>` | Preferred server port (if occupied, auto-attach to that server) |

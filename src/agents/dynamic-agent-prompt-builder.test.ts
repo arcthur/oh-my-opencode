@@ -33,7 +33,7 @@ describe("dynamic agent prompt markdown safety", () => {
     // #given
     const agents: AvailableAgent[] = [
       {
-        name: "oracle",
+        name: "advisor",
         description: "Root cause | analysis\nwith edge cases.",
         metadata: {
           category: "advisor",

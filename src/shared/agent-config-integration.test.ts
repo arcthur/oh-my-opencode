@@ -7,48 +7,48 @@ describe("Agent Config Integration", () => {
     test("returns correct display names for builtin agents", () => {
       // given
       const agents = [
-        "sisyphus",
-        "atlas",
-        "hephaestus",
-        "prometheus",
-        "metis",
-        "momus",
-        "oracle",
+        "orchestrator",
+        "workflow-automator",
+        "executor",
+        "planner",
+        "scope-analyst",
+        "reviewer",
+        "advisor",
         "librarian",
-        "explore",
-        "multimodal-looker",
+        "navigator",
+        "interpreter",
       ]
 
       // when
       const displayNames = agents.map((agent) => getAgentDisplayName(agent))
 
       // then
-      expect(displayNames).toContain("Sisyphus (Ultraworker)")
-      expect(displayNames).toContain("Atlas (Execution Orchestrator)")
-      expect(displayNames).toContain("Hephaestus (Autonomous Deep Worker)")
-      expect(displayNames).toContain("Prometheus (Plan Builder)")
-      expect(displayNames).toContain("Metis (Pre-Planning Consultant)")
-      expect(displayNames).toContain("Momus (Plan Reviewer)")
-      expect(displayNames).toContain("oracle")
+      expect(displayNames).toContain("orchestrator (Ultraworker)")
+      expect(displayNames).toContain("workflow-automator (Execution Orchestrator)")
+      expect(displayNames).toContain("executor (Autonomous Deep Worker)")
+      expect(displayNames).toContain("planner (Plan Builder)")
+      expect(displayNames).toContain("scope-analyst (Pre-Planning Consultant)")
+      expect(displayNames).toContain("reviewer (Plan Reviewer)")
+      expect(displayNames).toContain("advisor")
       expect(displayNames).toContain("librarian")
-      expect(displayNames).toContain("explore")
-      expect(displayNames).toContain("multimodal-looker")
+      expect(displayNames).toContain("navigator")
+      expect(displayNames).toContain("interpreter")
     })
 
     test("handles case-insensitive lookups", () => {
       // given
-      const keys = ["Sisyphus", "Hephaestus", "SISYPHUS", "hephaestus", "prometheus", "PROMETHEUS"]
+      const keys = ["orchestrator", "executor", "ORCHESTRATOR", "executor", "planner", "PLANNER"]
 
       // when
       const displayNames = keys.map((key) => getAgentDisplayName(key))
 
       // then
-      expect(displayNames[0]).toBe("Sisyphus (Ultraworker)")
-      expect(displayNames[1]).toBe("Hephaestus (Autonomous Deep Worker)")
-      expect(displayNames[2]).toBe("Sisyphus (Ultraworker)")
-      expect(displayNames[3]).toBe("Hephaestus (Autonomous Deep Worker)")
-      expect(displayNames[4]).toBe("Prometheus (Plan Builder)")
-      expect(displayNames[5]).toBe("Prometheus (Plan Builder)")
+      expect(displayNames[0]).toBe("orchestrator (Ultraworker)")
+      expect(displayNames[1]).toBe("executor (Autonomous Deep Worker)")
+      expect(displayNames[2]).toBe("orchestrator (Ultraworker)")
+      expect(displayNames[3]).toBe("executor (Autonomous Deep Worker)")
+      expect(displayNames[4]).toBe("planner (Plan Builder)")
+      expect(displayNames[5]).toBe("planner (Plan Builder)")
     })
 
     test("returns original key for unknown agents", () => {
@@ -78,16 +78,16 @@ describe("Agent Config Integration", () => {
     test("model requirements include all builtin agents", () => {
       // given
       const expectedAgents = [
-        "sisyphus",
-        "atlas",
-        "prometheus",
-        "metis",
-        "momus",
-        "hephaestus",
-        "oracle",
+        "orchestrator",
+        "workflow-automator",
+        "planner",
+        "scope-analyst",
+        "reviewer",
+        "executor",
+        "advisor",
         "librarian",
-        "explore",
-        "multimodal-looker",
+        "navigator",
+        "interpreter",
       ]
 
       // when

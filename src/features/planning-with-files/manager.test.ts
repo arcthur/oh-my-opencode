@@ -37,9 +37,9 @@ describe("planning-with-files manager", () => {
     const dir = getPlanDir(tmpDir, "demo", DEFAULT_PLANNING_CONFIG)
 
     // #then
-    expect(dir).toBe(path.join(tmpDir, ".sisyphus", "plans", "demo"))
-    expect(getExecutionPlanPath(tmpDir, "demo")).toBe(path.join(tmpDir, ".sisyphus", "plans", "demo", "plan.md"))
-    expect(getLedgerPath(tmpDir, "demo")).toBe(path.join(tmpDir, ".sisyphus", "plans", "demo", "ledger.yaml"))
+    expect(dir).toBe(path.join(tmpDir, ".orchestrator", "plans", "demo"))
+    expect(getExecutionPlanPath(tmpDir, "demo")).toBe(path.join(tmpDir, ".orchestrator", "plans", "demo", "plan.md"))
+    expect(getLedgerPath(tmpDir, "demo")).toBe(path.join(tmpDir, ".orchestrator", "plans", "demo", "ledger.yaml"))
   })
 
   test("initializePlan creates canonical files with Tasks section", async () => {

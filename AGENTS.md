@@ -13,7 +13,7 @@ ClaudeCode plugin implementing multi-model agent orchestration (Claude Opus 4.5,
 ```
 oh-my-opencode/
 ├── src/
-│   ├── agents/        # 10 AI agents (Sisyphus, oracle, librarian, explore, frontend, etc.) - see src/agents/AGENTS.md
+│   ├── agents/        # 10 AI agents (orchestrator, advisor, librarian, navigator, frontend, etc.) - see src/agents/AGENTS.md
 │   ├── hooks/         # 31 lifecycle hooks (PreToolUse, PostToolUse, Stop, etc.) - see src/hooks/AGENTS.md
 │   ├── tools/         # 20+ tools (LSP, AST-Grep, delegation, session) - see src/tools/AGENTS.md
 │   ├── features/      # Background agents, Claude Code compat layer - see src/features/AGENTS.md
@@ -105,14 +105,14 @@ oh-my-opencode/
 
 | Agent | Default Model | Purpose |
 |-------|---------------|---------|
-| Sisyphus | anthropic/claude-opus-4-5 | Primary orchestrator with extended thinking |
-| oracle | openai/gpt-5.2 | Read-only consultation, high-IQ debugging |
+| orchestrator | anthropic/claude-opus-4-5 | Primary orchestrator with extended thinking |
+| advisor | openai/gpt-5.2 | Read-only consultation, high-IQ debugging |
 | librarian | opencode/glm-4.7-free | Multi-repo analysis, docs, GitHub search |
-| explore | opencode/grok-code | Fast codebase exploration (contextual grep) |
-| multimodal-looker | google/gemini-3-flash | PDF/image analysis |
-| Prometheus | anthropic/claude-opus-4-5 | Strategic planning, interview mode |
-| Metis | anthropic/claude-opus-4-6 | Pre-planning consultant; intent classification, AI-slop detection |
-| Momus | openai/gpt-5.2 | Plan reviewer; blocking-issue verification, executability check |
+| navigator | opencode/grok-code | Fast codebase exploration (contextual grep) |
+| interpreter | google/gemini-3-flash | PDF/image analysis |
+| planner | anthropic/claude-opus-4-5 | Strategic planning, interview mode |
+| scope-analyst | anthropic/claude-opus-4-6 | Pre-planning consultant; intent classification, AI-slop detection |
+| reviewer | openai/gpt-5.2 | Plan reviewer; blocking-issue verification, executability check |
 
 ## COMMANDS
 
@@ -143,9 +143,9 @@ bun test               # Run tests (83 test files)
 
 | File | Lines | Description |
 |------|-------|-------------|
-| `src/agents/sisyphus/index.ts` | 615 | Main orchestrator agent prompt |
+| `src/agents/orchestrator/index.ts` | 615 | Main orchestrator agent prompt |
 | `src/features/builtin-skills/skills.ts` | 1203 | Skill definitions (playwright, git-master, frontend-ui-ux) |
-| `src/agents/prometheus-prompt.ts` | 1196 | Planning agent, interview mode, Momus loop |
+| `src/agents/planner-prompt.ts` | 1196 | Planning agent, interview mode, reviewer loop |
 | `src/features/background-agent/manager.ts` | 1165 | Task lifecycle, concurrency, notification batching |
 | `src/hooks/execution-orchestrator/index.ts` | 771 | Orchestrator hook implementation |
 | `src/tools/delegate-task/tools.ts` | 770 | Category-based task delegation |

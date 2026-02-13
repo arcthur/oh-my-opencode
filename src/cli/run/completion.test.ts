@@ -5,10 +5,15 @@ import { tmpdir } from "node:os"
 import type { RunContext, ChildSession, SessionStatus } from "./types"
 import type { OhMyOpenCodeConfig } from "../../config"
 import { createTaskNode, transitionTaskNode } from "../../features/task-system"
+import { ORCHESTRATOR_PROJECT_ROOT_ENV } from "../../features/orchestrator-tasks/storage"
 
 let taskStorage: string
+let originalProjectRootEnv: string | undefined
+let hadProjectRootEnv = false
 
 const createMockContext = (overrides: {
+  directory?: string
+  taskConfig?: Partial<OhMyOpenCodeConfig>
   childrenBySession?: Record<string, ChildSession[]>
   statuses?: Record<string, SessionStatus>
   mainSessionMessages?: Array<{
@@ -17,8 +22,17 @@ const createMockContext = (overrides: {
   }>
 } = {}): RunContext => {
   const {
+    directory = "/test",
     childrenBySession = { "test-session": [] },
     statuses = {},
+    taskConfig = {
+      orchestrator: {
+        tasks: {
+          enabled: true,
+          storage_path: taskStorage,
+        },
+      },
+    },
     mainSessionMessages = [
       {
         info: { id: "msg-1", role: "user" },
@@ -31,15 +45,6 @@ const createMockContext = (overrides: {
     ],
   } = overrides
 
-  const taskConfig: Partial<OhMyOpenCodeConfig> = {
-    sisyphus: {
-      tasks: {
-        enabled: true,
-        storage_path: taskStorage,
-      },
-    },
-  }
-
   return {
     client: {
       session: {
@@ -51,7 +56,7 @@ const createMockContext = (overrides: {
       },
     } as unknown as RunContext["client"],
     sessionID: "test-session",
-    directory: "/test",
+    directory,
     abortController: new AbortController(),
     taskConfig,
   }
@@ -61,11 +66,23 @@ describe("checkCompletionConditions", () => {
   beforeEach(() => {
     taskStorage = join(tmpdir(), `cli-completion-task-storage-${Date.now()}`)
     mkdirSync(taskStorage, { recursive: true })
+    hadProjectRootEnv = Object.prototype.hasOwnProperty.call(
+      process.env,
+      ORCHESTRATOR_PROJECT_ROOT_ENV
+    )
+    originalProjectRootEnv = process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
+    delete process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
   })
 
   afterEach(() => {
     if (existsSync(taskStorage)) {
       rmSync(taskStorage, { recursive: true, force: true })
+    }
+
+    if (hadProjectRootEnv && originalProjectRootEnv !== undefined) {
+      process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = originalProjectRootEnv
+    } else {
+      delete process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
     }
   })
 
@@ -278,5 +295,59 @@ describe("checkCompletionConditions", () => {
 
     // then
     expect(result).toBe(false)
+  })
+
+  it("resolves relative task storage path from ctx.directory", async () => {
+    // given
+    spyOn(console, "log").mockImplementation(() => {})
+    const projectRoot = join(tmpdir(), `cli-completion-project-root-${Date.now()}`)
+    const wrongRoot = join(tmpdir(), `cli-completion-wrong-root-${Date.now()}`)
+    try {
+      mkdirSync(projectRoot, { recursive: true })
+      mkdirSync(wrongRoot, { recursive: true })
+      process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = wrongRoot
+
+      const relativeStoragePath = ".orchestrator/tasks"
+      const absoluteStoragePath = join(projectRoot, relativeStoragePath)
+      mkdirSync(absoluteStoragePath, { recursive: true })
+
+      const ctx = createMockContext({
+        directory: projectRoot,
+        taskConfig: {
+          orchestrator: {
+            tasks: {
+              enabled: true,
+              storage_path: relativeStoragePath,
+            },
+          },
+        },
+      })
+
+      createTaskNode(
+        {
+          scope: "session",
+          container_id: ctx.sessionID,
+          title: "WIP",
+        },
+        {
+          orchestrator: {
+            tasks: {
+              enabled: true,
+              storage_path: absoluteStoragePath,
+            },
+          },
+        }
+      )
+      const { checkCompletionConditions } = await import("./completion")
+
+      // when
+      const result = await checkCompletionConditions(ctx)
+
+      // then
+      expect(result).toBe(false)
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true })
+      rmSync(wrongRoot, { recursive: true, force: true })
+    }
   })
 })

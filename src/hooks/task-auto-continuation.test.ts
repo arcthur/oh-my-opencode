@@ -167,7 +167,7 @@ describe("task-auto-continuation", () => {
     workspace = join(tmpdir(), `task-auto-cont-${Date.now()}-${Math.random().toString(16).slice(2)}`)
     mkdirSync(workspace, { recursive: true })
     config = {
-      sisyphus: {
+      orchestrator: {
         tasks: {
           enabled: true,
           storage_path: workspace,
@@ -224,7 +224,7 @@ describe("task-auto-continuation", () => {
     const sessionID = "main-execution"
     const planID = "execution-plan"
     setMainSession(sessionID)
-    updateSessionAgent(sessionID, "atlas")
+    updateSessionAgent(sessionID, "workflow-automator")
 
     const workStateManager = createWorkStateManager(workspace)
     workStateManager.initializePlan(planID, sessionID, undefined)
@@ -297,10 +297,10 @@ describe("task-auto-continuation", () => {
 
   test("does not treat explicit non-orchestrator agent as execution-owned session", async () => {
     // #given
-    const sessionID = "main-execution-prometheus"
-    const planID = "execution-plan-prometheus"
+    const sessionID = "main-execution-planner"
+    const planID = "execution-plan-planner"
     setMainSession(sessionID)
-    updateSessionAgent(sessionID, "prometheus")
+    updateSessionAgent(sessionID, "planner")
 
     const workStateManager = createWorkStateManager(workspace)
     workStateManager.initializePlan(planID, sessionID, undefined)
@@ -333,18 +333,18 @@ describe("task-auto-continuation", () => {
 
   test("ignores legacy work-state and falls back to session continuation", async () => {
     // #given
-    const sessionID = "legacy-sisyphus-execution"
+    const sessionID = "legacy-orchestrator-execution"
     setMainSession(sessionID)
-    updateSessionAgent(sessionID, "sisyphus")
+    updateSessionAgent(sessionID, "orchestrator")
 
-    mkdirSync(join(workspace, ".sisyphus"), { recursive: true })
+    mkdirSync(join(workspace, ".orchestrator"), { recursive: true })
     writeFileSync(
-      join(workspace, ".sisyphus", "work.yaml"),
+      join(workspace, ".orchestrator", "work.yaml"),
       `schema_version: 4
-executor: sisyphus
-plan_id: legacy-sisyphus-plan
-execution_plan_path: .sisyphus/plans/legacy-sisyphus-plan/plan.md
-runtime_ledger_path: .sisyphus/plans/legacy-sisyphus-plan/ledger.yaml
+executor: orchestrator
+plan_id: legacy-orchestrator-plan
+execution_plan_path: .orchestrator/plans/legacy-orchestrator-plan/plan.md
+runtime_ledger_path: .orchestrator/plans/legacy-orchestrator-plan/ledger.yaml
 started_at: "2026-02-06T00:00:00Z"
 session_ids:
   - ${sessionID}

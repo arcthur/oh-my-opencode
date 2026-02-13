@@ -10,8 +10,8 @@ import { CARTOGRAPHY_TEMPLATE } from "./templates/cartography"
 
 const BUILTIN_COMMAND_DEFINITIONS: Record<BuiltinCommandName, Omit<CommandDefinition, "name">> = {
   brainstorm: {
-    description: "(builtin) Enter Prometheus brainstorming mode (Phase 0 design exploration)",
-    agent: "prometheus",
+    description: "(builtin) Enter planner brainstorming mode (Phase 0 design exploration)",
+    agent: "planner",
     template: `<command-instruction>
 ${BRAINSTORM_TEMPLATE}
 </command-instruction>
@@ -81,8 +81,8 @@ ${REFACTOR_TEMPLATE}
     argumentHint: "<refactoring-target> [--scope=<file|module|project>] [--strategy=<safe|aggressive>]",
   },
   "start-work": {
-    description: "(builtin) Start Atlas execution session from Prometheus plan",
-    agent: "atlas",
+    description: "(builtin) Start workflow-automator execution session from planner plan",
+    agent: "workflow-automator",
     template: `<command-instruction>
 ${START_WORK_TEMPLATE}
 </command-instruction>

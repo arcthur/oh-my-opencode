@@ -14,7 +14,7 @@ describe("task-system/plan-sync", () => {
     workspace = join(tmpdir(), `task-system-plan-sync-${Date.now()}-${Math.random().toString(16).slice(2)}`)
     mkdirSync(workspace, { recursive: true })
     config = {
-      sisyphus: {
+      orchestrator: {
         tasks: {
           enabled: true,
           storage_path: workspace,

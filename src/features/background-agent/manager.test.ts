@@ -413,10 +413,10 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
     const { ConcurrencyManager } = await import("./concurrency")
     const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
 
-    await concurrencyManager.acquire("explore")
+    await concurrencyManager.acquire("navigator")
 
     let task2Resolved = false
-    const task2Promise = concurrencyManager.acquire("explore").then(() => {
+    const task2Promise = concurrencyManager.acquire("navigator").then(() => {
       task2Resolved = true
     })
 
@@ -426,7 +426,7 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
     // when - simulate notifyParentSession: release BEFORE prompt (fixed behavior)
     let promptStarted = false
     const simulateNotifyParentSession = async () => {
-      concurrencyManager.release("explore")
+      concurrencyManager.release("navigator")
 
       promptStarted = true
       await new Promise(() => {})
@@ -448,10 +448,10 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
     const { ConcurrencyManager } = await import("./concurrency")
     const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
 
-    await concurrencyManager.acquire("explore")
+    await concurrencyManager.acquire("navigator")
 
     let task2Resolved = false
-    concurrencyManager.acquire("explore").then(() => {
+    concurrencyManager.acquire("navigator").then(() => {
       task2Resolved = true
     })
 
@@ -463,7 +463,7 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
       try {
         await new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 50))
       } finally {
-        concurrencyManager.release("explore")
+        concurrencyManager.release("navigator")
       }
     }
 
@@ -643,7 +643,7 @@ describe("BackgroundManager.resume", () => {
       sessionID: "session-a",
       parentSessionID: "old-parent",
       description: "original description",
-      agent: "explore",
+      agent: "navigator",
       status: "completed",
     })
     manager.addTask(existingTask)
@@ -661,7 +661,7 @@ describe("BackgroundManager.resume", () => {
     expect(result.id).toBe("task-a")
     expect(result.sessionID).toBe("session-a")
     expect(result.description).toBe("original description")
-    expect(result.agent).toBe("explore")
+    expect(result.agent).toBe("navigator")
     expect(result.parentModel).toEqual({ providerID: "anthropic", modelID: "claude-opus" })
   })
 
@@ -748,7 +748,7 @@ describe("LaunchInput.skillContent", () => {
     const input: import("./types").LaunchInput = {
       description: "test",
       prompt: "test prompt",
-      agent: "explore",
+      agent: "navigator",
       parentSessionID: "parent-session",
       parentMessageID: "parent-msg",
     }
@@ -762,7 +762,7 @@ describe("LaunchInput.skillContent", () => {
     const input: import("./types").LaunchInput = {
       description: "test",
       prompt: "test prompt",
-      agent: "explore",
+      agent: "navigator",
       parentSessionID: "parent-session",
       parentMessageID: "parent-msg",
       skillContent: "You are a playwright expert",
@@ -788,7 +788,7 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
       parentMessageID: "msg-parent",
       description: "task with dynamic lookup",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
@@ -796,7 +796,7 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
       parentModel: { providerID: "old", modelID: "old-model" },
     }
     const currentMessage: CurrentMessage = {
-      agent: "sisyphus",
+      agent: "orchestrator",
       model: { providerID: "anthropic", modelID: "claude-opus-4-5" },
     }
 
@@ -804,7 +804,7 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
     const promptBody = buildNotificationPromptBody(task, currentMessage)
 
     // then - uses currentMessage values, not task.parentModel/parentAgent
-    expect(promptBody.agent).toBe("sisyphus")
+    expect(promptBody.agent).toBe("orchestrator")
     expect(promptBody.model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4-5" })
   })
 
@@ -817,7 +817,7 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
       parentMessageID: "msg-parent",
       description: "task fallback agent",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
@@ -843,15 +843,15 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
       parentMessageID: "msg-parent",
       description: "task incomplete model",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
-      parentAgent: "sisyphus",
+      parentAgent: "orchestrator",
       parentModel: { providerID: "anthropic", modelID: "claude-opus" },
     }
     const currentMessage: CurrentMessage = {
-      agent: "sisyphus",
+      agent: "orchestrator",
       model: { providerID: "anthropic" },
     }
 
@@ -859,7 +859,7 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
     const promptBody = buildNotificationPromptBody(task, currentMessage)
 
     // then - model not passed due to incomplete data
-    expect(promptBody.agent).toBe("sisyphus")
+    expect(promptBody.agent).toBe("orchestrator")
     expect("model" in promptBody).toBe(false)
   })
 
@@ -872,11 +872,11 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
       parentMessageID: "msg-parent",
       description: "task no message",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
-      parentAgent: "sisyphus",
+      parentAgent: "orchestrator",
       parentModel: { providerID: "anthropic", modelID: "claude-opus" },
     }
 
@@ -884,7 +884,7 @@ describe("BackgroundManager.notifyParentSession - dynamic message lookup", () =>
     const promptBody = buildNotificationPromptBody(task, null)
 
     // then - falls back to task.parentAgent, no model
-    expect(promptBody.agent).toBe("sisyphus")
+    expect(promptBody.agent).toBe("orchestrator")
     expect("model" in promptBody).toBe(false)
   })
 })
@@ -938,7 +938,7 @@ describe("BackgroundManager.tryCompleteTask", () => {
       parentMessageID: "msg-1",
       description: "test task",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       status: "running",
       startedAt: new Date(),
       concurrencyKey,
@@ -967,7 +967,7 @@ describe("BackgroundManager.tryCompleteTask", () => {
       parentMessageID: "msg-1",
       description: "test task",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       status: "running",
       startedAt: new Date(),
       concurrencyKey,
@@ -1006,7 +1006,7 @@ describe("BackgroundManager.tryCompleteTask", () => {
       parentMessageID: "msg-1",
       description: "test task",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       status: "running",
       startedAt: new Date(),
     }
@@ -1127,12 +1127,12 @@ describe("BackgroundManager.resume model persistence", () => {
       parentMessageID: "msg-1",
       description: "task with model override",
       prompt: "original prompt",
-      agent: "explore",
+      agent: "navigator",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
       model: { providerID: "anthropic", modelID: "claude-sonnet-4-20250514" },
-      concurrencyGroup: "explore",
+      concurrencyGroup: "navigator",
     }
     getTaskMap(manager).set(taskWithModel.id, taskWithModel)
 
@@ -1147,7 +1147,7 @@ describe("BackgroundManager.resume model persistence", () => {
     // then - model should be passed in prompt body
     expect(promptCalls).toHaveLength(1)
     expect(promptCalls[0].body.model).toEqual({ providerID: "anthropic", modelID: "claude-sonnet-4-20250514" })
-    expect(promptCalls[0].body.agent).toBe("explore")
+    expect(promptCalls[0].body.agent).toBe("navigator")
   })
 
   test("should NOT pass model when task has no model (backward compatibility)", async () => {
@@ -1159,11 +1159,11 @@ describe("BackgroundManager.resume model persistence", () => {
       parentMessageID: "msg-1",
       description: "task without model",
       prompt: "original prompt",
-      agent: "explore",
+      agent: "navigator",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
-      concurrencyGroup: "explore",
+      concurrencyGroup: "navigator",
     }
     getTaskMap(manager).set(taskWithoutModel.id, taskWithoutModel)
 
@@ -1178,7 +1178,7 @@ describe("BackgroundManager.resume model persistence", () => {
     // then - model should NOT be in prompt body
     expect(promptCalls).toHaveLength(1)
     expect("model" in promptCalls[0].body).toBe(false)
-    expect(promptCalls[0].body.agent).toBe("explore")
+    expect(promptCalls[0].body.agent).toBe("navigator")
   })
 })
 
@@ -1992,7 +1992,7 @@ describe("BackgroundManager.pollRunningTasks message parsing", () => {
       parentMessageID: "parent-message",
       description: "Array message shape task",
       prompt: "run",
-      agent: "explore",
+      agent: "navigator",
       status: "running",
       startedAt: new Date(),
       progress: {
@@ -2054,7 +2054,7 @@ describe("BackgroundManager error cleanup", () => {
       parentMessageID: "msg-error-cleanup",
       description: "error cleanup",
       prompt: "prompt",
-      agent: "explore",
+      agent: "navigator",
       status: "running",
       startedAt: new Date(),
       progress: {

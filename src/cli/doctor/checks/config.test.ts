@@ -76,7 +76,7 @@ describe("config check", () => {
         path: "/home/user/.config/opencode/oh-my-opencode",
         format: "modular",
         valid: false,
-        errors: ["agents.oracle: Invalid model format"],
+        errors: ["agents.advisor: Invalid model format"],
       })
 
       // when checking validity

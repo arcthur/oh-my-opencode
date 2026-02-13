@@ -605,7 +605,7 @@ describe("resolveModelWithFallback", () => {
   })
 
   describe("Multi-entry fallbackChain", () => {
-    test("resolves to claude-opus when OpenAI unavailable but Anthropic available (oracle scenario)", () => {
+    test("resolves to claude-opus when OpenAI unavailable but Anthropic available (advisor scenario)", () => {
       // given
       const availableModels = new Set(["anthropic/claude-opus-4-5"])
 

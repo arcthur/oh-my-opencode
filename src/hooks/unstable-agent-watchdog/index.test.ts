@@ -16,7 +16,7 @@ function createTask(overrides: Partial<BackgroundTask> = {}): BackgroundTask {
     parentMessageID: "msg-1",
     description: "unstable task",
     prompt: "run work",
-    agent: "explore",
+    agent: "navigator",
     status: "running",
     progress: {
       toolCalls: 0,
@@ -78,7 +78,7 @@ describe("unstable-agent-watchdog", () => {
     const hook = createUnstableAgentWatchdogHook(
       createContext({
         "main-1": [
-          { info: { agent: "sisyphus", model: { providerID: "openai", modelID: "gpt-5" } } },
+          { info: { agent: "orchestrator", model: { providerID: "openai", modelID: "gpt-5" } } },
         ],
         "bg-1": [
           { info: { role: "assistant" }, parts: [{ type: "thinking", thinking: "deep trace" }] },

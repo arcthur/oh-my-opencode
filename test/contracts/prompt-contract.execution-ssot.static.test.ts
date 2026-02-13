@@ -3,27 +3,27 @@ import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const TARGET_FILES = [
-  "src/agents/momus.ts",
-  "src/agents/prometheus/brainstorming-mode.ts",
-  "src/agents/prometheus/behavioral-summary.ts",
-  "src/agents/prometheus/high-accuracy-mode.ts",
-  "src/agents/prometheus/identity-constraints.ts",
-  "src/agents/prometheus/plan-generation.ts",
-  "src/agents/prometheus/plan-template.ts",
-  "src/features/policy-runtime/prometheus-policy.ts",
-  "src/hooks/sisyphus-junior-notepad/constants.ts",
+  "src/agents/reviewer.ts",
+  "src/agents/planner/brainstorming-mode.ts",
+  "src/agents/planner/behavioral-summary.ts",
+  "src/agents/planner/high-accuracy-mode.ts",
+  "src/agents/planner/identity-constraints.ts",
+  "src/agents/planner/plan-generation.ts",
+  "src/agents/planner/plan-template.ts",
+  "src/features/policy-runtime/planner-policy.ts",
+  "src/hooks/specialist-notepad/constants.ts",
   "src/hooks/keyword-detector/ultrawork/planner.ts",
 ] as const
 
 const FORBIDDEN_PATTERNS: ReadonlyArray<{ name: string; regex: RegExp }> = [
-  { name: "legacy_plan_glob", regex: /\.sisyphus\/plans\/\*\.md/ },
-  { name: "legacy_plan_name_path", regex: /\.sisyphus\/plans\/\{plan-name\}\.md/ },
-  { name: "legacy_plan_flat_example", regex: /\.sisyphus\/plans\/my-plan\.md/ },
-  { name: "legacy_notepad_plan_name_path", regex: /\.sisyphus\/notepads\/\{plan-name\}\// },
+  { name: "legacy_plan_glob", regex: /\.orchestrator\/plans\/\*\.md/ },
+  { name: "legacy_plan_name_path", regex: /\.orchestrator\/plans\/\{plan-name\}\.md/ },
+  { name: "legacy_plan_flat_example", regex: /\.orchestrator\/plans\/my-plan\.md/ },
+  { name: "legacy_notepad_plan_name_path", regex: /\.orchestrator\/notepads\/\{plan-name\}\// },
   { name: "legacy_todo_execution_phrase", regex: /complex todo list/i },
 ]
 
-const REQUIRED_CANONICAL_PLAN_PATTERN = /\.sisyphus\/plans\/[^`\s]+\/plan\.md/
+const REQUIRED_CANONICAL_PLAN_PATTERN = /\.orchestrator\/plans\/[^`\s]+\/plan\.md/
 
 describe("prompt contract guard (execution ssot wording)", () => {
   test("target prompts use canonical plan path wording", () => {

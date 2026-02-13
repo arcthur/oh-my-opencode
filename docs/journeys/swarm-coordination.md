@@ -1,4 +1,4 @@
-# Journey: Swarm Coordination (Sisyphus Swarm)
+# Journey: Swarm Coordination (orchestrator Swarm)
 
 ## User Perspective
 
@@ -20,7 +20,7 @@ sequenceDiagram
   participant TM as SwarmOrchestrator (tmux + worktrees)
   participant C as Coordinator session (opencode)
   participant W as Worker sessions (opencode)
-  participant FS as .sisyphus (teams + tasks + mailbox queue)
+  participant FS as .orchestrator (teams + tasks + mailbox queue)
   participant H as swarm-agent hook
 
   U->>ST: /swarm create <team>
@@ -62,10 +62,10 @@ sequenceDiagram
 ## Mental Model
 
 - **Control plane (in-process)**: `SwarmRuntimeService` owns runtime handles (session-team bindings, worker/coordinator handles, team orchestrator handles).
-- **Coordination plane (filesystem protocol)**: mailbox queue + lease + manifest + heartbeat/idle stores under `.sisyphus/teams/<team>/`.
+- **Coordination plane (filesystem protocol)**: mailbox queue + lease + manifest + heartbeat/idle stores under `.orchestrator/teams/<team>/`.
 - **Work plane**: each worker is an independent `opencode` process.
-- **Task plane**: TaskGraph state under `.sisyphus/tasks/swarm/<team>/task_*.json`.
-- **Admission plane**: shared parallel-runtime lease registry under `.sisyphus/runtime/parallel/`.
+- **Task plane**: TaskGraph state under `.orchestrator/tasks/swarm/<team>/task_*.json`.
+- **Admission plane**: shared parallel-runtime lease registry under `.orchestrator/runtime/parallel/`.
 
 ## Typical Workflow
 
@@ -92,7 +92,7 @@ This binds task structure, workspace isolation, and restart recovery.
 
 ```jsonc
 {
-  "sisyphus": {
+  "orchestrator": {
     "tasks": { "enabled": true },
     "swarm": {
       "enabled": true,
@@ -144,20 +144,20 @@ Watch mode uses `fs.watch` with an always-on low-frequency fallback poll (`watch
 
 ### Storage Paths
 
-- `sisyphus.tasks.storage_path` (default: `.sisyphus/tasks`)
-- `sisyphus.swarm.storage_path` (default: `.sisyphus/teams`)
+- `orchestrator.tasks.storage_path` (default: `.orchestrator/tasks`)
+- `orchestrator.swarm.storage_path` (default: `.orchestrator/teams`)
 
-In worktree mode, orchestrator sets `SISYPHUS_PROJECT_ROOT` so all agents share the same `.sisyphus/` root.
+In worktree mode, orchestrator sets `ORCHESTRATOR_PROJECT_ROOT` so all agents share the same `.orchestrator/` root.
 
 ### Swarm Safety Defaults
 
-- `sisyphus.swarm.enforce_sender_validation: true`
-- `sisyphus.swarm.enforce_signature: true`
-- `sisyphus.swarm.coordinator_lease_ttl_ms: 15000`
-- `sisyphus.swarm.coordinator_lease_renew_ms: 5000`
-- `sisyphus.swarm.watch_fallback_poll_ms: 5000`
-- `sisyphus.swarm.auto_rescue_policy: "disabled"`
-- `sisyphus.swarm.auto_rescue_allowlist: []`
+- `orchestrator.swarm.enforce_sender_validation: true`
+- `orchestrator.swarm.enforce_signature: true`
+- `orchestrator.swarm.coordinator_lease_ttl_ms: 15000`
+- `orchestrator.swarm.coordinator_lease_renew_ms: 5000`
+- `orchestrator.swarm.watch_fallback_poll_ms: 5000`
+- `orchestrator.swarm.auto_rescue_policy: "disabled"`
+- `orchestrator.swarm.auto_rescue_allowlist: []`
 
 ### tmux + Worktrees
 
@@ -165,34 +165,34 @@ Swarm window/worktree behavior is driven by `tmux_parallel_agents`:
 
 - `tmux_parallel_agents.worktree.*` controls worktree creation/layout.
 - `tmux_parallel_agents.auto_rescue` controls whether rescue checks run at all.
-- `sisyphus.swarm.auto_rescue_policy` controls whether y/n prompts are auto-confirmed (`disabled` by default).
+- `orchestrator.swarm.auto_rescue_policy` controls whether y/n prompts are auto-confirmed (`disabled` by default).
 
 ## Where to Look in Code
 
 - Swarm tool: `src/tools/swarm.ts`
 - Auto-init hook: `src/hooks/swarm-agent.ts`
-- Runtime control plane: `src/features/sisyphus-swarm/runtime/`
-- Team + lease + heartbeat + idle: `src/features/sisyphus-swarm/team/`
-- Mailbox queue protocol: `src/features/sisyphus-swarm/mailbox/`
-- TaskGraph swarm scope: `src/features/sisyphus-swarm/task-graph/`
-- tmux/worktree orchestration: `src/features/sisyphus-swarm/tmux/`
-- Shared storage path helpers: `src/features/sisyphus-tasks/storage.ts`
+- Runtime control plane: `src/features/orchestrator-swarm/runtime/`
+- Team + lease + heartbeat + idle: `src/features/orchestrator-swarm/team/`
+- Mailbox queue protocol: `src/features/orchestrator-swarm/mailbox/`
+- TaskGraph swarm scope: `src/features/orchestrator-swarm/task-graph/`
+- tmux/worktree orchestration: `src/features/orchestrator-swarm/tmux/`
+- Shared storage path helpers: `src/features/orchestrator-tasks/storage.ts`
 
 ## Debug Checklist
 
 - Ensure `swarm-agent` hook is enabled (not listed in `disabled_hooks`).
-- If using Swarm-first, ensure `swarm-from-plan` hook is enabled and `sisyphus.swarm.swarm_first=true`.
+- If using Swarm-first, ensure `swarm-from-plan` hook is enabled and `orchestrator.swarm.swarm_first=true`.
 - Ensure worker/coordinator sessions have `OPENCODE_SWARM_*` env vars.
 - Check team state files exist:
-  - `.sisyphus/teams/<team>/manifest.json`
-  - `.sisyphus/teams/<team>/coordinator-lease.json`
-  - `.sisyphus/teams/<team>/heartbeats/*.json`
+  - `.orchestrator/teams/<team>/manifest.json`
+  - `.orchestrator/teams/<team>/coordinator-lease.json`
+  - `.orchestrator/teams/<team>/heartbeats/*.json`
 - Check inbox queue directories exist:
-  - `.sisyphus/teams/<team>/inboxes/<agentId>/pending/`
-  - `.sisyphus/teams/<team>/inboxes/<agentId>/processing/`
+  - `.orchestrator/teams/<team>/inboxes/<agentId>/pending/`
+  - `.orchestrator/teams/<team>/inboxes/<agentId>/processing/`
 - If windows spawn but workers do not join:
   - verify tmux environment (inside tmux, `tmux` binary available),
-  - verify `SISYPHUS_PROJECT_ROOT` propagation in worktree mode,
+  - verify `ORCHESTRATOR_PROJECT_ROOT` propagation in worktree mode,
   - inspect security events for `invalid_join_request`.
 
 ## Further Reading
@@ -200,4 +200,4 @@ Swarm window/worktree behavior is driven by `tmux_parallel_agents`:
 - Storage contract: `docs/reference/artifacts-and-paths.md`
 - Tool contract: `docs/reference/tools.md`
 - Config contract: `docs/reference/configuration.md`
-- Implementation details: `src/features/sisyphus-swarm/ARCHITECTURE.md`
+- Implementation details: `src/features/orchestrator-swarm/ARCHITECTURE.md`

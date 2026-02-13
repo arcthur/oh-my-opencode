@@ -121,12 +121,12 @@ describe("tool.execute.before policy migration", () => {
     ).rejects.toThrow("Question tool is disabled for subagent sessions.")
   })
 
-  test("blocks Prometheus writes outside .sisyphus/*.md via policy clause", async () => {
-    const cwd = createTempDir("phase5a-prometheus-block-")
+  test("blocks planner writes outside .orchestrator/*.md via policy clause", async () => {
+    const cwd = createTempDir("phase5a-planner-block-")
     mkdirSync(join(cwd, "src"), { recursive: true })
     const context = createPolicyContext({
       directory: cwd,
-      getSessionAgent: () => "prometheus",
+      getSessionAgent: () => "planner",
     })
     const output: ToolExecuteBeforeOutput = {
       args: {
@@ -140,12 +140,12 @@ describe("tool.execute.before policy migration", () => {
         input: { tool: "Write", sessionID: "s3", callID: "c3" },
         output,
       })
-    ).rejects.toThrow("Prometheus can only write/edit .md files inside .sisyphus/")
+    ).rejects.toThrow("planner can only write/edit .md files inside .orchestrator/")
   })
 
-  test("injects Prometheus task warning via policy modify clause", async () => {
+  test("injects planner task warning via policy modify clause", async () => {
     const context = createPolicyContext({
-      getSessionAgent: () => "prometheus",
+      getSessionAgent: () => "planner",
     })
     const output: ToolExecuteBeforeOutput = {
       args: {
@@ -160,20 +160,20 @@ describe("tool.execute.before policy migration", () => {
     })
 
     const prompt = output.args.prompt as string
-    expect(prompt).toContain("You are being invoked by Prometheus")
+    expect(prompt).toContain("You are being invoked by planner")
     expect(prompt).toContain("READ-ONLY planning agent")
   })
 
-  test("appends plan workflow reminder for Prometheus .sisyphus plan writes", async () => {
-    const cwd = createTempDir("phase5a-prometheus-plan-")
-    mkdirSync(join(cwd, ".sisyphus", "plans", "p1"), { recursive: true })
+  test("appends plan workflow reminder for planner .orchestrator plan writes", async () => {
+    const cwd = createTempDir("phase5a-planner-plan-")
+    mkdirSync(join(cwd, ".orchestrator", "plans", "p1"), { recursive: true })
     const context = createPolicyContext({
       directory: cwd,
-      getSessionAgent: () => "prometheus",
+      getSessionAgent: () => "planner",
     })
     const output: ToolExecuteBeforeOutput = {
       args: {
-        filePath: ".sisyphus/plans/p1/plan.md",
+        filePath: ".orchestrator/plans/p1/plan.md",
       },
       message: "",
     }
@@ -184,7 +184,7 @@ describe("tool.execute.before policy migration", () => {
       output,
     })
 
-    expect(output.message).toContain("PROMETHEUS PLAN-WRITING CHECKLIST")
+    expect(output.message).toContain("PLANNER PLAN-WRITING CHECKLIST")
   })
 
   test("policy observe payload includes guardsVersion", async () => {

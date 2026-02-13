@@ -45,9 +45,9 @@ export function collectPendingBuiltinAgents(input: {
   for (const [name, source] of Object.entries(agentSources)) {
     const agentName = name as BuiltinAgentName
 
-    if (agentName === "sisyphus") continue
-    if (agentName === "atlas") continue
-    if (agentName === "hephaestus") continue
+    if (agentName === "orchestrator") continue
+    if (agentName === "workflow-automator") continue
+    if (agentName === "executor") continue
     if (disabledAgents.some((name) => name.toLowerCase() === agentName.toLowerCase())) continue
 
     const override = agentOverrides[agentName]

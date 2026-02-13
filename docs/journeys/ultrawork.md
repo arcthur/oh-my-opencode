@@ -89,11 +89,11 @@ Token efficiency matters. But not at the cost of work quality or human cognitive
 
 Two approaches to achieve this:
 
-### Approach 1: Prometheus (Interview Mode)
+### Approach 1: planner (Interview Mode)
 
 You say: "I want to add authentication."
 
-Prometheus:
+planner:
 - Researches your codebase to understand existing patterns
 - Asks clarifying questions based on actual findings
 - Surfaces edge cases you hadn't considered
@@ -148,7 +148,7 @@ Just like you can assign a task to a capable team member and trust them to handl
 This means:
 - Clear acceptance criteria, verified independently
 - Self-correcting behavior when something goes wrong
-- Escalation (to Oracle, to user) only when truly needed
+- Escalation (to advisor, to user) only when truly needed
 - Complete work, not "mostly done"
 
 ---
@@ -166,9 +166,9 @@ Everything in Oh My OpenCode is designed to make this loop work:
 
 | Feature | Purpose |
 |---------|---------|
-| Prometheus | Extract intent through intelligent interview |
-| Metis | Detect hidden ambiguity/risk before planning starts |
-| Momus | Verify plans are complete and executable before handoff |
+| planner | Extract intent through intelligent interview |
+| scope-analyst | Detect hidden ambiguity/risk before planning starts |
+| reviewer | Verify plans are complete and executable before handoff |
 | Orchestrator | Coordinate work without human micromanagement |
 | Task Continuation | Force completion, prevent "I'm done" lies |
 | Category System | Route to optimal model without human decision |

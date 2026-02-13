@@ -307,11 +307,11 @@ Use `task_transition` to update task status after verification.
 ─────────────────────────────────────────────────────
 ```
 
-### 3. Agent Prompt Enhancement (Sisyphus)
+### 3. Agent Prompt Enhancement (orchestrator)
 
 #### 3.1 Parallel Dispatch Decision Matrix
 
-Added to Sisyphus system prompt:
+Added to orchestrator system prompt:
 
 ```markdown
 ### Parallel Dispatch Decision Matrix
@@ -333,7 +333,7 @@ Parallel is an optimization, not a requirement.
 
 #### 3.2 Three-Stage Review Protocol
 
-Added to Sisyphus Phase 3 (Execution):
+Added to orchestrator Phase 3 (Execution):
 
 ```markdown
 ### Three-Stage Review Protocol (Post-Implementation)
@@ -366,7 +366,7 @@ After ANY implementation task:
 
 ```mermaid
 flowchart TD
-  U["User request"] --> S["Sisyphus agent\n(prompt heuristics)"]
+  U["User request"] --> S["orchestrator agent\n(prompt heuristics)"]
   S --> WP["/writing-plans\n(bite-sized task plan)"]
   WP --> IMP["Implement code"]
   IMP --> AS["Hook: anti-slop-enforcer\n(tool.execute.after)\nappend warnings"]
@@ -406,9 +406,9 @@ Both hooks are **enabled** by default; no additional configuration required.
 > skill("code-simplifier")
 ```
 
-### 2. Skills Appear in Sisyphus Key Triggers
+### 2. Skills Appear in orchestrator Key Triggers
 
-Verify Sisyphus prompt contains:
+Verify orchestrator prompt contains:
 
 ```
 ### Key Triggers (check BEFORE classification):
@@ -468,10 +468,10 @@ Claim "task is complete" with incomplete tasks, should see:
 | `src/features/builtin-skills/skills.ts` | 5 skill definitions |
 | `src/hooks/anti-slop-enforcer.ts` | Anti-slop detection hook |
 | `src/hooks/pre-completion-verification.ts` | Completion verification hook |
-| `src/agents/sisyphus/index.ts` | Parallel Dispatch Matrix + Three-Stage Review |
+| `src/agents/orchestrator/index.ts` | Parallel Dispatch Matrix + Three-Stage Review |
 | `src/config/schema.ts` | HookNameSchema, BuiltinSkillNameSchema |
 | `src/index.ts` | Hook registration |
-| `src/agents/utils.ts` | Skills passed to Sisyphus |
+| `src/agents/utils.ts` | Skills passed to orchestrator |
 | `src/plugin-handlers/config-handler.ts` | Skills list construction |
 
 ## References

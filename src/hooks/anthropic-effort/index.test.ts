@@ -26,7 +26,7 @@ function createMockParams(overrides: {
   const providerID = overrides.providerID ?? "anthropic"
   const modelID = overrides.modelID ?? "claude-opus-4-6"
   const variant = "variant" in overrides ? overrides.variant : "max"
-  const agentName = overrides.agentName ?? "sisyphus"
+  const agentName = overrides.agentName ?? "orchestrator"
   const existingOptions = overrides.existingOptions ?? {}
 
   return {
@@ -120,7 +120,7 @@ describe("createAnthropicEffortHook", () => {
       const hook = createAnthropicEffortHook()
       const input: ChatParamsInput = {
         sessionID: "test-session",
-        agent: { name: "sisyphus" },
+        agent: { name: "orchestrator" },
         model: { providerID: "anthropic", modelID: undefined },
         provider: { id: "anthropic" },
         message: { variant: "max" },

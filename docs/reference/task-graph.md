@@ -78,7 +78,7 @@ Readiness is derived, never persisted as primary state:
 
 ## Storage Layout
 
-Default root: `.sisyphus/tasks` (configurable by `sisyphus.tasks.storage_path`).
+Default root: `.orchestrator/tasks` (configurable by `orchestrator.tasks.storage_path`).
 
 Per-container layout:
 

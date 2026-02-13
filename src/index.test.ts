@@ -6,36 +6,36 @@ import { describe, expect, it } from "bun:test"
  * so we test the underlying logic that determines tool registration.
  */
 describe("look_at tool conditional registration", () => {
-  describe("isMultimodalLookerEnabled logic", () => {
-    // given multimodal-looker is in disabled_agents
+  describe("isInterpreterEnabled logic", () => {
+    // given interpreter is in disabled_agents
     // when checking if agent is enabled
     // then should return false (disabled)
-    it("returns false when multimodal-looker is disabled (exact case)", () => {
-      const disabledAgents: string[] = ["multimodal-looker"]
+    it("returns false when interpreter is disabled (exact case)", () => {
+      const disabledAgents: string[] = ["interpreter"]
       const isEnabled = !disabledAgents.some(
-        (agent) => agent.toLowerCase() === "multimodal-looker"
+        (agent) => agent.toLowerCase() === "interpreter"
       )
       expect(isEnabled).toBe(false)
     })
 
-    // given multimodal-looker is in disabled_agents with different case
+    // given interpreter is in disabled_agents with different case
     // when checking if agent is enabled
     // then should return false (case-insensitive match)
-    it("returns false when multimodal-looker is disabled (case-insensitive)", () => {
-      const disabledAgents: string[] = ["Multimodal-Looker"]
+    it("returns false when interpreter is disabled (case-insensitive)", () => {
+      const disabledAgents: string[] = ["INTERPRETER"]
       const isEnabled = !disabledAgents.some(
-        (agent) => agent.toLowerCase() === "multimodal-looker"
+        (agent) => agent.toLowerCase() === "interpreter"
       )
       expect(isEnabled).toBe(false)
     })
 
-    // given multimodal-looker is NOT in disabled_agents
+    // given interpreter is NOT in disabled_agents
     // when checking if agent is enabled
     // then should return true (enabled)
-    it("returns true when multimodal-looker is not disabled", () => {
-      const disabledAgents: string[] = ["oracle", "librarian"]
+    it("returns true when interpreter is not disabled", () => {
+      const disabledAgents: string[] = ["advisor", "librarian"]
       const isEnabled = !disabledAgents.some(
-        (agent) => agent.toLowerCase() === "multimodal-looker"
+        (agent) => agent.toLowerCase() === "interpreter"
       )
       expect(isEnabled).toBe(true)
     })
@@ -46,7 +46,7 @@ describe("look_at tool conditional registration", () => {
     it("returns true when disabled_agents is empty", () => {
       const disabledAgents: string[] = []
       const isEnabled = !disabledAgents.some(
-        (agent) => agent.toLowerCase() === "multimodal-looker"
+        (agent) => agent.toLowerCase() === "interpreter"
       )
       expect(isEnabled).toBe(true)
     })
@@ -58,7 +58,7 @@ describe("look_at tool conditional registration", () => {
       const disabledAgents: string[] | undefined = undefined
       const list: string[] = disabledAgents ?? []
       const isEnabled = !list.some(
-        (agent) => agent.toLowerCase() === "multimodal-looker"
+        (agent) => agent.toLowerCase() === "interpreter"
       )
       expect(isEnabled).toBe(true)
     })

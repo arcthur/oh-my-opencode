@@ -2,10 +2,10 @@
  * Planning with Files - Type Definitions
  *
  * Canonical layout:
- * .sisyphus/plans/{plan_id}/plan.md
- * .sisyphus/plans/{plan_id}/ledger.yaml
- * .sisyphus/plans/{plan_id}/findings.md
- * .sisyphus/plans/{plan_id}/progress.md
+ * .orchestrator/plans/{plan_id}/plan.md
+ * .orchestrator/plans/{plan_id}/ledger.yaml
+ * .orchestrator/plans/{plan_id}/findings.md
+ * .orchestrator/plans/{plan_id}/progress.md
  */
 
 /** Configuration - matches schema snake_case convention */

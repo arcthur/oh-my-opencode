@@ -1,31 +1,31 @@
 export * from "./types"
 export { createBuiltinAgents } from "./utils"
 export type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynamic-agent-prompt-builder"
-export { createSisyphusAgent } from "./sisyphus"
-export { createAtlasAgent, createAtlasAgentFactory, atlasPromptMetadata } from "./atlas"
-export { createOracleAgent, ORACLE_PROMPT_METADATA } from "./oracle"
+export { createOrchestratorAgent } from "./orchestrator"
+export { createWorkflowAutomatorAgent, createWorkflowAutomatorAgentFactory, workflowAutomatorPromptMetadata } from "./workflow-automator"
+export { createAdvisorAgent, ADVISOR_PROMPT_METADATA } from "./advisor"
 export { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
-export { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
+export { createNavigatorAgent, NAVIGATOR_PROMPT_METADATA } from "./navigator"
 
-export { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "./multimodal-looker"
-export { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
-export { createMetisAgent, metisPromptMetadata } from "./metis"
-export { createMomusAgent, momusPromptMetadata } from "./momus"
+export { createInterpreterAgent, INTERPRETER_PROMPT_METADATA } from "./interpreter"
+export { createExecutorAgent, EXECUTOR_PROMPT_METADATA } from "./executor"
+export { createScopeAnalystAgent, scopeAnalystPromptMetadata } from "./scope-analyst"
+export { createReviewerAgent, reviewerPromptMetadata } from "./reviewer"
 export {
-  PROMETHEUS_SYSTEM_PROMPT,
-  PROMETHEUS_RUNTIME_PROMPT,
-  buildDynamicPrometheusPrompt,
-  type PrometheusPromptPhase,
-  type BuildDynamicPrometheusPromptOptions,
-  PROMETHEUS_PERMISSION,
-  PROMETHEUS_IDENTITY_CONSTRAINTS,
-  PROMETHEUS_BRAINSTORMING_MODE,
-  PROMETHEUS_INTERVIEW_MODE,
-  PROMETHEUS_PLAN_GENERATION,
-  PROMETHEUS_HIGH_ACCURACY_MODE,
-  PROMETHEUS_PLAN_TEMPLATE,
-  PROMETHEUS_BEHAVIORAL_SUMMARY,
-} from "./prometheus"
+  PLANNER_SYSTEM_PROMPT,
+  PLANNER_RUNTIME_PROMPT,
+  buildDynamicPlannerPrompt,
+  type PlannerPromptPhase,
+  type BuildDynamicPlannerPromptOptions,
+  PLANNER_PERMISSION,
+  PLANNER_IDENTITY_CONSTRAINTS,
+  PLANNER_BRAINSTORMING_MODE,
+  PLANNER_INTERVIEW_MODE,
+  PLANNER_PLAN_GENERATION,
+  PLANNER_HIGH_ACCURACY_MODE,
+  PLANNER_PLAN_TEMPLATE,
+  PLANNER_BEHAVIORAL_SUMMARY,
+} from "./planner"
 
 export { buildAgent, isFactory } from "./agent-builder"
 export type { AgentSource } from "./agent-builder"

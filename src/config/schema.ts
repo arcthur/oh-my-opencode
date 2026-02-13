@@ -18,15 +18,15 @@ const AgentPermissionSchema = z.object({
 }).strict()
 
 export const BuiltinAgentNameSchema = z.enum([
-  "sisyphus",
-  "atlas",
-  "oracle",
+  "orchestrator",
+  "workflow-automator",
+  "advisor",
   "librarian",
-  "explore",
-  "multimodal-looker",
-  "hephaestus",
-  "metis",
-  "momus",
+  "navigator",
+  "interpreter",
+  "executor",
+  "scope-analyst",
+  "reviewer",
 ])
 
 export const BuiltinSkillNameSchema = z.enum([
@@ -49,18 +49,18 @@ export const BrowserAutomationProviderSchema = z.enum(["playwright", "agent-brow
 export const OverridableAgentNameSchema = z.enum([
   "build",
   "plan",
-  "sisyphus",
-  "atlas",
-  "sisyphus-junior",
+  "orchestrator",
+  "workflow-automator",
+  "specialist",
   "OpenCode-Builder",
-  "prometheus",
-  "oracle",
+  "planner",
+  "advisor",
   "librarian",
-  "explore",
-  "multimodal-looker",
-  "hephaestus",
-  "metis",
-  "momus",
+  "navigator",
+  "interpreter",
+  "executor",
+  "scope-analyst",
+  "reviewer",
 ])
 
 export const AgentNameSchema = BuiltinAgentNameSchema
@@ -100,13 +100,13 @@ export const HookNameSchema = z.enum([
   "runtime-tracker",
   "anti-slop-enforcer",
   "pre-completion-verification",
-  "sisyphus-contextual-injector",
+  "orchestrator-contextual-injector",
   "delegation-validate-decision",
   "conditional-rules",
   "session-handoff",
   "question-label-truncator",
   "delegation-nudge-category-skill",
-  "sisyphus-junior-notepad",
+  "specialist-notepad",
   "tmux-parallel-agents",
   "swarm-agent",
   "anthropic-effort",
@@ -209,17 +209,17 @@ export const AgentOverrideConfigSchema = z.object({
 export const AgentOverridesSchema = z.object({
   build: AgentOverrideConfigSchema.optional(),
   plan: AgentOverrideConfigSchema.optional(),
-  sisyphus: AgentOverrideConfigSchema.optional(),
-  atlas: AgentOverrideConfigSchema.optional(),
-  "sisyphus-junior": AgentOverrideConfigSchema.optional(),
+  orchestrator: AgentOverrideConfigSchema.optional(),
+  "workflow-automator": AgentOverrideConfigSchema.optional(),
+  "specialist": AgentOverrideConfigSchema.optional(),
   "OpenCode-Builder": AgentOverrideConfigSchema.optional(),
-  prometheus: AgentOverrideConfigSchema.optional(),
-  oracle: AgentOverrideConfigSchema.optional(),
+  planner: AgentOverrideConfigSchema.optional(),
+  advisor: AgentOverrideConfigSchema.optional(),
   librarian: AgentOverrideConfigSchema.optional(),
-  explore: AgentOverrideConfigSchema.optional(),
-  "multimodal-looker": AgentOverrideConfigSchema.optional(),
-  metis: AgentOverrideConfigSchema.optional(),
-  momus: AgentOverrideConfigSchema.optional(),
+  navigator: AgentOverrideConfigSchema.optional(),
+  "interpreter": AgentOverrideConfigSchema.optional(),
+  "scope-analyst": AgentOverrideConfigSchema.optional(),
+  reviewer: AgentOverrideConfigSchema.optional(),
 }).strict()
 
 export const ClaudeCodeConfigSchema = z.object({
@@ -232,7 +232,7 @@ export const ClaudeCodeConfigSchema = z.object({
   plugins_override: z.record(z.string(), z.boolean()).optional(),
 }).strict()
 
-export const SisyphusAgentConfigSchema = z.object({
+export const OrchestratorAgentConfigSchema = z.object({
   disabled: z.boolean().optional(),
   default_builder_enabled: z.boolean().optional(),
   planner_enabled: z.boolean().optional(),
@@ -461,7 +461,7 @@ export const RalphLoopConfigSchema = z.object({
   enabled: z.boolean().default(false),
   /** Default max iterations if not specified in command (default: 100) */
   default_max_iterations: z.number().min(1).max(1000).default(100),
-  /** Custom state file path relative to project root (default: .sisyphus/ralph-loop.local.md) */
+  /** Custom state file path relative to project root (default: .orchestrator/ralph-loop.local.md) */
   state_dir: z.string().optional(),
 }).strict()
 
@@ -507,7 +507,7 @@ export const ParallelRuntimeConfigSchema = z.object({
 
 /** Tmux Parallel Agents Configuration - auto-create tmux windows and git worktrees for background tasks */
 // ============================================================================
-// Sisyphus Tasks & Swarm Configuration
+// orchestrator Tasks & Swarm Configuration
 // ============================================================================
 
 export const TmuxLayoutSchema = z.enum([
@@ -518,18 +518,18 @@ export const TmuxLayoutSchema = z.enum([
   "even-vertical",
 ])
 
-export const SisyphusTasksConfigSchema = z.object({
-  /** Enable Sisyphus Tasks system (default: false) */
+export const OrchestratorTasksConfigSchema = z.object({
+  /** Enable orchestrator Tasks system (default: false) */
   enabled: z.boolean().default(false),
-  /** Storage path for tasks (default: .sisyphus/tasks) */
-  storage_path: z.string().default(".sisyphus/tasks"),
+  /** Storage path for tasks (default: .orchestrator/tasks) */
+  storage_path: z.string().default(".orchestrator/tasks"),
 }).strict()
 
-export const SisyphusSwarmConfigSchema = z.object({
-  /** Enable Sisyphus Swarm system (default: false) */
+export const OrchestratorSwarmConfigSchema = z.object({
+  /** Enable orchestrator Swarm system (default: false) */
   enabled: z.boolean().default(false),
-  /** Storage path for teams (default: .sisyphus/teams) */
-  storage_path: z.string().default(".sisyphus/teams"),
+  /** Storage path for teams (default: .orchestrator/teams) */
+  storage_path: z.string().default(".orchestrator/teams"),
   /** UI mode: toast notifications, tmux panes, or both */
   ui_mode: z.enum(["toast", "tmux", "both"]).default("toast"),
   /** Swarm-first orchestration: auto-start Swarm from /start-work (default: false) */
@@ -552,9 +552,9 @@ export const SisyphusSwarmConfigSchema = z.object({
   auto_rescue_allowlist: z.array(z.string()).default([]),
 }).strict()
 
-export const SisyphusConfigSchema = z.object({
-  tasks: SisyphusTasksConfigSchema.optional(),
-  swarm: SisyphusSwarmConfigSchema.optional(),
+export const OrchestratorConfigSchema = z.object({
+  tasks: OrchestratorTasksConfigSchema.optional(),
+  swarm: OrchestratorSwarmConfigSchema.optional(),
 }).strict()
 
 export const TmuxParallelAgentsConfigSchema = z.object({
@@ -595,9 +595,9 @@ export const NotificationConfigSchema = z.object({
 }).strict()
 
 export const GitMasterConfigSchema = z.object({
-  /** Add "Ultraworked with Sisyphus" footer to commit messages (default: true). Can be boolean or custom string. */
+  /** Add "Ultraworked with orchestrator" footer to commit messages (default: true). Can be boolean or custom string. */
   commit_footer: z.union([z.boolean(), z.string()]).default(true),
-  /** Add "Co-authored-by: Sisyphus" trailer to commit messages (default: true) */
+  /** Add "Co-authored-by: orchestrator" trailer to commit messages (default: true) */
   include_co_authored_by: z.boolean().default(true),
 }).strict()
 
@@ -1064,7 +1064,7 @@ export const GovernanceConfigSchema = z.object({
   ledger: z.object({
     /** Enable governance ledger for audit logging (default: true when governance enabled) */
     enabled: z.boolean().default(true),
-    /** Base directory for ledger files (default: ~/.sisyphus/ledger) */
+    /** Base directory for ledger files (default: ~/.orchestrator/ledger) */
     base_dir: z.string().optional(),
     /** Retention days for ledger entries (default: 30) */
     retention_days: z.number().min(1).max(365).default(30),
@@ -1313,7 +1313,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   agents: AgentOverridesSchema.optional(),
   categories: CategoriesConfigSchema.optional(),
   claude_code: ClaudeCodeConfigSchema.optional(),
-  sisyphus_agent: SisyphusAgentConfigSchema.optional(),
+  orchestrator_agent: OrchestratorAgentConfigSchema.optional(),
   cache_strategy: CacheStrategyConfigSchema.optional(),
   session_state_repair: SessionStateRepairConfigSchema.optional(),
   comment_checker: CommentCheckerConfigSchema.optional(),
@@ -1343,8 +1343,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   session_handoff: SessionHandoffConfigSchema.optional(),
   /** Tmux parallel agents configuration for auto-creating tmux windows */
   tmux_parallel_agents: TmuxParallelAgentsConfigSchema.optional(),
-  /** Sisyphus Tasks & Swarm configuration */
-  sisyphus: SisyphusConfigSchema.optional(),
+  /** orchestrator Tasks & Swarm configuration */
+  orchestrator: OrchestratorConfigSchema.optional(),
   /** Timeout in ms for loadAllPluginComponents during config handler init (default: 10000, min: 1000) */
   plugin_load_timeout_ms: z.number().min(1000).optional(),
   /** Wrap hook creation in try/catch to prevent one failing hook from crashing the plugin (default: true) */
@@ -1369,7 +1369,7 @@ export type AgentName = z.infer<typeof AgentNameSchema>
 export type HookName = z.infer<typeof HookNameSchema>
 export type BuiltinCommandName = z.infer<typeof BuiltinCommandNameSchema>
 export type BuiltinSkillName = z.infer<typeof BuiltinSkillNameSchema>
-export type SisyphusAgentConfig = z.infer<typeof SisyphusAgentConfigSchema>
+export type OrchestratorAgentConfig = z.infer<typeof OrchestratorAgentConfigSchema>
 export type CommentCheckerConfig = z.infer<typeof CommentCheckerConfigSchema>
 export type SessionStateRepairConfig = z.infer<typeof SessionStateRepairConfigSchema>
 export type CacheStrategyConfig = z.infer<typeof CacheStrategyConfigSchema>
@@ -1413,9 +1413,9 @@ export type HandoffExtractorConfig = z.infer<typeof HandoffExtractorConfigSchema
 export type SessionAutoHandoffConfig = z.infer<typeof SessionAutoHandoffConfigSchema>
 export type SessionReferenceConfig = z.infer<typeof SessionReferenceConfigSchema>
 export type SessionReferenceResolveOptions = z.infer<typeof SessionReferenceResolveOptionsSchema>
-export type SisyphusTasksConfig = z.infer<typeof SisyphusTasksConfigSchema>
-export type SisyphusSwarmConfig = z.infer<typeof SisyphusSwarmConfigSchema>
-export type SisyphusConfig = z.infer<typeof SisyphusConfigSchema>
+export type OrchestratorTasksConfig = z.infer<typeof OrchestratorTasksConfigSchema>
+export type OrchestratorSwarmConfig = z.infer<typeof OrchestratorSwarmConfigSchema>
+export type OrchestratorConfig = z.infer<typeof OrchestratorConfigSchema>
 export type BrowserAutomationProvider = z.infer<typeof BrowserAutomationProviderSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

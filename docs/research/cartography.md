@@ -18,7 +18,7 @@ Implication: end-users can invoke cartography deterministically. Codemap injecti
 Cartography generates and consumes the following artifacts:
 
 - `codemap.md`: per-directory codemap file (`src/features/cartography/constants.ts` → `CODEMAP_FILE_NAME`).
-- `project-map.md`: root project map index (`ROOT_ATLAS_FILE_NAME`).
+- `project-map.md`: root project map index (`ROOT_PROJECT_MAP_FILE_NAME`).
 - `.opencode/cartography.json`: project-local state for incremental updates (`STATE_FILE_NAME` under `PROJECT_STORAGE_DIR`).
 
 The state file tracks content hashes and codemap metadata to support incremental rebuilds and staleness detection.
@@ -73,7 +73,7 @@ Cartography uses a weighted scoring model to decide which directories merit a co
 
 - State is persisted under `.opencode/cartography.json`.
 - Staleness threshold: `STALENESS_THRESHOLD` in `src/features/cartography/constants.ts`.
-- Update mode computes a change report, then regenerates only impacted codemaps and updates the sisyphus.
+- Update mode computes a change report, then regenerates only impacted codemaps and updates the orchestrator.
 
 ### Codemap injection (hook implementation)
 

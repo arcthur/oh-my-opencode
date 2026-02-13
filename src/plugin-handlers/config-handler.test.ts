@@ -4,7 +4,7 @@ import type { CategoryConfig } from "../config/schema"
 import type { OhMyOpenCodeConfig } from "../config"
 
 import * as agents from "../agents"
-import * as sisyphusJunior from "../agents/sisyphus-junior"
+import * as specialist from "../agents/specialist"
 import * as commandLoader from "../features/claude-code-command-loader"
 import * as builtinCommands from "../features/builtin-commands"
 import * as skillLoader from "../features/opencode-skill-loader"
@@ -26,12 +26,12 @@ function track<T extends Spy>(spy: T): T {
 
 beforeEach(() => {
   track(spyOn(agents, "createBuiltinAgents")).mockResolvedValue({
-    sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
-    oracle: { name: "oracle", prompt: "test", mode: "subagent" },
+    orchestrator: { name: "orchestrator", prompt: "test", mode: "primary" },
+    advisor: { name: "advisor", prompt: "test", mode: "subagent" },
   })
 
-  track(spyOn(sisyphusJunior, "createSisyphusJuniorAgentWithOverrides")).mockReturnValue({
-    name: "sisyphus-junior",
+  track(spyOn(specialist, "createSpecialistAgentWithOverrides")).mockReturnValue({
+    name: "specialist",
     prompt: "test",
     mode: "subagent",
   })
@@ -85,8 +85,8 @@ afterEach(() => {
   spies.splice(0, spies.length)
 })
 
-describe("Sisyphus-Junior model inheritance", () => {
-  test("does not pass UI-selected system model into sisyphus-junior defaults", async () => {
+describe("specialist model inheritance", () => {
+  test("does not pass UI-selected system model into specialist defaults", async () => {
     // #given
     const pluginConfig: OhMyOpenCodeConfig = {}
     const config: Record<string, unknown> = {
@@ -106,17 +106,17 @@ describe("Sisyphus-Junior model inheritance", () => {
     await handler(config)
 
     // #then
-    expect(sisyphusJunior.createSisyphusJuniorAgentWithOverrides).toHaveBeenCalledWith(
+    expect(specialist.createSpecialistAgentWithOverrides).toHaveBeenCalledWith(
       undefined,
       undefined
     )
   })
 
-  test("passes explicit sisyphus-junior override while keeping system model undefined", async () => {
+  test("passes explicit specialist override while keeping system model undefined", async () => {
     // #given
     const pluginConfig: OhMyOpenCodeConfig = {
       agents: {
-        "sisyphus-junior": {
+        "specialist": {
           model: "openai/gpt-5.3-codex",
         },
       },
@@ -138,7 +138,7 @@ describe("Sisyphus-Junior model inheritance", () => {
     await handler(config)
 
     // #then
-    expect(sisyphusJunior.createSisyphusJuniorAgentWithOverrides).toHaveBeenCalledWith(
+    expect(specialist.createSpecialistAgentWithOverrides).toHaveBeenCalledWith(
       { model: "openai/gpt-5.3-codex" },
       undefined
     )
@@ -146,17 +146,17 @@ describe("Sisyphus-Junior model inheritance", () => {
 })
 
 describe("Plan agent demote behavior", () => {
-  test("orders core agents as sisyphus -> atlas -> hephaestus -> prometheus", async () => {
+  test("orders core agents as orchestrator -> workflow-automator -> executor -> planner", async () => {
     // #given
     track(spyOn(agents, "createBuiltinAgents")).mockResolvedValue({
-      sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
-      atlas: { name: "atlas", prompt: "test", mode: "primary" },
-      hephaestus: { name: "hephaestus", prompt: "test", mode: "primary" },
-      oracle: { name: "oracle", prompt: "test", mode: "subagent" },
+      orchestrator: { name: "orchestrator", prompt: "test", mode: "primary" },
+      "workflow-automator": { name: "workflow-automator", prompt: "test", mode: "primary" },
+      executor: { name: "executor", prompt: "test", mode: "primary" },
+      advisor: { name: "advisor", prompt: "test", mode: "subagent" },
     })
 
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
       },
     }
@@ -178,7 +178,7 @@ describe("Plan agent demote behavior", () => {
 
     // #then
     const keys = Object.keys(config.agent as Record<string, unknown>)
-    const coreAgents = ["sisyphus", "atlas", "hephaestus", "prometheus"]
+    const coreAgents = ["orchestrator", "workflow-automator", "executor", "planner"]
     const ordered = keys.filter((key) => coreAgents.includes(key))
     expect(ordered).toEqual(coreAgents)
   })
@@ -186,7 +186,7 @@ describe("Plan agent demote behavior", () => {
   test("plan agent should be demoted to subagent mode when replacePlan is true", async () => {
     // #given
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
         replace_plan: true,
       },
@@ -220,10 +220,10 @@ describe("Plan agent demote behavior", () => {
     expect(agentConfig.plan.name).toBe("plan")
   })
 
-  test("prometheus should have mode 'all' to be callable via delegate_task", async () => {
+  test("planner should have mode 'all' to be callable via delegate_task", async () => {
     // #given
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
       },
     }
@@ -245,18 +245,18 @@ describe("Plan agent demote behavior", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { mode?: string }>
-    expect(agentConfig.prometheus).toBeDefined()
-    expect(agentConfig.prometheus.mode).toBe("all")
+    expect(agentConfig.planner).toBeDefined()
+    expect(agentConfig.planner.mode).toBe("all")
   })
 })
 
 describe("Agent permission defaults", () => {
-  test("hephaestus should allow delegate_task", async () => {
+  test("executor should allow delegate_task", async () => {
     // #given
     track(spyOn(agents, "createBuiltinAgents")).mockResolvedValue({
-      sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
-      hephaestus: { name: "hephaestus", prompt: "test", mode: "primary" },
-      oracle: { name: "oracle", prompt: "test", mode: "subagent" },
+      orchestrator: { name: "orchestrator", prompt: "test", mode: "primary" },
+      executor: { name: "executor", prompt: "test", mode: "primary" },
+      advisor: { name: "advisor", prompt: "test", mode: "subagent" },
     })
     const pluginConfig: OhMyOpenCodeConfig = {}
     const config: Record<string, unknown> = {
@@ -277,14 +277,14 @@ describe("Agent permission defaults", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { permission?: Record<string, string> }>
-    expect(agentConfig.hephaestus).toBeDefined()
-    expect(agentConfig.hephaestus.permission?.delegate_task).toBe("allow")
+    expect(agentConfig.executor).toBeDefined()
+    expect(agentConfig.executor.permission?.delegate_task).toBe("allow")
   })
 
-  test("sisyphus-junior must deny task but allow delegate_task (research-scoped)", async () => {
+  test("specialist must deny task but allow delegate_task (research-scoped)", async () => {
     // #given
-    track(spyOn(sisyphusJunior, "createSisyphusJuniorAgentWithOverrides")).mockReturnValue({
-      name: "sisyphus-junior",
+    track(spyOn(specialist, "createSpecialistAgentWithOverrides")).mockReturnValue({
+      name: "specialist",
       prompt: "test",
       mode: "subagent",
       permission: { delegate_task: "allow", task: "allow" },
@@ -309,14 +309,14 @@ describe("Agent permission defaults", () => {
 
     // #then - task is denied, delegate_task is allowed (research scope enforced by tool)
     const agentConfig = config.agent as Record<string, { permission?: Record<string, string> }>
-    expect(agentConfig["sisyphus-junior"]).toBeDefined()
-    expect(agentConfig["sisyphus-junior"].permission?.task).toBe("deny")
+    expect(agentConfig["specialist"]).toBeDefined()
+    expect(agentConfig["specialist"].permission?.task).toBe("deny")
     // delegate_task is allowed for research-scoped access (scope enforced at tool execution level)
-    expect(agentConfig["sisyphus-junior"].permission?.delegate_task).toBe("allow")
+    expect(agentConfig["specialist"].permission?.delegate_task).toBe("allow")
   })
 })
 
-describe("Prometheus category config resolution", () => {
+describe("planner category config resolution", () => {
   test("resolves ultrabrain category config", () => {
     // #given
     const categoryName = "ultrabrain"
@@ -449,11 +449,11 @@ describe("Prometheus category config resolution", () => {
   })
 })
 
-describe("Prometheus direct override priority over category", () => {
+describe("planner direct override priority over category", () => {
   test("direct reasoningEffort takes priority over category reasoningEffort", async () => {
     // #given
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
       },
       categories: {
@@ -463,7 +463,7 @@ describe("Prometheus direct override priority over category", () => {
         },
       },
       agents: {
-        prometheus: {
+        planner: {
           category: "test-planning",
           reasoningEffort: "low",
         },
@@ -487,14 +487,14 @@ describe("Prometheus direct override priority over category", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { reasoningEffort?: string }>
-    expect(agentConfig.prometheus).toBeDefined()
-    expect(agentConfig.prometheus.reasoningEffort).toBe("low")
+    expect(agentConfig.planner).toBeDefined()
+    expect(agentConfig.planner.reasoningEffort).toBe("low")
   })
 
   test("category reasoningEffort applied when no direct override", async () => {
     // #given
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
       },
       categories: {
@@ -504,7 +504,7 @@ describe("Prometheus direct override priority over category", () => {
         },
       },
       agents: {
-        prometheus: {
+        planner: {
           category: "reasoning-cat",
         },
       },
@@ -527,14 +527,14 @@ describe("Prometheus direct override priority over category", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { reasoningEffort?: string }>
-    expect(agentConfig.prometheus).toBeDefined()
-    expect(agentConfig.prometheus.reasoningEffort).toBe("high")
+    expect(agentConfig.planner).toBeDefined()
+    expect(agentConfig.planner.reasoningEffort).toBe("high")
   })
 
   test("direct temperature takes priority over category temperature", async () => {
     // #given
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
       },
       categories: {
@@ -544,7 +544,7 @@ describe("Prometheus direct override priority over category", () => {
         },
       },
       agents: {
-        prometheus: {
+        planner: {
           category: "temp-cat",
           temperature: 0.1,
         },
@@ -568,19 +568,19 @@ describe("Prometheus direct override priority over category", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { temperature?: number }>
-    expect(agentConfig.prometheus).toBeDefined()
-    expect(agentConfig.prometheus.temperature).toBe(0.1)
+    expect(agentConfig.planner).toBeDefined()
+    expect(agentConfig.planner.temperature).toBe(0.1)
   })
 
-  test("prometheus prompt_append is appended to base prompt", async () => {
+  test("planner prompt_append is appended to base prompt", async () => {
     // #given
     const customInstructions = "## Custom Project Rules\nUse max 2 commits."
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
       },
       agents: {
-        prometheus: {
+        planner: {
           prompt_append: customInstructions,
         },
       },
@@ -603,20 +603,20 @@ describe("Prometheus direct override priority over category", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { prompt?: string }>
-    expect(agentConfig.prometheus).toBeDefined()
-    expect(agentConfig.prometheus.prompt).toContain("Prometheus")
-    expect(agentConfig.prometheus.prompt).toContain(customInstructions)
-    expect(agentConfig.prometheus.prompt!.endsWith(customInstructions)).toBe(true)
+    expect(agentConfig.planner).toBeDefined()
+    expect(agentConfig.planner.prompt).toContain("planner")
+    expect(agentConfig.planner.prompt).toContain(customInstructions)
+    expect(agentConfig.planner.prompt!.endsWith(customInstructions)).toBe(true)
   })
 })
 
 describe("Fork-only behavior", () => {
-  test("prometheus model array is ignored for runtime safety", async () => {
+  test("planner model array is ignored for runtime safety", async () => {
     // #given
     const pluginConfig = {
-      sisyphus_agent: { planner_enabled: true },
+      orchestrator_agent: { planner_enabled: true },
       agents: {
-        prometheus: {
+        planner: {
           model: ["openai/gpt-5.2", "anthropic/claude-opus-4-6"],
         },
       },
@@ -639,22 +639,22 @@ describe("Fork-only behavior", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { model?: unknown }>
-    expect(agentConfig.prometheus).toBeDefined()
-    expect(agentConfig.prometheus.model).toBe("anthropic/claude-opus-4-6")
+    expect(agentConfig.planner).toBeDefined()
+    expect(agentConfig.planner.model).toBe("anthropic/claude-opus-4-6")
   })
 
   test("config.agent should not override builtin agent definitions", async () => {
     // #given
     track(spyOn(agents, "createBuiltinAgents")).mockResolvedValue({
-      sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
-      oracle: { name: "oracle", prompt: "builtin oracle", mode: "subagent" },
+      orchestrator: { name: "orchestrator", prompt: "test", mode: "primary" },
+      advisor: { name: "advisor", prompt: "builtin advisor", mode: "subagent" },
     })
 
     const pluginConfig: OhMyOpenCodeConfig = {}
     const config: Record<string, unknown> = {
       model: "anthropic/claude-opus-4-6",
       agent: {
-        oracle: { name: "oracle", prompt: "config oracle", mode: "subagent" },
+        advisor: { name: "advisor", prompt: "config advisor", mode: "subagent" },
       },
     }
     const handler = createConfigHandler({
@@ -671,8 +671,8 @@ describe("Fork-only behavior", () => {
 
     // #then
     const agentConfig = config.agent as Record<string, { prompt?: string }>
-    expect(agentConfig.oracle).toBeDefined()
-    expect(agentConfig.oracle.prompt).toBe("builtin oracle")
+    expect(agentConfig.advisor).toBeDefined()
+    expect(agentConfig.advisor.prompt).toBe("builtin advisor")
   })
 
   test("config.mcp should override builtin mcp definitions", async () => {
@@ -771,7 +771,7 @@ describe("Deadlock prevention - fetchAvailableModels must not receive client", (
     const fetchSpy = track(spyOn(shared, "fetchAvailableModels")).mockResolvedValue(new Set<string>())
 
     const pluginConfig: OhMyOpenCodeConfig = {
-      sisyphus_agent: {
+      orchestrator_agent: {
         planner_enabled: true,
       },
     }

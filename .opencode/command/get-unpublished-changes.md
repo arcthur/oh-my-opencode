@@ -82,10 +82,10 @@ None 또는 목록
 - **Reason**: 이유
 </output-format>
 
-<oracle-safety-review>
-## Oracle 배포 안전성 검토 (사용자가 명시적으로 요청 시에만)
+<advisor-safety-review>
+## advisor 배포 안전성 검토 (사용자가 명시적으로 요청 시에만)
 
-**트리거 키워드**: "배포 가능", "배포해도 될까", "안전한지", "리뷰", "검토", "oracle", "오라클"
+**트리거 키워드**: "배포 가능", "배포해도 될까", "안전한지", "리뷰", "검토", "advisor", "오라클"
 
 사용자가 위 키워드 중 하나라도 포함하여 요청하면:
 
@@ -94,11 +94,11 @@ None 또는 목록
 bun run typecheck
 bun test
 ```
-- 실패 시 → Oracle 소환 없이 즉시 "❌ 배포 불가" 보고
+- 실패 시 → advisor 소환 없이 즉시 "❌ 배포 불가" 보고
 
-### 2. Oracle 소환 프롬프트
+### 2. advisor 소환 프롬프트
 
-다음 정보를 수집하여 Oracle에게 전달:
+다음 정보를 수집하여 advisor에게 전달:
 
 ```
 ## 배포 안전성 검토 요청
@@ -126,9 +126,9 @@ bun test
 배포 후 모니터링해야 할 키워드가 있다면 제안해주세요.
 ```
 
-### 3. Oracle 응답 후 출력 포맷
+### 3. advisor 응답 후 출력 포맷
 
-## 🔍 Oracle 배포 안전성 검토 결과
+## 🔍 advisor 배포 안전성 검토 결과
 
 ### 판정: ✅ SAFE / ⚠️ CAUTION / ❌ UNSAFE
 
@@ -144,5 +144,5 @@ bun test
 - ...
 
 ### 결론
-{Oracle의 최종 판단}
-</oracle-safety-review>
+{advisor의 최종 판단}
+</advisor-safety-review>

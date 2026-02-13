@@ -9,13 +9,13 @@ This journey maps the end-to-end chain: plan generation → plan selection → (
 
 ```mermaid
 flowchart TD
-  U["User request"] --> MT["Intent validation + gap analysis (Metis)"]
-  MT --> PG["Plan generation (Prometheus)"]
-  PG --> MO["Executability review + zero-human gate (Momus)"]
+  U["User request"] --> MT["Intent validation + gap analysis (scope-analyst)"]
+  MT --> PG["Plan generation (planner)"]
+  PG --> MO["Executability review + zero-human gate (reviewer)"]
 
-  MO --> ART["Write plan spec + context manifest → .sisyphus/"]
+  MO --> ART["Write plan spec + context manifest → .orchestrator/"]
   ART --> SW["Start execution (/start-work or start-work hook)"]
-  SW --> MIG["Select active plan spec + Create/Update .sisyphus/work.yaml"]
+  SW --> MIG["Select active plan spec + Create/Update .orchestrator/work.yaml"]
 
   MIG --> PWF{"work_orchestrator.planning_with_files.enabled?"}
   PWF -->|Yes| PWFY["Enable execution guardrails\n(2-action, 3-strike, auto reread, stop verification)"]
@@ -38,7 +38,7 @@ This journey explains how a plan is produced, validated, bound into execution st
 
 If Swarm-first is enabled, `/start-work` can act as a bootstrap point for parallel execution:
 
-- Plan tasks (from `plan.md` `## Tasks`) are synced into TaskGraph scope `swarm` (storage path: `.sisyphus/tasks/swarm/<team>/task_*.json`).
+- Plan tasks (from `plan.md` `## Tasks`) are synced into TaskGraph scope `swarm` (storage path: `.orchestrator/tasks/swarm/<team>/task_*.json`).
 - Workers can be spawned in tmux windows, optionally one git worktree per worker.
 - Progress and completion are tracked in TaskGraph, making recovery (across sessions) deterministic.
 - Global concurrency can be governed by `parallel_runtime` so Swarm + Background share one slot budget.
@@ -47,7 +47,7 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 
 ## Recommended Reading Order
 
-1. Planning concepts: `docs/journeys/prometheus-planning.md`
+1. Planning concepts: `docs/journeys/planner-planning.md`
 2. Planning protocol (work-orchestrator): `docs/journeys/planning-with-files.md`
 3. BDD ↔ plan contract: `docs/reference/planning-bdd-contract.md`
 4. Orchestration: `docs/guide/orchestration.md`
@@ -59,8 +59,8 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 - Unified orchestrator hook: `src/hooks/work-orchestrator/`
 - Start-work bootstrap: `src/hooks/start-work/`
 - Planning protocol engine: `src/hooks/work-orchestrator/planning.ts`, `src/features/planning-with-files/`
-- Pre-planning agent: `src/agents/metis.ts`
-- Plan review agent: `src/agents/momus.ts`
+- Pre-planning agent: `src/agents/scope-analyst.ts`
+- Plan review agent: `src/agents/reviewer.ts`
 
 ## Execution Chain (Code Is Source of Truth)
 

@@ -49,7 +49,7 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 - `skills`: Skill discovery/merge/enablement configuration (see `docs/reference/skills.md`).
 - `default_run_agent`: Default agent name for `bunx oh-my-opencode run` (see [CLI](../guide/cli.md#4-run-message)).
 - `claude_code`: Claude Code compatibility toggles (see `docs/guide/features.md` and loaders under `src/features/claude-code-*-loader/`).
-- `sisyphus_agent`: Enables/disables Sisyphus orchestration and derived agents (see [Sisyphus Agent](#sisyphus-agent)).
+- `orchestrator_agent`: Enables/disables orchestrator orchestration and derived agents (see [orchestrator Agent](#orchestrator-agent)).
 
 ### Orchestration / execution
 
@@ -57,7 +57,7 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 - `parallel_runtime`: Shared global admission control across background and swarm (see [Parallel Runtime](#parallel-runtime)).
 - `ralph_loop`: Ralph loop opt-in config for `/ralph-loop` and `/ulw-loop` (see [Ralph Loop](#ralph-loop)).
 - `work_orchestrator`: Unified planning + continuation + execution orchestration config (see [Work Orchestrator](#work-orchestrator)).
-- `sisyphus`: Sisyphus Tasks & Swarm configuration (see [Sisyphus](#sisyphus)).
+- `orchestrator`: orchestrator Tasks & Swarm configuration (see [orchestrator](#orchestrator)).
 - `tmux_parallel_agents`: Auto-create tmux windows/worktrees for background agents (see [Tmux Parallel Agents](#tmux-parallel-agents)).
 
 ### Context / memory / governance
@@ -70,6 +70,7 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 - `session_state_repair`: Session error recovery behavior controls (see [Session State Repair](#session-state-repair)).
 - `silent_tool_output`: Tool output shaping config (requires `silent-tool-output` hook; see `docs/reference/hooks.md`).
 - `repo_overview`: Repository overview injection config (requires `repo-overview-injector` hook; see `docs/reference/hooks.md`).
+- `codemap_injector`: Directory codemap context injection config (requires `codemap-injector` hook; see `docs/reference/hooks.md`).
 - `runtime_tracker`: Tool runtime tracking config (requires `runtime-tracker` hook; see `docs/reference/hooks.md`).
 - `comment_checker`: Comment checker hook config (see [Comment Checker](#comment-checker)).
 - `user_memory`: User memory subsystem config (see `docs/reference/user-memory.md`).
@@ -131,10 +132,10 @@ Each module file in `oh-my-opencode/` supports JSONC (JSON with Comments):
 
   /* Agent overrides - customize models for specific tasks */
   "agents": {
-    "oracle": {
+    "advisor": {
       "model": "openai/gpt-5.2"  // GPT for strategic reasoning
     },
-    "explore": {
+    "navigator": {
       "model": "github-copilot/grok-code-fast-1"  // Fast exploration with low cost
     },
   },
@@ -302,11 +303,11 @@ Override built-in agent settings:
 ```json
 {
   "agents": {
-    "explore": {
+    "navigator": {
       "model": "anthropic/claude-haiku-4-5",
       "temperature": 0.5
     },
-    "multimodal-looker": {
+    "interpreter": {
       "disable": true
     }
   }
@@ -315,7 +316,7 @@ Override built-in agent settings:
 
 Each agent supports: `model`, `variant`, `category`, `skills`, `temperature`, `top_p`, `prompt`, `prompt_append`, `tools`, `permission`, `disable`, `description`, `mode`, `color`.
 
-**Note**: The `agents` override keys are limited to `AgentOverridesSchema` in `src/config/schema.ts` (unknown agent keys are ignored). Some built-in agents (e.g., `hephaestus`) can be disabled via `disabled_agents` but are not currently overrideable via the `agents` block.
+**Note**: The `agents` override keys are limited to `AgentOverridesSchema` in `src/config/schema.ts` (unknown agent keys are ignored). Some built-in agents (e.g., `executor`) can be disabled via `disabled_agents` but are not currently overrideable via the `agents` block.
 
 Use `prompt_append` to add extra instructions without replacing the default system prompt:
 
@@ -329,7 +330,7 @@ Use `prompt_append` to add extra instructions without replacing the default syst
 }
 ```
 
-You can also override settings for `sisyphus` (the main orchestrator) and `build` (the default agent) using the same options.
+You can also override settings for `orchestrator` (the main orchestrator) and `build` (the default agent) using the same options.
 
 ### Permission Options
 
@@ -338,7 +339,7 @@ Fine-grained control over what agents can do:
 ```json
 {
   "agents": {
-    "explore": {
+    "navigator": {
       "permission": {
         "edit": "deny",
         "bash": "ask",
@@ -361,11 +362,11 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode/*.json` o
 
 ```json
 {
-  "disabled_agents": ["oracle", "multimodal-looker"]
+  "disabled_agents": ["advisor", "interpreter"]
 }
 ```
 
-Available built-in agents: `sisyphus`, `atlas`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `hephaestus`
+Available built-in agents: `orchestrator`, `workflow-automator`, `advisor`, `librarian`, `navigator`, `interpreter`, `scope-analyst`, `reviewer`, `executor`
 
 ## Built-in Skills
 
@@ -449,7 +450,7 @@ Configure git-master skill behavior:
 | Option                   | Default | Description                                                                      |
 | ------------------------ | ------- | -------------------------------------------------------------------------------- |
 | `commit_footer`          | `true`  | `true` adds the default footer, `false` disables it, or a **string** sets custom footer text. |
-| `include_co_authored_by` | `true`  | Adds `Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>` trailer to commits. |
+| `include_co_authored_by` | `true`  | Adds `Co-authored-by: orchestrator <clio-agent@orchestratorlabs.ai>` trailer to commits. |
 
 Custom footer example:
 
@@ -462,22 +463,22 @@ Custom footer example:
 }
 ```
 
-## Sisyphus Agent
+## orchestrator Agent
 
-When enabled (default), Sisyphus provides a powerful orchestrator with optional specialized agents:
+When enabled (default), orchestrator provides a powerful orchestrator with optional specialized agents:
 
-- **Sisyphus**: Primary orchestrator agent (Claude Opus 4.6)
+- **orchestrator**: Primary orchestrator agent (Claude Opus 4.6)
 - **OpenCode-Builder**: OpenCode's default build agent, renamed due to SDK limitations (disabled by default)
-- **Prometheus**: OpenCode's default plan agent with work-planner methodology (enabled by default)
-- **Metis**: Pre-planning consultant that analyzes requests for hidden intentions, ambiguities, and AI failure points
-- **Momus**: Plan reviewer that verifies plan executability and catches blocking issues
-- **Sisyphus-Junior**: Focused executor; cannot delegate implementation
+- **planner**: OpenCode's default plan agent with work-planner methodology (enabled by default)
+- **scope-analyst**: Pre-planning consultant that analyzes requests for hidden intentions, ambiguities, and AI failure points
+- **reviewer**: Plan reviewer that verifies plan executability and catches blocking issues
+- **specialist**: Focused executor; cannot delegate implementation
 
 **Configuration Options:**
 
 ```jsonc
 {
-  "sisyphus_agent": {
+  "orchestrator_agent": {
     "disabled": false,
     "default_builder_enabled": false,
     "planner_enabled": true,
@@ -490,46 +491,46 @@ When enabled (default), Sisyphus provides a powerful orchestrator with optional 
 
 ```jsonc
 {
-  "sisyphus_agent": {
+  "orchestrator_agent": {
     "default_builder_enabled": true
   }
 }
 ```
 
-This enables OpenCode-Builder agent alongside Sisyphus. The default build agent is always demoted to subagent mode when Sisyphus is enabled.
+This enables OpenCode-Builder agent alongside Orchestrator. The default build agent is always demoted to subagent mode when orchestrator is enabled.
 
-**Example: Disable all Sisyphus orchestration:**
+**Example: Disable all orchestrator orchestration:**
 
 ```jsonc
 {
-  "sisyphus_agent": {
+  "orchestrator_agent": {
     "disabled": true
   }
 }
 ```
 
-You can also customize Sisyphus agents like other agents:
+You can also customize orchestrator agents like other agents:
 
 ```jsonc
 {
   "agents": {
-    "sisyphus": {
+    "orchestrator": {
       "model": "anthropic/claude-sonnet-4",
       "temperature": 0.3
     },
     "OpenCode-Builder": {
       "model": "anthropic/claude-opus-4"
     },
-    "prometheus": {
+    "planner": {
       "model": "openai/gpt-5.2"
     },
-    "metis": {
+    "scope-analyst": {
       "model": "anthropic/claude-opus-4-6"
     },
-    "momus": {
+    "reviewer": {
       "model": "openai/gpt-5.2"
     },
-    "sisyphus-junior": {
+    "specialist": {
       "model": "anthropic/claude-sonnet-4-5"
     }
   }
@@ -538,10 +539,10 @@ You can also customize Sisyphus agents like other agents:
 
 | Option                    | Default | Description                                                                                                                            |
 | ------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `disabled`                | `false` | When `true`, disables all Sisyphus orchestration and restores original build/plan as primary.                                          |
+| `disabled`                | `false` | When `true`, disables all orchestrator orchestration and restores original build/plan as primary.                                          |
 | `default_builder_enabled` | `false` | When `true`, enables OpenCode-Builder agent (same as OpenCode build, renamed due to SDK limitations). Disabled by default.             |
-| `planner_enabled`         | `true`  | When `true`, enables Prometheus agent with work-planner methodology. Enabled by default.                                               |
-| `replace_plan`            | `true`  | When `true`, demotes default plan agent to subagent mode. Set to `false` to keep both Prometheus and default plan available.          |
+| `planner_enabled`         | `true`  | When `true`, enables planner agent with work-planner methodology. Enabled by default.                                               |
+| `replace_plan`            | `true`  | When `true`, demotes default plan agent to subagent mode. Set to `false` to keep both planner and default plan available.          |
 
 ## Background Tasks
 
@@ -683,7 +684,7 @@ Configuration example:
 
 ### Discovery Channel (`work_orchestrator.discovery_channel`)
 
-`discovery_channel` captures deferred findings (for example `<discovery>...</discovery>` or `DISCOVERY:` markers) into a persistent ledger under `.sisyphus/plans/<plan>/discoveries.jsonl`.
+`discovery_channel` captures deferred findings (for example `<discovery>...</discovery>` or `DISCOVERY:` markers) into a persistent ledger under `.orchestrator/plans/<plan>/discoveries.jsonl`.
 
 Configuration example:
 
@@ -719,7 +720,7 @@ Configuration example:
 
 - Hook implementation: `src/hooks/ralph-loop/`
 - Schema: `RalphLoopConfigSchema` in `src/config/schema.ts`
-- State file (default): `.sisyphus/ralph-loop.local.md`
+- State file (default): `.orchestrator/ralph-loop.local.md`
 
 Enablement contract:
 
@@ -744,7 +745,7 @@ Example:
 
 ## Planning with Files
 
-`work_orchestrator.planning_with_files` enables the persistent, file-backed planning protocol under `.sisyphus/`. For the end-to-end lifecycle and prompts, see `docs/journeys/planning-with-files.md`.
+`work_orchestrator.planning_with_files` enables the persistent, file-backed planning protocol under `.orchestrator/`. For the end-to-end lifecycle and prompts, see `docs/journeys/planning-with-files.md`.
 
 Enablement contract:
 
@@ -753,15 +754,15 @@ Enablement contract:
 
 Artifacts (canonical layout):
 
-- `.sisyphus/work.yaml`: single active plan + protocol state
-- `.sisyphus/plans/<plan_id>/plan.md`
-- `.sisyphus/plans/<plan_id>/ledger.yaml`
-- `.sisyphus/plans/<plan_id>/findings.md`
-- `.sisyphus/plans/<plan_id>/progress.md`
+- `.orchestrator/work.yaml`: single active plan + protocol state
+- `.orchestrator/plans/<plan_id>/plan.md`
+- `.orchestrator/plans/<plan_id>/ledger.yaml`
+- `.orchestrator/plans/<plan_id>/findings.md`
+- `.orchestrator/plans/<plan_id>/progress.md`
 
 Removed key note:
 
-- `work_orchestrator.planning_with_files.directory` is removed in latest-only mode and rejected by schema validation. Plan files are always stored under `.sisyphus/plans`.
+- `work_orchestrator.planning_with_files.directory` is removed in latest-only mode and rejected by schema validation. Plan files are always stored under `.orchestrator/plans`.
 
 Minimal config:
 
@@ -820,38 +821,38 @@ Example:
 }
 ```
 
-## Sisyphus
+## orchestrator
 
-The `sisyphus` block configures **Sisyphus Tasks** and **Sisyphus Swarm** subsystems.
-This is separate from `sisyphus_agent` (which controls whether Sisyphus replaces OpenCode build/plan slots).
+The `orchestrator` block configures **orchestrator Tasks** and **orchestrator Swarm** subsystems.
+This is separate from `orchestrator_agent` (which controls whether orchestrator replaces OpenCode build/plan slots).
 
-Schema: `SisyphusConfigSchema` in `src/config/schema.ts`.
+Schema: `OrchestratorConfigSchema` in `src/config/schema.ts`.
 
 ### Tasks
 
-- `sisyphus.tasks.enabled` (default: `false`): Enables TaskGraph V2.
-- `sisyphus.tasks.storage_path` (default: `.sisyphus/tasks`): Root storage directory. Runtime layout is `<root>/<scope>/<container_id>/task_*.json`.
+- `orchestrator.tasks.enabled` (default: `false`): Enables TaskGraph V2.
+- `orchestrator.tasks.storage_path` (default: `.orchestrator/tasks`): Root storage directory. Runtime layout is `<root>/<scope>/<container_id>/task_*.json`.
 
 ### Swarm
 
-- `sisyphus.swarm.enabled` (default: `false`): Enables Swarm.
-- `sisyphus.swarm.storage_path` (default: `.sisyphus/teams`): Storage directory.
-- `sisyphus.swarm.ui_mode` (default: `toast`): `toast` / `tmux` / `both`
-- `sisyphus.swarm.swarm_first` (default: `false`): Auto-start Swarm from `/start-work`.
-- `sisyphus.swarm.worker_count` (default: `3`): Target worker count when Swarm-first is enabled.
-- `sisyphus.swarm.watch_fallback_poll_ms` (default: `5000`): Low-frequency polling fallback period for watch mode.
-- `sisyphus.swarm.enforce_sender_validation` (default: `true`): Reject privileged controls from invalid senders.
-- `sisyphus.swarm.enforce_signature` (default: `true`): Require Ed25519 signature verification for privileged controls.
-- `sisyphus.swarm.coordinator_lease_ttl_ms` (default: `15000`): Lease TTL for coordinator ownership.
-- `sisyphus.swarm.coordinator_lease_renew_ms` (default: `5000`): Coordinator lease renewal cadence.
-- `sisyphus.swarm.auto_rescue_policy` (default: `disabled`): Prompt auto-confirm policy (`disabled | allowlist`).
-- `sisyphus.swarm.auto_rescue_allowlist` (default: `[]`): Regex patterns allowed for auto-confirm when policy is `allowlist`.
+- `orchestrator.swarm.enabled` (default: `false`): Enables Swarm.
+- `orchestrator.swarm.storage_path` (default: `.orchestrator/teams`): Storage directory.
+- `orchestrator.swarm.ui_mode` (default: `toast`): `toast` / `tmux` / `both`
+- `orchestrator.swarm.swarm_first` (default: `false`): Auto-start Swarm from `/start-work`.
+- `orchestrator.swarm.worker_count` (default: `3`): Target worker count when Swarm-first is enabled.
+- `orchestrator.swarm.watch_fallback_poll_ms` (default: `5000`): Low-frequency polling fallback period for watch mode.
+- `orchestrator.swarm.enforce_sender_validation` (default: `true`): Reject privileged controls from invalid senders.
+- `orchestrator.swarm.enforce_signature` (default: `true`): Require Ed25519 signature verification for privileged controls.
+- `orchestrator.swarm.coordinator_lease_ttl_ms` (default: `15000`): Lease TTL for coordinator ownership.
+- `orchestrator.swarm.coordinator_lease_renew_ms` (default: `5000`): Coordinator lease renewal cadence.
+- `orchestrator.swarm.auto_rescue_policy` (default: `disabled`): Prompt auto-confirm policy (`disabled | allowlist`).
+- `orchestrator.swarm.auto_rescue_allowlist` (default: `[]`): Regex patterns allowed for auto-confirm when policy is `allowlist`.
 
 Swarm mailbox semantics are latest-only queue directories (`pending/processing/done`). Legacy mailbox read-state toggling paths are not supported.
 
 ## Categories
 
-Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `sisyphus-junior` agent.
+Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `specialist` agent.
 
 **Built-in Categories (defaults):**
 
@@ -880,7 +881,7 @@ delegate_task({
 
 // Or target a specific agent directly
 delegate_task({
-  subagent_type: "oracle",
+  subagent_type: "advisor",
   load_skills: [],
   description: "architecture review",
   prompt: "Review this architecture",
@@ -937,21 +938,21 @@ Model selection has two layers:
 
 | Agent | Runtime fallback chain |
 |---|---|
-| `sisyphus` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `zai-coding-plan:glm-4.7` → `opencode:glm-4.7-free` |
-| `atlas` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
-| `hephaestus` | `openai/github-copilot/opencode:gpt-5.3-codex(medium)` |
-| `oracle` | `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` |
+| `orchestrator` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `zai-coding-plan:glm-4.7` → `opencode:glm-4.7-free` |
+| `workflow-automator` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
+| `executor` | `openai/github-copilot/opencode:gpt-5.3-codex(medium)` |
+| `advisor` | `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` |
 | `librarian` | `zai-coding-plan:glm-4.7` → `opencode:glm-4.7-free` → `anthropic/github-copilot/opencode:claude-sonnet-4-5` |
-| `explore` | `github-copilot:grok-code-fast-1` → `anthropic/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
-| `multimodal-looker` | `google/github-copilot/opencode:gemini-3-flash` → `openai/github-copilot/opencode:gpt-5.2` → `zai-coding-plan:glm-4.6v` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `anthropic/github-copilot/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
-| `prometheus` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro` |
-| `metis` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
-| `momus` | `openai/github-copilot/opencode:gpt-5.2(medium)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
+| `navigator` | `github-copilot:grok-code-fast-1` → `anthropic/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
+| `interpreter` | `google/github-copilot/opencode:gemini-3-flash` → `openai/github-copilot/opencode:gpt-5.2` → `zai-coding-plan:glm-4.6v` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `anthropic/github-copilot/opencode:claude-haiku-4-5` → `opencode:gpt-5-nano` |
+| `planner` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro` |
+| `scope-analyst` | `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `kimi-for-coding:k2p5` → `opencode:kimi-k2.5-free` → `openai/github-copilot/opencode:gpt-5.2(high)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
+| `reviewer` | `openai/github-copilot/opencode:gpt-5.2(medium)` → `anthropic/github-copilot/opencode:claude-opus-4-6(max)` → `google/github-copilot/opencode:gemini-3-pro(high)` |
 
 Runtime constraints:
-- `sisyphus` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
-- `atlas` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
-- `hephaestus` requires provider connectivity: `openai` or `github-copilot` or `opencode`.
+- `orchestrator` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
+- `workflow-automator` has `requiresAnyModel=true`, so if none of its chain providers/models are available it is not materialized.
+- `executor` requires provider connectivity: `openai` or `github-copilot` or `opencode`.
 
 #### Category chains
 
@@ -976,8 +977,8 @@ Runtime constraints:
 
 Important details:
 - If no providers are selected, installer writes `opencode/glm-4.7-free` for agents/categories as ultimate fallback.
-- `sisyphus` is omitted when none of its fallback-chain providers are available (for example OpenAI-only).
-- `explore` has installer-specific shortcuts:
+- `orchestrator` is omitted when none of its fallback-chain providers are available (for example OpenAI-only).
+- `navigator` has installer-specific shortcuts:
   - Claude available: `anthropic/claude-haiku-4-5`
   - Else OpenCode Zen: `opencode/claude-haiku-4-5`
   - Else Copilot: `github-copilot/gpt-5-mini`
@@ -999,10 +1000,10 @@ You can always override automatic selection in `.opencode/oh-my-opencode/*.json`
 ```json
 {
   "agents": {
-    "sisyphus": {
+    "orchestrator": {
       "model": "anthropic/claude-sonnet-4-5"  // Force specific model
     },
-    "oracle": {
+    "advisor": {
       "model": "openai/o3"  // Use different model
     }
   },
@@ -1374,8 +1375,8 @@ These keys are intentionally removed and rejected by schema validation:
 
 - Top-level `session_reference`
 - Top-level `multi_plan_pipeline`
-- `sisyphus.tasks.claude_code_compat`
-- `sisyphus.swarm.mailbox_consume_mode`
+- `orchestrator.tasks.claude_code_compat`
+- `orchestrator.swarm.mailbox_consume_mode`
 - `governance.budget_monitor.gc_threshold`
 - `work_orchestrator.planning_with_files.directory`
 

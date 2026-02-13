@@ -11,7 +11,7 @@ import * as sessionState from "../../features/claude-code-session-state"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
 
 function createPlan(directory: string, planId: string, body: string): string {
-  const planDir = join(directory, ".sisyphus", "plans", planId)
+  const planDir = join(directory, ".orchestrator", "plans", planId)
   mkdirSync(planDir, { recursive: true })
 
   const planPath = join(planDir, "plan.md")
@@ -28,18 +28,18 @@ function createPlan(directory: string, planId: string, body: string): string {
 }
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
-  const sisyphusDir = join(directory, ".sisyphus")
-  if (!existsSync(sisyphusDir)) {
-    mkdirSync(sisyphusDir, { recursive: true })
+  const orchestratorDir = join(directory, ".orchestrator")
+  if (!existsSync(orchestratorDir)) {
+    mkdirSync(orchestratorDir, { recursive: true })
   }
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
     schema_version: 6,
-    executor: state.executor ?? "atlas",
+    executor: state.executor ?? "workflow-automator",
     plan_id: planId,
-    execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
-    runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
+    execution_plan_path: state.execution_plan_path ?? `.orchestrator/plans/${planId}/plan.md`,
+    runtime_ledger_path: state.runtime_ledger_path ?? `.orchestrator/plans/${planId}/ledger.yaml`,
     started_at: state.started_at ?? new Date().toISOString(),
     session_ids: state.session_ids ?? [],
     protocol: state.protocol ?? {
@@ -53,7 +53,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
     last_updated: state.last_updated,
   }
 
-  writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
+  writeFileSync(join(orchestratorDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
 }
 
 describe("start-work hook", () => {
@@ -70,12 +70,12 @@ describe("start-work hook", () => {
   beforeEach(() => {
     testDir = join(tmpdir(), `start-work-test-${randomUUID()}`)
     mkdirSync(testDir, { recursive: true })
-    mkdirSync(join(testDir, ".sisyphus"), { recursive: true })
+    mkdirSync(join(testDir, ".orchestrator"), { recursive: true })
     config = {
-      sisyphus: {
+      orchestrator: {
         tasks: {
           enabled: true,
-          storage_path: join(testDir, ".sisyphus", "tasks"),
+          storage_path: join(testDir, ".orchestrator", "tasks"),
         },
       },
     }
@@ -119,8 +119,8 @@ describe("start-work hook", () => {
 
       writeWorkState(testDir, {
         plan_id: "test-plan",
-        execution_plan_path: ".sisyphus/plans/test-plan/plan.md",
-        runtime_ledger_path: ".sisyphus/plans/test-plan/ledger.yaml",
+        execution_plan_path: ".orchestrator/plans/test-plan/plan.md",
+        runtime_ledger_path: ".orchestrator/plans/test-plan/ledger.yaml",
         started_at: "2026-01-02T10:00:00Z",
         session_ids: ["session-1"],
       })
@@ -200,9 +200,9 @@ describe("start-work hook", () => {
       const imported = readAllTaskNodes("plan", "plan-incomplete", config)
       expect(imported.length).toBeGreaterThan(0)
 
-      const workYaml = readFileSync(join(testDir, ".sisyphus", "work.yaml"), "utf-8")
+      const workYaml = readFileSync(join(testDir, ".orchestrator", "work.yaml"), "utf-8")
       expect(workYaml).toContain("schema_version: 6")
-      expect(workYaml).toContain("executor: atlas")
+      expect(workYaml).toContain("executor: workflow-automator")
       expect(workYaml).toContain("protocol:")
     })
 
@@ -243,8 +243,8 @@ describe("start-work hook", () => {
 
       writeWorkState(testDir, {
         plan_id: "old-plan",
-        execution_plan_path: ".sisyphus/plans/old-plan/plan.md",
-        runtime_ledger_path: ".sisyphus/plans/old-plan/ledger.yaml",
+        execution_plan_path: ".orchestrator/plans/old-plan/plan.md",
+        runtime_ledger_path: ".orchestrator/plans/old-plan/ledger.yaml",
         started_at: "2026-01-01T10:00:00Z",
         session_ids: ["old-session"],
       })
@@ -329,7 +329,7 @@ describe("start-work hook", () => {
   })
 
   describe("session agent management", () => {
-    test("should update session agent to atlas when start-work command auto-selects a new plan", async () => {
+    test("should update session agent to workflow-automator when start-work command auto-selects a new plan", async () => {
       const updateSpy = spyOn(sessionState, "updateSessionAgent")
       createPlan(testDir, "execution-plan", "# Plan: execution-plan\n\n## Tasks\n\n- 1. Task 1\n")
 
@@ -338,18 +338,18 @@ describe("start-work hook", () => {
         parts: [{ type: "text", text: "<session-context></session-context>" }],
       }
 
-      await hook["chat.message"]({ sessionID: "ses-prometheus-to-sisyphus" }, output)
+      await hook["chat.message"]({ sessionID: "ses-planner-to-orchestrator" }, output)
 
-      expect(updateSpy).toHaveBeenCalledWith("ses-prometheus-to-sisyphus", "atlas")
+      expect(updateSpy).toHaveBeenCalledWith("ses-planner-to-orchestrator", "workflow-automator")
       updateSpy.mockRestore()
     })
 
-    test("should keep atlas executor when resuming active work", async () => {
+    test("should keep workflow-automator executor when resuming active work", async () => {
       const updateSpy = spyOn(sessionState, "updateSessionAgent")
       createPlan(testDir, "legacy-plan", "# Plan: legacy-plan\n\n## Tasks\n\n- 1. Task 1\n")
       writeWorkState(testDir, {
         plan_id: "legacy-plan",
-        executor: "atlas",
+        executor: "workflow-automator",
         session_ids: ["old-session"],
       })
 
@@ -360,7 +360,7 @@ describe("start-work hook", () => {
 
       await hook["chat.message"]({ sessionID: "ses-resume-existing" }, output)
 
-      expect(updateSpy).toHaveBeenCalledWith("ses-resume-existing", "atlas")
+      expect(updateSpy).toHaveBeenCalledWith("ses-resume-existing", "workflow-automator")
       updateSpy.mockRestore()
     })
   })

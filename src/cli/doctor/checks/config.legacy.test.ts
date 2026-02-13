@@ -41,7 +41,7 @@ describe("doctor config legacy detection", () => {
         {
           config_version: 1,
           agents: {
-            oracle: { model: "openai/gpt-5.2" },
+            advisor: { model: "openai/gpt-5.2" },
           },
         },
         null,

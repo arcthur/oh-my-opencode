@@ -56,7 +56,7 @@ export interface LedgerStorageConfig {
 }
 
 const DEFAULT_STORAGE_CONFIG: LedgerStorageConfig = {
-  baseDir: join(homedir(), ".sisyphus", "ledger"),
+  baseDir: join(homedir(), ".orchestrator", "ledger"),
   maxAgeDays: 30,
   maxCount: 100,
   preserveErrors: true,

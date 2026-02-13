@@ -209,7 +209,7 @@ Phase descriptions guide behavior without inducing anxiety:
 
 | Phase | Message |
 |-------|---------|
-| healthy | "You have plenty of capacity to explore thoroughly." |
+| healthy | "You have plenty of capacity to navigator thoroughly." |
 | midpoint | "Good progress. Continue with your current approach." |
 | wrapUp | "Begin consolidating your work toward deliverables." |
 | critical | "Focus only on essential remaining tasks." |
@@ -248,7 +248,7 @@ Upgrade Trace to an immutable audit ledger where all governance events are recor
 
 Each entry includes a hash of the previous entry for integrity verification.
 
-Storage: `~/.sisyphus/ledger/{sessionId}.jsonl` (append-only JSONL, one entry per line)
+Storage: `~/.orchestrator/ledger/{sessionId}.jsonl` (append-only JSONL, one entry per line)
 
 Implementation: `src/features/governance/ledger.ts`
 
@@ -260,7 +260,7 @@ Implementation: `src/features/governance/ledger.ts`
 
 **Design Decision**: Automatically persist compressed traces on session end.
 
-- Storage: `~/.sisyphus/traces/{sessionId}.json`
+- Storage: `~/.orchestrator/traces/{sessionId}.json`
 - Compression: Keep only critical node types, failed nodes, nodes with significant duration
 - Retention: Last 50 traces
 - Correlation: Ledger entries include `traceNodeId` for cross-reference

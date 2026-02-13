@@ -45,10 +45,10 @@ describe("WorkStateManager v6", () => {
 
     // #then
     expect(state.schema_version).toBe(6)
-    expect(state.executor).toBe("atlas")
+    expect(state.executor).toBe("workflow-automator")
     expect(state.plan_id).toBe("auth-refactor")
-    expect(state.execution_plan_path).toBe(".sisyphus/plans/auth-refactor/plan.md")
-    expect(state.runtime_ledger_path).toBe(".sisyphus/plans/auth-refactor/ledger.yaml")
+    expect(state.execution_plan_path).toBe(".orchestrator/plans/auth-refactor/plan.md")
+    expect(state.runtime_ledger_path).toBe(".orchestrator/plans/auth-refactor/ledger.yaml")
     expect(state.session_ids).toEqual(["session-1"])
     expect(state.protocol.research_ops).toBe(0)
     expect(state.protocol.last_findings_mtime).toBe(0)
@@ -61,7 +61,7 @@ describe("WorkStateManager v6", () => {
 
     // #when / #then
     expect(() =>
-      manager.initializePlan("auth-refactor", "session-1", ".sisyphus/plans/auth-refactor.md")
+      manager.initializePlan("auth-refactor", "session-1", ".orchestrator/plans/auth-refactor.md")
     ).toThrow("Invalid work-state invariant")
   })
 
@@ -69,10 +69,10 @@ describe("WorkStateManager v6", () => {
     // #given
     const badState: WorkState = {
       schema_version: 6,
-      executor: "atlas",
+      executor: "workflow-automator",
       plan_id: "demo",
-      execution_plan_path: ".sisyphus/plans/demo.md",
-      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/demo.md",
+      runtime_ledger_path: ".orchestrator/plans/demo/ledger.yaml",
       started_at: new Date().toISOString(),
       session_ids: ["session-1"],
       protocol: {
@@ -84,8 +84,8 @@ describe("WorkStateManager v6", () => {
       blockers: [],
       decisions: [],
     }
-    mkdirSync(join(workspaceDir, ".sisyphus"), { recursive: true })
-    writeFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), yaml.dump(badState), "utf-8")
+    mkdirSync(join(workspaceDir, ".orchestrator"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".orchestrator", "work.yaml"), yaml.dump(badState), "utf-8")
     const manager = createWorkStateManager(workspaceDir)
 
     // #when
@@ -100,8 +100,8 @@ describe("WorkStateManager v6", () => {
     const legacyState = {
       schema_version: 3,
       plan_id: "legacy-plan",
-      execution_plan_path: ".sisyphus/plans/legacy-plan/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/legacy-plan/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/legacy-plan/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/legacy-plan/ledger.yaml",
       started_at: new Date().toISOString(),
       session_ids: ["session-1"],
       research_ops: 0,
@@ -110,8 +110,8 @@ describe("WorkStateManager v6", () => {
       blockers: [],
       decisions: [],
     }
-    mkdirSync(join(workspaceDir, ".sisyphus"), { recursive: true })
-    writeFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), yaml.dump(legacyState), "utf-8")
+    mkdirSync(join(workspaceDir, ".orchestrator"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".orchestrator", "work.yaml"), yaml.dump(legacyState), "utf-8")
     const manager = createWorkStateManager(workspaceDir)
 
     // #when
@@ -125,10 +125,10 @@ describe("WorkStateManager v6", () => {
     // #given
     const legacyState = {
       schema_version: 5,
-      executor: "atlas",
+      executor: "workflow-automator",
       plan_id: "migrate-plan",
-      execution_plan_path: ".sisyphus/plans/migrate-plan/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/migrate-plan/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/migrate-plan/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/migrate-plan/ledger.yaml",
       started_at: "2026-02-01T00:00:00.000Z",
       session_ids: ["session-1", "session-2"],
       research_ops: 4,
@@ -137,14 +137,14 @@ describe("WorkStateManager v6", () => {
       blockers: [],
       decisions: [],
     }
-    mkdirSync(join(workspaceDir, ".sisyphus"), { recursive: true })
-    writeFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), yaml.dump(legacyState), "utf-8")
+    mkdirSync(join(workspaceDir, ".orchestrator"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".orchestrator", "work.yaml"), yaml.dump(legacyState), "utf-8")
     const manager = createWorkStateManager(workspaceDir)
 
     // #when
     const loaded = manager.load()
     const persisted = yaml.load(
-      readFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), "utf-8")
+      readFileSync(join(workspaceDir, ".orchestrator", "work.yaml"), "utf-8")
     ) as Record<string, unknown>
 
     // #then
@@ -169,18 +169,18 @@ describe("WorkStateManager v6", () => {
 
     // #then
     expect(switched.plan_id).toBe("plan-b")
-    expect(switched.execution_plan_path).toBe(".sisyphus/plans/plan-b/plan.md")
-    expect(switched.runtime_ledger_path).toBe(".sisyphus/plans/plan-b/ledger.yaml")
+    expect(switched.execution_plan_path).toBe(".orchestrator/plans/plan-b/plan.md")
+    expect(switched.runtime_ledger_path).toBe(".orchestrator/plans/plan-b/ledger.yaml")
     expect(switched.session_ids).toEqual(["session-b"])
   })
 
   test("findPlans discovers only canonical plan.md files in plan directories", () => {
     // #given
-    mkdirSync(join(workspaceDir, ".sisyphus", "plans", "p1"), { recursive: true })
-    mkdirSync(join(workspaceDir, ".sisyphus", "plans", "p2"), { recursive: true })
-    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p1", "plan.md"), "# p1")
-    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "p2", "plan.md"), "# p2")
-    writeFileSync(join(workspaceDir, ".sisyphus", "plans", "legacy.md"), "# legacy")
+    mkdirSync(join(workspaceDir, ".orchestrator", "plans", "p1"), { recursive: true })
+    mkdirSync(join(workspaceDir, ".orchestrator", "plans", "p2"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".orchestrator", "plans", "p1", "plan.md"), "# p1")
+    writeFileSync(join(workspaceDir, ".orchestrator", "plans", "p2", "plan.md"), "# p2")
+    writeFileSync(join(workspaceDir, ".orchestrator", "plans", "legacy.md"), "# legacy")
 
     const manager = createWorkStateManager(workspaceDir)
 
@@ -188,8 +188,8 @@ describe("WorkStateManager v6", () => {
     const plans = manager.findPlans()
 
     // #then
-    expect(plans).toContain(".sisyphus/plans/p1/plan.md")
-    expect(plans).toContain(".sisyphus/plans/p2/plan.md")
+    expect(plans).toContain(".orchestrator/plans/p1/plan.md")
+    expect(plans).toContain(".orchestrator/plans/p2/plan.md")
     expect(plans.some((p) => p.endsWith("legacy.md"))).toBe(false)
   })
 })

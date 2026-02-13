@@ -1,15 +1,15 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 import type { BuiltinAgentName, AgentOverrides, AgentPromptMetadata } from "./types"
 import type { CategoriesConfig, CategoryConfig, GitMasterConfig, BrowserAutomationProvider } from "../config/schema"
-import { createSisyphusAgent } from "./sisyphus"
-import { createAtlasAgentFactory, atlasPromptMetadata } from "./atlas"
-import { createOracleAgent, ORACLE_PROMPT_METADATA } from "./oracle"
+import { createOrchestratorAgent } from "./orchestrator"
+import { createWorkflowAutomatorAgentFactory, workflowAutomatorPromptMetadata } from "./workflow-automator"
+import { createAdvisorAgent, ADVISOR_PROMPT_METADATA } from "./advisor"
 import { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
-import { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
-import { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "./multimodal-looker"
-import { createHephaestusAgent, HEPHAESTUS_PROMPT_METADATA } from "./hephaestus"
-import { createMetisAgent, metisPromptMetadata } from "./metis"
-import { createMomusAgent, momusPromptMetadata } from "./momus"
+import { createNavigatorAgent, NAVIGATOR_PROMPT_METADATA } from "./navigator"
+import { createInterpreterAgent, INTERPRETER_PROMPT_METADATA } from "./interpreter"
+import { createExecutorAgent, EXECUTOR_PROMPT_METADATA } from "./executor"
+import { createScopeAnalystAgent, scopeAnalystPromptMetadata } from "./scope-analyst"
+import { createReviewerAgent, reviewerPromptMetadata } from "./reviewer"
 import type { AvailableCategory } from "./dynamic-agent-prompt-builder"
 import { fetchAvailableModels, readConnectedProvidersCache } from "../shared"
 import { CATEGORY_DESCRIPTIONS } from "../tools/delegate-task/constants"
@@ -19,9 +19,9 @@ import type { AgentSource } from "./agent-builder"
 
 import { buildAvailableSkills } from "./builtin-agents/available-skills"
 import { collectPendingBuiltinAgents } from "./builtin-agents/general-agents"
-import { maybeCreateSisyphusConfig } from "./builtin-agents/sisyphus-agent"
-import { maybeCreateAtlasConfig } from "./builtin-agents/atlas-agent"
-import { maybeCreateHephaestusConfig } from "./builtin-agents/hephaestus-agent"
+import { maybeCreateOrchestratorConfig } from "./builtin-agents/orchestrator-agent"
+import { maybeCreateWorkflowAutomatorConfig } from "./builtin-agents/workflow-automator-agent"
+import { maybeCreateExecutorConfig } from "./builtin-agents/executor-agent"
 import { parseRegisteredAgentSummaries, buildCustomAgentMetadata } from "./custom-agent-summaries"
 
 // Re-export for backward compatibility
@@ -29,26 +29,26 @@ export { buildAgent } from "./agent-builder"
 export { createEnvContext } from "./env-context"
 
 const agentSources: Record<BuiltinAgentName, AgentSource> = {
-  sisyphus: createSisyphusAgent,
-  atlas: createAtlasAgentFactory,
-  hephaestus: createHephaestusAgent,
-  oracle: createOracleAgent,
+  orchestrator: createOrchestratorAgent,
+  "workflow-automator": createWorkflowAutomatorAgentFactory,
+  executor: createExecutorAgent,
+  advisor: createAdvisorAgent,
   librarian: createLibrarianAgent,
-  explore: createExploreAgent,
-  "multimodal-looker": createMultimodalLookerAgent,
-  metis: createMetisAgent,
-  momus: createMomusAgent,
+  navigator: createNavigatorAgent,
+  "interpreter": createInterpreterAgent,
+  "scope-analyst": createScopeAnalystAgent,
+  reviewer: createReviewerAgent,
 }
 
 const agentMetadata: Partial<Record<BuiltinAgentName, AgentPromptMetadata>> = {
-  atlas: atlasPromptMetadata,
-  oracle: ORACLE_PROMPT_METADATA,
+  "workflow-automator": workflowAutomatorPromptMetadata,
+  advisor: ADVISOR_PROMPT_METADATA,
   librarian: LIBRARIAN_PROMPT_METADATA,
-  explore: EXPLORE_PROMPT_METADATA,
-  "multimodal-looker": MULTIMODAL_LOOKER_PROMPT_METADATA,
-  hephaestus: HEPHAESTUS_PROMPT_METADATA,
-  metis: metisPromptMetadata,
-  momus: momusPromptMetadata,
+  navigator: NAVIGATOR_PROMPT_METADATA,
+  "interpreter": INTERPRETER_PROMPT_METADATA,
+  executor: EXECUTOR_PROMPT_METADATA,
+  "scope-analyst": scopeAnalystPromptMetadata,
+  reviewer: reviewerPromptMetadata,
 }
 
 export async function createBuiltinAgents(
@@ -117,7 +117,7 @@ export async function createBuiltinAgents(
     })
   }
 
-  const sisyphusConfig = maybeCreateSisyphusConfig({
+  const orchestratorConfig = maybeCreateOrchestratorConfig({
     disabledAgents,
     agentOverrides,
     uiSelectedModel,
@@ -131,11 +131,11 @@ export async function createBuiltinAgents(
     directory,
     userCategories: categories,
   })
-  if (sisyphusConfig) {
-    result["sisyphus"] = sisyphusConfig
+  if (orchestratorConfig) {
+    result["orchestrator"] = orchestratorConfig
   }
 
-  const atlasConfig = maybeCreateAtlasConfig({
+  const workflowAutomatorConfig = maybeCreateWorkflowAutomatorConfig({
     disabledAgents,
     agentOverrides,
     uiSelectedModel,
@@ -146,11 +146,11 @@ export async function createBuiltinAgents(
     mergedCategories,
     userCategories: categories,
   })
-  if (atlasConfig) {
-    result["atlas"] = atlasConfig
+  if (workflowAutomatorConfig) {
+    result["workflow-automator"] = workflowAutomatorConfig
   }
 
-  const hephaestusConfig = maybeCreateHephaestusConfig({
+  const executorConfig = maybeCreateExecutorConfig({
     disabledAgents,
     agentOverrides,
     availableModels,
@@ -162,8 +162,8 @@ export async function createBuiltinAgents(
     mergedCategories,
     directory,
   })
-  if (hephaestusConfig) {
-    result["hephaestus"] = hephaestusConfig
+  if (executorConfig) {
+    result["executor"] = executorConfig
   }
 
   for (const [name, config] of pendingAgentConfigs) {

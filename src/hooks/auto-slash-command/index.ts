@@ -28,7 +28,7 @@ const sessionProcessedCommandExecutions = new Set<string>()
 
 function syncSessionAgentForCommand(sessionID: string, command: string): void {
   if (command.toLowerCase() === "brainstorm") {
-    updateSessionAgent(sessionID, "prometheus")
+    updateSessionAgent(sessionID, "planner")
   }
 }
 

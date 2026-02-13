@@ -4,7 +4,7 @@ import { getSessionAgent } from "../features/claude-code-session-state"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../features/hook-message-injector"
 import { EXECUTION_OWNER, type ExecutionOwner } from "../features/orchestration/owner"
 
-export type OrchestratorCaller = "sisyphus" | "atlas"
+export type OrchestratorCaller = "orchestrator" | "workflow-automator"
 export type ExecutionOwnership = "matched" | "mismatched" | "unknown"
 
 export function getMessageDir(sessionID: string): string | null {
@@ -35,7 +35,7 @@ export function getSessionAgentBestEffort(sessionID: string): string | undefined
 export function getOrchestratorCaller(sessionID?: string): OrchestratorCaller | null {
   if (!sessionID) return null
   const agent = getSessionAgentBestEffort(sessionID)?.toLowerCase()
-  if (agent === "sisyphus" || agent === "atlas") {
+  if (agent === "orchestrator" || agent === "workflow-automator") {
     return agent
   }
   return null

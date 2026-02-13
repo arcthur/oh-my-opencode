@@ -104,8 +104,8 @@ Recommended starting point (observability + budget hints, without checkpoints):
 
 - Confirm `governance.enabled=true` in config.
 - Check logs for `[governance] Integration enabled`.
-- Ledger file: `~/.sisyphus/ledger/<sessionId>.jsonl`
-- Trace file (on session cleanup): `~/.sisyphus/traces/<sessionId>.json`
+- Ledger file: `~/.orchestrator/ledger/<sessionId>.jsonl`
+- Trace file (on session cleanup): `~/.orchestrator/traces/<sessionId>.json`
 
 ## Further Reading
 

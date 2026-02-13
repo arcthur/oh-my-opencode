@@ -15,14 +15,14 @@ describe("claude-code-session-state", () => {
     _resetForTesting()
     clearSessionAgent("test-session-1")
     clearSessionAgent("test-session-2")
-    clearSessionAgent("test-prometheus-session")
+    clearSessionAgent("test-planner-session")
   })
 
   describe("setSessionAgent", () => {
     test("should store agent for session", () => {
       // given
       const sessionID = "test-session-1"
-      const agent = "prometheus"
+      const agent = "planner"
 
       // when
       setSessionAgent(sessionID, agent)
@@ -34,13 +34,13 @@ describe("claude-code-session-state", () => {
     test("should NOT overwrite existing agent (first-write wins)", () => {
       // given
       const sessionID = "test-session-1"
-      setSessionAgent(sessionID, "prometheus")
+      setSessionAgent(sessionID, "planner")
 
       // when - try to overwrite
-      setSessionAgent(sessionID, "sisyphus")
+      setSessionAgent(sessionID, "orchestrator")
 
       // then - first agent preserved
-      expect(getSessionAgent(sessionID)).toBe("prometheus")
+      expect(getSessionAgent(sessionID)).toBe("planner")
     })
 
     test("should return undefined for unknown session", () => {
@@ -55,13 +55,13 @@ describe("claude-code-session-state", () => {
     test("should overwrite existing agent", () => {
       // given
       const sessionID = "test-session-1"
-      setSessionAgent(sessionID, "prometheus")
+      setSessionAgent(sessionID, "planner")
 
       // when - force update
-      updateSessionAgent(sessionID, "sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       // then
-      expect(getSessionAgent(sessionID)).toBe("sisyphus")
+      expect(getSessionAgent(sessionID)).toBe("orchestrator")
     })
   })
 
@@ -69,8 +69,8 @@ describe("claude-code-session-state", () => {
     test("should remove agent from session", () => {
       // given
       const sessionID = "test-session-1"
-      setSessionAgent(sessionID, "prometheus")
-      expect(getSessionAgent(sessionID)).toBe("prometheus")
+      setSessionAgent(sessionID, "planner")
+      expect(getSessionAgent(sessionID)).toBe("planner")
 
       // when
       clearSessionAgent(sessionID)
@@ -96,24 +96,24 @@ describe("claude-code-session-state", () => {
     // (uninitialized variable returns undefined) + parallel test state pollution
   })
 
-  describe("prometheus policy integration scenario", () => {
-    test("should correctly identify Prometheus agent for permission checks", () => {
-      // given - Prometheus session
-      const sessionID = "test-prometheus-session"
-      const prometheusAgent = "prometheus"
+  describe("planner policy integration scenario", () => {
+    test("should correctly identify planner agent for permission checks", () => {
+      // given - planner session
+      const sessionID = "test-planner-session"
+      const plannerAgent = "planner"
 
       // when - agent is set (simulating chat.message hook)
-      setSessionAgent(sessionID, prometheusAgent)
+      setSessionAgent(sessionID, plannerAgent)
 
       // then - getSessionAgent returns correct agent for policy runtime guard checks
       const agent = getSessionAgent(sessionID)
-      expect(agent).toBe("prometheus")
-      expect(["prometheus"].includes(agent!)).toBe(true)
+      expect(agent).toBe("planner")
+      expect(["planner"].includes(agent!)).toBe(true)
     })
 
     test("should return undefined when agent not set (bug scenario)", () => {
       // given - session exists but no agent set (the bug)
-      const sessionID = "test-prometheus-session"
+      const sessionID = "test-planner-session"
 
       // when / #then - this is the bug: agent is undefined
       expect(getSessionAgent(sessionID)).toBeUndefined()

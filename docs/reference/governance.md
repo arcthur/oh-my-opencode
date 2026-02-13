@@ -106,14 +106,14 @@ The schema contains additional knobs; not all are currently enforced in runtime 
 
 ### Ledger
 
-- Default location: `~/.sisyphus/ledger/<sessionId>.jsonl`
+- Default location: `~/.orchestrator/ledger/<sessionId>.jsonl`
 - Contract:
   - Ledger files MUST be append-only.
   - Ledger failures MUST be treated as non-fatal (best-effort logging).
 
 ### Trace persistence
 
-- Default location: `~/.sisyphus/traces/<sessionId>.json`
+- Default location: `~/.orchestrator/traces/<sessionId>.json`
 - Contract:
   - When tracing is enabled, traces SHOULD be persisted on session cleanup.
   - Persisted traces are compressed (critical nodes + recent timeline), not a full in-memory dump.

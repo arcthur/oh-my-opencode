@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import type { CoordinatorAgent } from "../features/sisyphus-swarm/agent"
-import { createAgentIdentity, createTeam } from "../features/sisyphus-swarm/team"
-import { createSwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
+import type { CoordinatorAgent } from "../features/orchestrator-swarm/agent"
+import { createAgentIdentity, createTeam } from "../features/orchestrator-swarm/team"
+import { createSwarmRuntimeService } from "../features/orchestrator-swarm/runtime"
 
 const mockInspectSwarmWindowsByTeam = mock(() => ({
   scanned: 3,
@@ -14,7 +14,7 @@ const mockInspectSwarmWindowsByTeam = mock(() => ({
 }))
 const mockGetCurrentSession = mock(() => "main")
 
-mock.module("../features/sisyphus-swarm/tmux", () => ({
+mock.module("../features/orchestrator-swarm/tmux", () => ({
   createSwarmOrchestrator: mock(() => null),
   closeSwarmWindowsByTeam: mock(() => ({
     attempted: 0,
@@ -36,7 +36,7 @@ describe("swarm tool status diagnostics", () => {
 
   beforeEach(() => {
     projectDir = join(tmpdir(), `swarm-status-diag-${Date.now()}`)
-    teamsDir = join(projectDir, ".sisyphus", "teams")
+    teamsDir = join(projectDir, ".orchestrator", "teams")
     mkdirSync(teamsDir, { recursive: true })
 
     mockInspectSwarmWindowsByTeam.mockReset()
@@ -67,7 +67,7 @@ describe("swarm tool status diagnostics", () => {
       sessionId: "sess-main",
     })
     createTeam("team-a", coordinator, {
-      sisyphus: {
+      orchestrator: {
         swarm: {
           enabled: true,
           storage_path: teamsDir,
@@ -89,7 +89,7 @@ describe("swarm tool status diagnostics", () => {
     const tool = createSwarmTool({
       directory: projectDir,
       config: {
-        sisyphus: {
+        orchestrator: {
           swarm: {
             enabled: true,
             storage_path: teamsDir,

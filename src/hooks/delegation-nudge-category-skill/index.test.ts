@@ -41,11 +41,11 @@ describe("delegation-nudge-category-skill hook", () => {
   }
 
   describe("target agent detection", () => {
-    test("should inject reminder for sisyphus agent after 3 tool calls", async () => {
-      // given - sisyphus agent session with multiple tool calls
+    test("should inject reminder for orchestrator agent after 3 tool calls", async () => {
+      // given - orchestrator agent session with multiple tool calls
       const hook = createHook()
-      const sessionID = "sisyphus-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      const sessionID = "orchestrator-session"
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "file content", metadata: {} }
 
@@ -61,11 +61,11 @@ describe("delegation-nudge-category-skill hook", () => {
       clearSessionAgent(sessionID)
     })
 
-    test("should NOT inject reminder for prometheus agent", async () => {
-      // given - prometheus agent session
+    test("should NOT inject reminder for planner agent", async () => {
+      // given - planner agent session
       const hook = createHook()
-      const sessionID = "prometheus-session"
-      updateSessionAgent(sessionID, "Prometheus")
+      const sessionID = "planner-session"
+      updateSessionAgent(sessionID, "planner")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -80,11 +80,11 @@ describe("delegation-nudge-category-skill hook", () => {
       clearSessionAgent(sessionID)
     })
 
-    test("should NOT inject reminder for sisyphus-junior agent", async () => {
-      // #given - sisyphus-junior is research-scoped and cannot use category-based delegation
+    test("should NOT inject reminder for specialist agent", async () => {
+      // #given - specialist is research-scoped and cannot use category-based delegation
       const hook = createHook()
       const sessionID = "junior-session"
-      updateSessionAgent(sessionID, "sisyphus-junior")
+      updateSessionAgent(sessionID, "specialist")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -99,11 +99,11 @@ describe("delegation-nudge-category-skill hook", () => {
       clearSessionAgent(sessionID)
     })
 
-    test("should NOT inject reminder for agents with sisyphus in name but not in TARGET_AGENTS", async () => {
-      // #given - agent named "sisyphus-foo" is not in TARGET_AGENTS
+    test("should NOT inject reminder for agents with orchestrator in name but not in TARGET_AGENTS", async () => {
+      // #given - agent named "orchestrator-foo" is not in TARGET_AGENTS
       const hook = createHook()
-      const sessionID = "sisyphus-foo-session"
-      updateSessionAgent(sessionID, "sisyphus-foo")
+      const sessionID = "orchestrator-foo-session"
+      updateSessionAgent(sessionID, "orchestrator-foo")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -145,9 +145,9 @@ describe("delegation-nudge-category-skill hook", () => {
       const output = { title: "", output: "result", metadata: {} }
 
       // when - 3 tool calls with agent in input
-      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "1", agent: "Sisyphus" }, output)
-      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "2", agent: "Sisyphus" }, output)
-      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "3", agent: "Sisyphus" }, output)
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "1", agent: "orchestrator" }, output)
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "2", agent: "orchestrator" }, output)
+      await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "3", agent: "orchestrator" }, output)
 
       // then - reminder should be injected
       expect(output.output).toContain("[Category+Skill Reminder]")
@@ -156,10 +156,10 @@ describe("delegation-nudge-category-skill hook", () => {
 
   describe("delegation tool tracking", () => {
     test("should NOT inject reminder if delegate_task is used", async () => {
-      // given - sisyphus agent that uses delegate_task
+      // given - orchestrator agent that uses delegate_task
       const hook = createHook()
       const sessionID = "delegation-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -176,10 +176,10 @@ describe("delegation-nudge-category-skill hook", () => {
     })
 
     test("should NOT inject reminder if delegate_task is used for research", async () => {
-      // given - sisyphus agent that uses delegate_task for research
+      // given - orchestrator agent that uses delegate_task for research
       const hook = createHook()
       const sessionID = "omo-agent-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -196,10 +196,10 @@ describe("delegation-nudge-category-skill hook", () => {
     })
 
     test("should NOT inject reminder if task tool is used", async () => {
-      // given - sisyphus agent that uses task tool
+      // given - orchestrator agent that uses task tool
       const hook = createHook()
       const sessionID = "task-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -218,10 +218,10 @@ describe("delegation-nudge-category-skill hook", () => {
 
   describe("tool call counting", () => {
     test("should NOT inject reminder before 3 tool calls", async () => {
-      // given - sisyphus agent with only 2 tool calls
+      // given - orchestrator agent with only 2 tool calls
       const hook = createHook()
       const sessionID = "few-calls-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -236,10 +236,10 @@ describe("delegation-nudge-category-skill hook", () => {
     })
 
     test("should only inject reminder once per session", async () => {
-      // given - sisyphus agent session
+      // given - orchestrator agent session
       const hook = createHook()
       const sessionID = "once-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output1 = { title: "", output: "result1", metadata: {} }
       const output2 = { title: "", output: "result2", metadata: {} }
@@ -260,10 +260,10 @@ describe("delegation-nudge-category-skill hook", () => {
     })
 
     test("should only count delegatable work tools", async () => {
-      // given - sisyphus agent with mixed tool calls
+      // given - orchestrator agent with mixed tool calls
       const hook = createHook()
       const sessionID = "mixed-tools-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -281,10 +281,10 @@ describe("delegation-nudge-category-skill hook", () => {
 
   describe("event handling", () => {
     test("should reset state on session.deleted event", async () => {
-      // given - sisyphus agent with reminder already shown
+      // given - orchestrator agent with reminder already shown
       const hook = createHook()
       const sessionID = "delete-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output1 = { title: "", output: "result1", metadata: {} }
       await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "1" }, output1)
@@ -307,10 +307,10 @@ describe("delegation-nudge-category-skill hook", () => {
     })
 
     test("should reset state on session.compacted event", async () => {
-      // given - sisyphus agent with reminder already shown
+      // given - orchestrator agent with reminder already shown
       const hook = createHook()
       const sessionID = "compact-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output1 = { title: "", output: "result1", metadata: {} }
       await hook["tool.execute.after"]({ tool: "edit", sessionID, callID: "1" }, output1)
@@ -335,10 +335,10 @@ describe("delegation-nudge-category-skill hook", () => {
 
   describe("case insensitivity", () => {
     test("should handle tool names case-insensitively", async () => {
-      // given - sisyphus agent with mixed case tool names
+      // given - orchestrator agent with mixed case tool names
       const hook = createHook()
       const sessionID = "case-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -354,10 +354,10 @@ describe("delegation-nudge-category-skill hook", () => {
     })
 
     test("should handle delegation tool names case-insensitively", async () => {
-      // given - sisyphus agent using DELEGATE_TASK in uppercase
+      // given - orchestrator agent using DELEGATE_TASK in uppercase
       const hook = createHook()
       const sessionID = "case-delegate-session"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
 
       const output = { title: "", output: "result", metadata: {} }
 
@@ -384,7 +384,7 @@ describe("delegation-nudge-category-skill hook", () => {
       ]
       const hook = createHook(availableSkills)
       const sessionID = "builtins-only"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
       const output = { title: "", output: "result", metadata: {} }
 
       // #when
@@ -408,7 +408,7 @@ describe("delegation-nudge-category-skill hook", () => {
       ]
       const hook = createHook(availableSkills)
       const sessionID = "user-skills"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
       const output = { title: "", output: "result", metadata: {} }
 
       // #when
@@ -427,7 +427,7 @@ describe("delegation-nudge-category-skill hook", () => {
       // #given
       const hook = createHook([])
       const sessionID = "no-skills"
-      updateSessionAgent(sessionID, "Sisyphus")
+      updateSessionAgent(sessionID, "orchestrator")
       const output = { title: "", output: "result", metadata: {} }
 
       // #when

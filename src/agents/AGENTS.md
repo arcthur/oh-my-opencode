@@ -5,31 +5,31 @@
 This fork ships **10 AI agents** for multi-model orchestration.
 
 Each agent has:
-- A factory (or prompt constants for Prometheus)
+- A factory (or prompt constants for planner)
 - Prompt metadata (for dynamic prompt sections)
 - A model requirement + fallback chain (see `src/shared/model-requirements.ts`)
 
 **Orchestrators / Primary agents**:
-- Sisyphus, Prometheus
+- orchestrator, planner
 
 **Subagents**:
-- Hephaestus, Oracle, Librarian, Explore, Multimodal-Looker, Metis, Momus, Sisyphus-Junior
+- executor, advisor, librarian, navigator, interpreter, scope-analyst, reviewer, specialist
 
 ## STRUCTURE
 
 ```
 agents/
 ├── dynamic-agent-prompt-builder.ts  # Dynamic prompt generation
-├── sisyphus/                 # Primary agent prompt
-├── sisyphus-junior.ts          # Category-spawned executor (task blocked; research-scoped delegate_task for explore/librarian only)
-├── oracle.ts                   # Strategic advisor (GPT-5.2)
+├── orchestrator/                 # Primary agent prompt
+├── specialist.ts          # Category-spawned executor (task blocked; research-scoped delegate_task for navigator/librarian only)
+├── advisor.ts                   # Strategic advisor (GPT-5.2)
 ├── librarian.ts                # Multi-repo research (GitHub CLI, Context7)
-├── explore.ts                  # Fast contextual grep
-├── multimodal-looker.ts        # Media analyzer (Gemini 3 Flash)
-├── prometheus/                 # Prometheus system prompt (brainstorm/interview/plan/QA)
-├── metis.ts                    # Pre-planning consultant (intent classification, AI-slop detection)
-├── momus.ts                    # Plan reviewer (blocking-issue verification, executability check)
-├── hephaestus.ts               # Autonomous deep worker (GPT 5.3 Codex)
+├── navigator.ts                  # Fast contextual grep
+├── interpreter.ts        # Media analyzer (Gemini 3 Flash)
+├── planner/                 # planner system prompt (brainstorm/interview/plan/QA)
+├── scope-analyst.ts                    # Pre-planning consultant (intent classification, AI-slop detection)
+├── reviewer.ts                    # Plan reviewer (blocking-issue verification, executability check)
+├── executor.ts               # Autonomous deep worker (GPT 5.3 Codex)
 ├── agent-builder.ts            # Agent build pipeline (factory invocation, category/skill expansion)
 ├── env-context.ts              # OmO-specific environment context (time, timezone, locale)
 ├── custom-agent-summaries.ts   # Custom agent summary parsing and metadata building
@@ -45,16 +45,16 @@ The exact fallback chains are defined in `src/shared/model-requirements.ts`.
 
 | Agent | Default / Preferred Model | Temp | Notes |
 |-------|---------------------------|------|-------|
-| Sisyphus | `anthropic/claude-opus-4-6` | 0.1 | `requiresAnyModel` gate; fallback chain prefers Claude → Kimi → GLM. |
-| Prometheus | `anthropic/claude-opus-4-6` | 0.1 | Planner prompt is exported as constants under `src/agents/prometheus/*`. |
-| Hephaestus | `openai/gpt-5.3-codex` | 0.1 | `requiresModel: gpt-5.3-codex`. |
-| oracle | `openai/gpt-5.2` | 0.1 | GPT models use `reasoningEffort`; Claude models use `thinking`. |
+| orchestrator | `anthropic/claude-opus-4-6` | 0.1 | `requiresAnyModel` gate; fallback chain prefers Claude → Kimi → GLM. |
+| planner | `anthropic/claude-opus-4-6` | 0.1 | Planner prompt is exported as constants under `src/agents/planner/*`. |
+| executor | `openai/gpt-5.3-codex` | 0.1 | `requiresModel: gpt-5.3-codex`. |
+| advisor | `openai/gpt-5.2` | 0.1 | GPT models use `reasoningEffort`; Claude models use `thinking`. |
 | librarian | `zai-coding-plan/glm-4.7` | 0.1 | Fallback: `opencode/glm-4.7-free`. |
-| explore | `github-copilot/grok-code-fast-1` | 0.1 | Fast contextual grep; fallback chain prefers cheap models. |
-| multimodal-looker | `google/gemini-3-flash` | 0.1 | Read-only / media analysis. |
-| Metis | `anthropic/claude-opus-4-6` | 0.3 | Pre-planning consultant; intent classification, AI-slop detection. |
-| Momus | `openai/gpt-5.2` | 0.1 | Plan reviewer; blocking-issue verification, practical executability check. |
-| Sisyphus-Junior | `anthropic/claude-sonnet-4-5` | 0.1 | Category-spawned executor; denies `task`, `delegate_task` is research-scoped (explore/librarian only). |
+| navigator | `github-copilot/grok-code-fast-1` | 0.1 | Fast contextual grep; fallback chain prefers cheap models. |
+| interpreter | `google/gemini-3-flash` | 0.1 | Read-only / media analysis. |
+| scope-analyst | `anthropic/claude-opus-4-6` | 0.3 | Pre-planning consultant; intent classification, AI-slop detection. |
+| reviewer | `openai/gpt-5.2` | 0.1 | Plan reviewer; blocking-issue verification, practical executability check. |
+| specialist | `anthropic/claude-sonnet-4-5` | 0.1 | Category-spawned executor; denies `task`, `delegate_task` is research-scoped (navigator/librarian only). |
 
 ## HOW TO ADD
 
@@ -68,18 +68,18 @@ The exact fallback chains are defined in `src/shared/model-requirements.ts`.
 
 | Agent | Denied Tools |
 |-------|-------------|
-| oracle | write, edit, task, delegate_task |
+| advisor | write, edit, task, delegate_task |
 | librarian | write, edit, task, delegate_task |
-| explore | write, edit, task, delegate_task |
-| multimodal-looker | Allowlist: read only |
-| metis | write, edit, task (delegate_task limited to explore/librarian) |
-| momus | write, edit, task, delegate_task |
-| Sisyphus-Junior | task *(delegate_task is research-scoped: explore/librarian only)* |
+| navigator | write, edit, task, delegate_task |
+| interpreter | Allowlist: read only |
+| scope-analyst | write, edit, task (delegate_task limited to navigator/librarian) |
+| reviewer | write, edit, task, delegate_task |
+| specialist | task *(delegate_task is research-scoped: navigator/librarian only)* |
 
 ## PATTERNS
 
 - **Factory**: `createXXXAgent(model: string): AgentConfig` (+ `createXXXAgent.mode = "primary" | "subagent"`).
-- **Metadata**: `XXX_PROMPT_METADATA` feeds Sisyphus prompt sections dynamically.
+- **Metadata**: `XXX_PROMPT_METADATA` feeds orchestrator prompt sections dynamically.
 - **Model resolution**: `createBuiltinAgents()` resolves `uiSelectedModel` + overrides + category defaults + fallback chains.
 - **Tool restrictions**: Prefer `createAgentToolRestrictions()` / `createAgentToolAllowlist()`; keep `src/shared/agent-tool-restrictions.ts` in sync for `session.prompt`.
 - **Thinking vs reasoning**: Claude models generally use `thinking`; GPT models use `reasoningEffort`.

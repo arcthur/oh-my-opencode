@@ -4,10 +4,10 @@ import { existsSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { join } from "node:path"
 import { createWorkStateManager } from "../../features/work-state"
-import { createCoordinator } from "../../features/sisyphus-swarm/agent"
-import type { SwarmRuntimeService } from "../../features/sisyphus-swarm/runtime"
-import { createSwarmOrchestrator } from "../../features/sisyphus-swarm/tmux"
-import { getStaleMembers, readManifest, teamExists } from "../../features/sisyphus-swarm/team"
+import { createCoordinator } from "../../features/orchestrator-swarm/agent"
+import type { SwarmRuntimeService } from "../../features/orchestrator-swarm/runtime"
+import { createSwarmOrchestrator } from "../../features/orchestrator-swarm/tmux"
+import { getStaleMembers, readManifest, teamExists } from "../../features/orchestrator-swarm/team"
 import { syncPlanTasksToTaskGraph } from "../../features/task-system"
 import { log } from "../../shared/logger"
 
@@ -144,9 +144,9 @@ export function createSwarmFromPlanHook(
 
   return {
     "chat.message": async (input: HookInput, output: HookOutput): Promise<void> => {
-      const swarmEnabled = config.sisyphus?.swarm?.enabled ?? false
-      const swarmFirst = config.sisyphus?.swarm?.swarm_first ?? false
-      const tasksEnabled = config.sisyphus?.tasks?.enabled ?? false
+      const swarmEnabled = config.orchestrator?.swarm?.enabled ?? false
+      const swarmFirst = config.orchestrator?.swarm?.swarm_first ?? false
+      const tasksEnabled = config.orchestrator?.tasks?.enabled ?? false
 
       if (!swarmEnabled || !swarmFirst || !tasksEnabled) return
 
@@ -235,7 +235,7 @@ export function createSwarmFromPlanHook(
       })
 
       // Spawn workers (tmux/worktree) if available
-      const targetWorkers = Math.max(0, Math.min(10, config.sisyphus?.swarm?.worker_count ?? 3))
+      const targetWorkers = Math.max(0, Math.min(10, config.orchestrator?.swarm?.worker_count ?? 3))
       let spawned = 0
       let workerNote: string | null = null
 

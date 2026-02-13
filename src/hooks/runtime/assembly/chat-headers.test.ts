@@ -28,7 +28,7 @@ describe("chat.headers runtime assembly", () => {
     const output = { headers: { "anthropic-beta": "existing-token" } }
     const input = {
       sessionID: "session-1",
-      agent: "sisyphus",
+      agent: "orchestrator",
       model: {
         providerID: "github-copilot",
         modelID: "claude-sonnet-4",
@@ -55,7 +55,7 @@ describe("chat.headers runtime assembly", () => {
     const output = { headers: {} as Record<string, string> }
     const input = {
       sessionID: "sub-1",
-      agent: "sisyphus-junior",
+      agent: "specialist",
       model: {
         providerID: "github-copilot",
         modelID: "claude-opus-4.1",

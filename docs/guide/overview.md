@@ -6,11 +6,11 @@ Learn about Oh My OpenCode, a plugin that transforms OpenCode into the best agen
 
 ## TL;DR
 
-> **Sisyphus agent strongly recommends Opus 4.6 model. Using other models may result in significantly degraded experience.**
+> **orchestrator agent strongly recommends Opus 4.6 model. Using other models may result in significantly degraded experience.**
 
 **Feeling lazy?** Just include `ultrawork` (or `ulw`) in your prompt. That's it. The agent figures out the rest.
 
-**Need precision?** Press **Tab** to enter Prometheus mode, create a work plan through an interview process, then run `/start-work` to execute it with full orchestration.
+**Need precision?** Press **Tab** to enter planner mode, create a work plan through an interview process, then run `/start-work` to execute it with full orchestration.
 
 ---
 
@@ -34,7 +34,7 @@ ulw add authentication to my Next.js app
 ```
 
 The agent will automatically:
-1. Explore your codebase to understand existing patterns
+1. navigator your codebase to understand existing patterns
 2. Research best practices via specialized agents
 3. Implement the feature following your conventions
 4. Verify with diagnostics and tests
@@ -44,23 +44,23 @@ This is the "just do it" mode. Full automatic mode.
 The agent is already smart enough, so it explores the codebase and make plans itself.
 **You don't have to think that deep. Agent will think that deep.**
 
-### Option 2: Prometheus Mode (For Precise Work)
+### Option 2: planner Mode (For Precise Work)
 
-For complex or critical tasks, press **Tab** to switch to Prometheus mode.
+For complex or critical tasks, press **Tab** to switch to planner mode.
 
 **How it works:**
 
-1. **Prometheus interviews you** - Acts as your personal consultant, asking clarifying questions while researching your codebase to understand exactly what you need.
+1. **planner interviews you** - Acts as your personal consultant, asking clarifying questions while researching your codebase to understand exactly what you need.
 
-2. **Plan generation** - Metis analyzes the request, Prometheus generates a detailed work plan with tasks, acceptance criteria, and guardrails, and Momus reviews the plan for executability.
+2. **Plan generation** - scope-analyst analyzes the request, planner generates a detailed work plan with tasks, acceptance criteria, and guardrails, and reviewer reviews the plan for executability.
 
-3. **Run `/start-work`** - Atlas Execution Mode takes over:
+3. **Run `/start-work`** - workflow-automator Execution Mode takes over:
    - Distributes tasks to specialized sub-agents
    - Verifies each task completion independently
    - Accumulates learnings across tasks
    - Tracks progress across sessions (resume anytime)
 
-**When to use Prometheus:**
+**When to use planner:**
 - Multi-day or multi-session projects
 - Critical production changes
 - Complex refactoring spanning many files
@@ -72,18 +72,18 @@ For complex or critical tasks, press **Tab** to switch to Prometheus mode.
 
 ### Use the Right Orchestrator for the Job
 
-- Use `sisyphus` for open-ended, ad-hoc orchestration.
-- Use `Prometheus -> /start-work` when you need strict plan-first execution with Atlas.
+- Use `orchestrator` for open-ended, ad-hoc orchestration.
+- Use `planner -> /start-work` when you need strict plan-first execution with workflow-automator.
 
 **Correct workflow:**
 ```
-1. Press Tab → Enter Prometheus mode
-2. Describe work → Prometheus interviews you
-3. Confirm plan → Review .sisyphus/plans/*/plan.md
-4. Run /start-work → Atlas executes
+1. Press Tab → Enter planner mode
+2. Describe work → planner interviews you
+3. Confirm plan → Review .orchestrator/plans/*/plan.md
+4. Run /start-work → workflow-automator executes
 ```
 
-**Prometheus and Atlas Execution Mode are a pair for precise execution workflows.**
+**planner and workflow-automator Execution Mode are a pair for precise execution workflows.**
 
 ---
 
@@ -110,7 +110,7 @@ Based on your answers, it generates `~/.config/opencode/oh-my-opencode/00-core.j
 Each agent has a **provider priority chain**. The system tries providers in order until it finds an available model:
 
 ```
-Example: multimodal-looker
+Example: interpreter
 google → openai → zai-coding-plan → anthropic → opencode
    ↓        ↓           ↓              ↓           ↓
 gemini   gpt-5.2     glm-4.6v       haiku     gpt-5-nano
@@ -127,10 +127,10 @@ Here's a real-world config for a user with **Claude, OpenAI, Gemini, and Z.ai** 
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     // Override specific agents only - rest use fallback chain
-    "sisyphus": { "model": "anthropic/claude-sonnet-4-5", "variant": "max" },
+    "orchestrator": { "model": "anthropic/claude-sonnet-4-5", "variant": "max" },
     "librarian": { "model": "zai-coding-plan/glm-4.7" },
-    "explore": { "model": "opencode/gpt-5-nano" },
-    "multimodal-looker": { "model": "zai-coding-plan/glm-4.6v" }
+    "navigator": { "model": "opencode/gpt-5-nano" },
+    "interpreter": { "model": "zai-coding-plan/glm-4.6v" }
   },
   "categories": {
     // Override categories for cost optimization
@@ -157,7 +157,7 @@ For detailed configuration options including per-agent settings, category custom
 
 ## Next Steps
 
-- [Understanding the Orchestration System](./understanding-orchestration-system.md) - Deep dive into Prometheus → Orchestrator → Junior workflow
+- [Understanding the Orchestration System](./understanding-orchestration-system.md) - Deep dive into planner → Orchestrator → Junior workflow
 - [Ultrawork Journey](../journeys/ultrawork.md) - Philosophy and principles behind Oh My OpenCode
 - [Installation Guide](./installation.md) - Detailed installation instructions
 - [Configuration Contract](../reference/configuration.md) - Customize agents, models, and behaviors

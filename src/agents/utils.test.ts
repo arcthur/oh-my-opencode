@@ -24,7 +24,7 @@ async function withModelStubs<T>(
 }
 
 describe("createBuiltinAgents with model overrides", () => {
-  test("Atlas is registered as a primary orchestrator agent", async () => {
+  test("workflow-automator is registered as a primary orchestrator agent", async () => {
     // #given
     const availableModels = new Set(["anthropic/claude-opus-4-6"])
 
@@ -35,11 +35,11 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.atlas).toBeDefined()
-    expect(agents.atlas.mode).toBe("primary")
+    expect(agents["workflow-automator"]).toBeDefined()
+    expect(agents["workflow-automator"]?.mode).toBe("primary")
   })
 
-  test("Sisyphus with default model has thinking config when all models available", async () => {
+  test("orchestrator with default model has thinking config when all models available", async () => {
     // #given
     const availableModels = new Set([
       "anthropic/claude-opus-4-6",
@@ -56,12 +56,12 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
-    expect(agents.sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
-    expect(agents.sisyphus.reasoningEffort).toBeUndefined()
+    expect(agents.orchestrator.model).toBe("anthropic/claude-opus-4-6")
+    expect(agents.orchestrator.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.orchestrator.reasoningEffort).toBeUndefined()
   })
 
-  test("Sisyphus respects uiSelectedModel when provided (first run)", async () => {
+  test("orchestrator respects uiSelectedModel when provided (first run)", async () => {
     // #given
     const uiSelectedModel = "openai/gpt-5.2"
 
@@ -84,15 +84,15 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.model).toBe(uiSelectedModel)
-    expect(agents.sisyphus.reasoningEffort).toBe("medium")
-    expect(agents.sisyphus.thinking).toBeUndefined()
+    expect(agents.orchestrator.model).toBe(uiSelectedModel)
+    expect(agents.orchestrator.reasoningEffort).toBe("medium")
+    expect(agents.orchestrator.thinking).toBeUndefined()
   })
 
-  test("Sisyphus with GPT model override has reasoningEffort, no thinking", async () => {
+  test("orchestrator with GPT model override has reasoningEffort, no thinking", async () => {
     // #given
     const overrides = {
-      sisyphus: { model: "github-copilot/gpt-5.2" },
+      orchestrator: { model: "github-copilot/gpt-5.2" },
     }
 
     // #when
@@ -102,12 +102,12 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.model).toBe("github-copilot/gpt-5.2")
-    expect(agents.sisyphus.reasoningEffort).toBe("medium")
-    expect(agents.sisyphus.thinking).toBeUndefined()
+    expect(agents.orchestrator.model).toBe("github-copilot/gpt-5.2")
+    expect(agents.orchestrator.reasoningEffort).toBe("medium")
+    expect(agents.orchestrator.thinking).toBeUndefined()
   })
 
-  test("Sisyphus with systemDefaultModel GPT uses fallback chain model in first-run scenario", async () => {
+  test("orchestrator with systemDefaultModel GPT uses fallback chain model in first-run scenario", async () => {
     // #given
     const systemDefaultModel = "openai/gpt-5.2"
 
@@ -118,12 +118,12 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
-    expect(agents.sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
-    expect(agents.sisyphus.reasoningEffort).toBeUndefined()
+    expect(agents.orchestrator.model).toBe("anthropic/claude-opus-4-6")
+    expect(agents.orchestrator.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.orchestrator.reasoningEffort).toBeUndefined()
   })
 
-  test("Oracle uses connected provider fallback when availableModels is empty and cache exists", async () => {
+  test("advisor uses connected provider fallback when availableModels is empty and cache exists", async () => {
     // #given
     const connectedProviders = ["openai"]
 
@@ -134,13 +134,13 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.oracle.model).toBe("openai/gpt-5.2")
-    expect(agents.oracle.reasoningEffort).toBe("medium")
-    expect(agents.oracle.textVerbosity).toBe("high")
-    expect(agents.oracle.thinking).toBeUndefined()
+    expect(agents.advisor.model).toBe("openai/gpt-5.2")
+    expect(agents.advisor.reasoningEffort).toBe("medium")
+    expect(agents.advisor.textVerbosity).toBe("high")
+    expect(agents.advisor.thinking).toBeUndefined()
   })
 
-  test("Oracle created with systemDefaultModel when no cache exists (first run scenario)", async () => {
+  test("advisor created with systemDefaultModel when no cache exists (first run scenario)", async () => {
     // #given
     const connectedProviders = null
 
@@ -151,15 +151,15 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.oracle.model).toBe(TEST_DEFAULT_MODEL)
-    expect(agents.oracle.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
-    expect(agents.oracle.reasoningEffort).toBeUndefined()
+    expect(agents.advisor.model).toBe(TEST_DEFAULT_MODEL)
+    expect(agents.advisor.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.advisor.reasoningEffort).toBeUndefined()
   })
 
-  test("Oracle with GPT model override has reasoningEffort, no thinking", async () => {
+  test("advisor with GPT model override has reasoningEffort, no thinking", async () => {
     // #given
     const overrides = {
-      oracle: { model: "openai/gpt-5.2" },
+      advisor: { model: "openai/gpt-5.2" },
     }
 
     // #when
@@ -169,16 +169,16 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.oracle.model).toBe("openai/gpt-5.2")
-    expect(agents.oracle.reasoningEffort).toBe("medium")
-    expect(agents.oracle.textVerbosity).toBe("high")
-    expect(agents.oracle.thinking).toBeUndefined()
+    expect(agents.advisor.model).toBe("openai/gpt-5.2")
+    expect(agents.advisor.reasoningEffort).toBe("medium")
+    expect(agents.advisor.textVerbosity).toBe("high")
+    expect(agents.advisor.thinking).toBeUndefined()
   })
 
-  test("Oracle with Claude model override has thinking, no reasoningEffort", async () => {
+  test("advisor with Claude model override has thinking, no reasoningEffort", async () => {
     // #given
     const overrides = {
-      oracle: { model: "anthropic/claude-sonnet-4" },
+      advisor: { model: "anthropic/claude-sonnet-4" },
     }
 
     // #when
@@ -188,16 +188,16 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.oracle.model).toBe("anthropic/claude-sonnet-4")
-    expect(agents.oracle.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
-    expect(agents.oracle.reasoningEffort).toBeUndefined()
-    expect(agents.oracle.textVerbosity).toBeUndefined()
+    expect(agents.advisor.model).toBe("anthropic/claude-sonnet-4")
+    expect(agents.advisor.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.advisor.reasoningEffort).toBeUndefined()
+    expect(agents.advisor.textVerbosity).toBeUndefined()
   })
 
   test("non-model overrides are still applied after factory rebuild", async () => {
     // #given
     const overrides = {
-      sisyphus: { model: "github-copilot/gpt-5.2", temperature: 0.5 },
+      orchestrator: { model: "github-copilot/gpt-5.2", temperature: 0.5 },
     }
 
     // #when
@@ -207,14 +207,14 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.model).toBe("github-copilot/gpt-5.2")
-    expect(agents.sisyphus.temperature).toBe(0.5)
+    expect(agents.orchestrator.model).toBe("github-copilot/gpt-5.2")
+    expect(agents.orchestrator.temperature).toBe(0.5)
   })
 
   test("agent override skills are injected into prompt content", async () => {
     // #given
     const overrides = {
-      sisyphus: { skills: ["frontend-ui-ux"] },
+      orchestrator: { skills: ["frontend-ui-ux"] },
     }
 
     // #when
@@ -224,7 +224,7 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.prompt).toContain("Role: Designer-Turned-Developer")
+    expect(agents.orchestrator.prompt).toContain("Role: Designer-Turned-Developer")
   })
 
   test("disabledSkills filter removes discovered skills from generated prompt context", async () => {
@@ -261,7 +261,7 @@ describe("createBuiltinAgents with model overrides", () => {
     )
 
     // #then
-    expect(agents.sisyphus.prompt).not.toContain("UNIQUE_DISABLED_SKILL_MARKER")
+    expect(agents.orchestrator.prompt).not.toContain("UNIQUE_DISABLED_SKILL_MARKER")
   })
 })
 
@@ -277,8 +277,8 @@ describe("createBuiltinAgents without systemDefaultModel", () => {
     )
 
     // #then
-    expect(agents.oracle).toBeDefined()
-    expect(agents.oracle.model).toBe("openai/gpt-5.2")
+    expect(agents.advisor).toBeDefined()
+    expect(agents.advisor.model).toBe("openai/gpt-5.2")
   })
 
   test("agents NOT created when no cache and no systemDefaultModel (first run without defaults)", async () => {
@@ -292,10 +292,10 @@ describe("createBuiltinAgents without systemDefaultModel", () => {
     )
 
     // #then
-    expect(agents.oracle).toBeUndefined()
+    expect(agents.advisor).toBeUndefined()
   })
 
-  test("sisyphus created via connected cache fallback when all providers available", async () => {
+  test("orchestrator created via connected cache fallback when all providers available", async () => {
     // #given
     const connectedProviders = ["anthropic", "kimi-for-coding", "opencode", "zai-coding-plan"]
     const availableModels = new Set([
@@ -313,13 +313,13 @@ describe("createBuiltinAgents without systemDefaultModel", () => {
     )
 
     // #then
-    expect(agents.sisyphus).toBeDefined()
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
+    expect(agents.orchestrator).toBeDefined()
+    expect(agents.orchestrator.model).toBe("anthropic/claude-opus-4-6")
   })
 })
 
-describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => {
-  test("hephaestus is registered as primary deep-worker agent", async () => {
+describe("createBuiltinAgents with requiresProvider gating (executor)", () => {
+  test("executor is registered as primary deep-worker agent", async () => {
     // #given
     const availableModels = new Set(["openai/gpt-5.3-codex"])
 
@@ -330,12 +330,12 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
     )
 
     // #then
-    expect(agents.hephaestus).toBeDefined()
-    expect(agents.hephaestus.mode).toBe("primary")
+    expect(agents.executor).toBeDefined()
+    expect(agents.executor.mode).toBe("primary")
   })
 
-  test("hephaestus is not created when no required provider is connected", async () => {
-    // #given - only anthropic is connected (not in hephaestus required providers)
+  test("executor is not created when no required provider is connected", async () => {
+    // #given - only anthropic is connected (not in executor required providers)
     const availableModels = new Set(["anthropic/claude-opus-4-6"])
 
     // #when
@@ -345,10 +345,10 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
     )
 
     // #then
-    expect(agents.hephaestus).toBeUndefined()
+    expect(agents.executor).toBeUndefined()
   })
 
-  test("hephaestus is created when openai provider is connected", async () => {
+  test("executor is created when openai provider is connected", async () => {
     // #given
     const availableModels = new Set(["openai/gpt-5.3-codex"])
 
@@ -359,10 +359,10 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
     )
 
     // #then
-    expect(agents.hephaestus).toBeDefined()
+    expect(agents.executor).toBeDefined()
   })
 
-  test("hephaestus is created when github-copilot provider is connected", async () => {
+  test("executor is created when github-copilot provider is connected", async () => {
     // #given
     const availableModels = new Set(["github-copilot/gpt-5.3-codex"])
 
@@ -373,10 +373,10 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
     )
 
     // #then
-    expect(agents.hephaestus).toBeDefined()
+    expect(agents.executor).toBeDefined()
   })
 
-  test("hephaestus is created when opencode provider is connected", async () => {
+  test("executor is created when opencode provider is connected", async () => {
     // #given
     const availableModels = new Set(["opencode/gpt-5.3-codex"])
 
@@ -387,10 +387,10 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
     )
 
     // #then
-    expect(agents.hephaestus).toBeDefined()
+    expect(agents.executor).toBeDefined()
   })
 
-  test("hephaestus is created on first run when no availableModels or cache exist", async () => {
+  test("executor is created on first run when no availableModels or cache exist", async () => {
     // #given
     const availableModels = new Set<string>()
 
@@ -401,15 +401,15 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
     )
 
     // #then
-    expect(agents.hephaestus).toBeDefined()
-    expect(agents.hephaestus.model).toBe("openai/gpt-5.3-codex")
+    expect(agents.executor).toBeDefined()
+    expect(agents.executor.model).toBe("openai/gpt-5.3-codex")
   })
 
-  test("hephaestus is created when explicit config provided even if provider unavailable", async () => {
+  test("executor is created when explicit config provided even if provider unavailable", async () => {
     // #given
     const availableModels = new Set(["anthropic/claude-opus-4-6"])
     const overrides = {
-      hephaestus: { model: "anthropic/claude-opus-4-6" },
+      executor: { model: "anthropic/claude-opus-4-6" },
     }
 
     // #when
@@ -419,12 +419,12 @@ describe("createBuiltinAgents with requiresProvider gating (hephaestus)", () => 
     )
 
     // #then
-    expect(agents.hephaestus).toBeDefined()
+    expect(agents.executor).toBeDefined()
   })
 })
 
-describe("createBuiltinAgents with requiresAnyModel gating (sisyphus)", () => {
-  test("sisyphus is created when at least one fallback model is available", async () => {
+describe("createBuiltinAgents with requiresAnyModel gating (orchestrator)", () => {
+  test("orchestrator is created when at least one fallback model is available", async () => {
     // #given
     const availableModels = new Set(["anthropic/claude-opus-4-6"])
 
@@ -435,10 +435,10 @@ describe("createBuiltinAgents with requiresAnyModel gating (sisyphus)", () => {
     )
 
     // #then
-    expect(agents.sisyphus).toBeDefined()
+    expect(agents.orchestrator).toBeDefined()
   })
 
-  test("sisyphus is created on first run when no availableModels or cache exist", async () => {
+  test("orchestrator is created on first run when no availableModels or cache exist", async () => {
     // #given
     const availableModels = new Set<string>()
 
@@ -449,15 +449,15 @@ describe("createBuiltinAgents with requiresAnyModel gating (sisyphus)", () => {
     )
 
     // #then
-    expect(agents.sisyphus).toBeDefined()
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-4-6")
+    expect(agents.orchestrator).toBeDefined()
+    expect(agents.orchestrator.model).toBe("anthropic/claude-opus-4-6")
   })
 
-  test("sisyphus is created when explicit config provided even if no models available", async () => {
+  test("orchestrator is created when explicit config provided even if no models available", async () => {
     // #given
     const availableModels = new Set<string>()
     const overrides = {
-      sisyphus: { model: "anthropic/claude-opus-4-6" },
+      orchestrator: { model: "anthropic/claude-opus-4-6" },
     }
 
     // #when
@@ -467,10 +467,10 @@ describe("createBuiltinAgents with requiresAnyModel gating (sisyphus)", () => {
     )
 
     // #then
-    expect(agents.sisyphus).toBeDefined()
+    expect(agents.orchestrator).toBeDefined()
   })
 
-  test("sisyphus is not created when no fallback model is available (unrelated model only)", async () => {
+  test("orchestrator is not created when no fallback model is available (unrelated model only)", async () => {
     // #given
     const availableModels = new Set(["openai/gpt-5.2"])
 
@@ -481,7 +481,7 @@ describe("createBuiltinAgents with requiresAnyModel gating (sisyphus)", () => {
     )
 
     // #then
-    expect(agents.sisyphus).toBeUndefined()
+    expect(agents.orchestrator).toBeUndefined()
   })
 })
 
@@ -489,7 +489,7 @@ describe("override.category expansion in createBuiltinAgents", () => {
   test("standard agent override with category expands category properties", async () => {
     // #given
     const overrides = {
-      oracle: { category: "ultrabrain" },
+      advisor: { category: "ultrabrain" },
     }
 
     // #when
@@ -499,15 +499,15 @@ describe("override.category expansion in createBuiltinAgents", () => {
     )
 
     // #then
-    expect(agents.oracle).toBeDefined()
-    expect(agents.oracle.model).toBe("openai/gpt-5.3-codex")
-    expect(agents.oracle.variant).toBe("xhigh")
+    expect(agents.advisor).toBeDefined()
+    expect(agents.advisor.model).toBe("openai/gpt-5.3-codex")
+    expect(agents.advisor.variant).toBe("xhigh")
   })
 
   test("standard agent override with category AND direct variant - direct wins", async () => {
     // #given
     const overrides = {
-      oracle: { category: "ultrabrain", variant: "max" },
+      advisor: { category: "ultrabrain", variant: "max" },
     }
 
     // #when
@@ -517,8 +517,8 @@ describe("override.category expansion in createBuiltinAgents", () => {
     )
 
     // #then
-    expect(agents.oracle).toBeDefined()
-    expect(agents.oracle.variant).toBe("max")
+    expect(agents.advisor).toBeDefined()
+    expect(agents.advisor.variant).toBe("max")
   })
 
   test("standard agent override with category AND direct reasoningEffort - direct wins", async () => {
@@ -530,7 +530,7 @@ describe("override.category expansion in createBuiltinAgents", () => {
       },
     }
     const overrides = {
-      oracle: { category: "test-cat", reasoningEffort: "low" as const },
+      advisor: { category: "test-cat", reasoningEffort: "low" as const },
     }
 
     // #when
@@ -540,8 +540,8 @@ describe("override.category expansion in createBuiltinAgents", () => {
     )
 
     // #then
-    expect(agents.oracle).toBeDefined()
-    expect(agents.oracle.reasoningEffort).toBe("low")
+    expect(agents.advisor).toBeDefined()
+    expect(agents.advisor.reasoningEffort).toBe("low")
   })
 
   test("standard agent override with category applies reasoningEffort from category when no direct override", async () => {
@@ -553,7 +553,7 @@ describe("override.category expansion in createBuiltinAgents", () => {
       },
     }
     const overrides = {
-      oracle: { category: "reasoning-cat" },
+      advisor: { category: "reasoning-cat" },
     }
 
     // #when
@@ -563,8 +563,8 @@ describe("override.category expansion in createBuiltinAgents", () => {
     )
 
     // #then
-    expect(agents.oracle).toBeDefined()
-    expect(agents.oracle.reasoningEffort).toBe("high")
+    expect(agents.advisor).toBeDefined()
+    expect(agents.advisor.reasoningEffort).toBe("high")
   })
 
   test("standard agent override with category appends prompt_append to base prompt", async () => {
@@ -576,7 +576,7 @@ describe("override.category expansion in createBuiltinAgents", () => {
       },
     }
     const overrides = {
-      oracle: { category: "prompt-cat" },
+      advisor: { category: "prompt-cat" },
     }
 
     // #when
@@ -586,14 +586,14 @@ describe("override.category expansion in createBuiltinAgents", () => {
     )
 
     // #then
-    expect(agents.oracle).toBeDefined()
-    expect(agents.oracle.prompt).toContain("CATEGORY_PROMPT_APPEND_MARKER")
+    expect(agents.advisor).toBeDefined()
+    expect(agents.advisor.prompt).toContain("CATEGORY_PROMPT_APPEND_MARKER")
   })
 
-  test("sisyphus override with category expands category properties", async () => {
+  test("orchestrator override with category expands category properties", async () => {
     // #given
     const overrides = {
-      sisyphus: { category: "ultrabrain" },
+      orchestrator: { category: "ultrabrain" },
     }
 
     // #when
@@ -603,15 +603,15 @@ describe("override.category expansion in createBuiltinAgents", () => {
     )
 
     // #then
-    expect(agents.sisyphus).toBeDefined()
-    expect(agents.sisyphus.model).toBe("openai/gpt-5.3-codex")
-    expect(agents.sisyphus.variant).toBe("xhigh")
+    expect(agents.orchestrator).toBeDefined()
+    expect(agents.orchestrator.model).toBe("openai/gpt-5.3-codex")
+    expect(agents.orchestrator.variant).toBe("xhigh")
   })
 
   test("override with non-existent category has no effect on config", async () => {
     // #given
     const overrides = {
-      oracle: { category: "non-existent-category" },
+      advisor: { category: "non-existent-category" },
     }
 
     // #when
@@ -625,9 +625,9 @@ describe("override.category expansion in createBuiltinAgents", () => {
     )
 
     // #then
-    expect(agentsWithOverride.oracle).toBeDefined()
-    expect(agentsWithoutOverride.oracle).toBeDefined()
-    expect(agentsWithOverride.oracle.model).toBe(agentsWithoutOverride.oracle.model)
+    expect(agentsWithOverride.advisor).toBeDefined()
+    expect(agentsWithoutOverride.advisor).toBeDefined()
+    expect(agentsWithOverride.advisor.model).toBe(agentsWithoutOverride.advisor.model)
   })
 })
 

@@ -12,33 +12,33 @@ describe("session-utils execution ownership", () => {
     _resetForTesting()
   })
 
-  test("treats atlas as the only execution owner caller", () => {
+  test("treats workflow-automator as the only execution owner caller", () => {
     // #given
-    updateSessionAgent("ses-atlas", "atlas")
-    updateSessionAgent("ses-sisyphus", "sisyphus")
+    updateSessionAgent("ses-workflow-automator", "workflow-automator")
+    updateSessionAgent("ses-orchestrator", "orchestrator")
 
     // #when / #then
-    expect(getExecutionCaller("ses-atlas")).toBe("atlas")
-    expect(getExecutionCaller("ses-sisyphus")).toBeNull()
-    expect(resolveExecutionOwnership("ses-atlas", "atlas")).toBe("matched")
-    expect(resolveExecutionOwnership("ses-sisyphus", "atlas")).toBe("mismatched")
+    expect(getExecutionCaller("ses-workflow-automator")).toBe("workflow-automator")
+    expect(getExecutionCaller("ses-orchestrator")).toBeNull()
+    expect(resolveExecutionOwnership("ses-workflow-automator", "workflow-automator")).toBe("matched")
+    expect(resolveExecutionOwnership("ses-orchestrator", "workflow-automator")).toBe("mismatched")
   })
 
   test("keeps orchestrator detection broad for non-execution hooks", () => {
     // #given
-    updateSessionAgent("ses-atlas", "atlas")
-    updateSessionAgent("ses-sisyphus", "sisyphus")
+    updateSessionAgent("ses-workflow-automator", "workflow-automator")
+    updateSessionAgent("ses-orchestrator", "orchestrator")
 
     // #when / #then
-    expect(getOrchestratorCaller("ses-atlas")).toBe("atlas")
-    expect(getOrchestratorCaller("ses-sisyphus")).toBe("sisyphus")
-    expect(isCallerOrchestrator("ses-atlas")).toBe(true)
-    expect(isCallerOrchestrator("ses-sisyphus")).toBe(true)
+    expect(getOrchestratorCaller("ses-workflow-automator")).toBe("workflow-automator")
+    expect(getOrchestratorCaller("ses-orchestrator")).toBe("orchestrator")
+    expect(isCallerOrchestrator("ses-workflow-automator")).toBe(true)
+    expect(isCallerOrchestrator("ses-orchestrator")).toBe(true)
   })
 
   test("returns unknown ownership when caller metadata is absent", () => {
     // #given / #when / #then
-    expect(resolveExecutionOwnership(undefined, "atlas")).toBe("unknown")
-    expect(resolveExecutionOwnership("ses-missing", "atlas")).toBe("unknown")
+    expect(resolveExecutionOwnership(undefined, "workflow-automator")).toBe("unknown")
+    expect(resolveExecutionOwnership("ses-missing", "workflow-automator")).toBe("unknown")
   })
 })

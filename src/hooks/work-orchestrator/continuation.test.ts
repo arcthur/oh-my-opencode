@@ -55,7 +55,7 @@ describe("work-orchestrator continuation arbiter", () => {
       sessionID: "session-immediate",
       source: "work-orchestrator",
       reason: "execution",
-      prompt: { text: "execution continuation", agent: "sisyphus" },
+      prompt: { text: "execution continuation", agent: "orchestrator" },
       onResult: (result) => {
         outcomes.execution = result
       },
@@ -119,7 +119,7 @@ describe("work-orchestrator continuation arbiter", () => {
       round,
       source: "work-orchestrator",
       reason: "execution",
-      prompt: { text: "execution continuation", agent: "sisyphus" },
+      prompt: { text: "execution continuation", agent: "orchestrator" },
       onResult: (result) => {
         outcomes.execution = result
       },

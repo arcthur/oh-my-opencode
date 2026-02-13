@@ -147,23 +147,23 @@ export function buildToolSelectionTable(
   }
 
   rows.push("")
-  rows.push("**Default flow**: explore/librarian (background) + tools → oracle (if required)")
+  rows.push("**Default flow**: navigator/librarian (background) + tools → advisor (if required)")
 
   return rows.join("\n")
 }
 
 export function buildExploreSection(agents: AvailableAgent[]): string {
-  const exploreAgent = agents.find((a) => a.name === "explore")
+  const exploreAgent = agents.find((a) => a.name === "navigator")
   if (!exploreAgent) return ""
 
   const useWhen = exploreAgent.metadata.useWhen || []
   const avoidWhen = exploreAgent.metadata.avoidWhen || []
 
-  return `### Explore Agent = Contextual Grep
+  return `### navigator Agent = Contextual Grep
 
 Use it as a **peer tool**, not a fallback. Fire liberally.
 
-| Use Direct Tools | Use Explore Agent |
+| Use Direct Tools | Use navigator Agent |
 |------------------|-------------------|
 ${avoidWhen.map((w) => `| ${sanitizeMarkdownTableCell(w)} |  |`).join("\n")}
 ${useWhen.map((w) => `|  | ${sanitizeMarkdownTableCell(w)} |`).join("\n")}`
@@ -357,33 +357,33 @@ delegate_task(description="...", category="...", load_skills=[], run_in_backgrou
 \`\`\`${truncationNote}`
 }
 
-export function buildOracleSection(agents: AvailableAgent[]): string {
-  const oracleAgent = agents.find((a) => a.name === "oracle")
-  if (!oracleAgent) return ""
+export function buildAdvisorSection(agents: AvailableAgent[]): string {
+  const advisorAgent = agents.find((a) => a.name === "advisor")
+  if (!advisorAgent) return ""
 
-  const useWhen = oracleAgent.metadata.useWhen || []
-  const avoidWhen = oracleAgent.metadata.avoidWhen || []
+  const useWhen = advisorAgent.metadata.useWhen || []
+  const avoidWhen = advisorAgent.metadata.avoidWhen || []
 
-  return `<Oracle_Usage>
-## Oracle — Read-Only High-IQ Consultant
+  return `<Advisor_Usage>
+## advisor — Read-Only High-IQ Consultant
 
-Oracle is a read-only, expensive, high-quality reasoning model for debugging and architecture. Consultation only.
+advisor is a read-only, expensive, high-quality reasoning model for debugging and architecture. Consultation only.
 
 ### WHEN to Consult:
 
 | Trigger | Action |
 |---------|--------|
-${useWhen.map((w) => `| ${sanitizeMarkdownTableCell(w)} | Oracle FIRST, then implement |`).join("\n")}
+${useWhen.map((w) => `| ${sanitizeMarkdownTableCell(w)} | advisor FIRST, then implement |`).join("\n")}
 
 ### WHEN NOT to Consult:
 
 ${avoidWhen.map((w) => `- ${sanitizeMarkdownTableCell(w)}`).join("\n")}
 
 ### Usage Pattern:
-Briefly announce "Consulting Oracle for [reason]" before invocation.
+Briefly announce "Consulting advisor for [reason]" before invocation.
 
 **Exception**: This is the ONLY case where you announce before acting. For all other work, start immediately without status updates.
-</Oracle_Usage>`
+</Advisor_Usage>`
 }
 
 export function buildHardBlocksSection(): string {
@@ -445,7 +445,7 @@ export function buildUltraworkSection(
   }
 
   if (agents.length > 0) {
-    const ultraworkAgentPriority = ["explore", "librarian", "plan", "oracle"]
+    const ultraworkAgentPriority = ["navigator", "librarian", "plan", "advisor"]
     const sortedAgents = [...agents].sort((a, b) => {
       const aIdx = ultraworkAgentPriority.indexOf(a.name)
       const bIdx = ultraworkAgentPriority.indexOf(b.name)
@@ -459,7 +459,7 @@ export function buildUltraworkSection(
     for (const agent of sortedAgents) {
       const safeName = sanitizeMarkdownTableCell(agent.name)
       const shortDesc = sanitizeMarkdownTableCell(truncateFirstSentence(agent.description))
-      const suffix = agent.name === "explore" || agent.name === "librarian" ? " (multiple)" : ""
+      const suffix = agent.name === "navigator" || agent.name === "librarian" ? " (multiple)" : ""
       lines.push(`- \`${safeName}${suffix}\`: ${shortDesc}`)
     }
   }

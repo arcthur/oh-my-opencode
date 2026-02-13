@@ -19,16 +19,16 @@ import {
   createTeam,
   readManifest,
   createAgentIdentity,
-} from "../features/sisyphus-swarm/team"
+} from "../features/orchestrator-swarm/team"
 import {
   createSwarmOrchestrator,
   SwarmOrchestrator,
   closeSwarmWindowsByTeam,
   getCurrentSession,
   inspectSwarmWindowsByTeam,
-} from "../features/sisyphus-swarm/tmux"
-import { createSwarmTask } from "../features/sisyphus-swarm/task-graph"
-import type { SwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
+} from "../features/orchestrator-swarm/tmux"
+import { createSwarmTask } from "../features/orchestrator-swarm/task-graph"
+import type { SwarmRuntimeService } from "../features/orchestrator-swarm/runtime"
 import { getRuntimeSnapshot, resolveParallelRuntimeConfig } from "../features/parallel-runtime"
 import { log } from "../shared/logger"
 
@@ -638,7 +638,7 @@ async function executeSwarmCommand(
     case "help":
     default: {
       return [
-        "Sisyphus Swarm - Multi-Agent Coordination",
+        "orchestrator Swarm - Multi-Agent Coordination",
         "",
         "Commands:",
         "  /swarm create <team>  - Create team, become coordinator",
@@ -670,7 +670,7 @@ async function executeSwarmCommand(
 export function createSwarmTool(ctx: SwarmToolContext): ToolDefinition {
   return tool({
     description:
-      "Multi-agent coordination via Sisyphus Swarm. " +
+      "Multi-agent coordination via orchestrator Swarm. " +
       "Commands: 'create <team>' to create a team and become coordinator, " +
       "'spawn <count>' to spawn N workers in tmux windows, " +
       "'task add <title> [description]' to add a task to the graph, " +

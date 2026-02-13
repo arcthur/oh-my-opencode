@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto"
 import { existsSync, readdirSync, unlinkSync } from "node:fs"
 import { isAbsolute, join } from "node:path"
 import type { OhMyOpenCodeConfig } from "../../config/schema"
-import { ensureDir, getProjectRoot, readJsonSafe, writeJsonAtomic } from "../sisyphus-tasks/storage"
-import { withLockSync } from "../sisyphus-swarm/sync/semaphore"
+import { ensureDir, getProjectRoot, readJsonSafe, writeJsonAtomic } from "../orchestrator-tasks/storage"
+import { withLockSync } from "../orchestrator-swarm/sync/semaphore"
 import { TaskNodeSchema, type TaskNode, type TaskScope } from "./domain"
 
 const GRAPH_LOCK_RESOURCE = "__graph__"
@@ -13,7 +13,7 @@ export function sanitizeTaskPathSegment(value: string): string {
 }
 
 export function getTaskGraphRoot(config: Partial<OhMyOpenCodeConfig>): string {
-  const storagePath = config.sisyphus?.tasks?.storage_path ?? ".sisyphus/tasks"
+  const storagePath = config.orchestrator?.tasks?.storage_path ?? ".orchestrator/tasks"
   if (isAbsolute(storagePath)) {
     return storagePath
   }

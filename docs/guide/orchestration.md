@@ -6,7 +6,7 @@
 |------------|----------|-------------|
 | **Simple** | Just prompt | Simple tasks, quick fixes, single-file changes |
 | **Complex + Lazy** | Just type `ulw` or `ultrawork` | Complex tasks where explaining context is tedious. Agent figures it out. |
-| **Complex + Precise** | `@plan` → `/start-work` | Precise, multi-step work requiring true orchestration. Prometheus plans, Atlas executes. |
+| **Complex + Precise** | `@plan` → `/start-work` | Precise, multi-step work requiring true orchestration. planner plans, workflow-automator executes. |
 | **Complex + Parallel (Isolated)** | `@plan` → `/start-work` (Swarm-first) | Large work where you want parallel execution with git worktree isolation and a recoverable TaskGraph state. |
 
 **Decision Flow:**
@@ -31,8 +31,8 @@ Traditional AI agents often mix planning and execution, leading to context pollu
 
 Oh-My-OpenCode solves this by clearly separating two roles:
 
-1. **Prometheus**: A pure strategist who never writes code. Establishes perfect plans through interviews and analysis.
-2. **Atlas (Executor)**: An execution orchestrator for `/start-work`. Delegates work to specialized agents and never stops until completion.
+1. **planner**: A pure strategist who never writes code. Establishes perfect plans through interviews and analysis.
+2. **workflow-automator (Executor)**: An execution orchestrator for `/start-work`. Delegates work to specialized agents and never stops until completion.
 
 ---
 
@@ -40,29 +40,29 @@ Oh-My-OpenCode solves this by clearly separating two roles:
 
 ```mermaid
 flowchart TD
-    User[User Request] --> Metis
+    User[User Request] --> scope-analyst
 
     subgraph Planning Phase
-        Metis["Metis<br>(Pre-Planning)"] --> Prometheus["Prometheus<br>Planner"]
-        Prometheus --> Momus["Momus<br>(Plan Review)"]
-        Momus --> Prometheus
-        Prometheus --> PlanSpec[".sisyphus/plans/{planId}/plan.md"]
-        Prometheus --> ManifestFile[".sisyphus/context-manifests/{planId}.md"]
+        scope-analyst["scope-analyst<br>(Pre-Planning)"] --> planner["planner<br>Planner"]
+        planner --> reviewer["reviewer<br>(Plan Review)"]
+        reviewer --> planner
+        planner --> PlanSpec[".orchestrator/plans/{planId}/plan.md"]
+        planner --> ManifestFile[".orchestrator/context-manifests/{planId}.md"]
     end
 
     PlanSpec --> StartWork["/start-work"]
-    StartWork --> WorkState[".sisyphus/work.yaml"]
-    StartWork --> ExecPlan[".sisyphus/plans/{planId}/plan.md"]
-    StartWork --> TaskGraph[".sisyphus/tasks/plan/{planId}/task_*.json"]
+    StartWork --> WorkState[".orchestrator/work.yaml"]
+    StartWork --> ExecPlan[".orchestrator/plans/{planId}/plan.md"]
+    StartWork --> TaskGraph[".orchestrator/tasks/plan/{planId}/task_*.json"]
 
     subgraph Execution Phase
-        WorkState --> Atlas[Atlas<br>Execution Orchestrator]
-        TaskGraph -.-> |"TASK SSOT"| Atlas
-        ExecPlan -.-> |"PLAN SPEC"| Atlas
-        ManifestFile -.-> |"CONTEXT PACKS"| Atlas
-        Atlas --> Oracle[Oracle]
-        Atlas --> Junior["Sisyphus-Junior<br>Executor"]
-        Atlas --> Explore[Explore]
+        WorkState --> workflow-automator[workflow-automator<br>Execution Orchestrator]
+        TaskGraph -.-> |"TASK SSOT"| workflow-automator
+        ExecPlan -.-> |"PLAN SPEC"| workflow-automator
+        ManifestFile -.-> |"CONTEXT PACKS"| workflow-automator
+        workflow-automator --> advisor[advisor]
+        workflow-automator --> Junior["specialist<br>Executor"]
+        workflow-automator --> navigator[navigator]
     end
 ```
 
@@ -72,12 +72,12 @@ The system uses two complementary sources of truth:
 
 | SSOT | File | Purpose |
 |------|------|---------|
-| **STATE** | `.sisyphus/work.yaml` | Session metadata, protocol state (2-action, 3-strike), decision history |
-| **TASKS** | `.sisyphus/tasks/<scope>/<container_id>/task_*.json` | TaskGraph nodes: state, dependencies, revision (CAS), optional lease |
+| **STATE** | `.orchestrator/work.yaml` | Session metadata, protocol state (2-action, 3-strike), decision history |
+| **TASKS** | `.orchestrator/tasks/<scope>/<container_id>/task_*.json` | TaskGraph nodes: state, dependencies, revision (CAS), optional lease |
 
 - **work.yaml** is machine-optimized: structured YAML for programmatic session management
 - **plans/*/plan.md** is human-optimized: plan spec and task seed (not task state)
-- **Path convention**: `work.yaml.execution_plan_path` is stored as a **workspace-relative** path when possible (e.g., `.sisyphus/plans/<planId>/plan.md`)
+- **Path convention**: `work.yaml.execution_plan_path` is stored as a **workspace-relative** path when possible (e.g., `.orchestrator/plans/<planId>/plan.md`)
 
 **Performance Note (Optional Cache):**
 
@@ -98,23 +98,23 @@ task_snapshot:
 
 ## 3. Key Components
 
-### Prometheus (Planner)
+### planner (Planner)
 - **Model**: `anthropic/claude-opus-4-6`
 - **Role**: Strategic planning, requirements interviews, work plan creation
-- **Constraint**: **READ-ONLY**. Can only create/modify markdown files within `.sisyphus/` directory.
+- **Constraint**: **READ-ONLY**. Can only create/modify markdown files within `.orchestrator/` directory.
 - **Characteristic**: Never writes code directly, focuses solely on "how to do it".
 
-### Pre-Planning and Review (Metis → Prometheus → Momus)
-- **Metis**: Pre-planning validator that treats Prometheus intent classification as authoritative, then returns `MATCH` or evidence-based `OVERRIDE` when a mismatch is detected
-- **Prometheus**: Strategic planner that generates detailed work plans
-- **Momus**: Plan reviewer that verifies executability and enforces a zero-human verification gate (concrete verification command, no manual-user steps, actionable task start points)
+### Pre-Planning and Review (scope-analyst → planner → reviewer)
+- **scope-analyst**: Pre-planning validator that treats planner intent classification as authoritative, then returns `MATCH` or evidence-based `OVERRIDE` when a mismatch is detected
+- **planner**: Strategic planner that generates detailed work plans
+- **reviewer**: Plan reviewer that verifies executability and enforces a zero-human verification gate (concrete verification command, no manual-user steps, actionable task start points)
 
-### Atlas (Execution Orchestrator)
+### workflow-automator (Execution Orchestrator)
 - **Model**: `anthropic/claude-opus-4-6` (Extended Thinking 32k)
 - **Role**: Plan execution and delegation for `/start-work`
-- **Characteristic**: Delegates implementation to specialized agents (Oracle, Librarian, Explore, etc.) and uses Categories + Skills for domain routing (e.g., `visual-engineering` + `frontend-ui-ux` for UI work).
+- **Characteristic**: Delegates implementation to specialized agents (advisor, librarian, navigator, etc.) and uses Categories + Skills for domain routing (e.g., `visual-engineering` + `frontend-ui-ux` for UI work).
 
-### Sisyphus (General Orchestrator)
+### orchestrator (General Orchestrator)
 - **Role**: Default primary orchestrator for open-ended work and non-`/start-work` sessions.
 
 ---
@@ -122,37 +122,37 @@ task_snapshot:
 ## 4. Workflow
 
 ### Phase 1: Interview and Planning (Interview Mode)
-Prometheus starts in **interview mode** by default. Instead of immediately creating a plan, it collects sufficient context.
+planner starts in **interview mode** by default. Instead of immediately creating a plan, it collects sufficient context.
 
 1. **Intent Identification**: Classifies request intent using a shared taxonomy (Trivial/Simple, Refactoring, Build, Mid-sized, Collaborative, Architecture, Research).
-2. **Context Collection**: Investigates codebase and external documentation through `explore` and `librarian` agents.
-3. **Draft Creation**: Continuously records discussion content in `.sisyphus/drafts/`.
+2. **Context Collection**: Investigates codebase and external documentation through `navigator` and `librarian` agents.
+3. **Draft Creation**: Continuously records discussion content in `.orchestrator/drafts/`.
 
 ### Phase 2: Plan Generation
 When the user requests "Make it a plan", plan generation begins.
 
-1. **Pre-planning (Metis)**: Metis validates Prometheus's claimed intent and reports mismatch overrides with evidence, plus ambiguities/scope gaps.
-2. **Plan Creation**: Prometheus writes a plan spec to `.sisyphus/plans/{planId}/plan.md` and a context manifest to `.sisyphus/context-manifests/{planId}.md`.
-3. **Plan Review (Momus)**: Momus verifies plan executability and catches blocking issues.
-4. **Draft Archival + Handoff**: Prometheus archives the working draft to `.sisyphus/drafts/_archive/` and then guides user to use `/start-work`.
+1. **Pre-planning (scope-analyst)**: scope-analyst validates planner's claimed intent and reports mismatch overrides with evidence, plus ambiguities/scope gaps.
+2. **Plan Creation**: planner writes a plan spec to `.orchestrator/plans/{planId}/plan.md` and a context manifest to `.orchestrator/context-manifests/{planId}.md`.
+3. **Plan Review (reviewer)**: reviewer verifies plan executability and catches blocking issues.
+4. **Draft Archival + Handoff**: planner archives the working draft to `.orchestrator/drafts/_archive/` and then guides user to use `/start-work`.
 
 ### Phase 3: Execution
 When the user enters `/start-work`, the execution phase begins.
 
 1. **State Management**: Creates/updates `work.yaml` to track active plan, session IDs, and protocol state.
-2. **Task Execution**: Atlas processes tasks from TaskGraph (seeded from `plan.md`) and advances state via `task_transition`.
-3. **Delegation**: UI work is delegated via category + skills (e.g., `visual-engineering` + `frontend-ui-ux`, executed by Sisyphus-Junior); complex logic to Oracle.
+2. **Task Execution**: workflow-automator processes tasks from TaskGraph (seeded from `plan.md`) and advances state via `task_transition`.
+3. **Delegation**: UI work is delegated via category + skills (e.g., `visual-engineering` + `frontend-ui-ux`, executed by specialist); complex logic to advisor.
 4. **Continuity**: Even if the session is interrupted, work continues in the next session through `work.yaml`.
 5. **Protocol Enforcement**: 2-action rule (research tracking) and 3-strike protocol (error recording) are managed via work.yaml.
-6. **Completion Routine**: When all TaskGraph tasks are complete, Atlas writes `.sisyphus/plans/{planId}/completion.md`, includes reminder telemetry summary, clears work state, and switches active work sessions back to default orchestrator agent.
-   - Reminder telemetry is persisted per plan during execution (`.sisyphus/plans/{planId}/orchestrator-reminder-telemetry.json`) so completion summaries survive session compaction and process restarts.
+6. **Completion Routine**: When all TaskGraph tasks are complete, workflow-automator writes `.orchestrator/plans/{planId}/completion.md`, includes reminder telemetry summary, clears work state, and switches active work sessions back to default orchestrator agent.
+   - Reminder telemetry is persisted per plan during execution (`.orchestrator/plans/{planId}/orchestrator-reminder-telemetry.json`) so completion summaries survive session compaction and process restarts.
 
 #### Swarm-first Execution (Parallel Worktrees)
 
 If Swarm-first is enabled, `/start-work` becomes a bootstrap point for a **recoverable parallel execution** model:
 
 - A Swarm team is created (or recovered) for the active plan.
-- Plan tasks (from `plan.md` `## Tasks`) are synced into TaskGraph under `.sisyphus/tasks/swarm/<team>/`.
+- Plan tasks (from `plan.md` `## Tasks`) are synced into TaskGraph under `.orchestrator/tasks/swarm/<team>/`.
 - Worker processes can be spawned in tmux windows, optionally one git worktree per worker.
 - The coordinator auto-assigns tasks; completion is tracked in TaskGraph (not by editing the plan file in parallel).
 
@@ -163,12 +163,12 @@ This is the closest “Trellis-style” binding between **task structure**, **wo
 ## 5. Commands and Usage
 
 ### `@plan [request]`
-Invokes Prometheus to start a planning session.
+Invokes planner to start a planning session.
 - Example: `@plan "I want to refactor the authentication system to NextAuth"`
 
 ### `/start-work`
 Executes the generated plan.
-- Function: Finds plan in `.sisyphus/plans/` and enters execution mode.
+- Function: Finds plan in `.orchestrator/plans/` and enters execution mode.
 - If there's interrupted work, automatically resumes from where it left off.
 
 ---
@@ -179,10 +179,10 @@ You can control related features in `oh-my-opencode/*.json`.
 
 ```jsonc
 {
-  "sisyphus_agent": {
-    "disabled": false,           // Disable Sisyphus orchestration when true (default: false)
-    "planner_enabled": true,     // Enable Prometheus (default: true)
-    "replace_plan": true         // Replace default plan agent with Prometheus (default: true)
+  "orchestrator_agent": {
+    "disabled": false,           // Disable orchestrator orchestration when true (default: false)
+    "planner_enabled": true,     // Enable planner (default: true)
+    "replace_plan": true         // Replace default plan agent with planner (default: true)
   },
   
   // Hook settings (add to disable)
@@ -198,11 +198,11 @@ You can control related features in `oh-my-opencode/*.json`.
 
 Swarm-first requires both TaskGraph and Swarm to be enabled.
 
-> **Schema reference**: `src/config/schema.ts` — `SisyphusConfigSchema`, `TmuxParallelAgentsConfigSchema`
+> **Schema reference**: `src/config/schema.ts` — `OrchestratorConfigSchema`, `TmuxParallelAgentsConfigSchema`
 
 ```jsonc
 {
-  "sisyphus": {
+  "orchestrator": {
     "tasks": { "enabled": true },       // default: false
     "swarm": {
       "enabled": true,                  // default: false
@@ -221,7 +221,7 @@ Recommended hardening settings for production-like local runs:
 
 ```jsonc
 {
-  "sisyphus": {
+  "orchestrator": {
     "swarm": {
       "enforce_sender_validation": true,
       "enforce_signature": true,
@@ -265,7 +265,7 @@ Note: in `enforce` mode, Background admissions may wait up to `acquire_timeout_m
 
 ## 7. Best Practices
 
-1. **Don't Rush**: Invest sufficient time in the interview with Prometheus. The more perfect the plan, the faster the execution.
+1. **Don't Rush**: Invest sufficient time in the interview with planner. The more perfect the plan, the faster the execution.
 2. **Single Plan Principle**: No matter how large the task, contain all task items in one plan file (`.md`). This prevents context fragmentation.
 3. **Active Delegation**: During execution, delegate to specialized agents via `delegate_task` rather than modifying code directly.
 
@@ -279,15 +279,15 @@ Deep dive (recommended): `docs/journeys/context-packs-and-manifests.md`
 
 ### 8.1 Artifacts and Responsibilities
 
-- **TaskGraph (Task SSOT)**: `.sisyphus/tasks/plan/{planId}/task_*.json`
-- **Plan spec (human-readable)**: `.sisyphus/plans/{planId}/plan.md`
-- **Context Manifest (Delegation Context)**: `.sisyphus/context-manifests/{planId}.md`
+- **TaskGraph (Task SSOT)**: `.orchestrator/tasks/plan/{planId}/task_*.json`
+- **Plan spec (human-readable)**: `.orchestrator/plans/{planId}/plan.md`
+- **Context Manifest (Delegation Context)**: `.orchestrator/context-manifests/{planId}.md`
   - Organized as *Context Packs* (3–8 stable pack IDs)
   - Each pack lists the relevant specs / key files / index entrypoints, plus **why** (what the executor should extract)
 
 ### 8.2 Deterministic Injection (v2)
 
-When Atlas Execution Mode calls `delegate_task(...)`, if the prompt contains:
+When workflow-automator Execution Mode calls `delegate_task(...)`, if the prompt contains:
 
 ```text
 Context Packs: global, tooling
@@ -322,17 +322,17 @@ Benefits:
 
 ### 8.3 Recommended Conventions
 
-- When Prometheus generates the plan:
-  - Also generate `.sisyphus/context-manifests/{planId}.md`
+- When planner generates the plan:
+  - Also generate `.orchestrator/context-manifests/{planId}.md`
   - Every task block must include a `Context Packs:` selector line (used by the injector)
-- When Atlas Execution Mode delegates:
+- When workflow-automator Execution Mode delegates:
   - Copy the task’s `Context Packs:` line verbatim into the `delegate_task` prompt (keep it a single line)
 
 ### 8.4 Troubleshooting (Quick)
 
 If “it didn’t inject anything”, check:
-- You ran `/start-work` (so `.sisyphus/work.yaml` exists and `plan_id` is set)
-- `.sisyphus/context-manifests/{plan_id}.md` exists
+- You ran `/start-work` (so `.orchestrator/work.yaml` exists and `plan_id` is set)
+- `.orchestrator/context-manifests/{plan_id}.md` exists
 - The manifest contains a valid `[CONTEXT_MANIFEST]...[/CONTEXT_MANIFEST]` JSON block
 - Your `delegate_task` prompt includes `Context Packs: ...`
 - The hook is enabled (not listed in `disabled_hooks`)

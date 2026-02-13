@@ -35,6 +35,7 @@ Built-in command names surfaced by `BuiltinCommandNameSchema`:
 - `/ralph-loop`
 - `/ulw-loop`
 - `/cancel-ralph`
+- `/cartography`
 - `/refactor`
 - `/start-work`
 - `/stop-continuation`
@@ -43,13 +44,14 @@ Built-in command names surfaced by `BuiltinCommandNameSchema`:
 
 | Command | Default agent binding | Template source |
 |---|---|---|
-| `/brainstorm` | `prometheus` | `src/features/builtin-commands/templates/brainstorm.ts` |
+| `/brainstorm` | `planner` | `src/features/builtin-commands/templates/brainstorm.ts` |
 | `/init-deep` | runtime default | `src/features/builtin-commands/templates/init-deep.ts` |
 | `/ralph-loop` | runtime default | `src/features/builtin-commands/templates/ralph-loop.ts` |
 | `/ulw-loop` | runtime default | `src/features/builtin-commands/templates/ralph-loop.ts` |
 | `/cancel-ralph` | runtime default | `src/features/builtin-commands/templates/ralph-loop.ts` |
+| `/cartography` | runtime default | `src/features/builtin-commands/templates/cartography.ts` |
 | `/refactor` | runtime default | `src/features/builtin-commands/templates/refactor.ts` |
-| `/start-work` | `atlas` | `src/features/builtin-commands/templates/start-work.ts` |
+| `/start-work` | `workflow-automator` | `src/features/builtin-commands/templates/start-work.ts` |
 | `/stop-continuation` | runtime default | `src/features/builtin-commands/templates/stop-continuation.ts` |
 
 Contract:

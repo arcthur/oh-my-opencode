@@ -108,8 +108,8 @@ describe("GovernanceIntegration", () => {
       // #given
       const sessionA = "test-session-integration-cleanup-a"
       const sessionB = "test-session-integration-cleanup-b"
-      const tracePathA = join(homedir(), ".sisyphus", "traces", `${sessionA}.json`)
-      const tracePathB = join(homedir(), ".sisyphus", "traces", `${sessionB}.json`)
+      const tracePathA = join(homedir(), ".orchestrator", "traces", `${sessionA}.json`)
+      const tracePathB = join(homedir(), ".orchestrator", "traces", `${sessionB}.json`)
       rmSync(tracePathA, { force: true })
       rmSync(tracePathB, { force: true })
 
@@ -157,7 +157,7 @@ describe("GovernanceIntegration", () => {
     it("persists trace snapshot before session deletion", async () => {
       // #given
       const snapshotSessionId = "test-session-integration-snapshot"
-      const tracePath = join(homedir(), ".sisyphus", "traces", `${snapshotSessionId}.json`)
+      const tracePath = join(homedir(), ".orchestrator", "traces", `${snapshotSessionId}.json`)
       rmSync(tracePath, { force: true })
 
       initGovernanceSession(snapshotSessionId, testCwd, {

@@ -11,8 +11,8 @@ import { executeOnCompleteHook } from "./on-complete-hook"
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_SERVER_HOSTNAME = "127.0.0.1"
-const CORE_AGENT_ORDER = ["sisyphus", "hephaestus", "prometheus"] as const
-const DEFAULT_AGENT = "sisyphus"
+const CORE_AGENT_ORDER = ["orchestrator", "executor", "planner"] as const
+const DEFAULT_AGENT = "orchestrator"
 
 type EnvVars = Record<string, string | undefined>
 
@@ -51,7 +51,7 @@ const normalizeAgentName = (agent?: string): string | undefined => {
 
 const isAgentDisabled = (agent: string, config: OhMyOpenCodeConfig): boolean => {
   const lowered = agent.toLowerCase()
-  if (lowered === "sisyphus" && config.sisyphus_agent?.disabled === true) {
+  if (lowered === "orchestrator" && config.orchestrator_agent?.disabled === true) {
     return true
   }
   return (config.disabled_agents ?? []).some(

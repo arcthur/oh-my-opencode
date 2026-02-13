@@ -69,17 +69,17 @@ describe("SessionStateCoordinator", () => {
     coordinator.onSessionCreated("session-1")
 
     // #when
-    coordinator.setSessionAgent("session-1", "prometheus")
-    coordinator.setSessionAgent("session-1", "sisyphus")
+    coordinator.setSessionAgent("session-1", "planner")
+    coordinator.setSessionAgent("session-1", "orchestrator")
 
     // #then
-    expect(coordinator.getSessionAgent("session-1")).toBe("prometheus")
+    expect(coordinator.getSessionAgent("session-1")).toBe("planner")
 
     // #when
-    coordinator.updateSessionAgent("session-1", "sisyphus")
+    coordinator.updateSessionAgent("session-1", "orchestrator")
 
     // #then
-    expect(coordinator.getSessionAgent("session-1")).toBe("sisyphus")
+    expect(coordinator.getSessionAgent("session-1")).toBe("orchestrator")
 
     // #when
     coordinator.clearSessionAgent("session-1")

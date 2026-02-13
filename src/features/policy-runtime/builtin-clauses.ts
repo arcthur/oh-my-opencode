@@ -1,8 +1,8 @@
 import type { ContractClause } from "../../contracts"
 import {
   PLANNING_CONSULT_WARNING,
-  PROMETHEUS_WORKFLOW_REMINDER,
-} from "./prometheus-policy"
+  PLANNER_WORKFLOW_REMINDER,
+} from "./planner-policy"
 
 const SUBAGENT_QUESTION_BLOCK_MESSAGE =
   "Question tool is disabled for subagent sessions. " +
@@ -11,8 +11,8 @@ const SUBAGENT_QUESTION_BLOCK_MESSAGE =
 
 const WRITE_EXISTING_BLOCK_MESSAGE = "File already exists. Use edit tool instead."
 
-const PROMETHEUS_MD_ONLY_MESSAGE =
-  "[policy-runtime] Prometheus can only write/edit .md files inside .sisyphus/ directory."
+const PLANNER_MD_ONLY_MESSAGE =
+  "[policy-runtime] planner can only write/edit .md files inside .orchestrator/ directory."
 
 const VERIFIER_GATE_BLOCK_MESSAGE =
   "[policy-runtime] Verifier gate blocked completion. Run lsp_diagnostics on changed files and run at least one successful test/build/typecheck command before task_transition(next_state=completed)."
@@ -21,7 +21,7 @@ export function getBuiltinPolicyClauses(): ContractClause[] {
   return [
     {
       id: "builtin:policy-write-existing-guard",
-      description: "Block Write when target file already exists unless .sisyphus/*.md",
+      description: "Block Write when target file already exists unless .orchestrator/*.md",
       hookPoints: ["tool.execute.before"],
       enforcement: "hard",
       selector: { toolName: ["Write", "write"] },
@@ -101,20 +101,20 @@ export function getBuiltinPolicyClauses(): ContractClause[] {
       reasonCode: "DELEGATION_BLOCK_SUBAGENT_QUESTION",
     },
     {
-      id: "builtin:policy-prometheus:block-write",
-      description: "Prometheus can only mutate .md files inside .sisyphus/",
+      id: "builtin:policy-planner:block-write",
+      description: "planner can only mutate .md files inside .orchestrator/",
       hookPoints: ["tool.execute.before"],
       enforcement: "hard",
       selector: { toolName: ["Write", "write", "Edit", "edit"] },
       condition: {
         equals: {
           "payload.guardsVersion": 1,
-          "payload.guards.prometheus.blockedWrite": true,
+          "payload.guards.planner.blockedWrite": true,
         },
       },
       action: {
         type: "deny",
-        message: PROMETHEUS_MD_ONLY_MESSAGE,
+        message: PLANNER_MD_ONLY_MESSAGE,
       },
       priority: 30,
       conflictResolution: "most-restrictive",
@@ -125,18 +125,18 @@ export function getBuiltinPolicyClauses(): ContractClause[] {
         source: "builtin",
         createdAt: Date.now(),
       },
-      reasonCode: "PROMETHEUS_MD_ONLY_BLOCK_WRITE",
+      reasonCode: "PLANNER_MD_ONLY_BLOCK_WRITE",
     },
     {
-      id: "builtin:policy-prometheus:task-warning",
-      description: "Inject planning consult warning into task prompts for Prometheus",
+      id: "builtin:policy-planner:task-warning",
+      description: "Inject planning consult warning into task prompts for planner",
       hookPoints: ["tool.execute.before"],
       enforcement: "soft",
       selector: { toolName: ["task", "delegate_task"] },
       condition: {
         equals: {
           "payload.guardsVersion": 1,
-          "payload.guards.prometheus.taskWarning": true,
+          "payload.guards.planner.taskWarning": true,
         },
       },
       action: {
@@ -154,24 +154,24 @@ export function getBuiltinPolicyClauses(): ContractClause[] {
         source: "builtin",
         createdAt: Date.now(),
       },
-      reasonCode: "PROMETHEUS_TASK_PROMPT_WARNING",
+      reasonCode: "PLANNER_TASK_PROMPT_WARNING",
     },
     {
-      id: "builtin:policy-prometheus:workflow-reminder",
-      description: "Append workflow reminder when Prometheus writes plan files",
+      id: "builtin:policy-planner:workflow-reminder",
+      description: "Append workflow reminder when planner writes plan files",
       hookPoints: ["tool.execute.before"],
       enforcement: "soft",
       selector: { toolName: ["Write", "write", "Edit", "edit"] },
       condition: {
         equals: {
           "payload.guardsVersion": 1,
-          "payload.guards.prometheus.planReminder": true,
+          "payload.guards.planner.planReminder": true,
         },
       },
       action: {
         type: "modify",
         mutation: {
-          messageAppend: PROMETHEUS_WORKFLOW_REMINDER,
+          messageAppend: PLANNER_WORKFLOW_REMINDER,
         },
       },
       priority: 50,
@@ -183,7 +183,7 @@ export function getBuiltinPolicyClauses(): ContractClause[] {
         source: "builtin",
         createdAt: Date.now(),
       },
-      reasonCode: "PROMETHEUS_PLAN_WORKFLOW_REMINDER",
+      reasonCode: "PLANNER_PLAN_WORKFLOW_REMINDER",
     },
   ]
 }

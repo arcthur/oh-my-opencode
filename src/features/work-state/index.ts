@@ -2,7 +2,7 @@
  * Work State
  *
  * Unified state management for orchestrator workflows.
- * Single source of truth: .sisyphus/work.yaml
+ * Single source of truth: .orchestrator/work.yaml
  */
 
 export { WorkStateManager, createWorkStateManager } from "./manager"

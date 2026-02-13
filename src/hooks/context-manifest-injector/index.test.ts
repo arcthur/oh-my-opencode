@@ -9,15 +9,15 @@ import type { WorkState } from "../../features/work-state"
 import { contextBudgetArbiter } from "../../features/context-view"
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
-  const sisyphusDir = join(directory, ".sisyphus")
-  mkdirSync(sisyphusDir, { recursive: true })
+  const orchestratorDir = join(directory, ".orchestrator")
+  mkdirSync(orchestratorDir, { recursive: true })
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
     schema_version: 6,
-    executor: state.executor ?? "atlas",
-    execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
-    runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
+    executor: state.executor ?? "workflow-automator",
+    execution_plan_path: state.execution_plan_path ?? `.orchestrator/plans/${planId}/plan.md`,
+    runtime_ledger_path: state.runtime_ledger_path ?? `.orchestrator/plans/${planId}/ledger.yaml`,
     plan_id: planId,
     started_at: state.started_at ?? new Date().toISOString(),
     session_ids: state.session_ids ?? [],
@@ -30,7 +30,7 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
     blockers: state.blockers ?? [],
     decisions: state.decisions ?? [],
   }
-  writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
+  writeFileSync(join(orchestratorDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
 }
 
 describe("context-manifest-injector hook", () => {
@@ -77,14 +77,14 @@ describe("context-manifest-injector hook", () => {
     const hook = createContextManifestInjectorHook(createMockPluginInput())
 
     writeWorkState(testDir, {
-      execution_plan_path: ".sisyphus/plans/demo/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/demo/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/demo/ledger.yaml",
       plan_id: "demo",
       session_ids: ["s1"],
     })
 
-    const manifestPath = join(testDir, ".sisyphus", "context-manifests", "demo.md")
-    mkdirSync(join(testDir, ".sisyphus", "context-manifests"), { recursive: true })
+    const manifestPath = join(testDir, ".orchestrator", "context-manifests", "demo.md")
+    mkdirSync(join(testDir, ".orchestrator", "context-manifests"), { recursive: true })
     writeFileSync(
       manifestPath,
       `# demo\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({
@@ -120,14 +120,14 @@ describe("context-manifest-injector hook", () => {
     const hook = createContextManifestInjectorHook(createMockPluginInput())
 
     writeWorkState(testDir, {
-      execution_plan_path: ".sisyphus/plans/demo/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/demo/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/demo/ledger.yaml",
       plan_id: "demo",
       session_ids: ["s1"],
     })
 
-    const manifestPath = join(testDir, ".sisyphus", "context-manifests", "demo.md")
-    mkdirSync(join(testDir, ".sisyphus", "context-manifests"), { recursive: true })
+    const manifestPath = join(testDir, ".orchestrator", "context-manifests", "demo.md")
+    mkdirSync(join(testDir, ".orchestrator", "context-manifests"), { recursive: true })
     writeFileSync(
       manifestPath,
       `# demo\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({
@@ -175,15 +175,15 @@ describe("context-manifest-injector hook", () => {
     const hook = createContextManifestInjectorHook(createMockPluginInput())
 
     writeWorkState(testDir, {
-      execution_plan_path: ".sisyphus/escape/plan.md",
-      runtime_ledger_path: ".sisyphus/escape/ledger.yaml",
+      execution_plan_path: ".orchestrator/escape/plan.md",
+      runtime_ledger_path: ".orchestrator/escape/ledger.yaml",
       plan_id: "../escape",
       session_ids: ["s1"],
     })
 
-    // This creates a file reachable via .sisyphus/context-manifests/../escape.md
-    const escapedPath = join(testDir, ".sisyphus", "escape.md")
-    mkdirSync(join(testDir, ".sisyphus"), { recursive: true })
+    // This creates a file reachable via .orchestrator/context-manifests/../escape.md
+    const escapedPath = join(testDir, ".orchestrator", "escape.md")
+    mkdirSync(join(testDir, ".orchestrator"), { recursive: true })
     writeFileSync(
       escapedPath,
       `# escape\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({
@@ -218,8 +218,8 @@ describe("context-manifest-injector hook", () => {
     // #given
     const hook = createContextManifestInjectorHook(createMockPluginInput())
     writeWorkState(testDir, {
-      execution_plan_path: ".sisyphus/plans/demo/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/demo/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/demo/ledger.yaml",
       plan_id: "demo",
       session_ids: ["s1"],
     })
@@ -264,14 +264,14 @@ describe("context-manifest-injector hook", () => {
     const hook = createContextManifestInjectorHook(createMockPluginInput())
 
     writeWorkState(testDir, {
-      execution_plan_path: ".sisyphus/plans/demo/plan.md",
-      runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
+      execution_plan_path: ".orchestrator/plans/demo/plan.md",
+      runtime_ledger_path: ".orchestrator/plans/demo/ledger.yaml",
       plan_id: "demo",
       session_ids: ["s1"],
     })
 
-    const manifestPath = join(testDir, ".sisyphus", "context-manifests", "demo.md")
-    mkdirSync(join(testDir, ".sisyphus", "context-manifests"), { recursive: true })
+    const manifestPath = join(testDir, ".orchestrator", "context-manifests", "demo.md")
+    mkdirSync(join(testDir, ".orchestrator", "context-manifests"), { recursive: true })
     writeFileSync(
       manifestPath,
       `# demo\n\n[CONTEXT_MANIFEST]\n${JSON.stringify({

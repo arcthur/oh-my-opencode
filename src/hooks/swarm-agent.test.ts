@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import type { PluginInput } from "@opencode-ai/plugin"
-import { createSwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
+import { createSwarmRuntimeService } from "../features/orchestrator-swarm/runtime"
 import { createSwarmAgentHook } from "./swarm-agent"
 
 const mockCreateWorker = mock(async () => null)
 const mockCreateCoordinator = mock(async () => null)
 
-mock.module("../features/sisyphus-swarm/agent", () => ({
+mock.module("../features/orchestrator-swarm/agent", () => ({
   WorkerAgent: class {},
   CoordinatorAgent: class {},
   createWorker: mockCreateWorker,

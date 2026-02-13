@@ -11,22 +11,22 @@ const EXPLORATION_AGENT_DENYLIST: Record<string, boolean> = {
 }
 
 const AGENT_RESTRICTIONS: Record<string, Record<string, boolean>> = {
-  explore: EXPLORATION_AGENT_DENYLIST,
+  navigator: EXPLORATION_AGENT_DENYLIST,
 
   librarian: EXPLORATION_AGENT_DENYLIST,
 
-  oracle: {
+  advisor: {
     write: false,
     edit: false,
     task: false,
     delegate_task: false,
   },
 
-  "multimodal-looker": {
+  "interpreter": {
     read: true,
   },
 
-  "sisyphus-junior": {
+  "specialist": {
     task: false,
     // delegate_task is allowed but scoped to research-only (see RESEARCH_SCOPED_AGENTS)
   },
@@ -34,14 +34,14 @@ const AGENT_RESTRICTIONS: Record<string, Record<string, boolean>> = {
 
 /**
  * Agents whose delegate_task access is scoped to research-only mode.
- * Research mode restricts to: subagent_type ∈ {explore, librarian}, no category, no skill injection.
+ * Research mode restricts to: subagent_type ∈ {navigator, librarian}, no category, no skill injection.
  */
-export const RESEARCH_SCOPED_AGENTS = new Set(["sisyphus-junior"])
+export const RESEARCH_SCOPED_AGENTS = new Set(["specialist"])
 
 /**
  * Agents allowed in research-scoped delegate_task calls.
  */
-export const RESEARCH_ALLOWED_AGENTS = new Set(["explore", "librarian"])
+export const RESEARCH_ALLOWED_AGENTS = new Set(["navigator", "librarian"])
 
 export function getAgentToolRestrictions(agentName: string): Record<string, boolean> {
   return AGENT_RESTRICTIONS[agentName]

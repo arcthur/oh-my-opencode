@@ -250,7 +250,7 @@ export interface RuntimeAssemblyContext {
     event?: EventHandler
   }
 
-  sisyphusContextualInjector?: {
+  orchestratorContextualInjector?: {
     ["chat.message"]?: ChatMessageHandler
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     event?: EventHandler
@@ -409,7 +409,7 @@ export interface RuntimeAssemblyContext {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
   }
 
-  sisyphusJuniorNotepad?: {
+  specialistNotepad?: {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
   }
 

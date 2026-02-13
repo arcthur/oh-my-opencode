@@ -1,10 +1,10 @@
 /**
  * Work State Types
  *
- * Runtime state is tracked in `.sisyphus/work.yaml`.
+ * Runtime state is tracked in `.orchestrator/work.yaml`.
  * It binds sessions to a single active plan directory:
  *
- * `.sisyphus/plans/{plan_id}/`
+ * `.orchestrator/plans/{plan_id}/`
  * - `plan.md` (human-readable plan artifact)
  * - `ledger.yaml` (runtime ledger)
  * - `findings.md`
@@ -52,7 +52,7 @@ export const DecisionSchema = z.object({
   alternatives_rejected: z.array(z.string()).optional(),
 })
 
-export const WorkExecutorSchema = z.literal("atlas")
+export const WorkExecutorSchema = z.literal("workflow-automator")
 
 export const WorkStateProtocolSchema = z.object({
   /** 2-action rule counter (reset when findings.md modified) */
@@ -66,9 +66,9 @@ export const WorkStateProtocolSchema = z.object({
 const WorkStateCommonFields = {
   /** Stable plan identifier */
   plan_id: z.string().min(1),
-  /** Canonical execution plan path (.sisyphus/plans/{plan_id}/plan.md) */
+  /** Canonical execution plan path (.orchestrator/plans/{plan_id}/plan.md) */
   execution_plan_path: z.string(),
-  /** Canonical runtime ledger path (.sisyphus/plans/{plan_id}/ledger.yaml) */
+  /** Canonical runtime ledger path (.orchestrator/plans/{plan_id}/ledger.yaml) */
   runtime_ledger_path: z.string(),
   /** ISO timestamp when work started */
   started_at: z.string(),
@@ -115,7 +115,7 @@ export type LegacyWorkStateV5 = z.infer<typeof LegacyWorkStateV5Schema>
 
 // === Constants ===
 
-export const WORK_STATE_DIR = ".sisyphus"
+export const WORK_STATE_DIR = ".orchestrator"
 export const WORK_STATE_FILE = "work.yaml"
 export const WORK_STATE_PATH = `${WORK_STATE_DIR}/${WORK_STATE_FILE}`
 export const PLANS_DIR = `${WORK_STATE_DIR}/plans`

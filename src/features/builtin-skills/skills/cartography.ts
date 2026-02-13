@@ -79,7 +79,7 @@ const integrations = findIntegrations(directory)
 if (config.use_explorers) {
   delegate_task(
     description=\`Analyze \${directory}\`,
-    subagent_type="explore",
+    subagent_type="navigator",
     load_skills=[],
     run_in_background=true,
     prompt=EXPLORER_PROMPT

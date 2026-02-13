@@ -248,7 +248,7 @@ export function createTmuxParallelAgentsHook(
   const worktreeEnabled = config?.worktree?.enabled ?? false
   const worktreeDirPattern = config?.worktree?.dir_pattern ?? "../{project}__worktrees"
   const copyFiles = config?.worktree?.copy_files ?? [".env", ".env.local"]
-  const symlinkPaths = config?.worktree?.symlink ?? ["node_modules", ".sisyphus"]
+  const symlinkPaths = config?.worktree?.symlink ?? ["node_modules", ".orchestrator"]
   const autoCleanup = config?.worktree?.auto_cleanup ?? false
 
   // Track active windows
@@ -322,7 +322,7 @@ export function createTmuxParallelAgentsHook(
       for (const path of symlinkPaths) {
         const src = join(projectDir, path)
         const dest = join(worktreePath, path)
-        const shouldLinkEvenIfMissing = path === ".sisyphus"
+        const shouldLinkEvenIfMissing = path === ".orchestrator"
         if (!existsSync(dest) && (shouldLinkEvenIfMissing || existsSync(src))) {
           try {
             const destParent = dirname(dest)

@@ -7,7 +7,7 @@ describe("validateStrictOhMyOpenCodeConfig", () => {
     // #given
     const rawConfig: Record<string, unknown> = {
       agents: {
-        oracle: {
+        advisor: {
           model: "openai/gpt-5.2",
         },
       },
@@ -26,7 +26,7 @@ describe("validateStrictOhMyOpenCodeConfig", () => {
     const rawConfig: Record<string, unknown> = {
       config_version: CURRENT_CONFIG_VERSION + 1,
       agents: {
-        oracle: {
+        advisor: {
           model: "openai/gpt-5.2",
         },
       },
@@ -46,7 +46,7 @@ describe("validateStrictOhMyOpenCodeConfig", () => {
       config_version: CURRENT_CONFIG_VERSION,
       architecture_version: 2,
       agents: {
-        oracle: {
+        advisor: {
           model: "openai/gpt-5.2",
         },
       },

@@ -33,17 +33,17 @@ describe("claude-code-session-state compatibility wrappers", () => {
     // #given
 
     // #when
-    setSessionAgent("session-1", "prometheus")
-    setSessionAgent("session-1", "sisyphus")
+    setSessionAgent("session-1", "planner")
+    setSessionAgent("session-1", "orchestrator")
 
     // #then
-    expect(getSessionAgent("session-1")).toBe("prometheus")
+    expect(getSessionAgent("session-1")).toBe("planner")
 
     // #when
-    updateSessionAgent("session-1", "sisyphus")
+    updateSessionAgent("session-1", "orchestrator")
 
     // #then
-    expect(getSessionAgent("session-1")).toBe("sisyphus")
+    expect(getSessionAgent("session-1")).toBe("orchestrator")
 
     // #when
     clearSessionAgent("session-1")

@@ -5,7 +5,7 @@ import type { DiscoveryEntry } from "./types"
 const DISCOVERY_LEDGER_FILE = "discoveries.jsonl"
 
 export function getDiscoveryLedgerPath(workspaceDir: string, planId: string): string {
-  return join(workspaceDir, ".sisyphus", "plans", planId, DISCOVERY_LEDGER_FILE)
+  return join(workspaceDir, ".orchestrator", "plans", planId, DISCOVERY_LEDGER_FILE)
 }
 
 export function appendDiscoveryEntry(workspaceDir: string, entry: DiscoveryEntry): void {

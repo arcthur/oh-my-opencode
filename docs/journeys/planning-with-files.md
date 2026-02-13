@@ -1,16 +1,16 @@
-# Journey: Planning Protocol (Work-Orchestrator / `.sisyphus/`)
+# Journey: Planning Protocol (Work-Orchestrator / `.orchestrator/`)
 
 ## User Perspective
 
 You want complex work to remain coherent across long sessions and interruptions without relying on a volatile chat context.
-The planning protocol persists the plan, findings, and progress under `.sisyphus/` and uses `work-orchestrator` phases to re-inject active plan context at tool boundaries, enforce disciplined research logging, and prevent premature “stop” when phases remain incomplete.
+The planning protocol persists the plan, findings, and progress under `.orchestrator/` and uses `work-orchestrator` phases to re-inject active plan context at tool boundaries, enforce disciplined research logging, and prevent premature “stop” when phases remain incomplete.
 
 ## End-to-End Flow
 
 ```mermaid
 flowchart TD
   U["User request"] --> CM["work-orchestrator chat.message phase detects/initializes active plan"]
-  CM --> FS["Persist plan artifacts under .sisyphus/plans/<plan>/"]
+  CM --> FS["Persist plan artifacts under .orchestrator/plans/<plan>/"]
 
   subgraph ToolBoundary["Tool boundaries (auto_reread)"]
     TB["tool.execute.before for write/edit/bash/…"] --> INJ["Inject <plan-context> (critical priority)"]
@@ -59,7 +59,7 @@ flowchart LR
 Every complex task creates three markdown files plus a YAML ledger:
 
 ```
-.sisyphus/plans/{plan-id}/
+.orchestrator/plans/{plan-id}/
 ├── plan.md        # Phases, goals, decisions, errors, blockers
 ├── ledger.yaml    # Runtime errors/blockers/decisions
 ├── findings.md    # Research results (2-action rule)
@@ -67,7 +67,7 @@ Every complex task creates three markdown files plus a YAML ledger:
 └── discoveries.jsonl  # Deferred findings captured from DISCOVERY markers
 ```
 
-Shared runtime state is persisted in `.sisyphus/work.yaml` (single active plan).
+Shared runtime state is persisted in `.orchestrator/work.yaml` (single active plan).
 
 ### plan.md - Working Memory
 
@@ -109,7 +109,7 @@ Enable in `.opencode/oh-my-opencode/00-core.json`:
 }
 ```
 
-**Note**: `work_orchestrator.planning_with_files.directory` is removed in latest-only mode and rejected by schema validation. The canonical layout is fixed to `.sisyphus/plans/`.
+**Note**: `work_orchestrator.planning_with_files.directory` is removed in latest-only mode and rejected by schema validation. The canonical layout is fixed to `.orchestrator/plans/`.
 
 ### Configuration Options
 
@@ -165,7 +165,7 @@ After every 2 research operations (Read/WebFetch/WebSearch/Glob/Grep/Task), remi
 
 2 research operations completed.
 
-Update `.sisyphus/plans/{plan}/findings.md` with:
+Update `.orchestrator/plans/{plan}/findings.md` with:
 - Key discoveries
 - Technical decisions
 - Resources found
@@ -268,7 +268,7 @@ Execution completion is now gated by verifier evidence:
 - `task_transition(next_state=completed)` is denied when verifier evidence is missing (`lsp_diagnostics` and/or test-build evidence, per config).
 - The gate is hard-enforced via policy/runtime guards (`payload.guards.verifier.*`).
 
-Deferred findings are persisted in `.sisyphus/plans/{plan}/discoveries.jsonl`:
+Deferred findings are persisted in `.orchestrator/plans/{plan}/discoveries.jsonl`:
 
 - Sources: delegate output markers and assistant update markers (`<discovery>...</discovery>` / `DISCOVERY:`).
 - Purpose: prevent “noticed but dropped” issues from disappearing during long execution loops.
@@ -308,13 +308,13 @@ Incomplete phases:
 
 ### 7. State Persistence
 
-Planning protocol state is persisted to `.sisyphus/work.yaml`:
+Planning protocol state is persisted to `.orchestrator/work.yaml`:
 
 ```yaml
 schema_version: 2
 plan_id: add-auth
-execution_plan_path: .sisyphus/plans/add-auth/plan.md
-runtime_ledger_path: .sisyphus/plans/add-auth/ledger.yaml
+execution_plan_path: .orchestrator/plans/add-auth/plan.md
+runtime_ledger_path: .orchestrator/plans/add-auth/ledger.yaml
 started_at: 2026-01-01T01:00:00.000Z
 session_ids:
   - ses_main
@@ -598,7 +598,7 @@ Ensure unified orchestrator wiring is enabled:
 
 ### State not persisting
 
-Check that `.sisyphus/work.yaml` exists and is writable.
+Check that `.orchestrator/work.yaml` exists and is writable.
 The legacy planning state file is no longer used.
 
 ### Stop not blocked

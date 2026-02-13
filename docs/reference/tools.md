@@ -30,8 +30,8 @@ The Oh-My-OpenCode plugin registers the following tools (in addition to any tool
 
 | Tool name | Implementation | Purpose |
 |---|---|---|
-| `delegate_task` | `src/tools/delegate-task/` | Delegate work to a subagent (sync or background) with optional skill injection. Supports research-scoped mode for explore/librarian-only access. |
-| `swarm` | `src/tools/swarm.ts` | Sisyphus Swarm orchestration entrypoint |
+| `delegate_task` | `src/tools/delegate-task/` | Delegate work to a subagent (sync or background) with optional skill injection. Supports research-scoped mode for navigator/librarian-only access. |
+| `swarm` | `src/tools/swarm.ts` | orchestrator Swarm orchestration entrypoint |
 | `look_at` | `src/tools/look-at/` | Assistive “inspect” tool (used by multimodal workflows) |
 
 ### TaskGraph V2

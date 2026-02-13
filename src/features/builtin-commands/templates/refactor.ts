@@ -79,7 +79,7 @@ Should I proceed with [recommendation], or would you prefer differently?
 **IMMEDIATELY after understanding the request, create task nodes:**
 
 \`\`\`
-task_create({ title: "phase-1 PHASE 1: Codebase Analysis - launch parallel explore agents", priority: 100 })
+task_create({ title: "phase-1 PHASE 1: Codebase Analysis - launch parallel navigator agents", priority: 100 })
 task_create({ title: "phase-2 PHASE 2: Build Codemap - map dependencies and impact zones", priority: 100 })
 task_create({ title: "phase-3 PHASE 3: Test Assessment - analyze test coverage and verification strategy", priority: 100 })
 task_create({ title: "phase-4 PHASE 4: Plan Generation - invoke Plan agent for detailed refactoring plan", priority: 100 })
@@ -93,15 +93,15 @@ task_create({ title: "phase-6 PHASE 6: Final Verification - full test suite and 
 
 **Mark phase-1 as in_progress.**
 
-## 1.1: Launch Parallel Explore Agents (BACKGROUND)
+## 1.1: Launch Parallel navigator Agents (BACKGROUND)
 
 Fire ALL of these simultaneously using \`delegate_task\`:
 
 \`\`\`
 // Agent 1: Find the refactoring target
 delegate_task(
-  description="Explore refactoring target",
-  subagent_type="explore",
+  description="navigator refactoring target",
+  subagent_type="navigator",
   load_skills=[],
   run_in_background=true,
   prompt="Find all occurrences and definitions of [TARGET]. 
@@ -110,8 +110,8 @@ delegate_task(
 
 // Agent 2: Find related code
 delegate_task(
-  description="Explore related code",
-  subagent_type="explore",
+  description="navigator related code",
+  subagent_type="navigator",
   load_skills=[],
   run_in_background=true,
   prompt="Find all code that imports, uses, or depends on [TARGET].
@@ -120,8 +120,8 @@ delegate_task(
 
 // Agent 3: Find similar patterns
 delegate_task(
-  description="Explore similar patterns",
-  subagent_type="explore",
+  description="navigator similar patterns",
+  subagent_type="navigator",
   load_skills=[],
   run_in_background=true,
   prompt="Find similar code patterns to [TARGET] in the codebase.
@@ -130,8 +130,8 @@ delegate_task(
 
 // Agent 4: Find tests
 delegate_task(
-  description="Explore test coverage",
-  subagent_type="explore",
+  description="navigator test coverage",
+  subagent_type="navigator",
   load_skills=[],
   run_in_background=true,
   prompt="Find all test files related to [TARGET].
@@ -140,8 +140,8 @@ delegate_task(
 
 // Agent 5: Architecture context
 delegate_task(
-  description="Explore architecture context",
-  subagent_type="explore",
+  description="navigator architecture context",
+  subagent_type="navigator",
   load_skills=[],
   run_in_background=true,
   prompt="Find architectural patterns and module organization around [TARGET].
@@ -284,7 +284,7 @@ ls -la *_test.go
 // Find all tests related to target
 delegate_task(
   description="Analyze test coverage",
-  subagent_type="explore",
+  subagent_type="navigator",
   load_skills=[],
   run_in_background=false,  // Need this synchronously
   prompt="Analyze test coverage for [TARGET]:
@@ -473,7 +473,7 @@ If ANY verification fails:
 4. **OPTIONS**:
    - Fix the issue and retry
    - Skip this step (if optional)
-   - Consult oracle agent for help
+   - Consult advisor agent for help
    - Ask user for guidance
 
 **NEVER proceed to next step with broken tests.**
@@ -606,9 +606,9 @@ Use \`ast_grep_search\` and \`ast_grep_replace\` for structural transformations.
 **Critical**: Always \`dryRun=true\` first, review, then execute.
 
 ## Agents
-- \`explore\`: Parallel codebase pattern discovery
+- \`navigator\`: Parallel codebase pattern discovery
 - \`plan\`: Detailed refactoring plan generation
-- \`oracle\`: Read-only consultation for complex architectural decisions and debugging
+- \`advisor\`: Read-only consultation for complex architectural decisions and debugging
 - \`librarian\`: **Use proactively** when encountering deprecated methods or library migration tasks. Query official docs and OSS examples for modern replacements.
 
 ## Deprecated Code & Library Migration

@@ -31,7 +31,7 @@ describe("background-agent spawner", () => {
     const input = {
       description: "test",
       prompt: "do it",
-      agent: "explore",
+      agent: "navigator",
       parentSessionID: "ses_parent",
       parentMessageID: "msg_parent",
       directory: "/worktree-dir",
@@ -79,7 +79,7 @@ describe("background-agent spawner", () => {
     const input = {
       description: "test",
       prompt: "do it",
-      agent: "explore",
+      agent: "navigator",
       parentSessionID: "ses_parent",
       parentMessageID: "msg_parent",
     }
@@ -121,7 +121,7 @@ describe("background-agent spawner", () => {
       status: "completed",
       description: "resume model key",
       prompt: "test",
-      agent: "explore",
+      agent: "navigator",
       parentSessionID: "ses_parent",
       parentMessageID: "msg_parent",
       sessionID: "ses_child",

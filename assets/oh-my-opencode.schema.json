@@ -31,15 +31,15 @@
       "items": {
         "type": "string",
         "enum": [
-          "sisyphus",
-          "atlas",
-          "oracle",
+          "orchestrator",
+          "workflow-automator",
+          "advisor",
           "librarian",
-          "explore",
-          "multimodal-looker",
-          "hephaestus",
-          "metis",
-          "momus"
+          "navigator",
+          "interpreter",
+          "executor",
+          "scope-analyst",
+          "reviewer"
         ]
       }
     },
@@ -106,13 +106,13 @@
           "runtime-tracker",
           "anti-slop-enforcer",
           "pre-completion-verification",
-          "sisyphus-contextual-injector",
+          "orchestrator-contextual-injector",
           "delegation-validate-decision",
           "conditional-rules",
           "session-handoff",
           "question-label-truncator",
           "delegation-nudge-category-skill",
-          "sisyphus-junior-notepad",
+          "specialist-notepad",
           "tmux-parallel-agents",
           "swarm-agent",
           "anthropic-effort",
@@ -396,7 +396,7 @@
           },
           "additionalProperties": false
         },
-        "sisyphus": {
+        "orchestrator": {
           "type": "object",
           "properties": {
             "model": {
@@ -524,7 +524,7 @@
           },
           "additionalProperties": false
         },
-        "atlas": {
+        "workflow-automator": {
           "type": "object",
           "properties": {
             "model": {
@@ -652,7 +652,7 @@
           },
           "additionalProperties": false
         },
-        "sisyphus-junior": {
+        "specialist": {
           "type": "object",
           "properties": {
             "model": {
@@ -908,7 +908,7 @@
           },
           "additionalProperties": false
         },
-        "prometheus": {
+        "planner": {
           "type": "object",
           "properties": {
             "model": {
@@ -1036,7 +1036,7 @@
           },
           "additionalProperties": false
         },
-        "oracle": {
+        "advisor": {
           "type": "object",
           "properties": {
             "model": {
@@ -1292,7 +1292,7 @@
           },
           "additionalProperties": false
         },
-        "explore": {
+        "navigator": {
           "type": "object",
           "properties": {
             "model": {
@@ -1420,7 +1420,7 @@
           },
           "additionalProperties": false
         },
-        "multimodal-looker": {
+        "interpreter": {
           "type": "object",
           "properties": {
             "model": {
@@ -1548,7 +1548,7 @@
           },
           "additionalProperties": false
         },
-        "metis": {
+        "scope-analyst": {
           "type": "object",
           "properties": {
             "model": {
@@ -1676,7 +1676,7 @@
           },
           "additionalProperties": false
         },
-        "momus": {
+        "reviewer": {
           "type": "object",
           "properties": {
             "model": {
@@ -1928,7 +1928,7 @@
       },
       "additionalProperties": false
     },
-    "sisyphus_agent": {
+    "orchestrator_agent": {
       "type": "object",
       "properties": {
         "disabled": {
@@ -4146,7 +4146,7 @@
       },
       "additionalProperties": false
     },
-    "sisyphus": {
+    "orchestrator": {
       "type": "object",
       "properties": {
         "tasks": {
@@ -4157,7 +4157,7 @@
               "type": "boolean"
             },
             "storage_path": {
-              "default": ".sisyphus/tasks",
+              "default": ".orchestrator/tasks",
               "type": "string"
             }
           },
@@ -4171,7 +4171,7 @@
               "type": "boolean"
             },
             "storage_path": {
-              "default": ".sisyphus/teams",
+              "default": ".orchestrator/teams",
               "type": "string"
             },
             "ui_mode": {

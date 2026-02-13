@@ -1,6 +1,6 @@
 # Understanding the Orchestration System
 
-Oh My OpenCode's orchestration system transforms a simple AI agent into a coordinated development team. This document explains how the Prometheus → Atlas Execution Mode → Junior workflow creates high-quality, reliable code output.
+Oh My OpenCode's orchestration system transforms a simple AI agent into a coordinated development team. This document explains how the planner → workflow-automator Execution Mode → Junior workflow creates high-quality, reliable code output.
 
 ---
 
@@ -21,68 +21,68 @@ The orchestration system solves these problems through **specialization and dele
 
 ```mermaid
 flowchart TB
-    subgraph Planning["Planning Layer (Human + Prometheus)"]
+    subgraph Planning["Planning Layer (Human + planner)"]
         User[("User")]
-        Prometheus["Prometheus<br/>(Planner)<br/>Claude Opus 4.6"]
-        Metis["Metis<br/>(Pre-Planning)<br/>Claude Opus 4.6"]
-        Momus["Momus<br/>(Plan Review)<br/>GPT-5.2"]
+        planner["planner<br/>(Planner)<br/>Claude Opus 4.6"]
+        scope-analyst["scope-analyst<br/>(Pre-Planning)<br/>Claude Opus 4.6"]
+        reviewer["reviewer<br/>(Plan Review)<br/>GPT-5.2"]
     end
     
     subgraph Execution["Execution Layer (Orchestrator)"]
-        Orchestrator["Atlas Execution Mode<br/>(Conductor)<br/>Claude Opus 4.6"]
+        Orchestrator["workflow-automator Execution Mode<br/>(Conductor)<br/>Claude Opus 4.6"]
     end
     
     subgraph Workers["Worker Layer (Specialized Agents)"]
-        Junior["Sisyphus-Junior<br/>(Task Executor)<br/>Claude Sonnet 4.5"]
-        Oracle["Oracle<br/>(Architecture)<br/>GPT-5.2"]
-        Explore["Explore<br/>(Codebase Grep)<br/>Grok Code Fast-1"]
-        Librarian["Librarian<br/>(Docs/OSS)<br/>GLM-4.7"]
-        Multimodal["Multimodal Looker<br/>(Image/PDF)<br/>Gemini 3 Flash"]
+        Junior["specialist<br/>(Task Executor)<br/>Claude Sonnet 4.5"]
+        advisor["advisor<br/>(Architecture)<br/>GPT-5.2"]
+        navigator["navigator<br/>(Codebase Grep)<br/>Grok Code Fast-1"]
+        Librarian["librarian<br/>(Docs/OSS)<br/>GLM-4.7"]
+        Interpreter["interpreter<br/>(Image/PDF)<br/>Gemini 3 Flash"]
     end
     
-    User -->|"Describe work"| Prometheus
-    Prometheus -->|"Interview"| User
-    Prometheus -->|"Generate plan spec"| PlanSpec[".sisyphus/plans/{planId}/plan.md<br/>(planner output)"]
-    Prometheus -->|"Generate context manifest"| Manifest[".sisyphus/context-manifests/{planId}.md"]
-    Metis -->|"Pre-planning analysis"| Prometheus
-    Prometheus -->|"Plan review"| Momus
-    Momus -->|"Verified plan"| Prometheus
+    User -->|"Describe work"| planner
+    planner -->|"Interview"| User
+    planner -->|"Generate plan spec"| PlanSpec[".orchestrator/plans/{planId}/plan.md<br/>(planner output)"]
+    planner -->|"Generate context manifest"| Manifest[".orchestrator/context-manifests/{planId}.md"]
+    scope-analyst -->|"Pre-planning analysis"| planner
+    planner -->|"Plan review"| reviewer
+    reviewer -->|"Verified plan"| planner
     
     User -->|"/start-work"| Orchestrator
-    Orchestrator --> WorkState[".sisyphus/work.yaml<br/>(STATE SSOT)"]
-    PlanSpec -->|"Bind on /start-work"| Plan[".sisyphus/plans/{planId}/plan.md<br/>(PLAN SPEC)"]
-    PlanSpec -->|"Seed TaskGraph"| TaskGraph[".sisyphus/tasks/plan/{planId}/task_*.json<br/>(TASK SSOT)"]
+    Orchestrator --> WorkState[".orchestrator/work.yaml<br/>(STATE SSOT)"]
+    PlanSpec -->|"Bind on /start-work"| Plan[".orchestrator/plans/{planId}/plan.md<br/>(PLAN SPEC)"]
+    PlanSpec -->|"Seed TaskGraph"| TaskGraph[".orchestrator/tasks/plan/{planId}/task_*.json<br/>(TASK SSOT)"]
     Plan -->|"Read spec"| Orchestrator
     TaskGraph -->|"Read tasks"| Orchestrator
     WorkState -->|"Resume state"| Orchestrator
     
     Orchestrator -->|"delegate_task(category + load_skills)"| Junior
-    Orchestrator -->|"delegate_task(subagent_type)"| Oracle
-    Orchestrator -->|"delegate_task(subagent_type)"| Explore
+    Orchestrator -->|"delegate_task(subagent_type)"| advisor
+    Orchestrator -->|"delegate_task(subagent_type)"| navigator
     Orchestrator -->|"delegate_task(subagent_type)"| Librarian
-    Orchestrator -->|"delegate_task(subagent_type)"| Multimodal
+    Orchestrator -->|"delegate_task(subagent_type)"| Interpreter
     
     Junior -->|"Results + Learnings"| Orchestrator
-    Oracle -->|"Advice"| Orchestrator
-    Explore -->|"Code patterns"| Orchestrator
+    advisor -->|"Advice"| Orchestrator
+    navigator -->|"Code patterns"| Orchestrator
     Librarian -->|"Documentation"| Orchestrator
-    Multimodal -->|"Extracted info"| Orchestrator
+    Interpreter -->|"Extracted info"| Orchestrator
 ```
 
 ---
 
-## Layer 1: Planning (Metis → Prometheus → Momus)
+## Layer 1: Planning (scope-analyst → planner → reviewer)
 
-### Prometheus: Your Strategic Consultant
+### planner: Your Strategic Consultant
 
-Prometheus is **not just a planner** - it's an intelligent interviewer that helps you think through what you actually need.
+planner is **not just a planner** - it's an intelligent interviewer that helps you think through what you actually need.
 
 **The Interview Process:**
 
 ```mermaid
 stateDiagram-v2
     [*] --> Interview: User describes work
-    Interview --> Research: Launch explore/librarian agents
+    Interview --> Research: Launch navigator/librarian agents
     Research --> Interview: Gather codebase context
     Interview --> ClearanceCheck: After each response
     
@@ -98,36 +98,36 @@ stateDiagram-v2
         Check: ✓ Test strategy confirmed?
     }
     
-    PlanGeneration --> MetisAnalysis: Metis pre-planning analysis
-    MetisAnalysis --> WritePlan: Prometheus generates plan
-    WritePlan --> MomusReview: Momus reviews plan
-    MomusReview --> WritePlan: Blocking issues found
-    MomusReview --> Done: Plan verified
+    PlanGeneration --> ScopeAnalystAnalysis: scope-analyst pre-planning analysis
+    ScopeAnalystAnalysis --> WritePlan: planner generates plan
+    WritePlan --> ReviewerReview: reviewer reviews plan
+    ReviewerReview --> WritePlan: Blocking issues found
+    ReviewerReview --> Done: Plan verified
     
     Done --> [*]: Guide to /start-work
 ```
 
 **Intent-Specific Strategies:**
 
-Prometheus adapts its interview style based on what you're doing:
+planner adapts its interview style based on what you're doing:
 
-| Intent | Prometheus Focus | Example Questions |
+| Intent | planner Focus | Example Questions |
 |--------|------------------|-------------------|
 | **Refactoring** | Safety - behavior preservation | "What tests verify current behavior?" "Rollback strategy?" |
 | **Build from Scratch** | Discovery - patterns first | "Found pattern X in codebase. Follow it or deviate?" |
 | **Mid-sized Task** | Guardrails - exact boundaries | "What must NOT be included? Hard constraints?" |
 | **Architecture** | Strategic - long-term impact | "Expected lifespan? Scale requirements?" |
 
-### Metis and Momus: Pre-Planning and Review
+### scope-analyst and reviewer: Pre-Planning and Review
 
-The planning pipeline uses two additional agents alongside Prometheus:
+The planning pipeline uses two additional agents alongside planner:
 
-- **Metis** (pre-planning): Validates Prometheus's claimed intent against request evidence, returning `MATCH` or a justified `OVERRIDE` when mismatch is clear
-- **Momus** (plan review): Verifies plan executability and blocks plans that violate zero-human verification minimums (concrete verification command, no manual-user acceptance steps, actionable task starting point)
+- **scope-analyst** (pre-planning): Validates planner's claimed intent against request evidence, returning `MATCH` or a justified `OVERRIDE` when mismatch is clear
+- **reviewer** (plan review): Verifies plan executability and blocks plans that violate zero-human verification minimums (concrete verification command, no manual-user acceptance steps, actionable task starting point)
 
 ---
 
-## Layer 2: Execution (Atlas Execution Mode)
+## Layer 2: Execution (workflow-automator Execution Mode)
 
 ### The Conductor Mindset
 
@@ -135,7 +135,7 @@ The Orchestrator is like an orchestra conductor: **it doesn't play instruments, 
 
 ```mermaid
 flowchart LR
-    subgraph Orchestrator["Atlas Execution Mode"]
+    subgraph Orchestrator["workflow-automator Execution Mode"]
         Read["1. Read Plan"]
         Analyze["2. Analyze Tasks"]
         Wisdom["3. Accumulate Wisdom"]
@@ -168,10 +168,10 @@ flowchart LR
 - Specialized work that benefits from a focused context window (UI/UX, deep reasoning, research)
 
 **Completion behavior (TaskGraph complete):**
-- Writes `.sisyphus/plans/{planId}/completion.md`
+- Writes `.orchestrator/plans/{planId}/completion.md`
 - Includes reminder telemetry summary (full/compact/ultra-compact and downgrade counters)
-- Persists reminder telemetry snapshots during execution (`.sisyphus/plans/{planId}/orchestrator-reminder-telemetry.json`) so summary survives compaction/restart
-- Clears `.sisyphus/work.yaml` and resets work sessions to default orchestrator agent
+- Persists reminder telemetry snapshots during execution (`.orchestrator/plans/{planId}/orchestrator-reminder-telemetry.json`) so summary survives compaction/restart
+- Clears `.orchestrator/work.yaml` and resets work sessions to default orchestrator agent
 
 ### Wisdom Accumulation
 
@@ -186,7 +186,7 @@ This prevents repeating mistakes and ensures consistent patterns.
 **Notepad System:**
 
 ```
-.sisyphus/notepads/{planId}/
+.orchestrator/notepads/{planId}/
 ├── learnings.md      # Patterns, conventions, successful approaches
 ├── decisions.md      # Architectural choices and rationales
 ├── issues.md         # Problems, blockers, gotchas encountered
@@ -229,14 +229,14 @@ delegate_task({
 
 ## Layer 3: Workers (Specialized Agents)
 
-### Sisyphus-Junior: The Task Executor
+### specialist: The Task Executor
 
 Junior is the **workhorse** that actually writes code. Key characteristics:
 
-- **Focused**: No implementation delegation. `delegate_task` is **research-scoped only** (explore/librarian, no categories, `load_skills=[]`).
+- **Focused**: No implementation delegation. `delegate_task` is **research-scoped only** (navigator/librarian, no categories, `load_skills=[]`).
 - **Disciplined**: Obsessive task tracking
 - **Verified**: Prompt requires `lsp_diagnostics` clean (and tests when applicable) before claiming completion; Orchestrator still verifies independently.
-- **Constrained**: `task` tool is denied. Plan/ledger artifacts under `.sisyphus/` are treated as read-only by convention (SSOT is owned by the orchestrator workflow).
+- **Constrained**: `task` tool is denied. Plan/ledger artifacts under `.orchestrator/` are treated as read-only by convention (SSOT is owned by the orchestrator workflow).
 
 **Why Sonnet is Sufficient:**
 
@@ -263,7 +263,7 @@ You have incomplete tasks! Complete ALL before responding:
 DO NOT respond until all tasks are marked completed.
 ```
 
-This "work continuation" mechanism (the Sisyphus “boulder pushing” metaphor) is why the system is named after Sisyphus.
+This "work continuation" mechanism (the orchestrator “boulder pushing” metaphor) is why the system is named after Orchestrator.
 
 ---
 
@@ -280,7 +280,7 @@ This "work continuation" mechanism (the Sisyphus “boulder pushing” metaphor)
 // - explicit specialists via subagent_type.
 
 delegate_task({
-  subagent_type: "oracle",
+  subagent_type: "advisor",
   load_skills: [],
   description: "architecture review",
   prompt: "...",
@@ -383,9 +383,9 @@ delegate_task({
 ```mermaid
 sequenceDiagram
     participant User
-    participant Orchestrator as Atlas Execution Mode
-    participant Junior as Sisyphus-Junior
-    participant Notepad as .sisyphus/notepads/
+    participant Orchestrator as workflow-automator Execution Mode
+    participant Junior as specialist
+    participant Notepad as .orchestrator/notepads/
     
     User->>Orchestrator: /start-work
     Orchestrator->>Orchestrator: Read plan, build parallelization map
@@ -422,8 +422,8 @@ sequenceDiagram
 
 ### 1. Separation of Concerns
 
-- **Planning** (Prometheus): High reasoning, interview, strategic thinking
-- **Orchestration** (Atlas Execution Mode): Coordination, verification, wisdom accumulation
+- **Planning** (planner): High reasoning, interview, strategic thinking
+- **Orchestration** (workflow-automator Execution Mode): Coordination, verification, wisdom accumulation
 - **Execution** (Junior): Focused implementation, no distractions
 
 ### 2. Explicit Over Implicit
@@ -458,10 +458,10 @@ Bulk work goes to cost-effective models (Sonnet, Haiku, Flash).
 
 ## Getting Started
 
-1. **Enter Prometheus Mode**: Press **Tab** at the prompt
+1. **Enter planner Mode**: Press **Tab** at the prompt
 2. **Describe Your Work**: "I want to add user authentication to my app"
-3. **Answer Interview Questions**: Prometheus will ask about patterns, preferences, constraints
-4. **Review the Plan**: Check `.sisyphus/plans/` for generated work plan
+3. **Answer Interview Questions**: planner will ask about patterns, preferences, constraints
+4. **Review the Plan**: Check `.orchestrator/plans/` for generated work plan
 5. **Run `/start-work`**: Orchestrator takes over
 6. **Observe**: Watch tasks complete with verification
 7. **Done**: All tasks complete, code verified, ready to ship

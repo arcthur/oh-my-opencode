@@ -15,11 +15,11 @@ Some text before
 
 <delegation-decision>
 {
-  "agent": "explore",
+  "agent": "navigator",
   "taskType": "exploration",
   "complexity": "simple",
   "domain": "general",
-  "reason": "Need to explore the codebase",
+  "reason": "Need to navigator the codebase",
   "signals": ["exploration needed", "unfamiliar code"]
 }
 </delegation-decision>
@@ -29,11 +29,11 @@ Some text after
         const result = extractDelegationDecision(content)
 
         expect(result).not.toBeNull()
-        expect(result?.agent).toBe("explore")
+        expect(result?.agent).toBe("navigator")
         expect(result?.taskType).toBe("exploration")
         expect(result?.complexity).toBe("simple")
         expect(result?.domain).toBe("general")
-        expect(result?.reason).toBe("Need to explore the codebase")
+        expect(result?.reason).toBe("Need to navigator the codebase")
         expect(result?.signals).toEqual(["exploration needed", "unfamiliar code"])
       })
     })
@@ -42,7 +42,7 @@ Some text after
       it("#then should still extract correctly", () => {
         const content = `<delegation-decision>
           {
-            "agent": "oracle",
+            "agent": "advisor",
             "taskType": "debugging",
             "complexity": "complex",
             "domain": "backend",
@@ -54,7 +54,7 @@ Some text after
         const result = extractDelegationDecision(content)
 
         expect(result).not.toBeNull()
-        expect(result?.agent).toBe("oracle")
+        expect(result?.agent).toBe("advisor")
         expect(result?.taskType).toBe("debugging")
       })
     })
@@ -76,7 +76,7 @@ Some text after
         const content = `
 <delegation-decision>
 {
-  "agent": "explore",
+  "agent": "navigator",
   "taskType": "exploration",
   "complexity": "simple",
   "domain": "general",
@@ -89,7 +89,7 @@ Some text in between
 
 <delegation-decision>
 {
-  "agent": "oracle",
+  "agent": "advisor",
   "taskType": "debugging",
   "complexity": "complex",
   "domain": "backend",
@@ -101,7 +101,7 @@ Some text in between
         const result = extractDelegationDecision(content)
 
         expect(result).not.toBeNull()
-        expect(result?.agent).toBe("oracle")
+        expect(result?.agent).toBe("advisor")
         expect(result?.reason).toBe("Second decision")
       })
     })
@@ -123,7 +123,7 @@ Some text in between
       it("#then should return null", () => {
         const content = `<delegation-decision>
           {
-            "agent": "explore",
+            "agent": "navigator",
             "taskType": "exploration"
           }
         </delegation-decision>`
@@ -137,7 +137,7 @@ Some text in between
       it("#then should return null", () => {
         const content = `<delegation-decision>
           {
-            "agent": "explore",
+            "agent": "navigator",
             "taskType": "exploration",
             "complexity": "simple",
             "domain": "general",
@@ -155,7 +155,7 @@ Some text in between
 
 describe("validateDelegationDecision", () => {
   const createDecision = (overrides: Partial<DelegationDecision> = {}): DelegationDecision => ({
-    agent: "explore",
+    agent: "navigator",
     taskType: "exploration",
     complexity: "simple",
     domain: "general",
@@ -164,11 +164,11 @@ describe("validateDelegationDecision", () => {
     ...overrides,
   })
 
-  describe("#given explore agent", () => {
+  describe("#given navigator agent", () => {
     describe("#when used for exploration task", () => {
       it("#then should be valid", () => {
         const decision = createDecision({
-          agent: "explore",
+          agent: "navigator",
           taskType: "exploration",
         })
 
@@ -180,9 +180,9 @@ describe("validateDelegationDecision", () => {
     })
 
     describe("#when used for debugging task", () => {
-      it("#then should be valid (explore supports debugging)", () => {
+      it("#then should be valid (navigator supports debugging)", () => {
         const decision = createDecision({
-          agent: "explore",
+          agent: "navigator",
           taskType: "debugging",
         })
 
@@ -195,7 +195,7 @@ describe("validateDelegationDecision", () => {
     describe("#when used for implementation task", () => {
       it("#then should have task type mismatch warning", () => {
         const decision = createDecision({
-          agent: "explore",
+          agent: "navigator",
           taskType: "implementation",
         })
 
@@ -208,11 +208,11 @@ describe("validateDelegationDecision", () => {
     })
   })
 
-  describe("#given oracle agent", () => {
+  describe("#given advisor agent", () => {
     describe("#when used for complex debugging", () => {
       it("#then should be valid", () => {
         const decision = createDecision({
-          agent: "oracle",
+          agent: "advisor",
           taskType: "debugging",
           complexity: "complex",
         })
@@ -226,7 +226,7 @@ describe("validateDelegationDecision", () => {
     describe("#when used for trivial task", () => {
       it("#then should have overkill warning", () => {
         const decision = createDecision({
-          agent: "oracle",
+          agent: "advisor",
           taskType: "debugging",
           complexity: "trivial",
         })
@@ -241,7 +241,7 @@ describe("validateDelegationDecision", () => {
     describe("#when used for simple task", () => {
       it("#then should have overkill warning", () => {
         const decision = createDecision({
-          agent: "oracle",
+          agent: "advisor",
           taskType: "debugging",
           complexity: "simple",
         })
@@ -256,7 +256,7 @@ describe("validateDelegationDecision", () => {
     describe("#when used for exploration task", () => {
       it("#then should have task type mismatch warning", () => {
         const decision = createDecision({
-          agent: "oracle",
+          agent: "advisor",
           taskType: "exploration",
           complexity: "complex",
         })
@@ -329,13 +329,13 @@ describe("formatValidationWarnings", () => {
       const warnings: ValidationWarning[] = [
         {
           type: "overkill",
-          message: "Oracle is expensive",
+          message: "advisor is expensive",
         },
       ]
 
       const result = formatValidationWarnings(warnings)
 
-      expect(result).toBe("- overkill: Oracle is expensive")
+      expect(result).toBe("- overkill: advisor is expensive")
     })
   })
 
@@ -344,14 +344,14 @@ describe("formatValidationWarnings", () => {
       const warnings: ValidationWarning[] = [
         {
           type: "overkill",
-          message: "Oracle is expensive",
-          suggestion: "Use explore instead",
+          message: "advisor is expensive",
+          suggestion: "Use navigator instead",
         },
       ]
 
       const result = formatValidationWarnings(warnings)
 
-      expect(result).toBe("- overkill: Oracle is expensive (Use explore instead)")
+      expect(result).toBe("- overkill: advisor is expensive (Use navigator instead)")
     })
   })
 

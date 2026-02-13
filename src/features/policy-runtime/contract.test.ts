@@ -33,7 +33,7 @@ describe("buildExecutionContract", () => {
               description: "desc",
               hook_points: ["tool.execute.before"],
               enforcement: "hard",
-              selector: { tool_name: "Write", agent: "sisyphus", session_tags: ["prod"] },
+              selector: { tool_name: "Write", agent: "orchestrator", session_tags: ["prod"] },
               condition: { equals: { "payload.env": "prod" } },
               action: { type: "deny", message: "blocked" },
               priority: 1,

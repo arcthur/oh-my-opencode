@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { loadBuiltinCommands } from "./commands"
 
 describe("builtin /start-work command", () => {
-  test("uses atlas as execution orchestrator", () => {
+  test("uses workflow-automator as execution orchestrator", () => {
     // #given
     const commands = loadBuiltinCommands()
 
@@ -11,13 +11,13 @@ describe("builtin /start-work command", () => {
 
     // #then
     expect(startWork).toBeDefined()
-    expect(startWork.agent).toBe("atlas")
-    expect(startWork.description).toContain("Atlas execution session")
+    expect(startWork.agent).toBe("workflow-automator")
+    expect(startWork.description).toContain("workflow-automator execution session")
   })
 })
 
 describe("builtin /brainstorm command", () => {
-  test("uses prometheus as planner and brainstorm entrypoint", () => {
+  test("uses planner as planner and brainstorm entrypoint", () => {
     // #given
     const commands = loadBuiltinCommands()
 
@@ -26,7 +26,7 @@ describe("builtin /brainstorm command", () => {
 
     // #then
     expect(brainstorm).toBeDefined()
-    expect(brainstorm.agent).toBe("prometheus")
+    expect(brainstorm.agent).toBe("planner")
     expect(brainstorm.description).toContain("brainstorm")
   })
 })

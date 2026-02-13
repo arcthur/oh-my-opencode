@@ -138,7 +138,7 @@ function parseInitDirective(prompt: string): { planId: string } | null {
 }
 
 function buildActiveNotice(planId: string): string {
-  const planDir = `.sisyphus/plans/${planId}`
+  const planDir = `.orchestrator/plans/${planId}`
   return `<planning-with-files-active plan_id="${planId}">
 ## Planning with Files Active
 
@@ -179,7 +179,7 @@ Missing Scenario Ref mapping in plan tasks:
 ${preview.join("\n")}${suffix}
 
 Action:
-- Add \`Scenario Ref: S-xxx\` to each missing task in \`.sisyphus/plans/${planId}/plan.md\`
+- Add \`Scenario Ref: S-xxx\` to each missing task in \`.orchestrator/plans/${planId}/plan.md\`
 </bdd-alignment>`
 }
 
@@ -449,7 +449,7 @@ Error: ${errorText.slice(0, 150)}
       const newCount = workStateManager.incrementResearchOps()
 
       if (workStateManager.shouldRemindTwoAction()) {
-        const findingsRelPath = `.sisyphus/plans/${planId}/findings.md`
+        const findingsRelPath = `.orchestrator/plans/${planId}/findings.md`
         collector.register(input.sessionID, {
           id: "two-action-rule",
           source: "work-orchestrator",

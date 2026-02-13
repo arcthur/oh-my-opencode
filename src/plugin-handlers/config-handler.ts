@@ -1,5 +1,5 @@
 import { createBuiltinAgents } from "../agents";
-import { createSisyphusJuniorAgentWithOverrides } from "../agents/sisyphus-junior";
+import { createSpecialistAgentWithOverrides } from "../agents/specialist";
 import {
   loadUserCommands,
   loadProjectCommands,
@@ -29,7 +29,7 @@ import { log, fetchAvailableModels, readConnectedProvidersCache, resolveModelPip
 import { migrateAgentConfig } from "../shared/permission-compat";
 import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
 import { mergeCategories } from "../shared/merge-categories";
-import { PROMETHEUS_PERMISSION, PROMETHEUS_RUNTIME_PROMPT } from "../agents/prometheus";
+import { PLANNER_PERMISSION, PLANNER_RUNTIME_PROMPT } from "../agents/planner";
 import type { ModelCacheState } from "../plugin-state";
 import type { CategoryConfig } from "../config/schema";
 
@@ -47,7 +47,7 @@ export function resolveCategoryConfig(
   return merged[categoryName]
 }
 
-const CORE_AGENT_ORDER = ["sisyphus", "atlas", "hephaestus", "prometheus"] as const;
+const CORE_AGENT_ORDER = ["orchestrator", "workflow-automator", "executor", "planner"] as const;
 
 function reorderAgentsByPriority(agents: Record<string, unknown>): Record<string, unknown> {
   const ordered: Record<string, unknown> = {};
@@ -219,12 +219,12 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       ])
     );
 
-    const isSisyphusEnabled = pluginConfig.sisyphus_agent?.disabled !== true;
+    const isOrchestratorEnabled = pluginConfig.orchestrator_agent?.disabled !== true;
     const builderEnabled =
-      pluginConfig.sisyphus_agent?.default_builder_enabled ?? false;
+      pluginConfig.orchestrator_agent?.default_builder_enabled ?? false;
     const plannerEnabled =
-      pluginConfig.sisyphus_agent?.planner_enabled ?? true;
-    const replacePlan = pluginConfig.sisyphus_agent?.replace_plan ?? true;
+      pluginConfig.orchestrator_agent?.planner_enabled ?? true;
+    const replacePlan = pluginConfig.orchestrator_agent?.replace_plan ?? true;
 
     type AgentConfig = Record<
       string,
@@ -232,23 +232,24 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     > & {
       build?: Record<string, unknown>;
       plan?: Record<string, unknown>;
-      explore?: { tools?: Record<string, unknown> };
+      navigator?: { tools?: Record<string, unknown> };
       librarian?: { tools?: Record<string, unknown> };
-      "multimodal-looker"?: { tools?: Record<string, unknown> };
-      sisyphus?: { tools?: Record<string, unknown> };
-      atlas?: { tools?: Record<string, unknown> };
+      "interpreter"?: { tools?: Record<string, unknown> };
+      "orchestrator"?: { tools?: Record<string, unknown> };
+      "workflow-automator"?: { tools?: Record<string, unknown> };
+      "executor"?: { tools?: Record<string, unknown> };
     };
     const configAgent = config.agent as AgentConfig | undefined;
 
-    if (isSisyphusEnabled && builtinAgents.sisyphus) {
-      (config as { default_agent?: string }).default_agent = "sisyphus";
+    if (isOrchestratorEnabled && builtinAgents["orchestrator"]) {
+      (config as { default_agent?: string }).default_agent = "orchestrator";
 
       const agentConfig: Record<string, unknown> = {
-        sisyphus: builtinAgents.sisyphus,
+        "orchestrator": builtinAgents["orchestrator"],
       };
 
-      agentConfig["sisyphus-junior"] = createSisyphusJuniorAgentWithOverrides(
-        pluginConfig.agents?.["sisyphus-junior"],
+      agentConfig["specialist"] = createSpecialistAgentWithOverrides(
+        pluginConfig.agents?.["specialist"],
         undefined
       );
 
@@ -271,8 +272,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       }
 
       if (plannerEnabled) {
-        const prometheusOverride =
-          pluginConfig.agents?.["prometheus"] as
+        const plannerOverride =
+          pluginConfig.agents?.["planner"] as
             | (Record<string, unknown> & {
                 category?: string
                 model?: string
@@ -286,14 +287,14 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
               })
             | undefined;
 
-        const categoryConfig = prometheusOverride?.category
+        const categoryConfig = plannerOverride?.category
           ? resolveCategoryConfig(
-              prometheusOverride.category,
+              plannerOverride.category,
               pluginConfig.categories
             )
           : undefined;
 
-        const prometheusRequirement = AGENT_MODEL_REQUIREMENTS["prometheus"];
+        const plannerRequirement = AGENT_MODEL_REQUIREMENTS["planner"];
         const connectedProviders = readConnectedProvidersCache();
         // IMPORTANT: Do NOT pass ctx.client to fetchAvailableModels during plugin initialization.
         // Calling client API (e.g., client.provider.list()) from config handler causes deadlock:
@@ -306,8 +307,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         });
 
         const overrideModel =
-          typeof prometheusOverride?.model === "string"
-            ? prometheusOverride.model
+          typeof plannerOverride?.model === "string"
+            ? plannerOverride.model
             : undefined;
 
         const currentModel = config.model as string | undefined;
@@ -318,28 +319,28 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           },
           constraints: { availableModels },
           policy: {
-            fallbackChain: prometheusRequirement?.fallbackChain,
+            fallbackChain: plannerRequirement?.fallbackChain,
             systemDefaultModel: currentModel,
           },
         });
         const resolvedModel = modelResolution?.model;
         const resolvedVariant = modelResolution?.variant;
 
-        const variantToUse = prometheusOverride?.variant ?? resolvedVariant;
-        const reasoningEffortToUse = prometheusOverride?.reasoningEffort ?? categoryConfig?.reasoningEffort;
-        const textVerbosityToUse = prometheusOverride?.textVerbosity ?? categoryConfig?.textVerbosity;
-        const thinkingToUse = prometheusOverride?.thinking ?? categoryConfig?.thinking;
-        const temperatureToUse = prometheusOverride?.temperature ?? categoryConfig?.temperature;
-        const topPToUse = prometheusOverride?.top_p ?? categoryConfig?.top_p;
-        const maxTokensToUse = prometheusOverride?.maxTokens ?? categoryConfig?.maxTokens;
-        const prometheusBase = {
-          name: "prometheus",
+        const variantToUse = plannerOverride?.variant ?? resolvedVariant;
+        const reasoningEffortToUse = plannerOverride?.reasoningEffort ?? categoryConfig?.reasoningEffort;
+        const textVerbosityToUse = plannerOverride?.textVerbosity ?? categoryConfig?.textVerbosity;
+        const thinkingToUse = plannerOverride?.thinking ?? categoryConfig?.thinking;
+        const temperatureToUse = plannerOverride?.temperature ?? categoryConfig?.temperature;
+        const topPToUse = plannerOverride?.top_p ?? categoryConfig?.top_p;
+        const maxTokensToUse = plannerOverride?.maxTokens ?? categoryConfig?.maxTokens;
+        const plannerBase = {
+          name: "planner",
           ...(resolvedModel ? { model: resolvedModel } : {}),
           ...(variantToUse ? { variant: variantToUse } : {}),
           mode: "all" as const,
-          prompt: PROMETHEUS_RUNTIME_PROMPT,
-          permission: PROMETHEUS_PERMISSION,
-          description: `${configAgent?.plan?.description ?? "Plan agent"} (Prometheus - OhMyOpenCode)`,
+          prompt: PLANNER_RUNTIME_PROMPT,
+          permission: PLANNER_PERMISSION,
+          description: `${configAgent?.plan?.description ?? "Plan agent"} (planner - OhMyOpenCode)`,
           color: (configAgent?.plan?.color as string) ?? "#9D4EDD", // Amethyst Purple - wisdom/foresight
           ...(temperatureToUse !== undefined ? { temperature: temperatureToUse } : {}),
           ...(topPToUse !== undefined ? { top_p: topPToUse } : {}),
@@ -354,23 +355,23 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
             : {}),
         };
 
-        // Properly handle prompt_append for Prometheus
+        // Properly handle prompt_append for planner
         // Extract prompt_append and append it to prompt instead of shallow spread
         // Fixes: https://github.com/code-yeongyu/oh-my-opencode/issues/723
-        if (prometheusOverride) {
+        if (plannerOverride) {
           const { category: _category, model: _model, prompt_append, ...restOverride } =
-            prometheusOverride as Record<string, unknown> & {
+            plannerOverride as Record<string, unknown> & {
               category?: string
               model?: string
               prompt_append?: string
             };
-          const merged = { ...prometheusBase, ...restOverride };
+          const merged = { ...plannerBase, ...restOverride };
           if (prompt_append && merged.prompt) {
             merged.prompt = merged.prompt + "\n" + prompt_append;
           }
-          agentConfig["prometheus"] = merged;
+          agentConfig["planner"] = merged;
         } else {
-          agentConfig["prometheus"] = prometheusBase;
+          agentConfig["planner"] = plannerBase;
         }
       }
 
@@ -397,9 +398,9 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         ? migrateAgentConfig(configAgent.build as Record<string, unknown>)
         : {};
 
-      const planDemoteConfig = replacePlan && agentConfig["prometheus"]
+      const planDemoteConfig = replacePlan && agentConfig["planner"]
         ? {
-            ...(agentConfig["prometheus"] as Record<string, unknown>),
+            ...(agentConfig["planner"] as Record<string, unknown>),
             name: "plan",
             mode: "subagent" as const,
           }
@@ -408,7 +409,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       config.agent = {
         ...agentConfig,
         ...Object.fromEntries(
-          Object.entries(builtinAgents).filter(([k]) => k !== "sisyphus")
+          Object.entries(builtinAgents).filter(([k]) => k !== "orchestrator")
         ),
         ...userAgents,
         ...projectAgents,
@@ -451,29 +452,29 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       const agent = agentResult.librarian as AgentWithPermission;
       agent.permission = { ...agent.permission, "grep_app_*": "allow" };
     }
-    if (agentResult["multimodal-looker"]) {
-      const agent = agentResult["multimodal-looker"] as AgentWithPermission;
+    if (agentResult["interpreter"]) {
+      const agent = agentResult["interpreter"] as AgentWithPermission;
       agent.permission = { ...agent.permission, task: "deny", look_at: "deny" };
     }
-    if (agentResult.sisyphus) {
-      const agent = agentResult.sisyphus as AgentWithPermission;
+    if (agentResult["orchestrator"]) {
+      const agent = agentResult["orchestrator"] as AgentWithPermission;
       agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
-    if (agentResult.atlas) {
-      const agent = agentResult.atlas as AgentWithPermission;
+    if (agentResult["workflow-automator"]) {
+      const agent = agentResult["workflow-automator"] as AgentWithPermission;
       agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
-    if (agentResult.hephaestus) {
-      const agent = agentResult.hephaestus as AgentWithPermission;
+    if (agentResult["executor"]) {
+      const agent = agentResult["executor"] as AgentWithPermission;
       agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
-    if (agentResult["prometheus"]) {
-      const agent = agentResult["prometheus"] as AgentWithPermission;
+    if (agentResult["planner"]) {
+      const agent = agentResult["planner"] as AgentWithPermission;
       agent.permission = { ...agent.permission, delegate_task: "allow", question: questionPermission };
     }
-    if (agentResult["sisyphus-junior"]) {
-      const agent = agentResult["sisyphus-junior"] as AgentWithPermission;
-      // CRITICAL: Sisyphus-Junior is a focused executor.
+    if (agentResult["specialist"]) {
+      const agent = agentResult["specialist"] as AgentWithPermission;
+      // CRITICAL: Specialist is a focused executor.
       // delegate_task is allowed (research-scoped, enforced by the tool itself).
       // task is always denied.
       agent.permission = { ...agent.permission, task: "deny" };

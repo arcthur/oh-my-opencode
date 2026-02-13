@@ -23,7 +23,7 @@ This document does **not** define the full OpenCode storage schema; it focuses o
 - Claude config dir resolution: `src/shared/claude-config-dir.ts`
 - OpenCode storage and cache dirs: `src/shared/data-path.ts`
 - Skills/commands directories: `src/shared/paths.ts`
-- Sisyphus tasks/swarm config: `src/config/schema.ts` (`SisyphusConfigSchema`)
+- orchestrator tasks/swarm config: `src/config/schema.ts` (`OrchestratorConfigSchema`)
 
 ## Configuration Files
 
@@ -73,29 +73,29 @@ The plugin discovers skills and commands from multiple directories:
 
 See `src/shared/paths.ts`.
 
-## Sisyphus Artifacts (`.sisyphus/`)
+## orchestrator Artifacts (`.orchestrator/`)
 
-The `.sisyphus/` directory is used for fork-owned artifacts such as:
+The `.orchestrator/` directory is used for fork-owned artifacts such as:
 
 - Plans:
-  - Canonical plan specs: `.sisyphus/plans/<planId>/plan.md`
-  - Plan directories: `.sisyphus/plans/<planId>/` (task state SSOT: TaskGraph under `.sisyphus/tasks/plan/<planId>/`)
-- Plan reviews: `.sisyphus/plan-reviews/`
-- Notepads: `.sisyphus/notepads/`
-- Ralph loop state: `.sisyphus/ralph-loop.local.md` (when enabled and active)
-- Drafts / designs / evidence (used by planning workflows): `.sisyphus/drafts/`, `.sisyphus/designs/`, `.sisyphus/evidence/`
+  - Canonical plan specs: `.orchestrator/plans/<planId>/plan.md`
+  - Plan directories: `.orchestrator/plans/<planId>/` (task state SSOT: TaskGraph under `.orchestrator/tasks/plan/<planId>/`)
+- Plan reviews: `.orchestrator/plan-reviews/`
+- Notepads: `.orchestrator/notepads/`
+- Ralph loop state: `.orchestrator/ralph-loop.local.md` (when enabled and active)
+- Drafts / designs / evidence (used by planning workflows): `.orchestrator/drafts/`, `.orchestrator/designs/`, `.orchestrator/evidence/`
 
 ### Tasks and Swarm storage paths (configurable)
 
 TaskGraph and Swarm store state in configurable directories:
 
-- Tasks: default `.sisyphus/tasks` (`sisyphus.tasks.storage_path`)
-- Teams: default `.sisyphus/teams` (`sisyphus.swarm.storage_path`)
+- Tasks: default `.orchestrator/tasks` (`orchestrator.tasks.storage_path`)
+- Teams: default `.orchestrator/teams` (`orchestrator.swarm.storage_path`)
 
 TaskGraph per-container layout:
 
 ```text
-.sisyphus/tasks/<scope>/<container_id>/task_*.json
+.orchestrator/tasks/<scope>/<container_id>/task_*.json
 ```
 
 Scopes:
@@ -104,12 +104,12 @@ Scopes:
 - `plan`: `container_id` is a plan id
 - `swarm`: `container_id` is a team name
 
-See `src/config/schema.ts` (`SisyphusTasksConfigSchema`, `SisyphusSwarmConfigSchema`) and `docs/reference/task-graph.md`.
+See `src/config/schema.ts` (`OrchestratorTasksConfigSchema`, `OrchestratorSwarmConfigSchema`) and `docs/reference/task-graph.md`.
 
-Swarm team runtime layout (default root: `.sisyphus/teams`):
+Swarm team runtime layout (default root: `.orchestrator/teams`):
 
 ```text
-.sisyphus/teams/<team>/
+.orchestrator/teams/<team>/
 ├── manifest.json
 ├── coordinator-lease.json
 ├── heartbeats/<agentId>.json
@@ -165,12 +165,12 @@ Org memory persists project-scoped state under:
 
 See `docs/reference/org-memory.md` and `src/features/org-memory/`.
 
-## Governance (`~/.sisyphus/`)
+## Governance (`~/.orchestrator/`)
 
 When governance is enabled, it may persist governance artifacts under:
 
-- Ledger (append-only audit log): `~/.sisyphus/ledger/<sessionId>.jsonl`
-- Traces (compressed execution trace): `~/.sisyphus/traces/<sessionId>.json`
+- Ledger (append-only audit log): `~/.orchestrator/ledger/<sessionId>.jsonl`
+- Traces (compressed execution trace): `~/.orchestrator/traces/<sessionId>.json`
 
 See `docs/reference/governance.md` and `src/features/governance/`.
 

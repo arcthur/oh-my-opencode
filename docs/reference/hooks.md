@@ -80,16 +80,17 @@ work-orchestrator
 silent-tool-output
 context-manifest-injector
 repo-overview-injector
+codemap-injector
 runtime-tracker
 anti-slop-enforcer
 pre-completion-verification
-sisyphus-contextual-injector
+orchestrator-contextual-injector
 delegation-validate-decision
 conditional-rules
 session-handoff
 question-label-truncator
 delegation-nudge-category-skill
-sisyphus-junior-notepad
+specialist-notepad
 tmux-parallel-agents
 swarm-agent
 anthropic-effort
@@ -125,7 +126,7 @@ Execution order (simplified to plugin-relevant steps):
 1. Session agent tracking (internal)
 2. First-message variant gate (internal)
 3. Keyword detector (if enabled)
-4. Sisyphus contextual injector (if enabled)
+4. orchestrator contextual injector (if enabled)
 5. Policy observe (internal, fail-open)
 6. Claude Code bridge node (if enabled)
 7. Governance user-prompt processing (if enabled)
@@ -209,9 +210,9 @@ Execution order (high-level):
 10. Directory README injector (if enabled)
 11. Rules injector (if enabled)
 12. Work-orchestrator (planning + execution pre-tool logic, if enabled)
-13. Sisyphus contextual injector (if enabled)
+13. orchestrator contextual injector (if enabled)
 14. `delegation-validate-decision` (if enabled)
-15. Sisyphus-junior notepad (if enabled)
+15. Orchestrator-junior notepad (if enabled)
 16. Tmux parallel agents (if enabled)
 17. Swarm agent (if enabled)
 18. Conditional rules (if enabled; special handling for `delegate_task`)
@@ -262,7 +263,7 @@ Execution order (high-level):
 ### `event`
 
 The generic OpenCode `event` stream is used to drive lifecycle, continuation, and background management.
-Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes `work-orchestrator:event` (unified planning/continuation/lifecycle phase handling), update checker, Claude Code bridge, notifications, `task-auto-continuation`, `unstable-agent-watchdog`, **sisyphus-contextual-injector**, and internal core session-state/session-state-repair nodes.
+Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes `work-orchestrator:event` (unified planning/continuation/lifecycle phase handling), update checker, Claude Code bridge, notifications, `task-auto-continuation`, `unstable-agent-watchdog`, **orchestrator-contextual-injector**, and internal core session-state/session-state-repair nodes.
 
 `session-state-repair` recoverable classes currently include:
 

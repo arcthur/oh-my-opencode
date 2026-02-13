@@ -109,7 +109,7 @@ After making changes, you can test your local build in OpenCode:
 ```
 oh-my-opencode/
 ├── src/
-│   ├── agents/        # AI agents (OmO, oracle, librarian, explore, etc.)
+│   ├── agents/        # AI agents (OmO, advisor, librarian, navigator, etc.)
 │   ├── hooks/         # 21 lifecycle hooks
 │   ├── tools/         # LSP (11), AST-Grep, Grep, Glob, etc.
 │   ├── mcp/           # MCP server integrations (context7, grep_app)

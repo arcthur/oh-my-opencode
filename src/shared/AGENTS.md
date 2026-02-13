@@ -60,8 +60,8 @@ shared/
 **3-Step Resolution** (Override → Fallback → Default):
 ```typescript
 const model = resolveModelWithFallback({
-  userModel: config.agents.sisyphus.model,
-  fallbackChain: AGENT_MODEL_REQUIREMENTS.sisyphus.fallbackChain,
+  userModel: config.agents.orchestrator.model,
+  fallbackChain: AGENT_MODEL_REQUIREMENTS.orchestrator.fallbackChain,
   availableModels: fetchedModels,
 })
 ```

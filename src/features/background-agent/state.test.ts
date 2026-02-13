@@ -8,7 +8,7 @@ function createTask(id: string, status: BackgroundTask["status"]): BackgroundTas
     status,
     description: `task-${id}`,
     prompt: "run",
-    agent: "explore",
+    agent: "navigator",
     parentSessionID: "parent-session",
     parentMessageID: "parent-message",
   }

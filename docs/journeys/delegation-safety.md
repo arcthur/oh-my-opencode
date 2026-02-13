@@ -2,14 +2,14 @@
 
 ## User Perspective
 
-You want delegation to be explainable and debuggable, especially when Sisyphus delegates work to other agents in parallel.
+You want delegation to be explainable and debuggable, especially when orchestrator delegates work to other agents in parallel.
 The `delegation-validate-decision` hook adds lightweight guardrails: it requires a structured delegation decision before each `delegate_task` call and injects warnings when the choice looks suspicious—without blocking execution.
 
 ## End-to-End Flow
 
 ```mermaid
 flowchart TD
-  U["User request"] --> S["Sisyphus decides to delegate"]
+  U["User request"] --> S["orchestrator decides to delegate"]
   S --> D["Assistant emits <delegation-decision> JSON"]
   D --> T["delegate_task tool call"]
 
@@ -32,16 +32,16 @@ flowchart TD
 
 ## Delegation Decision Format (Per `delegate_task` Call)
 
-Before calling `delegate_task`, Sisyphus SHOULD emit a decision block in the immediately preceding assistant message:
+Before calling `delegate_task`, orchestrator SHOULD emit a decision block in the immediately preceding assistant message:
 
 ```xml
 <delegation-decision>
 {
-  "agent": "explore",
+  "agent": "navigator",
   "taskType": "debugging",
   "complexity": "moderate",
   "domain": "backend",
-  "reason": "After multiple failed attempts, use oracle to analyze root cause and propose a minimal fix.",
+  "reason": "After multiple failed attempts, use advisor to analyze root cause and propose a minimal fix.",
   "signals": ["2+ failed attempts", "stack trace present", "multi-module impact"]
 }
 </delegation-decision>
@@ -49,7 +49,7 @@ Before calling `delegate_task`, Sisyphus SHOULD emit a decision block in the imm
 
 Fields (source of truth: `src/delegation/types.ts`):
 
-- `agent`: a built-in agent name (e.g. `explore`, `librarian`, `oracle`).
+- `agent`: a built-in agent name (e.g. `navigator`, `librarian`, `advisor`).
 - `taskType`: one of `exploration|implementation|debugging|refactoring|documentation|architecture|research`.
 - `complexity`: one of `trivial|simple|moderate|complex`.
 - `domain`: one of `frontend|backend|external|general`.
@@ -66,7 +66,7 @@ The validator is intentionally advisory:
 
 Current rules coverage is limited (source of truth: `src/delegation/validator.ts`):
 
-- Rules are defined only for: `explore`, `librarian`, and `oracle`.
+- Rules are defined only for: `navigator`, `librarian`, and `advisor`.
 - If the target agent has no rules entry, validation is skipped (treated as valid).
 
 Current checks:
@@ -95,14 +95,14 @@ This feature is a hook named `delegation-validate-decision`. Disable it with:
 - Hook: `src/hooks/delegation-validate-decision/index.ts`
 - Decision schema: `src/delegation/types.ts`
 - Extraction + validation logic: `src/delegation/validator.ts`
-- Orchestrator prompt responsibilities: `src/agents/sisyphus/index.ts`
+- Orchestrator prompt responsibilities: `src/agents/orchestrator/index.ts`
 
 ## Debug Checklist
 
 - Confirm `delegation-validate-decision` is enabled (not in `disabled_hooks`).
 - Confirm the decision block exists in the assistant message immediately before `delegate_task`.
 - Check logs for `[delegation-validate-decision]` (missing decision, warnings, validated).
-- If no warnings appear, confirm the chosen agent is covered by the rules matrix (only `explore|librarian|oracle` are validated today).
+- If no warnings appear, confirm the chosen agent is covered by the rules matrix (only `navigator|librarian|advisor` are validated today).
 
 ## Further Reading
 

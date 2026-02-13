@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { createAgentIdentity, createTeam } from "../features/sisyphus-swarm/team"
-import { createSwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
+import { createAgentIdentity, createTeam } from "../features/orchestrator-swarm/team"
+import { createSwarmRuntimeService } from "../features/orchestrator-swarm/runtime"
 
 const mockLog = mock(() => {})
 const mockInspectSwarmWindowsByTeam = mock(() => ({
@@ -23,7 +23,7 @@ mock.module("../shared/logger", () => ({
   log: mockLog,
 }))
 
-mock.module("../features/sisyphus-swarm/tmux", () => ({
+mock.module("../features/orchestrator-swarm/tmux", () => ({
   createSwarmOrchestrator: mock(() => null),
   closeSwarmWindowsByTeam: mockCloseSwarmWindowsByTeam,
   inspectSwarmWindowsByTeam: mockInspectSwarmWindowsByTeam,
@@ -59,7 +59,7 @@ describe("swarm tool observability telemetry", () => {
     mockGetCurrentSession.mockReturnValue("main")
 
     projectDir = join(tmpdir(), `swarm-observability-${Date.now()}`)
-    teamsDir = join(projectDir, ".sisyphus", "teams")
+    teamsDir = join(projectDir, ".orchestrator", "teams")
     mkdirSync(teamsDir, { recursive: true })
   })
 
@@ -79,7 +79,7 @@ describe("swarm tool observability telemetry", () => {
       sessionId: "sess-main",
     })
     createTeam("team-a", coordinator, {
-      sisyphus: {
+      orchestrator: {
         swarm: {
           enabled: true,
           storage_path: teamsDir,
@@ -91,7 +91,7 @@ describe("swarm tool observability telemetry", () => {
     const tool = createSwarmTool({
       directory: projectDir,
       config: {
-        sisyphus: {
+        orchestrator: {
           swarm: {
             enabled: true,
             storage_path: teamsDir,

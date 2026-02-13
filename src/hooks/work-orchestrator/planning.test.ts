@@ -19,7 +19,7 @@ function createTempDir(): string {
 }
 
 function readWorkState(projectDir: string): Record<string, unknown> | null {
-  const workPath = path.join(projectDir, ".sisyphus", "work.yaml")
+  const workPath = path.join(projectDir, ".orchestrator", "work.yaml")
   if (!fs.existsSync(workPath)) return null
   return (yaml.load(fs.readFileSync(workPath, "utf-8")) as Record<string, unknown> | null) ?? null
 }
@@ -206,7 +206,7 @@ describe("work-orchestrator planning phase", () => {
     collector.consume("session-3")
 
     // Modify findings.md (mtime-based reset)
-    const findingsPath = path.join(tmpDir, ".sisyphus", "plans", "reset-plan", "findings.md")
+    const findingsPath = path.join(tmpDir, ".orchestrator", "plans", "reset-plan", "findings.md")
     await new Promise((r) => setTimeout(r, 10))
     fs.writeFileSync(findingsPath, "# Updated findings\n")
 
@@ -241,12 +241,12 @@ describe("work-orchestrator planning phase", () => {
     await hook["chat.message"]?.({ sessionID: "session-init", messageID: "m1" }, output as any)
 
     // then
-    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "my-plan", "plan.md"))).toBe(true)
-    expect(fs.existsSync(path.join(tmpDir, ".sisyphus", "plans", "my-plan", "ledger.yaml"))).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, ".orchestrator", "plans", "my-plan", "plan.md"))).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, ".orchestrator", "plans", "my-plan", "ledger.yaml"))).toBe(true)
     const state = readWorkState(tmpDir)
     expect(state).not.toBeNull()
     expect(state?.plan_id).toBe("my-plan")
-    expect(state?.executor).toBe("atlas")
+    expect(state?.executor).toBe("workflow-automator")
     expect(String(state?.execution_plan_path ?? "")).toContain("my-plan/plan.md")
     expect(output.parts[0].text).toContain("<planning-with-files-active")
   })
@@ -421,10 +421,10 @@ describe("work-orchestrator planning phase", () => {
     const promptCalls: Array<{ sessionID: string; text: string }> = []
     const sessionID = "session-stop-task"
     const taskConfig = {
-      sisyphus: {
+      orchestrator: {
         tasks: {
           enabled: true,
-          storage_path: path.join(tmpDir, ".sisyphus", "tasks"),
+          storage_path: path.join(tmpDir, ".orchestrator", "tasks"),
         },
       },
     } as const
@@ -505,7 +505,7 @@ describe("work-orchestrator planning phase", () => {
       collector,
     })
 
-    const planDir = path.join(tmpDir, ".sisyphus", "plans", "strike-plan-recorded")
+    const planDir = path.join(tmpDir, ".orchestrator", "plans", "strike-plan-recorded")
     const ledgerPath = path.join(planDir, "ledger.yaml")
 
     // when - strike 1
@@ -620,7 +620,7 @@ updated_at: "2026-02-06T00:00:00Z"
   test("emits BDD alignment warning when plan tasks miss scenario refs", async () => {
     // given
     await initializePlan(tmpDir, "bdd-warn-plan", "Goal")
-    const planPath = path.join(tmpDir, ".sisyphus", "plans", "bdd-warn-plan", "plan.md")
+    const planPath = path.join(tmpDir, ".orchestrator", "plans", "bdd-warn-plan", "plan.md")
     fs.writeFileSync(
       planPath,
       `# Plan: bdd-warn-plan
@@ -658,7 +658,7 @@ updated_at: "2026-02-06T00:00:00Z"
   test("blocks non-plan tool execution in required mode when scenario refs are missing", async () => {
     // given
     await initializePlan(tmpDir, "bdd-required-plan", "Goal")
-    const planPath = path.join(tmpDir, ".sisyphus", "plans", "bdd-required-plan", "plan.md")
+    const planPath = path.join(tmpDir, ".orchestrator", "plans", "bdd-required-plan", "plan.md")
     fs.writeFileSync(
       planPath,
       `# Plan: bdd-required-plan
@@ -692,7 +692,7 @@ updated_at: "2026-02-06T00:00:00Z"
     await expect(
       hook["tool.execute.before"]?.(
         { tool: "Edit", sessionID: "session-bdd-required", callID: "call-bdd-required-2" },
-        { args: { path: ".sisyphus/plans/bdd-required-plan/plan.md", old_string: "old", new_string: "new" } }
+        { args: { path: ".orchestrator/plans/bdd-required-plan/plan.md", old_string: "old", new_string: "new" } }
       )
     ).resolves.toBeUndefined()
   })
@@ -702,7 +702,7 @@ updated_at: "2026-02-06T00:00:00Z"
     await initializePlan(tmpDir, "bdd-required-no-reread-plan", "Goal")
     const planPath = path.join(
       tmpDir,
-      ".sisyphus",
+      ".orchestrator",
       "plans",
       "bdd-required-no-reread-plan",
       "plan.md"
@@ -742,7 +742,7 @@ updated_at: "2026-02-06T00:00:00Z"
         { tool: "Edit", sessionID: "session-bdd-required-no-reread", callID: "call-bdd-required-4" },
         {
           args: {
-            path: ".sisyphus/plans/bdd-required-no-reread-plan/plan.md",
+            path: ".orchestrator/plans/bdd-required-no-reread-plan/plan.md",
             old_string: "old",
             new_string: "new",
           },

@@ -70,7 +70,7 @@ Implementation: `src/features/session-handoff/`.
 A prompt syntax feature (e.g., `@session:<id>`) used to reference prior sessions and optionally materialize a handoff from them.
 Configuration lives under `session_handoff.reference` in `src/config/schema.ts`.
 
-## Swarm (Sisyphus Swarm)
+## Swarm (orchestrator Swarm)
 
 A fork-owned multi-agent coordination system with persistent team/task artifacts.
 Primary entry: `swarm` tool (`src/tools/swarm.ts`) and the swarm feature/hook wiring.
@@ -124,7 +124,7 @@ Implementation: `src/features/governance/tracer.ts`.
 
 An append-only audit log (JSONL format) recording budget snapshots, tool executions, and governance events. Supports integrity chains.
 
-Location: `~/.sisyphus/ledger/<sessionId>.jsonl`. Implementation: `src/features/governance/ledger.ts`.
+Location: `~/.orchestrator/ledger/<sessionId>.jsonl`. Implementation: `src/features/governance/ledger.ts`.
 
 ### Budget Monitor
 

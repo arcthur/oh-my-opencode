@@ -3,7 +3,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { SISYPHUS_PROJECT_ROOT_ENV } from "../sisyphus-tasks/storage"
+import { ORCHESTRATOR_PROJECT_ROOT_ENV } from "../orchestrator-tasks/storage"
 import { acquireSlot, releaseSlot, resolveParallelRuntimeConfig } from "../parallel-runtime"
 import { BackgroundManager } from "./manager"
 
@@ -26,17 +26,17 @@ describe("background-agent manager parallel-runtime integration", () => {
   let previousRoot: string | undefined
 
   beforeEach(() => {
-    previousRoot = process.env[SISYPHUS_PROJECT_ROOT_ENV]
+    previousRoot = process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
     projectRoot = join(tmpdir(), `background-parallel-runtime-${Date.now()}-${Math.random().toString(16).slice(2)}`)
     mkdirSync(projectRoot, { recursive: true })
-    process.env[SISYPHUS_PROJECT_ROOT_ENV] = projectRoot
+    process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = projectRoot
   })
 
   afterEach(() => {
     if (previousRoot) {
-      process.env[SISYPHUS_PROJECT_ROOT_ENV] = previousRoot
+      process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = previousRoot
     } else {
-      delete process.env[SISYPHUS_PROJECT_ROOT_ENV]
+      delete process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
     }
     if (existsSync(projectRoot)) {
       rmSync(projectRoot, { recursive: true })
@@ -80,7 +80,7 @@ describe("background-agent manager parallel-runtime integration", () => {
     const task = await manager.launch({
       description: "blocked background task",
       prompt: "run the task",
-      agent: "explore",
+      agent: "navigator",
       parentSessionID: "parent-session",
       parentMessageID: "parent-message",
     })

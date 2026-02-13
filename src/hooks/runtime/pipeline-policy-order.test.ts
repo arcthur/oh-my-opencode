@@ -79,7 +79,7 @@ describe("policy pipeline deterministic insertion", () => {
     expectBetween(
       nodes,
       "internal:policy-observe:chat.message",
-      "sisyphus-contextual-injector:chat.message",
+      "orchestrator-contextual-injector:chat.message",
       "bridge:claude-code-hooks:chat.message"
     )
 

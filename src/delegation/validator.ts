@@ -13,7 +13,7 @@ import type {
  * Defines what task types, complexity levels, and domains are appropriate for each agent.
  */
 const VALIDATION_RULES: Partial<Record<BuiltinAgentName, AgentValidationRules>> = {
-  explore: {
+  navigator: {
     validTaskTypes: ["exploration", "debugging"],
     validComplexity: ["trivial", "simple", "moderate", "complex"],
     validDomains: ["frontend", "backend", "general"],
@@ -23,7 +23,7 @@ const VALIDATION_RULES: Partial<Record<BuiltinAgentName, AgentValidationRules>> 
     validComplexity: ["trivial", "simple", "moderate", "complex"],
     validDomains: ["external", "general"],
   },
-  oracle: {
+  advisor: {
     validTaskTypes: ["debugging", "architecture"],
     validComplexity: ["moderate", "complex"],
     validDomains: ["backend", "general", "frontend"],
@@ -46,12 +46,12 @@ const COMPLEXITY_ORDER: Record<Complexity, number> = {
  */
 function suggestBetterAgent(taskType: TaskType): string | undefined {
   const suggestions: Partial<Record<TaskType, string>> = {
-    exploration: "explore or librarian",
+    exploration: "navigator or librarian",
     implementation: "direct implementation or delegate via category",
-    debugging: "explore first, then oracle if 2+ attempts failed",
+    debugging: "navigator first, then advisor if 2+ attempts failed",
     refactoring: "direct implementation or delegate via category",
     documentation: "delegate via category with writing skill",
-    architecture: "oracle first, then Prometheus planning review with Metis/Momus if needed",
+    architecture: "advisor first, then planner review with scope-analyst/reviewer if needed",
     research: "librarian",
   }
   return suggestions[taskType]

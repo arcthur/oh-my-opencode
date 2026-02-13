@@ -39,7 +39,7 @@ export type BackgroundOutputManager = Pick<BackgroundManager, "getTask">
 
 const MAX_MESSAGE_LIMIT = 100
 const THINKING_MAX_CHARS = 2000
-const SISYPHUS_JUNIOR_AGENT = "sisyphus-junior"
+const ORCHESTRATOR_JUNIOR_AGENT = "specialist"
 
 type FullSessionMessagePart = {
   type?: string
@@ -91,7 +91,7 @@ function formatSessionID(sessionID?: string): string {
 }
 
 function formatResolvedTitle(task: BackgroundTask): string {
-  const label = task.agent === SISYPHUS_JUNIOR_AGENT && task.category
+  const label = task.agent === ORCHESTRATOR_JUNIOR_AGENT && task.category
     ? task.category
     : task.agent
   return `${label} - ${task.description}`
@@ -117,7 +117,7 @@ export function createBackgroundTask(manager: BackgroundManager): ToolDefinition
       const ctx = toolContext as ToolContextWithMetadata
 
       if (!args.agent || args.agent.trim() === "") {
-        return `[ERROR] Agent parameter is required. Please specify which agent to use (e.g., "explore", "librarian", "build", etc.)`
+        return `[ERROR] Agent parameter is required. Please specify which agent to use (e.g., "navigator", "librarian", "build", etc.)`
       }
 
       try {

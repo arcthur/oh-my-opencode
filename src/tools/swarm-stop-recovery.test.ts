@@ -1,5 +1,5 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test"
-import { createSwarmRuntimeService } from "../features/sisyphus-swarm/runtime"
+import { createSwarmRuntimeService } from "../features/orchestrator-swarm/runtime"
 
 const mockCloseSwarmWindowsByTeam = mock(() => ({
   attempted: 2,
@@ -14,7 +14,7 @@ const mockInspectSwarmWindowsByTeam = mock(() => ({
 }))
 const mockGetCurrentSession = mock(() => "main")
 
-mock.module("../features/sisyphus-swarm/tmux", () => ({
+mock.module("../features/orchestrator-swarm/tmux", () => ({
   createSwarmOrchestrator: mock(() => null),
   closeSwarmWindowsByTeam: mockCloseSwarmWindowsByTeam,
   inspectSwarmWindowsByTeam: mockInspectSwarmWindowsByTeam,

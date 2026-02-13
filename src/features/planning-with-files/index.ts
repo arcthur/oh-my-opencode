@@ -7,7 +7,7 @@
  * - 4-file pattern: plan.md, ledger.yaml, findings.md, progress.md
  * - Full plan.md re-read for KV-cache optimization
  * - Auto-detection of findings.md updates via mtime
- * - Protocol state persistence via .sisyphus/work.yaml (WorkStateManager)
+ * - Protocol state persistence via .orchestrator/work.yaml (WorkStateManager)
  * - 2-Action Rule with auto-reset
  * - 3-Strike Error Protocol
  */

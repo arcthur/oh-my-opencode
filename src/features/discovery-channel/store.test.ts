@@ -33,6 +33,6 @@ describe("discovery-channel store", () => {
     const loaded = loadDiscoveryEntries(workspace, "p1")
     expect(loaded).toHaveLength(1)
     expect(loaded[0]?.claim).toBe("Potential leak in queue")
-    expect(getDiscoveryLedgerPath(workspace, "p1")).toContain(".sisyphus/plans/p1/discoveries.jsonl")
+    expect(getDiscoveryLedgerPath(workspace, "p1")).toContain(".orchestrator/plans/p1/discoveries.jsonl")
   })
 })

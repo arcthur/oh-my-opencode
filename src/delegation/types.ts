@@ -24,7 +24,7 @@ export type Domain = "frontend" | "backend" | "external" | "general"
 
 /**
  * LLM-generated delegation decision JSON structure.
- * Sisyphus outputs this before every delegate_task call.
+ * orchestrator outputs this before every delegate_task call.
  */
 export interface DelegationDecision {
   /** Target agent for delegation */
