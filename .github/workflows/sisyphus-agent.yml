@@ -57,7 +57,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.9
 
       - name: Cache Bun dependencies
         uses: actions/cache@v4
@@ -71,8 +71,10 @@ jobs:
 
       # Build local oh-my-opencode
       - name: Build oh-my-opencode
+        env:
+          BUN_INSTALL_ALLOW_SCRIPTS: "@ast-grep/napi"
         run: |
-          bun install
+          bun ci
           bun run build
 
       # Install OpenCode + configure local plugin + auth in single step

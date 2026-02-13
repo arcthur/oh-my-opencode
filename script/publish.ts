@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun"
-import { existsSync } from "node:fs"
 import { join } from "node:path"
+import { RELEASE_PLATFORM_DIRS, VERSION_SYNC_PLATFORM_DIRS } from "./release/platforms"
+import { syncReleaseVersions } from "./release/version-sync"
 
 const PACKAGE_NAME = "oh-my-opencode"
 const bump = process.env.BUMP as "major" | "minor" | "patch" | undefined
@@ -10,15 +11,8 @@ const versionOverride = process.env.VERSION
 const republishMode = process.env.REPUBLISH === "true"
 const prepareOnly = process.argv.includes("--prepare-only")
 
-const PLATFORM_PACKAGES = [
-  "darwin-arm64",
-  "darwin-x64",
-  "linux-x64",
-  "linux-arm64",
-  "linux-x64-musl",
-  "linux-arm64-musl",
-  "windows-x64",
-]
+const PUBLISHED_PLATFORM_PACKAGES = [...RELEASE_PLATFORM_DIRS]
+const VERSION_SYNC_PLATFORM_PACKAGES = [...VERSION_SYNC_PLATFORM_DIRS]
 
 console.log("=== Publishing oh-my-opencode (multi-package) ===\n")
 
@@ -49,40 +43,13 @@ function bumpVersion(version: string, type: "major" | "minor" | "patch"): string
   }
 }
 
-async function updatePackageVersion(pkgPath: string, newVersion: string): Promise<void> {
-  let pkg = await Bun.file(pkgPath).text()
-  pkg = pkg.replace(/"version": "[^"]+"/, `"version": "${newVersion}"`)
-  await Bun.write(pkgPath, pkg)
-  console.log(`Updated: ${pkgPath}`)
-}
-
 async function updateAllPackageVersions(newVersion: string): Promise<void> {
   console.log("\nSyncing version across all packages...")
-  
-  // Update main package.json
-  const mainPkgPath = new URL("../package.json", import.meta.url).pathname
-  await updatePackageVersion(mainPkgPath, newVersion)
-  
-  // Update optionalDependencies versions in main package.json
-  let mainPkg = await Bun.file(mainPkgPath).text()
-  for (const platform of PLATFORM_PACKAGES) {
-    const pkgName = `oh-my-opencode-${platform}`
-    mainPkg = mainPkg.replace(
-      new RegExp(`"${pkgName}": "[^"]+"`),
-      `"${pkgName}": "${newVersion}"`
-    )
-  }
-  await Bun.write(mainPkgPath, mainPkg)
-  
-  // Update each platform package.json
-  for (const platform of PLATFORM_PACKAGES) {
-    const pkgPath = new URL(`../packages/${platform}/package.json`, import.meta.url).pathname
-    if (existsSync(pkgPath)) {
-      await updatePackageVersion(pkgPath, newVersion)
-    } else {
-      console.warn(`Warning: ${pkgPath} not found`)
-    }
-  }
+
+  await syncReleaseVersions({
+    version: newVersion,
+    rootDir: process.cwd(),
+  })
 }
 
 async function findPreviousTag(currentVersion: string): Promise<string | null> {
@@ -261,10 +228,10 @@ async function publishAllPackages(version: string): Promise<void> {
     const BATCH_SIZE = 2
     const failures: string[] = []
     
-    for (let i = 0; i < PLATFORM_PACKAGES.length; i += BATCH_SIZE) {
-      const batch = PLATFORM_PACKAGES.slice(i, i + BATCH_SIZE)
+    for (let i = 0; i < PUBLISHED_PLATFORM_PACKAGES.length; i += BATCH_SIZE) {
+      const batch = PUBLISHED_PLATFORM_PACKAGES.slice(i, i + BATCH_SIZE)
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
-      const totalBatches = Math.ceil(PLATFORM_PACKAGES.length / BATCH_SIZE)
+      const totalBatches = Math.ceil(PUBLISHED_PLATFORM_PACKAGES.length / BATCH_SIZE)
       
       console.log(`\n  Batch ${batchNum}/${totalBatches}: ${batch.join(", ")}`)
       
@@ -338,7 +305,7 @@ async function gitTagAndRelease(newVersion: string, notes: string[]): Promise<vo
   
   // Add all package.json files
   await $`git add package.json assets/oh-my-opencode.schema.json`
-  for (const platform of PLATFORM_PACKAGES) {
+  for (const platform of VERSION_SYNC_PLATFORM_PACKAGES) {
     await $`git add packages/${platform}/package.json`.nothrow()
   }
 
@@ -417,7 +384,9 @@ async function main() {
   await publishAllPackages(newVersion)
   await gitTagAndRelease(newVersion, notes)
 
-  console.log(`\n=== Successfully published ${PACKAGE_NAME}@${newVersion} (8 packages) ===`)
+  console.log(
+    `\n=== Successfully published ${PACKAGE_NAME}@${newVersion} (${PUBLISHED_PLATFORM_PACKAGES.length + 1} packages) ===`
+  )
 }
 
 main()

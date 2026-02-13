@@ -1,13 +1,20 @@
 import { describe, expect, test } from "bun:test"
+import {
+  _resetForTesting as resetSessionStateForTesting,
+  markSubagentSession,
+} from "../../../features/claude-code-session-state"
 import { EVENT_TOTAL_ORDER } from "../pipeline-order"
 import {
   buildChatMessageNodes,
+  buildChatHeadersNodes,
+  buildCommandExecuteBeforeNodes,
   buildUserPromptSubmitNodes,
   buildToolExecuteBeforeNodes,
   buildToolExecuteAfterNodes,
   buildEventNodes,
   buildExperimentalChatTransformNodes,
   buildExperimentalSessionCompactingNodes,
+  buildShellEnvNodes,
   type RuntimeAssemblyContext,
 } from "./index"
 import type { HookEventType, HookNodeId } from "../types"
@@ -59,6 +66,13 @@ function createTestContext(): RuntimeAssemblyContext {
     lspManager: {
       cleanupTempDirectoryClients: async () => {},
     },
+    autoSlashCommand: {
+      "chat.message": async () => {},
+      "command.execute.before": async () => {},
+    },
+    nonInteractiveEnv: {
+      "tool.execute.before": async () => {},
+    },
   }
 }
 
@@ -73,6 +87,29 @@ describe("runtime assembly order parity", () => {
     assertOrderedSubset("chat.message", nodes.map((node) => node.id))
   })
 
+  test("chat.headers builder follows EVENT_TOTAL_ORDER", () => {
+    markSubagentSession("sub-1", "main-1")
+    try {
+      const nodes = buildChatHeadersNodes(
+        {
+          sessionID: "sub-1",
+          agent: "a",
+          model: {
+            providerID: "github-copilot",
+            modelID: "claude-sonnet-4",
+            api: { npm: "@ai-sdk/github-copilot" },
+          },
+          provider: {},
+          message: {},
+        },
+        { headers: {} }
+      )
+      assertOrderedSubset("chat.headers", nodes.map((node) => node.id))
+    } finally {
+      resetSessionStateForTesting()
+    }
+  })
+
   test("user.prompt.submit builder follows EVENT_TOTAL_ORDER", () => {
     const context = createTestContext()
     const nodes = buildUserPromptSubmitNodes(context, {
@@ -80,6 +117,22 @@ describe("runtime assembly order parity", () => {
       message: { role: "user", content: "hello" },
     })
     assertOrderedSubset("user.prompt.submit", nodes.map((node) => node.id))
+  })
+
+  test("command.execute.before builder follows EVENT_TOTAL_ORDER", () => {
+    const context = createTestContext()
+    const nodes = buildCommandExecuteBeforeNodes(
+      context,
+      { command: "/x", sessionID: "s", arguments: "" },
+      { parts: [] }
+    )
+    assertOrderedSubset("command.execute.before", nodes.map((node) => node.id))
+  })
+
+  test("shell.env builder follows EVENT_TOTAL_ORDER", () => {
+    const context = createTestContext()
+    const nodes = buildShellEnvNodes(context, { env: {} })
+    assertOrderedSubset("shell.env", nodes.map((node) => node.id))
   })
 
   test("tool.execute.before builder follows EVENT_TOTAL_ORDER", () => {

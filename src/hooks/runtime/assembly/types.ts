@@ -30,11 +30,41 @@ export interface ToolExecuteBeforeOutput {
   message?: string
 }
 
+export interface CommandExecuteBeforeInput {
+  command: string
+  sessionID: string
+  arguments: string
+}
+
+export interface CommandExecuteBeforeOutput {
+  parts: Part[]
+}
+
 export interface ToolExecuteAfterOutput {
   title: string
   output: string
   metadata: Record<string, unknown>
   args?: unknown
+}
+
+export interface ChatHeadersInput {
+  sessionID: string
+  agent: string
+  model: Record<string, unknown>
+  provider: Record<string, unknown>
+  message: Record<string, unknown>
+}
+
+export interface ChatHeadersOutput {
+  headers: Record<string, string>
+}
+
+export interface ShellEnvInput {
+  cwd: string
+}
+
+export interface ShellEnvOutput {
+  env: Record<string, string>
 }
 
 export interface ExperimentalChatTransformOutput {
@@ -61,6 +91,11 @@ type UserPromptSubmitHandler = (
 type ToolExecuteBeforeHandler = (
   input: ToolExecuteInput,
   output: ToolExecuteBeforeOutput
+) => MaybePromiseVoid
+
+type CommandExecuteBeforeHandler = (
+  input: CommandExecuteBeforeInput,
+  output: CommandExecuteBeforeOutput
 ) => MaybePromiseVoid
 
 type ToolExecuteAfterHandler = (
@@ -166,6 +201,7 @@ export interface RuntimeAssemblyContext {
 
   autoSlashCommand?: {
     ["chat.message"]?: ChatMessageHandler
+    ["command.execute.before"]?: CommandExecuteBeforeHandler
   }
 
   startWork?: {

@@ -1,0 +1,45 @@
+name: Quality Gate
+
+on:
+  workflow_call:
+    inputs:
+      bun_version:
+        description: Bun runtime version
+        required: false
+        type: string
+        default: "1.3.9"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun_version }}
+
+      - name: Install dependencies
+        run: bun ci
+        env:
+          BUN_INSTALL_ALLOW_SCRIPTS: "@ast-grep/napi"
+
+      - name: Run tests (isolated mock-heavy suites)
+        run: bash script/ci/run-tests-safely.sh
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun_version }}
+
+      - name: Install dependencies
+        run: bun ci
+        env:
+          BUN_INSTALL_ALLOW_SCRIPTS: "@ast-grep/napi"
+
+      - name: Type check
+        run: bun run typecheck

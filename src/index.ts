@@ -1,5 +1,4 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import type { Message, Part } from "@opencode-ai/sdk";
 import {
   createTaskAutoContinuationHook,
   createUnstableAgentWatchdogHook,
@@ -50,7 +49,10 @@ import {
   EVENT_TOTAL_ORDER,
   HookRuntimeDispatcher,
   buildChatMessageNodes,
+  buildChatHeadersNodes,
   buildUserPromptSubmitNodes,
+  buildCommandExecuteBeforeNodes,
+  buildShellEnvNodes,
   buildToolExecuteBeforeNodes,
   buildToolExecuteAfterNodes,
   buildEventNodes,
@@ -63,6 +65,12 @@ import {
   type HookEventType,
   type HookNodeId,
   type RuntimeAssemblyContext,
+  type CommandExecuteBeforeInput,
+  type CommandExecuteBeforeOutput,
+  type ChatHeadersInput,
+  type ChatHeadersOutput,
+  type ShellEnvInput,
+  type ShellEnvOutput,
   type ToolExecuteBeforeOutput,
   type ToolExecuteAfterOutput,
   type ExperimentalChatTransformOutput,
@@ -97,7 +105,6 @@ import {
   getMainSessionID,
   updateSessionAgent,
   getSessionAgent,
-  isSubagentSession,
 } from "./features/claude-code-session-state";
 import { sessionStateCoordinator } from "./features/session-state-coordinator";
 import {
@@ -168,67 +175,16 @@ import {
 import { provenanceClaimStore } from "./features/provenance-memory"
 import { CATEGORY_DESCRIPTIONS } from "./tools/delegate-task/constants";
 import { mergeCategories } from "./shared/merge-categories";
-import { NON_INTERACTIVE_ENV } from "./hooks/non-interactive-env/constants";
 
 type PluginHooks = Awaited<ReturnType<Plugin>>
 
-interface CommandExecuteBeforeInput {
-  command: string
-  sessionID: string
-  arguments: string
-}
-
-interface CommandExecuteBeforeOutput {
-  parts: Part[]
-}
-
-interface ChatHeadersInput {
-  sessionID: string
-  agent: string
-  model: Record<string, unknown>
-  provider: Record<string, unknown>
-  message: Record<string, unknown>
-}
-
-interface ChatHeadersOutput {
-  headers: Record<string, string>
-}
-
-interface ShellEnvInput {
-  cwd: string
-}
-
-interface ShellEnvOutput {
-  env: Record<string, string>
-}
-
-type ExtendedPluginHooks = PluginHooks &
-  Record<string, unknown> & {
+type ExtendedPluginHooks = PluginHooks & Record<string, unknown> & {
   "command.execute.before"?: (
     input: CommandExecuteBeforeInput,
     output: CommandExecuteBeforeOutput
   ) => Promise<void>
   "chat.headers"?: (input: ChatHeadersInput, output: ChatHeadersOutput) => Promise<void>
   "shell.env"?: (input: ShellEnvInput, output: ShellEnvOutput) => Promise<void>
-}
-
-const COPILOT_INTERLEAVED_THINKING_HEADER = "interleaved-thinking-2025-05-14"
-
-function appendHeaderToken(existingValue: string | undefined, token: string): string {
-  if (!existingValue) {
-    return token
-  }
-
-  const normalized = existingValue
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-
-  if (normalized.includes(token)) {
-    return normalized.join(", ")
-  }
-
-  return [...normalized, token].join(", ")
 }
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
@@ -1167,21 +1123,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   if (supportsCommandExecuteBefore) {
     pluginHooks["command.execute.before"] = async (input, output) => {
-      const nodes: RuntimeExecutionNode[] = autoSlashCommand?.["command.execute.before"]
-        ? [{
-          id: "auto-slash-command:command.execute.before",
-          invoke: async () => {
-            await autoSlashCommand["command.execute.before"]?.(
-              {
-                command: input.command,
-                sessionID: input.sessionID,
-                arguments: input.arguments ?? "",
-              },
-              output as CommandExecuteBeforeOutput
-            )
-          },
-        } as RuntimeExecutionNode]
-        : []
+      const nodes = buildCommandExecuteBeforeNodes(
+        runtimeAssemblyContext,
+        {
+          command: input.command,
+          sessionID: input.sessionID,
+          arguments: input.arguments ?? "",
+        },
+        output as CommandExecuteBeforeOutput
+      )
 
       await executeRuntimePipeline("command.execute.before", nodes)
     }
@@ -1189,33 +1139,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   if (supportsChatHeaders) {
     pluginHooks["chat.headers"] = async (input, output) => {
-      const model = input.model as { providerID?: string; modelID?: string; id?: string; api?: { npm?: string } }
-      const providerID = (model.providerID ?? "").toLowerCase()
-      const modelID = (model.modelID ?? model.id ?? "").toLowerCase()
-      const apiNpm = (model.api?.npm ?? "").toLowerCase()
-      const isCopilotProvider = providerID.includes("github-copilot")
-      const isAnthropicCopilotModel =
-        apiNpm === "@ai-sdk/anthropic" ||
-        (apiNpm === "@ai-sdk/github-copilot" && modelID.includes("claude"))
-
-      const nodes: RuntimeExecutionNode[] = [
-        ...(isCopilotProvider && isAnthropicCopilotModel ? [{
-          id: "internal:copilot-anthropic-beta:chat.headers",
-          invoke: async () => {
-            const key = "anthropic-beta"
-            output.headers[key] = appendHeaderToken(
-              output.headers[key],
-              COPILOT_INTERLEAVED_THINKING_HEADER
-            )
-          },
-        } as RuntimeExecutionNode] : []),
-        ...(isCopilotProvider && isSubagentSession(input.sessionID) ? [{
-          id: "internal:copilot-subagent-initiator:chat.headers",
-          invoke: async () => {
-            output.headers["x-initiator"] = "agent"
-          },
-        } as RuntimeExecutionNode] : []),
-      ]
+      const nodes = buildChatHeadersNodes(
+        input as ChatHeadersInput,
+        output as ChatHeadersOutput
+      )
 
       await executeRuntimePipeline("chat.headers", nodes)
     }
@@ -1223,14 +1150,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   if (supportsShellEnv) {
     pluginHooks["shell.env"] = async (_input, output) => {
-      const nodes: RuntimeExecutionNode[] = nonInteractiveEnv
-        ? [{
-          id: "internal:non-interactive-env:shell.env",
-          invoke: async () => {
-            Object.assign(output.env, NON_INTERACTIVE_ENV)
-          },
-        } as RuntimeExecutionNode]
-        : []
+      const nodes = buildShellEnvNodes(
+        runtimeAssemblyContext,
+        output as ShellEnvOutput
+      )
 
       await executeRuntimePipeline("shell.env", nodes)
     }

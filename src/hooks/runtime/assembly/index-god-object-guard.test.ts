@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 describe("runtime assembly guard", () => {
-  test("index.ts delegates event node assembly to runtime builders", () => {
+  test("index.ts delegates lifecycle node assembly to runtime builders", () => {
     // #given
     const root = join(import.meta.dir, "../../../")
     const source = readFileSync(join(root, "index.ts"), "utf-8")
@@ -11,7 +11,10 @@ describe("runtime assembly guard", () => {
     // #then
     expect(source.includes("nodes.push(")).toBe(false)
     expect(source.includes("buildChatMessageNodes(")).toBe(true)
+    expect(source.includes("buildChatHeadersNodes(")).toBe(true)
     expect(source.includes("buildUserPromptSubmitNodes(")).toBe(true)
+    expect(source.includes("buildCommandExecuteBeforeNodes(")).toBe(true)
+    expect(source.includes("buildShellEnvNodes(")).toBe(true)
     expect(source.includes("buildToolExecuteBeforeNodes(")).toBe(true)
     expect(source.includes("buildToolExecuteAfterNodes(")).toBe(true)
     expect(source.includes("buildEventNodes(")).toBe(true)
