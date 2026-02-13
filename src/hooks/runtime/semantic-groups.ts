@@ -3,13 +3,13 @@ import type { HookEventType, HookNodeId } from "./types"
 export type RecoveryMechanismCategory =
   | "state-repair"
   | "failure-guidance"
-  | "continuation-control"
+  | "work-orchestrator-continuation"
 
 export type RecoveryMechanismHook =
   | "session-state-repair"
   | "edit-failure-guidance"
   | "delegation-failure-guidance"
-  | "continuation-stop-guard"
+  | "work-orchestrator"
   | "task-auto-continuation"
   | "unstable-agent-watchdog"
 
@@ -20,9 +20,9 @@ export const RECOVERY_MECHANISM_CATEGORY_BY_HOOK: Record<
   "session-state-repair": "state-repair",
   "edit-failure-guidance": "failure-guidance",
   "delegation-failure-guidance": "failure-guidance",
-  "continuation-stop-guard": "continuation-control",
-  "task-auto-continuation": "continuation-control",
-  "unstable-agent-watchdog": "continuation-control",
+  "work-orchestrator": "work-orchestrator-continuation",
+  "task-auto-continuation": "work-orchestrator-continuation",
+  "unstable-agent-watchdog": "work-orchestrator-continuation",
 }
 
 export type DelegationProgressStage = "block" | "validate" | "nudge"

@@ -29,12 +29,9 @@ import {
   createQuestionLabelTruncatorHook,
   createDelegationBlockSubagentQuestionHook,
   createWriteExistingFileGuardHook,
-  createContinuationStopGuardHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
-  createExecutionOrchestratorHook,
   createPrometheusMdOnlyHook,
-  createPlanningWithFilesHook,
   createSilentToolOutputHook,
   createRepoOverviewInjectorHook,
   createRuntimeTrackerHook,
@@ -52,7 +49,7 @@ import {
   createSwarmAgentHook,
   createAnthropicEffortHook,
   createCachePolicyHook,
-  createContinuationControl,
+  createWorkOrchestratorHook,
   type ContinuationIntent,
 } from "./hooks";
 import {
@@ -152,7 +149,7 @@ import { createModelCacheState } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 import type { MessageInput } from "./shared/hook-types";
 import {
-  DEFAULT_CONTINUATION_CONTROL_CONFIG,
+  DEFAULT_WORK_ORCHESTRATOR_CONFIG,
   DEFAULT_SESSION_REFERENCE_CONFIG,
 } from "./config/schema"
 import {
@@ -160,6 +157,7 @@ import {
   cleanupGovernanceSession,
   hasGovernanceSession,
   persistGovernanceTraceSnapshot,
+  recordWorkOrchestratorTransition,
 } from "./features/governance";
 import { CATEGORY_DESCRIPTIONS } from "./tools/delegate-task/constants";
 import { mergeCategories } from "./shared/merge-categories";
@@ -238,10 +236,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const isHookEnabled = (hookName: HookName) =>
     isRuntimeHookEnabled(disabledHooks, hookName);
   const safeHookEnabled = pluginConfig.safe_hook_creation ?? true;
-  const continuationControlConfig = deepMerge(
-    DEFAULT_CONTINUATION_CONTROL_CONFIG,
-    pluginConfig.continuation_control ?? {}
-  ) as typeof DEFAULT_CONTINUATION_CONTROL_CONFIG;
+  const workOrchestratorConfig = deepMerge(
+    DEFAULT_WORK_ORCHESTRATOR_CONFIG,
+    pluginConfig.work_orchestrator ?? {}
+  ) as typeof DEFAULT_WORK_ORCHESTRATOR_CONFIG;
   const supportsCommandExecuteBefore = isOpenCodeVersionAtLeast(
     OPENCODE_COMMAND_EXECUTE_BEFORE_HOOK_VERSION
   )
@@ -249,18 +247,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const supportsShellEnv = isOpenCodeVersionAtLeast(OPENCODE_SHELL_ENV_HOOK_VERSION)
 
   const modelCacheState = createModelCacheState();
-  let continuationStopGuard: ReturnType<typeof createContinuationStopGuardHook> | null = null;
+  let workOrchestrator: ReturnType<typeof createWorkOrchestratorHook> | null = null;
 
   const isContinuationStopped = (sessionID: string): boolean =>
-    continuationStopGuard?.isStopped(sessionID) ?? false;
-  const continuationControl = createContinuationControl(ctx, {
-    config: continuationControlConfig,
-    isContinuationStopped,
-  })
+    workOrchestrator?.isContinuationStopped(sessionID) ?? false;
   const getContinuationRound = (sessionID: string): number | undefined =>
-    continuationControl.getCurrentRound(sessionID)
+    workOrchestrator?.getContinuationRound(sessionID)
   const reportContinuationIntent = async (intent: ContinuationIntent): Promise<void> => {
-    await continuationControl.reportIntent(intent)
+    await workOrchestrator?.reportContinuationIntent(intent)
   }
 
   const contextWindowGovernor = isHookEnabled("context-window-governor")
@@ -468,6 +462,27 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const governanceConfig = pluginConfig.governance;
   const governanceEnabled = governanceConfig?.enabled ?? false;
   const GOVERNANCE_BLOCK_PREFIX = "Governance blocked:";
+  const onWorkOrchestratorTransition = governanceEnabled
+    ? (transition: {
+        sessionID: string
+        phase: "planning" | "continuation" | "execution" | "lifecycle"
+        action: string
+        outcome: "accepted" | "rejected" | "applied" | "observed"
+        reason?: string
+        metadata?: Record<string, unknown>
+      }) => {
+        recordWorkOrchestratorTransition({
+          sessionId: transition.sessionID,
+          cwd: ctx.directory,
+          phase: transition.phase,
+          action: transition.action,
+          outcome: transition.outcome,
+          reason: transition.reason,
+          metadata: transition.metadata,
+          config: governanceConfig,
+        })
+      }
+    : undefined
   if (governanceEnabled) {
     log("[governance] Integration enabled", {
       tracer: governanceConfig?.tracer?.enabled,
@@ -628,22 +643,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     taskConfig: pluginConfig,
   });
 
-  const executionOrchestratorHook = isHookEnabled("execution-orchestrator")
-    ? createExecutionOrchestratorHook(ctx, {
-        directory: ctx.directory,
-        backgroundManager,
-        taskConfig: pluginConfig,
-        isContinuationStopped,
-        getContinuationRound,
-        reportContinuationIntent,
-      })
-    : null;
-
   initTaskToastManager(ctx.client);
-
-  continuationStopGuard = isHookEnabled("continuation-stop-guard")
-    ? createContinuationStopGuardHook(ctx)
-    : null;
 
   const questionLabelTruncator = isHookEnabled("question-label-truncator")
     ? createQuestionLabelTruncatorHook()
@@ -657,15 +657,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const taskAutoContinuationEnabled = isHookEnabled("task-auto-continuation");
 
-  const planningWithFiles = isHookEnabled("planning-with-files") && pluginConfig.planning_with_files?.enabled
-    ? createPlanningWithFilesHook(ctx, {
-        config: pluginConfig.planning_with_files,
+  workOrchestrator = isHookEnabled("work-orchestrator")
+    ? createWorkOrchestratorHook(ctx, {
+        config: workOrchestratorConfig,
         collector: contextCollector,
+        backgroundManager,
         taskConfig: pluginConfig,
         taskContinuationEnabled: taskAutoContinuationEnabled,
-        isContinuationStopped,
-        getContinuationRound,
-        reportContinuationIntent,
+        onTransition: onWorkOrchestratorTransition,
       })
     : null;
 
@@ -998,7 +997,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     swarmRuntime,
     skillMcpManager,
     lspManager,
-    continuationControl,
     thinkMode: optional(thinkMode),
     keywordDetector: optional(keywordDetector),
     claudeCodeHooks: optional(claudeCodeHooks),
@@ -1006,10 +1004,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     autoSlashCommand: optional(autoSlashCommand),
     startWork: optional(startWork),
     swarmFromPlan: optional(swarmFromPlan),
-    planningWithFiles: optional(planningWithFiles),
+    workOrchestrator: optional(workOrchestrator),
     preCompletionVerification: optional(preCompletionVerification),
     sisyphusContextualInjector: optional(sisyphusContextualInjector),
-    continuationStopGuard: optional(continuationStopGuard),
     ralphLoop: optional(ralphLoop),
     userMemory: optional(userMemory),
     orgMemory: optional(orgMemory),
@@ -1029,7 +1026,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     delegationNudgeAgentUsage: optional(delegationNudgeAgentUsage),
     delegationNudgeCategorySkill: optional(delegationNudgeCategorySkill),
     interactiveBashSession: optional(interactiveBashSession),
-    executionOrchestratorHook: optional(executionOrchestratorHook),
     conditionalRulesHooks: optional(conditionalRulesHooks),
     tmuxParallelAgents: optional(tmuxParallelAgents),
     swarmAgent: optional(swarmAgent),
@@ -1133,13 +1129,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     config: configHandler,
 
     event: async (input) => {
-      continuationControl?.beginEvent(input as { event: { type: string; properties?: unknown } });
+      workOrchestrator?.beginEvent(input as { event: { type: string; properties?: unknown } });
       const nodes = buildEventNodes(runtimeAssemblyContext, input);
 
       try {
         await executeRuntimePipeline("event", nodes);
       } finally {
-        await continuationControl?.flushEvent(
+        await workOrchestrator?.flushEvent(
           input as { event: { type: string; properties?: unknown } }
         );
       }

@@ -1,15 +1,15 @@
-# Journey: Planning with Files (Persistent Plans in `.sisyphus/`)
+# Journey: Planning Protocol (Work-Orchestrator / `.sisyphus/`)
 
 ## User Perspective
 
 You want complex work to remain coherent across long sessions and interruptions without relying on a volatile chat context.
-Planning with Files persists the plan, findings, and progress under `.sisyphus/` and uses hooks to re-inject the active plan context at tool boundaries, enforce disciplined research logging, and prevent premature “stop” when phases remain incomplete.
+The planning protocol persists the plan, findings, and progress under `.sisyphus/` and uses `work-orchestrator` phases to re-inject active plan context at tool boundaries, enforce disciplined research logging, and prevent premature “stop” when phases remain incomplete.
 
 ## End-to-End Flow
 
 ```mermaid
 flowchart TD
-  U["User request"] --> CM["chat.message hook detects/initializes active plan"]
+  U["User request"] --> CM["work-orchestrator chat.message phase detects/initializes active plan"]
   CM --> FS["Persist plan artifacts under .sisyphus/plans/<plan>/"]
 
   subgraph ToolBoundary["Tool boundaries (auto_reread)"]
@@ -96,17 +96,19 @@ Enable in `.opencode/oh-my-opencode.json`:
 
 ```json
 {
-  "planning_with_files": {
-    "enabled": true,
-    "two_action_rule": true,
-    "three_strike_protocol": true,
-    "auto_reread": true,
-    "stop_verification": true
+  "work_orchestrator": {
+    "planning_with_files": {
+      "enabled": true,
+      "two_action_rule": true,
+      "three_strike_protocol": true,
+      "auto_reread": true,
+      "stop_verification": true
+    }
   }
 }
 ```
 
-**Note**: `planning_with_files.directory` is deprecated and ignored in the current implementation. The canonical layout is fixed to `.sisyphus/plans/`.
+**Note**: `work_orchestrator.planning_with_files.directory` is deprecated and ignored in the current implementation. The canonical layout is fixed to `.sisyphus/plans/`.
 
 ### Configuration Options
 
@@ -405,7 +407,7 @@ init plan "bug-fix"
 create plan for "refactoring"
 ```
 
-The system creates the 3-file structure and activates hooks.
+The system creates the 3-file structure and activates the work-orchestrator planning protocol.
 Initialization is idempotent: existing planning files are not overwritten; re-running the directive simply (re)activates the plan.
 
 ### During Work
@@ -567,11 +569,16 @@ Skip for:
 
 ### Files not created
 
-Ensure planning-with-files hook is not disabled:
+Ensure unified orchestrator wiring is enabled:
 
 ```json
 {
-  "disabled_hooks": []  // Should not include "planning-with-files"
+  "disabled_hooks": [],  // Should not include "work-orchestrator"
+  "work_orchestrator": {
+    "planning_with_files": {
+      "enabled": true
+    }
+  }
 }
 ```
 

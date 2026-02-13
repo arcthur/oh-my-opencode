@@ -12,10 +12,10 @@ import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
 import { getMessageDir, resolveExecutionOwnership } from "../../shared/session-utils"
 import type { BackgroundManager } from "../../features/background-agent"
-import type { ContinuationIntent } from "../continuation-control"
+import type { ContinuationIntent } from "./continuation"
 import { getGitDiffStats, type GitFileStat } from "./git-diff-stats"
 
-export const HOOK_NAME = "execution-orchestrator"
+export const HOOK_NAME = "work-orchestrator:execution"
 
 /**
  * Cross-platform check if a path is inside .sisyphus/ directory.
@@ -1119,7 +1119,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
       await reportContinuationIntent({
         sessionID,
         round,
-        source: "execution-orchestrator",
+        source: "work-orchestrator",
         reason: `work_remaining:${remaining}/${total}`,
         prompt: {
           agent: EXECUTION_POLICY.owner,
@@ -1395,7 +1395,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
           injectBudgetedPrompt({
             output: { args: output.args },
             sessionID,
-            source: "execution-orchestrator",
+            source: "work-orchestrator",
             id: "single-task-directive",
             priority: "critical",
             content: `<system-reminder>${SINGLE_TASK_DIRECTIVE}</system-reminder>\n`,
@@ -1445,7 +1445,7 @@ Execution orchestrator marked all TaskGraph items as complete and finalized work
             appendBudgetedOutput({
               output,
               sessionID: input.sessionID,
-              source: "execution-orchestrator",
+              source: "work-orchestrator",
               id: `${input.callID}:three-strike-guidance`,
               priority: "critical",
               content: guidance,
@@ -1473,7 +1473,7 @@ This helps maintain context across sessions and prevents knowledge loss.
             appendBudgetedOutput({
               output,
               sessionID: input.sessionID,
-              source: "execution-orchestrator",
+              source: "work-orchestrator",
               id: `${input.callID}:two-action-reminder`,
               priority: "high",
               content: reminder,
@@ -1510,7 +1510,7 @@ This helps maintain context across sessions and prevents knowledge loss.
           appendBudgetedOutput({
             output,
             sessionID: input.sessionID,
-            source: "execution-orchestrator",
+            source: "work-orchestrator",
             id: "direct-work-reminder",
             priority: "critical",
             content: buildDelegationRequiredNotice({
@@ -1574,7 +1574,7 @@ This helps maintain context across sessions and prevents knowledge loss.
         appendBudgetedOutput({
           output: outputPrefixBuffer,
           sessionID: input.sessionID,
-          source: "execution-orchestrator",
+          source: "work-orchestrator",
           id: `${input.callID}:delegate-output-prefix`,
           priority: "high",
           content: `
@@ -1605,7 +1605,7 @@ ${fileChanges}
         appendBudgetedOutput({
           output,
           sessionID: input.sessionID,
-          source: "execution-orchestrator",
+          source: "work-orchestrator",
           id: `${input.callID}:delegate-output-reminder`,
           priority: "critical",
           content: `

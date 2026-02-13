@@ -49,7 +49,7 @@
 
 ## 运行时对齐策略
 
-通过 `planning_with_files.bdd_alignment` 控制执行前校验：
+通过 `work_orchestrator.planning_with_files.bdd_alignment` 控制执行前校验：
 
 - `off`：关闭对齐检查。
 - `warn`：发现任务缺少 `Scenario Ref` 时注入提醒，不阻断执行。

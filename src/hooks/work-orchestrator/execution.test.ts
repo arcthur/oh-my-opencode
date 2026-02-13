@@ -3,13 +3,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { isAbsolute, join } from "node:path"
 import * as yaml from "js-yaml"
-import { createDirectContinuationReporterForTesting } from "../continuation-control"
+import { createDirectContinuationReporterForTesting } from "./index"
 import {
   buildOrchestratorReminderWithTelemetry,
   createExecutionOrchestratorHook as createExecutionOrchestratorHookBase,
   formatFileChanges,
   type ExecutionOrchestratorHookOptions,
-} from "./index"
+} from "./execution"
 import type { WorkState } from "../../features/work-state"
 import type { GitFileStat } from "./git-diff-stats"
 import {
@@ -56,15 +56,18 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   }
 
   const fullState: WorkState = {
-    schema_version: 5,
+    schema_version: 6,
     executor: state.executor ?? "atlas",
     plan_id: planId,
     execution_plan_path: canonicalPlanPath,
     runtime_ledger_path: canonicalLedgerPath,
     started_at: state.started_at ?? new Date().toISOString(),
     session_ids: state.session_ids ?? [],
-    research_ops: state.research_ops ?? 0,
-    last_findings_mtime: state.last_findings_mtime ?? 0,
+    protocol: state.protocol ?? {
+      research_ops: 0,
+      last_findings_mtime: 0,
+      stop_verification_last_prompt_at_by_session: {},
+    },
     errors: state.errors ?? [],
     blockers: state.blockers ?? [],
     decisions: state.decisions ?? [],
@@ -74,9 +77,9 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
   writeFileSync(join(sisyphusDir, "work.yaml"), yaml.dump(fullState, { indent: 2 }))
 }
 
-describe("execution-orchestrator hook", () => {
-  const TEST_DIR = join(tmpdir(), "execution-orchestrator-test")
-  const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-execution-orchestrator-test")
+describe("work-orchestrator execution phase", () => {
+  const TEST_DIR = join(tmpdir(), "work-orchestrator-execution-test")
+  const TEST_STORAGE_DIR = join(tmpdir(), "opencode-storage-work-orchestrator-execution-test")
   const TEST_TASK_CONFIG = {
     sisyphus: {
       tasks: {
@@ -673,7 +676,7 @@ decisions: []
     expect(mockInput._promptMock).toHaveBeenCalledTimes(0)
     expect(intents).toHaveLength(1)
     expect(intents[0].sessionID).toBe(sessionID)
-    expect(intents[0].source).toBe("execution-orchestrator")
+    expect(intents[0].source).toBe("work-orchestrator")
     expect(intents[0].round).toBe(13)
     expect(intents[0].text).toContain("WORK CONTINUATION")
 

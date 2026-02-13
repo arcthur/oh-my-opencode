@@ -140,11 +140,6 @@ export interface RuntimeAssemblyContext {
     cleanupTempDirectoryClients: () => Promise<void>
   }
 
-  continuationControl?: {
-    beginEvent: (input: { event: { type: string; properties?: unknown } }) => void
-    flushEvent: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
-  }
-
   thinkMode?: {
     ["chat.params"]?: (
       output: {
@@ -187,11 +182,14 @@ export interface RuntimeAssemblyContext {
     ["chat.message"]?: ChatMessageHandler
   }
 
-  planningWithFiles?: {
+  workOrchestrator?: {
     ["chat.message"]?: ChatMessageHandler
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     ["tool.execute.after"]?: ToolExecuteAfterHandler
     event?: EventHandler
+    stopContinuation: (sessionID: string) => void
+    isContinuationStopped: (sessionID: string) => boolean
+    getContinuationRound: (sessionID: string) => number | undefined
   }
 
   preCompletionVerification?: {
@@ -203,12 +201,6 @@ export interface RuntimeAssemblyContext {
     ["chat.message"]?: ChatMessageHandler
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     event?: EventHandler
-  }
-
-  continuationStopGuard?: {
-    ["chat.message"]?: (input: { sessionID: string }) => MaybePromiseVoid
-    event?: EventHandler
-    stop: (sessionID: string) => void
   }
 
   ralphLoop?: {
@@ -310,12 +302,6 @@ export interface RuntimeAssemblyContext {
   interactiveBashSession?: {
     ["tool.execute.after"]?: ToolExecuteAfterHandler
     event?: EventHandler
-  }
-
-  executionOrchestratorHook?: {
-    ["tool.execute.before"]?: ToolExecuteBeforeHandler
-    ["tool.execute.after"]?: ToolExecuteAfterHandler
-    handler?: EventHandler
   }
 
   conditionalRulesHooks?: {

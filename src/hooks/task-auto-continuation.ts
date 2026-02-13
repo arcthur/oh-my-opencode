@@ -12,7 +12,7 @@ import {
 import { log } from "../shared/logger"
 import { getMessageDir, resolveExecutionOwnership } from "../shared/session-utils"
 import { createSystemDirective, SystemDirectiveTypes } from "../shared/system-directive"
-import type { ContinuationIntent } from "./continuation-control"
+import type { ContinuationIntent } from "./work-orchestrator"
 
 const HOOK_NAME = "task-auto-continuation"
 
@@ -373,7 +373,7 @@ ${taskList}`
       }
 
       if (isExecutionSessionOwnedByOrchestrator(sessionID)) {
-        log(`[${HOOK_NAME}] Skipped: execution session owned by execution-orchestrator`, {
+        log(`[${HOOK_NAME}] Skipped: execution session owned by work-orchestrator`, {
           sessionID,
         })
         return

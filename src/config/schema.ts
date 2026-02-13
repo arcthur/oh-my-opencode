@@ -95,8 +95,7 @@ export const HookNameSchema = z.enum([
   "prometheus-md-only",
   "start-work",
   "swarm-from-plan",
-  "execution-orchestrator",
-  "planning-with-files",
+  "work-orchestrator",
   "silent-tool-output",
   "context-manifest-injector",
   "repo-overview-injector",
@@ -110,7 +109,6 @@ export const HookNameSchema = z.enum([
   "question-label-truncator",
   "delegation-block-subagent-question",
   "write-existing-file-guard",
-  "continuation-stop-guard",
   "delegation-nudge-category-skill",
   "sisyphus-junior-notepad",
   "tmux-parallel-agents",
@@ -714,16 +712,17 @@ export const PlanningWithFilesConfigSchema = z.object({
   action_count_tools: z.array(z.string()).optional(),
 })
 
+/** Default planning-with-files configuration */
+export const DEFAULT_PLANNING_WITH_FILES_CONFIG = PlanningWithFilesConfigSchema.parse({})
+
 /** Continuation control configuration - single-writer arbitration for idle continuation prompts */
 export const ContinuationControlPrioritySchema = z.object({
-  /** Highest priority: execution orchestrator continuation */
-  "execution-orchestrator": z.number().min(0).max(1000).default(400),
+  /** Highest priority: unified work orchestrator continuation */
+  "work-orchestrator": z.number().min(0).max(1000).default(400),
   /** Ralph loop continuation */
   "ralph-loop": z.number().min(0).max(1000).default(300),
   /** Task continuation */
   "task-auto-continuation": z.number().min(0).max(1000).default(200),
-  /** Planning stop-verification continuation */
-  "planning-with-files": z.number().min(0).max(1000).default(100),
   /** Lowest priority: unstable background watchdog reminder */
   "unstable-agent-watchdog": z.number().min(0).max(1000).default(50),
 })
@@ -733,16 +732,28 @@ export const ContinuationControlConfigSchema = z.object({
   post_compaction_grace_ms: z.number().min(0).max(60_000).default(1500),
   /** Per-source priority for single-writer arbitration */
   priority: ContinuationControlPrioritySchema.default({
-    "execution-orchestrator": 400,
+    "work-orchestrator": 400,
     "ralph-loop": 300,
     "task-auto-continuation": 200,
-    "planning-with-files": 100,
     "unstable-agent-watchdog": 50,
   }),
 })
 
 /** Default continuation-control configuration */
 export const DEFAULT_CONTINUATION_CONTROL_CONFIG = ContinuationControlConfigSchema.parse({})
+
+/** Unified Work Orchestrator Configuration */
+export const WorkOrchestratorConfigSchema = z.object({
+  /** Enable unified planning + execution orchestration (default: true) */
+  enabled: z.boolean().default(true),
+  /** Embedded planning protocol configuration */
+  planning_with_files: PlanningWithFilesConfigSchema.default(DEFAULT_PLANNING_WITH_FILES_CONFIG),
+  /** Embedded continuation arbitration configuration */
+  continuation_control: ContinuationControlConfigSchema.default(DEFAULT_CONTINUATION_CONTROL_CONFIG),
+})
+
+/** Default work-orchestrator configuration */
+export const DEFAULT_WORK_ORCHESTRATOR_CONFIG = WorkOrchestratorConfigSchema.parse({})
 
 /** Silent Tool Output Configuration - reduces context by optimizing tool outputs */
 export const SilentToolOutputConfigSchema = z.object({
@@ -1288,10 +1299,9 @@ export const OhMyOpenCodeConfigSchema = z.object({
   ralph_loop: RalphLoopConfigSchema.optional(),
   background_task: BackgroundTaskConfigSchema.optional(),
   parallel_runtime: ParallelRuntimeConfigSchema.optional(),
-  continuation_control: ContinuationControlConfigSchema.optional(),
+  work_orchestrator: WorkOrchestratorConfigSchema.optional(),
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
-  planning_with_files: PlanningWithFilesConfigSchema.optional(),
   /** Removed in latest-only mode: multi-plan pipeline has been fully deleted */
   multi_plan_pipeline: z.never().optional(),
   silent_tool_output: SilentToolOutputConfigSchema.optional(),
@@ -1323,6 +1333,7 @@ export type ParallelRuntimeMode = z.infer<typeof ParallelRuntimeModeSchema>
 export type ParallelRuntimeConfig = z.infer<typeof ParallelRuntimeConfigSchema>
 export type ContinuationControlPriority = z.infer<typeof ContinuationControlPrioritySchema>
 export type ContinuationControlConfig = z.infer<typeof ContinuationControlConfigSchema>
+export type WorkOrchestratorConfig = z.infer<typeof WorkOrchestratorConfigSchema>
 export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>
 export type TmuxParallelAgentsConfig = z.infer<typeof TmuxParallelAgentsConfigSchema>
 export type AgentName = z.infer<typeof AgentNameSchema>

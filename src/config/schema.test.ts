@@ -862,7 +862,9 @@ describe("continuation_control schema", () => {
   test("applies defaults for continuation control", () => {
     // given
     const config = {
-      continuation_control: {},
+      work_orchestrator: {
+        continuation_control: {},
+      },
     }
 
     // when
@@ -871,13 +873,12 @@ describe("continuation_control schema", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.continuation_control).toEqual({
+      expect(result.data.work_orchestrator?.continuation_control).toEqual({
         post_compaction_grace_ms: 1500,
         priority: {
-          "execution-orchestrator": 400,
+          "work-orchestrator": 400,
           "ralph-loop": 300,
           "task-auto-continuation": 200,
-          "planning-with-files": 100,
           "unstable-agent-watchdog": 50,
         },
       })
@@ -887,10 +888,12 @@ describe("continuation_control schema", () => {
   test("accepts partial priority overrides", () => {
     // given
     const config = {
-      continuation_control: {
-        priority: {
-          "execution-orchestrator": 500,
-          "ralph-loop": 250,
+      work_orchestrator: {
+        continuation_control: {
+          priority: {
+            "work-orchestrator": 500,
+            "ralph-loop": 250,
+          },
         },
       },
     }
@@ -901,11 +904,10 @@ describe("continuation_control schema", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.continuation_control?.priority).toEqual({
-        "execution-orchestrator": 500,
+      expect(result.data.work_orchestrator?.continuation_control?.priority).toEqual({
+        "work-orchestrator": 500,
         "ralph-loop": 250,
         "task-auto-continuation": 200,
-        "planning-with-files": 100,
         "unstable-agent-watchdog": 50,
       })
     }
@@ -916,8 +918,10 @@ describe("planning_with_files schema", () => {
   test("applies bdd_alignment default as warn", () => {
     // given
     const config = {
-      planning_with_files: {
-        enabled: true,
+      work_orchestrator: {
+        planning_with_files: {
+          enabled: true,
+        },
       },
     }
 
@@ -927,7 +931,7 @@ describe("planning_with_files schema", () => {
     // then
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.planning_with_files?.bdd_alignment).toBe("warn")
+      expect(result.data.work_orchestrator?.planning_with_files?.bdd_alignment).toBe("warn")
     }
   })
 })

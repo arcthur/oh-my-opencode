@@ -43,10 +43,6 @@ function createTestContext(): RuntimeAssemblyContext {
     lspManager: {
       cleanupTempDirectoryClients: async () => {},
     },
-    continuationControl: {
-      beginEvent: () => {},
-      flushEvent: async () => {},
-    },
     taskResumeInfo: {
       "tool.execute.after": async () => {},
     },

@@ -20,8 +20,8 @@ describe("stop-continuation template", () => {
     // then - it should mention key behaviors
     expect(STOP_CONTINUATION_TEMPLATE).toContain("task-auto-continuation")
     expect(STOP_CONTINUATION_TEMPLATE).toContain("Ralph Loop")
-    expect(STOP_CONTINUATION_TEMPLATE).toContain("planning-with-files")
-    expect(STOP_CONTINUATION_TEMPLATE).toContain("execution-orchestrator")
+    expect(STOP_CONTINUATION_TEMPLATE).toContain("work-orchestrator planning")
+    expect(STOP_CONTINUATION_TEMPLATE).toContain("work-orchestrator execution")
     expect(STOP_CONTINUATION_TEMPLATE).toContain("unstable-agent-watchdog")
     expect(STOP_CONTINUATION_TEMPLATE).toContain("work state")
   })

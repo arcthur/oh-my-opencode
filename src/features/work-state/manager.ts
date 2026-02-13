@@ -10,7 +10,9 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import * as yaml from "js-yaml"
 import {
   WorkStateSchema,
+  LegacyWorkStateV5Schema,
   type WorkState,
+  type LegacyWorkStateV5,
   type ErrorRecord,
   type BlockerRecord,
   WORK_STATE_DIR,
@@ -64,6 +66,27 @@ export class WorkStateManager {
     }
   }
 
+  private migrateFromV5(legacy: LegacyWorkStateV5): WorkState {
+    return {
+      schema_version: 6,
+      executor: legacy.executor,
+      plan_id: legacy.plan_id,
+      execution_plan_path: this.normalizePath(legacy.execution_plan_path),
+      runtime_ledger_path: this.normalizePath(legacy.runtime_ledger_path),
+      started_at: legacy.started_at,
+      session_ids: legacy.session_ids,
+      protocol: {
+        research_ops: legacy.research_ops,
+        last_findings_mtime: legacy.last_findings_mtime,
+        stop_verification_last_prompt_at_by_session: {},
+      },
+      errors: legacy.errors,
+      blockers: legacy.blockers,
+      decisions: legacy.decisions,
+      last_updated: legacy.last_updated,
+    }
+  }
+
   // === File Paths ===
 
   private get statePath(): string {
@@ -88,15 +111,18 @@ export class WorkStateManager {
     this.ensurePlanInvariant(planId, selectedExecutionPlanPath, canonicalRuntimeLedgerPath)
 
     this.state = {
-      schema_version: 5,
+      schema_version: 6,
       executor: "atlas",
       plan_id: planId,
       execution_plan_path: selectedExecutionPlanPath,
       runtime_ledger_path: canonicalRuntimeLedgerPath,
       started_at: new Date().toISOString(),
       session_ids: [sessionId],
-      research_ops: 0,
-      last_findings_mtime: 0,
+      protocol: {
+        research_ops: 0,
+        last_findings_mtime: 0,
+        stop_verification_last_prompt_at_by_session: {},
+      },
       errors: [],
       blockers: [],
       decisions: [],
@@ -129,7 +155,27 @@ export class WorkStateManager {
     try {
       const content = readFileSync(this.statePath, "utf-8")
       const parsed = yaml.load(content)
-      const validated = WorkStateSchema.parse(parsed)
+      const raw = parsed as { schema_version?: unknown } | null
+
+      if (!raw || typeof raw !== "object") {
+        throw new Error("work state must be a YAML object")
+      }
+
+      const rawVersion = raw.schema_version
+      let validated: WorkState
+
+      if (rawVersion === 6) {
+        validated = WorkStateSchema.parse(parsed)
+      } else if (rawVersion === 5) {
+        const legacy = LegacyWorkStateV5Schema.parse(parsed)
+        validated = this.migrateFromV5(legacy)
+        this.state = validated
+        this.save()
+        log(`[${HOOK_NAME}] Migrated work state v5 -> v6`, { planId: validated.plan_id })
+      } else {
+        throw new Error(`unsupported work-state schema_version: ${String(rawVersion)}`)
+      }
+
       this.ensurePlanInvariant(
         validated.plan_id,
         validated.execution_plan_path,
@@ -231,10 +277,10 @@ export class WorkStateManager {
   incrementResearchOps(): number {
     if (!this.state) return 0
 
-    this.state.research_ops++
+    this.state.protocol.research_ops++
     this.save()
-    log(`[${HOOK_NAME}] Research ops incremented`, { count: this.state.research_ops })
-    return this.state.research_ops
+    log(`[${HOOK_NAME}] Research ops incremented`, { count: this.state.protocol.research_ops })
+    return this.state.protocol.research_ops
   }
 
   /**
@@ -243,7 +289,7 @@ export class WorkStateManager {
   resetResearchOps(): void {
     if (!this.state) return
 
-    this.state.research_ops = 0
+    this.state.protocol.research_ops = 0
     this.save()
     log(`[${HOOK_NAME}] Research ops reset`)
   }
@@ -261,10 +307,10 @@ export class WorkStateManager {
 
       const stat = statSync(findingsPath)
       const newMtime = stat.mtimeMs
-      const modified = newMtime > this.state.last_findings_mtime
+      const modified = newMtime > this.state.protocol.last_findings_mtime
 
       if (modified) {
-        this.state.last_findings_mtime = newMtime
+        this.state.protocol.last_findings_mtime = newMtime
         this.save()
       }
 
@@ -279,7 +325,30 @@ export class WorkStateManager {
    */
   shouldRemindTwoAction(): boolean {
     if (!this.state) return false
-    return this.state.research_ops >= 2 && this.state.research_ops % 2 === 0
+    return (
+      this.state.protocol.research_ops >= 2 &&
+      this.state.protocol.research_ops % 2 === 0
+    )
+  }
+
+  getStopVerificationLastPromptAt(sessionId: string): number {
+    if (!this.state) return 0
+    return this.state.protocol.stop_verification_last_prompt_at_by_session[sessionId] ?? 0
+  }
+
+  setStopVerificationLastPromptAt(sessionId: string, timestampMs: number): void {
+    if (!this.state) return
+    this.state.protocol.stop_verification_last_prompt_at_by_session[sessionId] = timestampMs
+    this.save()
+  }
+
+  clearStopVerificationLastPromptAt(sessionId: string): void {
+    if (!this.state) return
+    if (!(sessionId in this.state.protocol.stop_verification_last_prompt_at_by_session)) {
+      return
+    }
+    delete this.state.protocol.stop_verification_last_prompt_at_by_session[sessionId]
+    this.save()
   }
 
   // === 3-Strike Protocol ===

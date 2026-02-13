@@ -9,13 +9,17 @@ export { WorkStateManager, createWorkStateManager } from "./manager"
 export { resolveActiveTaskSelector, type ActiveTaskSelectorResult, type ActiveTaskSelectorSource } from "./task-selector"
 export type {
   WorkState,
+  WorkStateProtocol,
   WorkExecutor,
   ErrorRecord,
   BlockerRecord,
   Decision,
+  LegacyWorkStateV5,
 } from "./types"
 export {
   WorkStateSchema,
+  WorkStateProtocolSchema,
+  LegacyWorkStateV5Schema,
   WorkExecutorSchema,
   WORK_STATE_DIR,
   WORK_STATE_FILE,

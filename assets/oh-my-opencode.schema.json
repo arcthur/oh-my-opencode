@@ -7,7 +7,7 @@
   "properties": {
     "config_version": {
       "type": "number",
-      "const": 1
+      "const": 2
     },
     "$schema": {
       "type": "string"
@@ -97,8 +97,7 @@
           "prometheus-md-only",
           "start-work",
           "swarm-from-plan",
-          "execution-orchestrator",
-          "planning-with-files",
+          "work-orchestrator",
           "silent-tool-output",
           "context-manifest-injector",
           "repo-overview-injector",
@@ -112,7 +111,6 @@
           "question-label-truncator",
           "delegation-block-subagent-question",
           "write-existing-file-guard",
-          "continuation-stop-guard",
           "delegation-nudge-category-skill",
           "sisyphus-junior-notepad",
           "tmux-parallel-agents",
@@ -2740,54 +2738,124 @@
         }
       }
     },
-    "continuation_control": {
+    "work_orchestrator": {
       "type": "object",
       "properties": {
-        "post_compaction_grace_ms": {
-          "default": 1500,
-          "type": "number",
-          "minimum": 0,
-          "maximum": 60000
+        "enabled": {
+          "default": true,
+          "type": "boolean"
         },
-        "priority": {
+        "planning_with_files": {
           "default": {
-            "execution-orchestrator": 400,
-            "ralph-loop": 300,
-            "task-auto-continuation": 200,
-            "planning-with-files": 100,
-            "unstable-agent-watchdog": 50
+            "enabled": false,
+            "directory": "plans",
+            "bdd_alignment": "warn",
+            "two_action_rule": true,
+            "three_strike_protocol": true,
+            "auto_reread": true,
+            "stop_verification": true
           },
           "type": "object",
           "properties": {
-            "execution-orchestrator": {
-              "default": 400,
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1000
+            "enabled": {
+              "default": false,
+              "type": "boolean"
             },
-            "ralph-loop": {
-              "default": 300,
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1000
+            "directory": {
+              "default": "plans",
+              "type": "string"
             },
-            "task-auto-continuation": {
-              "default": 200,
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1000
+            "bdd_alignment": {
+              "default": "warn",
+              "type": "string",
+              "enum": [
+                "off",
+                "warn",
+                "required"
+              ]
             },
-            "planning-with-files": {
-              "default": 100,
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1000
+            "two_action_rule": {
+              "default": true,
+              "type": "boolean"
             },
-            "unstable-agent-watchdog": {
-              "default": 50,
+            "three_strike_protocol": {
+              "default": true,
+              "type": "boolean"
+            },
+            "auto_reread": {
+              "default": true,
+              "type": "boolean"
+            },
+            "stop_verification": {
+              "default": true,
+              "type": "boolean"
+            },
+            "reread_trigger_tools": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "action_count_tools": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "continuation_control": {
+          "default": {
+            "post_compaction_grace_ms": 1500,
+            "priority": {
+              "work-orchestrator": 400,
+              "ralph-loop": 300,
+              "task-auto-continuation": 200,
+              "unstable-agent-watchdog": 50
+            }
+          },
+          "type": "object",
+          "properties": {
+            "post_compaction_grace_ms": {
+              "default": 1500,
               "type": "number",
               "minimum": 0,
-              "maximum": 1000
+              "maximum": 60000
+            },
+            "priority": {
+              "default": {
+                "work-orchestrator": 400,
+                "ralph-loop": 300,
+                "task-auto-continuation": 200,
+                "unstable-agent-watchdog": 50
+              },
+              "type": "object",
+              "properties": {
+                "work-orchestrator": {
+                  "default": 400,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "ralph-loop": {
+                  "default": 300,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "task-auto-continuation": {
+                  "default": 200,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "unstable-agent-watchdog": {
+                  "default": 50,
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000
+                }
+              }
             }
           }
         }
@@ -2818,56 +2886,6 @@
         "include_co_authored_by": {
           "default": true,
           "type": "boolean"
-        }
-      }
-    },
-    "planning_with_files": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "default": false,
-          "type": "boolean"
-        },
-        "directory": {
-          "default": "plans",
-          "type": "string"
-        },
-        "bdd_alignment": {
-          "default": "warn",
-          "type": "string",
-          "enum": [
-            "off",
-            "warn",
-            "required"
-          ]
-        },
-        "two_action_rule": {
-          "default": true,
-          "type": "boolean"
-        },
-        "three_strike_protocol": {
-          "default": true,
-          "type": "boolean"
-        },
-        "auto_reread": {
-          "default": true,
-          "type": "boolean"
-        },
-        "stop_verification": {
-          "default": true,
-          "type": "boolean"
-        },
-        "reread_trigger_tools": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "action_count_tools": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     },

@@ -237,9 +237,11 @@ export class GovernanceLedgerWriter {
     outcome: StateProposalEvent["outcome"]
     target: StateProposalEvent["target"]
     rejectionReason?: string
+    traceNodeId?: string
   }): LedgerEntry {
     return this.append<StateProposalEvent>({
       type: "state-proposal",
+      traceNodeId: params.traceNodeId,
       ...params,
     })
   }

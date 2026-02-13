@@ -14,7 +14,7 @@ const GUARDED_FILES = [
   "src/hooks/task-resume-info/index.ts",
   "src/hooks/claude-code-hooks/index.ts",
   "src/hooks/runtime/assembly/tool-execute-after.ts",
-  "src/hooks/execution-orchestrator/index.ts",
+  "src/hooks/work-orchestrator/execution.ts",
 ]
 
 describe("budget guard for output appends", () => {
@@ -50,10 +50,10 @@ describe("budget guard for output appends", () => {
     expect(offenders).toEqual([])
   })
 
-  test("execution orchestrator does not inline unbudgeted delegate output rewrite template", () => {
+  test("work orchestrator does not inline unbudgeted delegate output rewrite template", () => {
     // #given
     const root = join(import.meta.dir, "../../../")
-    const source = readFileSync(join(root, "src/hooks/execution-orchestrator/index.ts"), "utf-8")
+    const source = readFileSync(join(root, "src/hooks/work-orchestrator/execution.ts"), "utf-8")
 
     // #then
     expect(source.includes("output.output = `\n## SUBAGENT WORK COMPLETED")).toBe(false)
@@ -63,7 +63,7 @@ describe("budget guard for output appends", () => {
     // #given
     const root = join(import.meta.dir, "../../../")
     const files = [
-      "src/hooks/execution-orchestrator/index.ts",
+      "src/hooks/work-orchestrator/execution.ts",
       "src/hooks/prometheus-md-only/index.ts",
       "src/hooks/sisyphus-junior-notepad/index.ts",
     ]

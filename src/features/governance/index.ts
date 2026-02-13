@@ -39,6 +39,7 @@ export {
   executePreToolGovernance,
   executePostToolGovernance,
   executeUserPromptGovernance,
+  recordWorkOrchestratorTransition,
 
   // Default config
   DEFAULT_GOVERNANCE_CONFIG,
@@ -52,6 +53,9 @@ export type {
   PostToolGovernanceResult,
   UserPromptGovernanceInput,
   UserPromptGovernanceResult,
+  WorkOrchestratorTransitionInput,
+  WorkOrchestratorTransitionPhase,
+  WorkOrchestratorTransitionOutcome,
 } from "./integration"
 
 // =============================================================================

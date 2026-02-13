@@ -3,8 +3,8 @@ export const STOP_CONTINUATION_TEMPLATE = `Stop all continuation mechanisms for 
 This command will:
 1. Stop the task-auto-continuation from automatically continuing incomplete tasks
 2. Cancel any active Ralph Loop
-3. Stop planning-with-files stop verification continuation prompts
-4. Stop execution-orchestrator work continuation prompts
+3. Stop work-orchestrator planning stop-verification continuation prompts
+4. Stop work-orchestrator execution continuation prompts
 5. Stop unstable-agent-watchdog reminder prompts
 6. Clear the work state for the current project
 

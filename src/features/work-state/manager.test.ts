@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { randomUUID } from "node:crypto"
@@ -8,10 +8,10 @@ import { createWorkStateManager } from "./manager"
 import type { WorkState } from "./types"
 
 function createTempWorkspace(): string {
-  return join(tmpdir(), `work-state-v5-${randomUUID()}`)
+  return join(tmpdir(), `work-state-v6-${randomUUID()}`)
 }
 
-describe("WorkStateManager v5", () => {
+describe("WorkStateManager v6", () => {
   let workspaceDir: string
 
   beforeEach(() => {
@@ -36,7 +36,7 @@ describe("WorkStateManager v5", () => {
     expect(loaded).toBeNull()
   })
 
-  test("initializePlan writes schema v5 state with canonical plan and ledger paths", () => {
+  test("initializePlan writes schema v6 state with canonical plan and ledger paths", () => {
     // #given
     const manager = createWorkStateManager(workspaceDir)
 
@@ -44,12 +44,15 @@ describe("WorkStateManager v5", () => {
     const state = manager.initializePlan("auth-refactor", "session-1", undefined)
 
     // #then
-    expect(state.schema_version).toBe(5)
+    expect(state.schema_version).toBe(6)
     expect(state.executor).toBe("atlas")
     expect(state.plan_id).toBe("auth-refactor")
     expect(state.execution_plan_path).toBe(".sisyphus/plans/auth-refactor/plan.md")
     expect(state.runtime_ledger_path).toBe(".sisyphus/plans/auth-refactor/ledger.yaml")
     expect(state.session_ids).toEqual(["session-1"])
+    expect(state.protocol.research_ops).toBe(0)
+    expect(state.protocol.last_findings_mtime).toBe(0)
+    expect(state.protocol.stop_verification_last_prompt_at_by_session).toEqual({})
   })
 
   test("initializePlan rejects non-canonical execution plan path", () => {
@@ -65,15 +68,18 @@ describe("WorkStateManager v5", () => {
   test("load rejects state with broken plan invariant", () => {
     // #given
     const badState: WorkState = {
-      schema_version: 5,
+      schema_version: 6,
       executor: "atlas",
       plan_id: "demo",
       execution_plan_path: ".sisyphus/plans/demo.md",
       runtime_ledger_path: ".sisyphus/plans/demo/ledger.yaml",
       started_at: new Date().toISOString(),
       session_ids: ["session-1"],
-      research_ops: 0,
-      last_findings_mtime: 0,
+      protocol: {
+        research_ops: 0,
+        last_findings_mtime: 0,
+        stop_verification_last_prompt_at_by_session: {},
+      },
       errors: [],
       blockers: [],
       decisions: [],
@@ -113,6 +119,44 @@ describe("WorkStateManager v5", () => {
 
     // #then
     expect(loaded).toBeNull()
+  })
+
+  test("load migrates v5 state to v6 and persists protocol fields", () => {
+    // #given
+    const legacyState = {
+      schema_version: 5,
+      executor: "atlas",
+      plan_id: "migrate-plan",
+      execution_plan_path: ".sisyphus/plans/migrate-plan/plan.md",
+      runtime_ledger_path: ".sisyphus/plans/migrate-plan/ledger.yaml",
+      started_at: "2026-02-01T00:00:00.000Z",
+      session_ids: ["session-1", "session-2"],
+      research_ops: 4,
+      last_findings_mtime: 12345,
+      errors: [],
+      blockers: [],
+      decisions: [],
+    }
+    mkdirSync(join(workspaceDir, ".sisyphus"), { recursive: true })
+    writeFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), yaml.dump(legacyState), "utf-8")
+    const manager = createWorkStateManager(workspaceDir)
+
+    // #when
+    const loaded = manager.load()
+    const persisted = yaml.load(
+      readFileSync(join(workspaceDir, ".sisyphus", "work.yaml"), "utf-8")
+    ) as Record<string, unknown>
+
+    // #then
+    expect(loaded).not.toBeNull()
+    expect(loaded?.schema_version).toBe(6)
+    expect(loaded?.protocol.research_ops).toBe(4)
+    expect(loaded?.protocol.last_findings_mtime).toBe(12345)
+    expect(loaded?.protocol.stop_verification_last_prompt_at_by_session).toEqual({})
+    expect(persisted.schema_version).toBe(6)
+    expect((persisted.protocol as { research_ops?: number }).research_ops).toBe(4)
+    expect("research_ops" in persisted).toBe(false)
+    expect("last_findings_mtime" in persisted).toBe(false)
   })
 
   test("switchPlan replaces active plan and resets session list", () => {

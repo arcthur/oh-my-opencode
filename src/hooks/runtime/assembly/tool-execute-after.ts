@@ -25,11 +25,11 @@ export function buildToolExecuteAfterNodes(
 ): RuntimeExecutionNode[] {
   const nodes: RuntimeExecutionNode[] = []
 
-  if (context.planningWithFiles?.["tool.execute.after"]) {
+  if (context.workOrchestrator?.["tool.execute.after"]) {
     nodes.push({
-      id: "planning-with-files:tool.execute.after",
+      id: "work-orchestrator:tool.execute.after",
       invoke: async () => {
-        await context.planningWithFiles?.["tool.execute.after"]?.(input, output)
+        await context.workOrchestrator?.["tool.execute.after"]?.(input, output)
       },
     })
   }
@@ -296,15 +296,6 @@ export function buildToolExecuteAfterNodes(
       id: "delegation-failure-guidance:tool.execute.after",
       invoke: async () => {
         await context.delegationFailureGuidance?.["tool.execute.after"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.executionOrchestratorHook?.["tool.execute.after"]) {
-    nodes.push({
-      id: "execution-orchestrator:tool.execute.after",
-      invoke: async () => {
-        await context.executionOrchestratorHook?.["tool.execute.after"]?.(input, output)
       },
     })
   }

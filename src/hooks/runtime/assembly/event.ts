@@ -9,11 +9,11 @@ export function buildEventNodes(
 ): RuntimeExecutionNode[] {
   const nodes: RuntimeExecutionNode[] = []
 
-  if (context.continuationStopGuard?.event) {
+  if (context.workOrchestrator?.event) {
     nodes.push({
-      id: "continuation-stop-guard:event",
+      id: "work-orchestrator:event",
       invoke: async () => {
-        await context.continuationStopGuard?.event?.(input)
+        await context.workOrchestrator?.event?.(input)
       },
     })
   }
@@ -86,15 +86,6 @@ export function buildEventNodes(
       id: "sisyphus-contextual-injector:event",
       invoke: async () => {
         await context.sisyphusContextualInjector?.event?.(input)
-      },
-    })
-  }
-
-  if (context.planningWithFiles?.event) {
-    nodes.push({
-      id: "planning-with-files:event",
-      invoke: async () => {
-        await context.planningWithFiles?.event?.(input)
       },
     })
   }
@@ -212,15 +203,6 @@ export function buildEventNodes(
       id: "ralph-loop:event",
       invoke: async () => {
         await context.ralphLoop?.event?.(input)
-      },
-    })
-  }
-
-  if (context.executionOrchestratorHook?.handler) {
-    nodes.push({
-      id: "execution-orchestrator:event",
-      invoke: async () => {
-        await context.executionOrchestratorHook?.handler?.(input)
       },
     })
   }

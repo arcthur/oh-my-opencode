@@ -55,8 +55,7 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 - `background_task`: Background task concurrency limits (see [Background Tasks](#background-tasks)).
 - `parallel_runtime`: Shared global admission control across background and swarm (see [Parallel Runtime](#parallel-runtime)).
 - `ralph_loop`: Ralph loop opt-in config for `/ralph-loop` and `/ulw-loop` (see [Ralph Loop](#ralph-loop)).
-- `planning_with_files`: Persistent planning filesystem feature (see [Planning with Files](#planning-with-files)).
-- `continuation_control`: Single-writer continuation arbitration configuration (see [Continuation Control](#continuation-control)).
+- `work_orchestrator`: Unified planning + continuation + execution orchestration config (see [Work Orchestrator](#work-orchestrator)).
 - `sisyphus`: Sisyphus Tasks & Swarm configuration (see [Sisyphus](#sisyphus)).
 - `tmux_parallel_agents`: Auto-create tmux windows/worktrees for background agents (see [Tmux Parallel Agents](#tmux-parallel-agents)).
 - `multi_plan_pipeline`: Removed in latest-only mode and rejected by schema.
@@ -600,31 +599,37 @@ Configure global concurrency admission shared by Background and Swarm execution 
 - Global admission is evaluated in addition to local limits (both must pass in enforce mode).
 - `acquire_timeout_ms` applies to blocking admissions (Background); Swarm admission is non-blocking in `enforce` and simply stops new assignments when at capacity.
 
-## Continuation Control
+## Work Orchestrator
 
-Continuation control is an always-on **single-writer arbiter** for continuation prompts triggered around `session.idle`.
+`work_orchestrator` is the unified control plane for planning + continuation arbitration + execution.
 
-- Configuration key: `continuation_control` (schema: `ContinuationControlConfigSchema` in `src/config/schema.ts`)
-- Implementation: `src/hooks/continuation-control/index.ts`
-- Wiring: `src/index.ts` (deep-merged with defaults)
+- Configuration key: `work_orchestrator` (schema: `WorkOrchestratorConfigSchema` in `src/config/schema.ts`)
+- Wiring entrypoint: `src/hooks/work-orchestrator/index.ts`
+- Runtime integration: `src/index.ts` (deep-merged with defaults)
 
-Contract:
+### Continuation Arbitration (`work_orchestrator.continuation_control`)
 
-- For a given session idle "round", at most one continuation prompt SHOULD be emitted.
-- If multiple sources report intents for the same round, the arbiter MUST select the highest priority and reject others with `lower_priority`.
-- When the session was compacted recently, intents MUST be rejected during `post_compaction_grace_ms`.
+Continuation arbitration is a single-writer mechanism for continuation prompts around `session.idle`.
+
+- Implementation: `src/hooks/work-orchestrator/continuation.ts`
+- Contract:
+  - For a given idle round, at most one continuation prompt SHOULD be emitted.
+  - If multiple sources report intents for the same round, the arbiter MUST select the highest priority and reject others with `lower_priority`.
+  - When the session was compacted recently, intents MUST be rejected during `post_compaction_grace_ms`.
 
 Configuration example:
 
 ```jsonc
 {
-  "continuation_control": {
-    "post_compaction_grace_ms": 1500,
-    "priority": {
-      "execution-orchestrator": 400,
-      "ralph-loop": 300,
-      "task-auto-continuation": 200,
-      "planning-with-files": 100
+  "work_orchestrator": {
+    "continuation_control": {
+      "post_compaction_grace_ms": 1500,
+      "priority": {
+        "work-orchestrator": 400,
+        "ralph-loop": 300,
+        "task-auto-continuation": 200,
+        "unstable-agent-watchdog": 50
+      }
     }
   }
 }
@@ -632,10 +637,10 @@ Configuration example:
 
 Sources (current implementation):
 
-- `execution-orchestrator`
+- `work-orchestrator`
 - `ralph-loop`
 - `task-auto-continuation`
-- `planning-with-files`
+- `unstable-agent-watchdog`
 
 ## Ralph Loop
 
@@ -668,12 +673,12 @@ Example:
 
 ## Planning with Files
 
-`planning_with_files` enables a persistent, file-backed planning protocol under `.sisyphus/`. For the end-to-end lifecycle and prompts, see `docs/journeys/planning-with-files.md`.
+`work_orchestrator.planning_with_files` enables the persistent, file-backed planning protocol under `.sisyphus/`. For the end-to-end lifecycle and prompts, see `docs/journeys/planning-with-files.md`.
 
 Enablement contract:
 
-- The `planning-with-files` hook MUST be enabled (not present in `disabled_hooks`), and
-- `planning_with_files.enabled` MUST be `true`.
+- The `work-orchestrator` hook MUST be enabled (not present in `disabled_hooks`), and
+- `work_orchestrator.planning_with_files.enabled` MUST be `true`.
 
 Artifacts (canonical layout):
 
@@ -685,19 +690,21 @@ Artifacts (canonical layout):
 
 Directory note:
 
-- `planning_with_files.directory` is **deprecated and ignored** in the current implementation; the directory is fixed to `.sisyphus/plans` (`src/hooks/planning-with-files/index.ts`, `src/features/planning-with-files/types.ts`).
+- `work_orchestrator.planning_with_files.directory` is **deprecated and ignored** in the current implementation; the directory is fixed to `.sisyphus/plans` (`src/hooks/work-orchestrator/planning.ts`, `src/features/planning-with-files/types.ts`).
 
 Minimal config:
 
 ```jsonc
 {
-  "planning_with_files": {
-    "enabled": true
+  "work_orchestrator": {
+    "planning_with_files": {
+      "enabled": true
+    }
   }
 }
 ```
 
-`planning_with_files.bdd_alignment` controls task-to-scenario alignment checks:
+`work_orchestrator.planning_with_files.bdd_alignment` controls task-to-scenario alignment checks:
 
 - `off`: disable checks.
 - `warn` (default): inject warning context when tasks miss `Scenario Ref`.
@@ -968,8 +975,8 @@ All model-visible context injection/append hooks share a unified token budget go
 
 **Injection channels** route through the arbiter via three paths:
 
-1. **`ContextCollector.register()`** → `arbiter.decide()` — used by `planning-with-files`, `claude-code-hooks`
-2. **`appendBudgetedOutput()` / `pushBudgetedContext()` / `injectBudgetedPrompt()`** — used by tool-output guidance/instruction hooks, compaction-context writers, and delegate-prompt injectors such as `anti-slop-enforcer`, `comment-checker`, `runtime-tracker`, `edit/delegation failure guidance`, `context-window-governor`, `task-resume-info`, `execution-orchestrator`, `prometheus-md-only`, `sisyphus-junior-notepad`, `claude-code-hooks(PreCompact)`
+1. **`ContextCollector.register()`** → `arbiter.decide()` — used by `work-orchestrator(planning)`, `claude-code-hooks`
+2. **`appendBudgetedOutput()` / `pushBudgetedContext()` / `injectBudgetedPrompt()`** — used by tool-output guidance/instruction hooks, compaction-context writers, and delegate-prompt injectors such as `anti-slop-enforcer`, `comment-checker`, `runtime-tracker`, `edit/delegation failure guidance`, `context-window-governor`, `task-resume-info`, `work-orchestrator(execution)`, `prometheus-md-only`, `sisyphus-junior-notepad`, `claude-code-hooks(PreCompact)`
 3. **Direct `arbiter.decide()`** — used by hooks with custom composition flows such as `rules-injector`, `directory-agents/readme`, `repo-overview`, `codemap-injector`, `keyword-detector`, `context-manifest-injector`, `conditional-rules`, `hook-message-injector`, `delegation-nudge-category-skill`
 
 Budget counters reset at the start of each user turn via `beginTurn()`.

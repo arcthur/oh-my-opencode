@@ -18,6 +18,8 @@ export {
   ContinuationControlConfigSchema,
   ContinuationControlPrioritySchema,
   DEFAULT_CONTINUATION_CONTROL_CONFIG,
+  WorkOrchestratorConfigSchema,
+  DEFAULT_WORK_ORCHESTRATOR_CONFIG,
   GovernanceConfigSchema,
   GovernanceToolCriticalitySchema,
 } from "./schema"
@@ -46,6 +48,7 @@ export type {
   RalphLoopConfig,
   ContinuationControlConfig,
   ContinuationControlPriority,
+  WorkOrchestratorConfig,
   GovernanceConfig,
   GovernanceToolCriticality,
 } from "./schema"

@@ -54,6 +54,15 @@ export const DecisionSchema = z.object({
 
 export const WorkExecutorSchema = z.literal("atlas")
 
+export const WorkStateProtocolSchema = z.object({
+  /** 2-action rule counter (reset when findings.md modified) */
+  research_ops: z.number().default(0),
+  /** Last mtime of findings.md for auto-reset */
+  last_findings_mtime: z.number().default(0),
+  /** Session-level stop verification prompt timestamp cache */
+  stop_verification_last_prompt_at_by_session: z.record(z.string(), z.number()).default({}),
+})
+
 const WorkStateCommonFields = {
   /** Stable plan identifier */
   plan_id: z.string().min(1),
@@ -65,10 +74,6 @@ const WorkStateCommonFields = {
   started_at: z.string(),
   /** Session IDs that have worked on this plan */
   session_ids: z.array(z.string()).default([]),
-  /** 2-action rule counter (reset when findings.md modified) */
-  research_ops: z.number().default(0),
-  /** Last mtime of findings.md for auto-reset */
-  last_findings_mtime: z.number().default(0),
   errors: z.array(ErrorRecordSchema).default([]),
   blockers: z.array(BlockerRecordSchema).default([]),
   decisions: z.array(DecisionSchema).default([]),
@@ -78,10 +83,24 @@ const WorkStateCommonFields = {
 
 export const WorkStateSchema = z.object({
   /** Work state schema version (breaking state upgrades bump this value) */
-  schema_version: z.literal(5),
+  schema_version: z.literal(6),
   /** Active execution orchestrator profile */
   executor: WorkExecutorSchema,
+  /** Protocol-scoped transient state */
+  protocol: WorkStateProtocolSchema.default({
+    research_ops: 0,
+    last_findings_mtime: 0,
+    stop_verification_last_prompt_at_by_session: {},
+  }),
   ...WorkStateCommonFields,
+})
+
+export const LegacyWorkStateV5Schema = z.object({
+  schema_version: z.literal(5),
+  executor: WorkExecutorSchema,
+  ...WorkStateCommonFields,
+  research_ops: z.number().default(0),
+  last_findings_mtime: z.number().default(0),
 })
 
 // === TypeScript Types ===
@@ -90,7 +109,9 @@ export type ErrorRecord = z.infer<typeof ErrorRecordSchema>
 export type BlockerRecord = z.infer<typeof BlockerRecordSchema>
 export type Decision = z.infer<typeof DecisionSchema>
 export type WorkExecutor = z.infer<typeof WorkExecutorSchema>
+export type WorkStateProtocol = z.infer<typeof WorkStateProtocolSchema>
 export type WorkState = z.infer<typeof WorkStateSchema>
+export type LegacyWorkStateV5 = z.infer<typeof LegacyWorkStateV5Schema>
 
 // === Constants ===
 

@@ -2,7 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundManager, BackgroundTask } from "../../features/background-agent"
 import { getMainSessionID, getSessionAgent } from "../../features/claude-code-session-state"
 import { log } from "../../shared/logger"
-import type { ContinuationIntent } from "../continuation-control"
+import type { ContinuationIntent } from "../work-orchestrator"
 
 const HOOK_NAME = "unstable-agent-watchdog"
 const DEFAULT_TIMEOUT_MS = 120_000

@@ -720,3 +720,106 @@ Tip: Focus on completing current task.
 
   return result
 }
+
+// ============================================================================
+// Work Orchestrator Transition Integration
+// ============================================================================
+
+export type WorkOrchestratorTransitionPhase =
+  | "planning"
+  | "continuation"
+  | "execution"
+  | "lifecycle"
+
+export type WorkOrchestratorTransitionOutcome =
+  | "accepted"
+  | "rejected"
+  | "applied"
+  | "observed"
+
+type WorkOrchestratorLedgerOutcome = "applied" | "rejected" | "pending"
+
+function mapTransitionOutcomeToLedgerOutcome(
+  outcome: WorkOrchestratorTransitionOutcome
+): WorkOrchestratorLedgerOutcome {
+  switch (outcome) {
+    case "applied":
+      return "applied"
+    case "rejected":
+      return "rejected"
+    case "accepted":
+    case "observed":
+      // Accepted/observed transitions are governance-visible, but not final applied mutations.
+      return "pending"
+  }
+}
+
+export interface WorkOrchestratorTransitionInput {
+  sessionId: string
+  cwd: string
+  phase: WorkOrchestratorTransitionPhase
+  action: string
+  outcome: WorkOrchestratorTransitionOutcome
+  reason?: string
+  metadata?: Record<string, unknown>
+  config?: Partial<GovernanceConfig>
+}
+
+/**
+ * Record unified work-orchestrator transitions into governance tracer + ledger.
+ * This keeps planning/continuation/execution state transitions observable under governance.
+ */
+export function recordWorkOrchestratorTransition(
+  input: WorkOrchestratorTransitionInput
+): void {
+  const session = getGovernanceSession(input.sessionId, input.cwd, input.config)
+  if (!session.config.enabled) {
+    return
+  }
+
+  const sanitizedInputs = sanitizeInputs(
+    {
+      phase: input.phase,
+      action: input.action,
+      reason: input.reason,
+      metadata: input.metadata,
+    },
+    session.config.tracer?.sanitize_sensitive_data ?? true
+  )
+
+  const sanitizedOutputs = sanitizeOutputs(
+    {
+      outcome: input.outcome,
+      reason: input.reason,
+      metadata: input.metadata,
+    },
+    session.config.tracer?.sanitize_sensitive_data ?? true
+  )
+
+  let traceNodeId: string | undefined
+  if (session.tracer) {
+    traceNodeId = session.tracer.startNode({
+      name: `work-orchestrator:${input.phase}:${input.action}`,
+      type: "decision",
+      inputs: sanitizedInputs,
+    })
+    session.tracer.endNode(traceNodeId, {
+      status: input.outcome === "rejected" ? "failed" : "completed",
+      outputs: sanitizedOutputs,
+    })
+  }
+
+  if (session.ledger) {
+    session.ledger.logStateProposal({
+      proposalId: `work-orchestrator-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      submitter: "work-orchestrator",
+      outcome: mapTransitionOutcomeToLedgerOutcome(input.outcome),
+      target: {
+        namespace: "work-orchestrator",
+        key: `${input.phase}:${input.action}`,
+      },
+      rejectionReason: input.outcome === "rejected" ? input.reason : undefined,
+      traceNodeId,
+    })
+  }
+}

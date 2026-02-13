@@ -11,7 +11,7 @@ import {
   setMainSession,
   updateSessionAgent,
 } from "../features/claude-code-session-state"
-import { createDirectContinuationReporterForTesting } from "./continuation-control"
+import { createDirectContinuationReporterForTesting } from "./work-orchestrator"
 import { createTaskAutoContinuationHook } from "./task-auto-continuation"
 
 type TimerCallback = (...args: any[]) => void
@@ -219,7 +219,7 @@ describe("task-auto-continuation", () => {
     expect(promptCalls[0]?.text).toContain("TASK CONTINUATION")
   })
 
-  test("skips continuation for execution session owned by execution-orchestrator", async () => {
+  test("skips continuation for execution session owned by work-orchestrator", async () => {
     // #given
     const sessionID = "main-execution"
     const planID = "execution-plan"

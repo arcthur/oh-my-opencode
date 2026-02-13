@@ -79,8 +79,7 @@ delegation-failure-guidance
 prometheus-md-only
 start-work
 swarm-from-plan
-execution-orchestrator
-planning-with-files
+work-orchestrator
 silent-tool-output
 context-manifest-injector
 repo-overview-injector
@@ -94,7 +93,6 @@ session-handoff
 question-label-truncator
 delegation-block-subagent-question
 write-existing-file-guard
-continuation-stop-guard
 delegation-nudge-category-skill
 sisyphus-junior-notepad
 tmux-parallel-agents
@@ -141,10 +139,9 @@ Execution order (simplified to plugin-relevant steps):
 9. Auto slashcommand (if enabled)
 10. Start-work (if enabled)
 11. Swarm-from-plan (if enabled; Swarm-first bootstrap)
-12. Planning-with-files (if enabled)
+12. Work-orchestrator (if enabled)
 13. Pre-completion verification (if enabled)
-14. `continuation-stop-guard` (if enabled)
-15. Ralph loop template detection (if enabled)
+14. Ralph loop template detection (if enabled)
 
 ### `chat.params`
 
@@ -215,20 +212,19 @@ Execution order (high-level):
 11. Directory README injector (if enabled)
 12. Rules injector (if enabled)
 13. Prometheus MD-only (if enabled)
-14. Planning-with-files (if enabled)
+14. Work-orchestrator (planning + execution pre-tool logic, if enabled)
 15. Sisyphus contextual injector (if enabled)
 16. `delegation-validate-decision` (if enabled)
 17. Sisyphus-junior notepad (if enabled)
-18. execution-orchestrator hook (if enabled)
-19. Tmux parallel agents (if enabled)
-20. Swarm agent (if enabled)
-21. Conditional rules (if enabled; special handling for `delegate_task`)
-22. Context manifest injector (if enabled)
-23. Task-tool sanitizer (internal)
-24. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
-25. Stop-continuation slash handling (internal)
-26. Governance pre-tool checks (if enabled)
-27. Silent tool output pre-hook (if enabled)
+18. Tmux parallel agents (if enabled)
+19. Swarm agent (if enabled)
+20. Conditional rules (if enabled; special handling for `delegate_task`)
+21. Context manifest injector (if enabled)
+22. Task-tool sanitizer (internal)
+23. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
+24. Stop-continuation slash handling (internal)
+25. Governance pre-tool checks (if enabled)
+26. Silent tool output pre-hook (if enabled)
 
 Note:
 - `tmux-parallel-agents` is a workspace/process orchestration hook (worktree/window lifecycle and rescue UX).
@@ -240,7 +236,7 @@ Note:
 
 Execution order (high-level):
 
-1. Planning-with-files (if enabled)
+1. Work-orchestrator (planning + execution post-tool logic, if enabled)
 2. Claude Code bridge node (if enabled)
 3. Anti-slop enforcer (if enabled)
 4. Silent tool output post-hook (if enabled)
@@ -261,16 +257,15 @@ Execution order (high-level):
 19. Interactive bash session (if enabled)
 20. `edit-failure-guidance` (if enabled)
 21. `delegation-failure-guidance` (if enabled)
-22. execution-orchestrator hook (if enabled)
-23. Task resume info (always wired)
-24. Session handoff (if enabled)
-25. Swarm agent (if enabled)
-26. Output finalization (internal)
+22. Task resume info (always wired)
+23. Session handoff (if enabled)
+24. Swarm agent (if enabled)
+25. Output finalization (internal)
 
 ### `event`
 
-The generic OpenCode `event` stream is used to drive “Stop-like” behavior and background lifecycle management.
-Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes: continuation stop guard, update checker, Claude Code bridge, notifications, planning/lifecycle hooks, **sisyphus-contextual-injector**, orchestrators, plus internal core session-state and session-state-repair nodes.
+The generic OpenCode `event` stream is used to drive lifecycle, continuation, and background management.
+Ordering is defined in `src/hooks/runtime/pipeline-order.ts` and includes `work-orchestrator:event` (unified planning/continuation/lifecycle phase handling), update checker, Claude Code bridge, notifications, `task-auto-continuation`, `unstable-agent-watchdog`, **sisyphus-contextual-injector**, and internal core session-state/session-state-repair nodes.
 
 `session-state-repair` recoverable classes currently include:
 

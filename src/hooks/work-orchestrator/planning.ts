@@ -27,7 +27,7 @@ import {
   syncPlanTasksToTaskGraph,
 } from "../../features/task-system"
 import { log } from "../../shared/logger"
-import type { ContinuationIntent } from "../continuation-control"
+import type { ContinuationIntent } from "./continuation"
 
 export interface PlanningWithFilesHookOptions {
   config?: Partial<PlanningWithFilesConfig>
@@ -39,7 +39,7 @@ export interface PlanningWithFilesHookOptions {
   reportContinuationIntent: (intent: ContinuationIntent) => Promise<void>
 }
 
-const HOOK_NAME = "planning-with-files"
+const HOOK_NAME = "work-orchestrator:planning"
 
 function buildPlanContext(content: string): string {
   return `<plan-context>
@@ -232,7 +232,7 @@ export function createPlanningWithFilesHook(
     }
 
     const currentState = workStateManager.getState()
-    if (currentState && currentState.last_findings_mtime === 0) {
+    if (currentState && currentState.protocol.last_findings_mtime === 0) {
       const findingsPath = path.join(getPlanDir(ctx.directory, planId, config), "findings.md")
       workStateManager.checkFindingsModified(findingsPath)
     }
@@ -327,7 +327,7 @@ export function createPlanningWithFilesHook(
 
           collector.register(input.sessionID, {
             id: "bdd-alignment-warning",
-            source: "planning-with-files",
+            source: "work-orchestrator",
             priority: "high",
             content: buildBddAlignmentContent(planData.planId, bddAlignmentIssues),
             metadata: {
@@ -361,7 +361,7 @@ export function createPlanningWithFilesHook(
 
     collector.register(input.sessionID, {
       id: "plan-context",
-      source: "planning-with-files",
+      source: "work-orchestrator",
       priority: "critical",
       content: buildPlanContext(planData.planMarkdown),
       metadata: {
@@ -410,7 +410,7 @@ Error: ${errorText.slice(0, 150)}
 
         collector.register(input.sessionID, {
           id: `three-strike-${errorKey}`,
-          source: "planning-with-files",
+          source: "work-orchestrator",
           priority: "high",
           content,
           metadata: { planId, errorKey, strikes },
@@ -426,7 +426,7 @@ Error: ${errorText.slice(0, 150)}
 
           collector.register(input.sessionID, {
             id: `blocker-${blockerKey}`,
-            source: "planning-with-files",
+            source: "work-orchestrator",
             priority: "high",
             content: workStateManager.generateBlockerPrompt(errorText),
             metadata: { planId, errorText },
@@ -454,7 +454,7 @@ Error: ${errorText.slice(0, 150)}
         const findingsRelPath = `.sisyphus/plans/${planId}/findings.md`
         collector.register(input.sessionID, {
           id: "two-action-rule",
-          source: "planning-with-files",
+          source: "work-orchestrator",
           priority: "high",
           content: `<two-action-rule>
 ## Update findings.md NOW
@@ -490,6 +490,8 @@ Counter auto-resets when you modify findings.md.
         injectedSessions.delete(deletedID)
         activePlanBySessionID.delete(deletedID)
         stopVerificationLastPromptAt.delete(deletedID)
+        workStateManager.load()
+        workStateManager.clearStopVerificationLastPromptAt(deletedID)
         blockerCache.delete(deletedID)
       }
       return
@@ -502,10 +504,15 @@ Counter auto-resets when you modify findings.md.
     const sessionID = props?.sessionID as string | undefined
     if (!sessionID) return
 
+    workStateManager.load()
+
     if (isContinuationStopped?.(sessionID)) return
     if (options.taskContinuationEnabled) return
 
-    const lastPromptAt = stopVerificationLastPromptAt.get(sessionID) ?? 0
+    const lastPromptAt = Math.max(
+      stopVerificationLastPromptAt.get(sessionID) ?? 0,
+      workStateManager.getStopVerificationLastPromptAt(sessionID)
+    )
     const attemptAt = Date.now()
     if (attemptAt - lastPromptAt < STOP_VERIFICATION_COOLDOWN_MS) return
 
@@ -531,12 +538,13 @@ Counter auto-resets when you modify findings.md.
       await reportContinuationIntent({
         sessionID,
         round: getContinuationRound?.(sessionID),
-        source: "planning-with-files",
+        source: "work-orchestrator",
         reason: `stop_verification:${incompleteTasks.length}`,
         prompt: { text: reason },
         onResult: (result) => {
           if (result.status === "accepted") {
             stopVerificationLastPromptAt.set(sessionID, attemptAt)
+            workStateManager.setStopVerificationLastPromptAt(sessionID, attemptAt)
             return
           }
 
@@ -545,6 +553,7 @@ Counter auto-resets when you modify findings.md.
             result.rejectReason === "round_already_written"
           ) {
             stopVerificationLastPromptAt.set(sessionID, attemptAt)
+            workStateManager.setStopVerificationLastPromptAt(sessionID, attemptAt)
             return
           }
 

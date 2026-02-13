@@ -18,7 +18,7 @@ describe("args freshness", () => {
 
     await dispatcher.dispatch("tool.execute.after", [
       {
-        id: "planning-with-files:tool.execute.after",
+        id: "work-orchestrator:tool.execute.after",
         invoke: async () => {
           state.args.mode = "final"
           if (state.metadata.args) {

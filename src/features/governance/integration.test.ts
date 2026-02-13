@@ -19,6 +19,7 @@ import {
   executePreToolGovernance,
   executePostToolGovernance,
   executeUserPromptGovernance,
+  recordWorkOrchestratorTransition,
   DEFAULT_GOVERNANCE_CONFIG,
 } from "./integration"
 import { resetBudgetMonitorManager } from "./budget-monitor"
@@ -455,6 +456,108 @@ describe("GovernanceIntegration", () => {
 
       expect(result.block).toBe(false)
       expect(result.messages.join("\n")).toContain("<budget-exhausted>")
+    })
+  })
+
+  describe("recordWorkOrchestratorTransition", () => {
+    it("writes work-orchestrator transitions to tracer and ledger when governance is enabled", () => {
+      const action = "idle-arbitration-accepted-pending"
+
+      // #given
+      initGovernanceSession(testSessionId, testCwd, {
+        enabled: true,
+        tracer: { enabled: true },
+        ledger: { enabled: true },
+        budget_monitor: { enabled: false },
+        checkpoint: { enabled: false },
+      })
+
+      // #when
+      recordWorkOrchestratorTransition({
+        sessionId: testSessionId,
+        cwd: testCwd,
+        phase: "continuation",
+        action,
+        outcome: "accepted",
+        metadata: {
+          source: "work-orchestrator",
+          round: 7,
+        },
+      })
+
+      // #then
+      const session = getGovernanceSession(testSessionId)
+      const trace = session.tracer?.getTrace()
+      expect(trace?.nodes.some((node) => node.name.includes(`work-orchestrator:continuation:${action}`))).toBe(true)
+
+      const entries = session.ledger?.getEntries() ?? []
+      const stateProposalEntries = entries.filter((entry) => entry.type === "state-proposal")
+      expect(stateProposalEntries.length).toBeGreaterThan(0)
+      const matchedEntry = stateProposalEntries.find((entry) => {
+        const target = (entry as { target?: { namespace?: string; key?: string } }).target
+        return (
+          target?.namespace === "work-orchestrator" &&
+          target?.key === `continuation:${action}`
+        )
+      }) as { outcome?: string } | undefined
+      expect(matchedEntry).toBeDefined()
+      expect(matchedEntry?.outcome).toBe("pending")
+    })
+
+    it("maps observed lifecycle transitions to pending ledger outcomes", () => {
+      const action = "session-idle-observed-pending"
+
+      // #given
+      initGovernanceSession(testSessionId, testCwd, {
+        enabled: true,
+        tracer: { enabled: true },
+        ledger: { enabled: true },
+        budget_monitor: { enabled: false },
+        checkpoint: { enabled: false },
+      })
+
+      // #when
+      recordWorkOrchestratorTransition({
+        sessionId: testSessionId,
+        cwd: testCwd,
+        phase: "lifecycle",
+        action,
+        outcome: "observed",
+      })
+
+      // #then
+      const entries = getGovernanceSession(testSessionId).ledger?.getEntries() ?? []
+      const matchedEntry = entries.find((entry) => {
+        if (entry.type !== "state-proposal") {
+          return false
+        }
+        const target = (entry as { target?: { namespace?: string; key?: string } }).target
+        return (
+          target?.namespace === "work-orchestrator" &&
+          target?.key === `lifecycle:${action}`
+        )
+      }) as { outcome?: string } | undefined
+      expect(matchedEntry).toBeDefined()
+      expect(matchedEntry?.outcome).toBe("pending")
+    })
+
+    it("is a no-op when governance is disabled", () => {
+      // #given
+      initGovernanceSession(testSessionId, testCwd, { enabled: false })
+
+      // #when
+      recordWorkOrchestratorTransition({
+        sessionId: testSessionId,
+        cwd: testCwd,
+        phase: "planning",
+        action: "plan-switch",
+        outcome: "observed",
+      })
+
+      // #then
+      const session = getGovernanceSession(testSessionId)
+      expect(session.tracer).toBeNull()
+      expect(session.ledger).toBeNull()
     })
   })
 

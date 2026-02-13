@@ -10,7 +10,7 @@ import type {
  */
 export type KnownContextSourceType =
   | "keyword-detector"
-  | "planning-with-files"
+  | "work-orchestrator"
   | "rules-injector"
   | "directory-agents"
   | "directory-readme"

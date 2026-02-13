@@ -190,11 +190,11 @@ export function buildChatMessageNodes(
     })
   }
 
-  if (context.planningWithFiles?.["chat.message"]) {
+  if (context.workOrchestrator?.["chat.message"]) {
     nodes.push({
-      id: "planning-with-files:chat.message",
+      id: "work-orchestrator:chat.message",
       invoke: async () => {
-        await context.planningWithFiles?.["chat.message"]?.(input, output)
+        await context.workOrchestrator?.["chat.message"]?.(input, output)
       },
     })
   }
@@ -204,15 +204,6 @@ export function buildChatMessageNodes(
       id: "pre-completion-verification:chat.message",
       invoke: async () => {
         await context.preCompletionVerification?.["chat.message"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.continuationStopGuard?.["chat.message"]) {
-    nodes.push({
-      id: "continuation-stop-guard:chat.message",
-      invoke: async () => {
-        await context.continuationStopGuard?.["chat.message"]?.({ sessionID: input.sessionID })
       },
     })
   }

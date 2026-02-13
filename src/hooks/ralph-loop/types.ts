@@ -1,5 +1,5 @@
 import type { RalphLoopConfig } from "../../config"
-import type { ContinuationIntent } from "../continuation-control"
+import type { ContinuationIntent } from "../work-orchestrator"
 
 export interface RalphLoopState {
   active: boolean

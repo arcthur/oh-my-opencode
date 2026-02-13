@@ -35,15 +35,18 @@ function writeWorkState(directory: string, state: Partial<WorkState>): void {
 
   const planId = state.plan_id ?? "demo"
   const fullState: WorkState = {
-    schema_version: 5,
+    schema_version: 6,
     executor: state.executor ?? "atlas",
     plan_id: planId,
     execution_plan_path: state.execution_plan_path ?? `.sisyphus/plans/${planId}/plan.md`,
     runtime_ledger_path: state.runtime_ledger_path ?? `.sisyphus/plans/${planId}/ledger.yaml`,
     started_at: state.started_at ?? new Date().toISOString(),
     session_ids: state.session_ids ?? [],
-    research_ops: state.research_ops ?? 0,
-    last_findings_mtime: state.last_findings_mtime ?? 0,
+    protocol: state.protocol ?? {
+      research_ops: 0,
+      last_findings_mtime: 0,
+      stop_verification_last_prompt_at_by_session: {},
+    },
     errors: state.errors ?? [],
     blockers: state.blockers ?? [],
     decisions: state.decisions ?? [],
@@ -198,8 +201,9 @@ describe("start-work hook", () => {
       expect(imported.length).toBeGreaterThan(0)
 
       const workYaml = readFileSync(join(testDir, ".sisyphus", "work.yaml"), "utf-8")
-      expect(workYaml).toContain("schema_version: 5")
+      expect(workYaml).toContain("schema_version: 6")
       expect(workYaml).toContain("executor: atlas")
+      expect(workYaml).toContain("protocol:")
     })
 
     test("should wrap multiple plans message in system-reminder tag", async () => {

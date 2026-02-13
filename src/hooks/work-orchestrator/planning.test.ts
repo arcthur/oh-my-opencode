@@ -8,11 +8,11 @@ import { ContextCollector, createContextInjectorMessagesTransformHook } from "..
 import { initializePlan } from "../../features/planning-with-files/manager"
 import { DEFAULT_PLANNING_CONFIG } from "../../features/planning-with-files/types"
 import { createTaskNode } from "../../features/task-system"
-import { createDirectContinuationReporterForTesting } from "../continuation-control"
+import { createDirectContinuationReporterForTesting } from "./index"
 import {
   createPlanningWithFilesHook as createPlanningWithFilesHookBase,
   type PlanningWithFilesHookOptions,
-} from "./index"
+} from "./planning"
 
 function createTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "planning-with-files-hook-"))
@@ -64,7 +64,7 @@ function createPlanningWithFilesHook(
   })
 }
 
-describe("planning-with-files (plugin-native hook)", () => {
+describe("work-orchestrator planning phase", () => {
   let tmpDir: string
 
   beforeEach(() => {
@@ -146,7 +146,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(pending.merged).toContain("findings.md")
     const state = readWorkState(tmpDir)
     expect(state).not.toBeNull()
-    expect(state?.research_ops).toBe(2)
+    expect(state?.protocol.research_ops).toBe(2)
   })
 
   test("does not re-emit two-action-rule on odd action counts", async () => {
@@ -220,7 +220,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(collector.hasPending("session-3")).toBe(false)
     const state = readWorkState(tmpDir)
     expect(state).not.toBeNull()
-    expect(state?.research_ops).toBe(0)
+    expect(state?.protocol.research_ops).toBe(0)
   })
 
   test("initializes a new plan from chat directive", async () => {
@@ -303,7 +303,7 @@ describe("planning-with-files (plugin-native hook)", () => {
     expect(promptCalls).toHaveLength(0)
     expect(intents).toHaveLength(1)
     expect(intents[0].sessionID).toBe("session-stop-reporter")
-    expect(intents[0].source).toBe("planning-with-files")
+    expect(intents[0].source).toBe("work-orchestrator")
     expect(intents[0].round).toBe(11)
     expect(intents[0].text).toContain("Incomplete plan tasks remain")
   })

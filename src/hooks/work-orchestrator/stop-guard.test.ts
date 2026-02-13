@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { createContinuationStopGuardHook } from "./index"
+import { createContinuationStopGuardHook } from "./stop-guard"
 
-describe("continuation-stop-guard", () => {
+describe("work-orchestrator stop guard", () => {
   function createMockPluginInput() {
     return {
       client: {

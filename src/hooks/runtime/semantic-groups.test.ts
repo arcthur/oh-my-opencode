@@ -31,14 +31,14 @@ describe("semantic groups", () => {
       RECOVERY_MECHANISM_CATEGORY_BY_HOOK["delegation-failure-guidance"]
     ).toBe("failure-guidance")
     expect(
-      RECOVERY_MECHANISM_CATEGORY_BY_HOOK["continuation-stop-guard"]
-    ).toBe("continuation-control")
+      RECOVERY_MECHANISM_CATEGORY_BY_HOOK["work-orchestrator"]
+    ).toBe("work-orchestrator-continuation")
     expect(
       RECOVERY_MECHANISM_CATEGORY_BY_HOOK["task-auto-continuation"]
-    ).toBe("continuation-control")
+    ).toBe("work-orchestrator-continuation")
     expect(
       RECOVERY_MECHANISM_CATEGORY_BY_HOOK["unstable-agent-watchdog"]
-    ).toBe("continuation-control")
+    ).toBe("work-orchestrator-continuation")
   })
 
   test("delegation progress stage map is complete and stable", () => {

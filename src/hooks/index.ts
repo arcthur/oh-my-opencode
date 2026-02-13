@@ -1,16 +1,20 @@
 export { createTaskAutoContinuationHook, type TaskAutoContinuationHook } from "./task-auto-continuation";
 export { createUnstableAgentWatchdogHook, type UnstableAgentWatchdogOptions } from "./unstable-agent-watchdog";
 export {
-  createContinuationControl,
-  type ContinuationControlConfig,
-  type ContinuationControlPriority,
+  createWorkOrchestratorHook,
+  createDirectContinuationReporterForTesting,
+  type WorkOrchestratorHook,
+  type WorkOrchestratorHookOptions,
+  type WorkOrchestratorTransition,
+  type WorkOrchestratorTransitionPhase,
+  type WorkOrchestratorTransitionOutcome,
   type ContinuationIntent,
   type ContinuationIntentOutcome,
   type ContinuationPromptModel,
   type ContinuationPromptPayload,
   type ContinuationRejectReason,
   type ContinuationSource,
-} from "./continuation-control";
+} from "./work-orchestrator";
 export { createContextWindowGovernorHook, getCompactionContextPrompt } from "./context-window-governor";
 export { createSessionNotification } from "./session-notification";
 export { createSessionStateRepairHook, type SessionStateRepairHook, type SessionStateRepairOptions } from "./session-state-repair";
@@ -37,13 +41,10 @@ export { createEditFailureGuidanceHook } from "./edit-failure-guidance";
 export { createPrometheusMdOnlyHook } from "./prometheus-md-only";
 export { createTaskResumeInfoHook } from "./task-resume-info";
 export { createStartWorkHook } from "./start-work";
-export { createExecutionOrchestratorHook } from "./execution-orchestrator";
 export { createDelegationFailureGuidanceHook } from "./delegation-failure-guidance";
 export { createQuestionLabelTruncatorHook } from "./question-label-truncator";
 export { createDelegationBlockSubagentQuestionHook } from "./delegation-block-subagent-question";
 export { createWriteExistingFileGuardHook } from "./write-existing-file-guard";
-export { createContinuationStopGuardHook, type ContinuationStopGuard } from "./continuation-stop-guard";
-export { createPlanningWithFilesHook, type PlanningWithFilesHookOptions } from "./planning-with-files";
 export { createSilentToolOutputHook } from "./silent-tool-output";
 export { createContextManifestInjectorHook } from "./context-manifest-injector";
 export { createSwarmFromPlanHook } from "./swarm-from-plan";

@@ -8,12 +8,12 @@ describe("per-event order differences", () => {
     expect(chat).not.toContain("multi-plan-trigger:chat.message")
   })
 
-  test("planning-with-files has different relative positions across before/after", () => {
+  test("work-orchestrator has different relative positions across before/after", () => {
     const before = EVENT_TOTAL_ORDER["tool.execute.before"]
     const after = EVENT_TOTAL_ORDER["tool.execute.after"]
 
-    const beforeIndex = before.indexOf("planning-with-files:tool.execute.before")
-    const afterIndex = after.indexOf("planning-with-files:tool.execute.after")
+    const beforeIndex = before.indexOf("work-orchestrator:tool.execute.before")
+    const afterIndex = after.indexOf("work-orchestrator:tool.execute.after")
 
     expect(beforeIndex).toBeGreaterThan(-1)
     expect(afterIndex).toBeGreaterThan(-1)

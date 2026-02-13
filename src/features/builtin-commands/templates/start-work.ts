@@ -18,7 +18,7 @@ export const START_WORK_TEMPLATE = `You are starting an Atlas execution work ses
 
 4. **Create/Update work.yaml**:
    \`\`\`yaml
-   schema_version: 5
+   schema_version: 6
    executor: atlas
    plan_id: plan-name
    execution_plan_path: .sisyphus/plans/plan-name/plan.md
@@ -27,8 +27,10 @@ export const START_WORK_TEMPLATE = `You are starting an Atlas execution work ses
    session_ids:
      - session_id_1
      - session_id_2
-   research_ops: 0
-   last_findings_mtime: 0
+   protocol:
+     research_ops: 0
+     last_findings_mtime: 0
+     stop_verification_last_prompt_at_by_session: {}
    errors: []
    blockers: []
    decisions: []

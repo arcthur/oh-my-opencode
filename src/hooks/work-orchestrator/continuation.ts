@@ -2,11 +2,10 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { log } from "../../shared/logger"
 
 export type ContinuationSource =
-  | "execution-orchestrator"
-  | "ralph-loop"
+  | "work-orchestrator"
+    | "ralph-loop"
   | "task-auto-continuation"
-  | "planning-with-files"
-  | "unstable-agent-watchdog"
+    | "unstable-agent-watchdog"
 
 export type ContinuationRejectReason =
   | "stop_guard"
@@ -43,11 +42,10 @@ export interface ContinuationIntent {
 }
 
 export interface ContinuationControlPriority {
-  "execution-orchestrator": number
-  "ralph-loop": number
+  "work-orchestrator": number
+    "ralph-loop": number
   "task-auto-continuation": number
-  "planning-with-files": number
-  "unstable-agent-watchdog": number
+    "unstable-agent-watchdog": number
 }
 
 export interface ContinuationControlConfig {
@@ -83,7 +81,7 @@ interface ActiveEventState {
   pendingBySession: Map<string, QueuedIntent[]>
 }
 
-const HOOK_NAME = "continuation-control"
+const HOOK_NAME = "work-orchestrator-continuation"
 
 function extractSessionID(input: { event: { type: string; properties?: unknown } }): string | undefined {
   const props = input.event.properties as Record<string, unknown> | undefined

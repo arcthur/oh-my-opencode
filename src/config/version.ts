@@ -1,1 +1,1 @@
-export const CURRENT_CONFIG_VERSION = 1 as const
+export const CURRENT_CONFIG_VERSION = 2 as const

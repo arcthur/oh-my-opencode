@@ -1,21 +1,24 @@
 import { describe, expect, mock, test } from "bun:test"
-import { createContinuationControl, type ContinuationControlConfig, type ContinuationIntentOutcome } from "./index"
+import {
+  createContinuationControl,
+  type ContinuationControlConfig,
+  type ContinuationIntentOutcome,
+} from "./continuation"
 
 function createConfig(overrides?: Partial<ContinuationControlConfig>): ContinuationControlConfig {
   return {
     post_compaction_grace_ms: 1500,
     priority: {
-      "execution-orchestrator": 400,
+      "work-orchestrator": 400,
       "ralph-loop": 300,
       "task-auto-continuation": 200,
-      "planning-with-files": 100,
       "unstable-agent-watchdog": 50,
     },
     ...overrides,
   }
 }
 
-describe("continuation-control", () => {
+describe("work-orchestrator continuation arbiter", () => {
   test("arbitrates by priority for intents reported outside idle round", async () => {
     // #given
     const promptCalls: string[] = []
@@ -50,7 +53,7 @@ describe("continuation-control", () => {
 
     void control.reportIntent({
       sessionID: "session-immediate",
-      source: "execution-orchestrator",
+      source: "work-orchestrator",
       reason: "execution",
       prompt: { text: "execution continuation", agent: "sisyphus" },
       onResult: (result) => {
@@ -114,7 +117,7 @@ describe("continuation-control", () => {
     await control.reportIntent({
       sessionID: "session-1",
       round,
-      source: "execution-orchestrator",
+      source: "work-orchestrator",
       reason: "execution",
       prompt: { text: "execution continuation", agent: "sisyphus" },
       onResult: (result) => {
@@ -282,7 +285,7 @@ describe("continuation-control", () => {
     await control.reportIntent({
       sessionID: "session-failure",
       round,
-      source: "execution-orchestrator",
+      source: "work-orchestrator",
       reason: "execution",
       prompt: { text: "execution continuation" },
       onResult: (result) => {

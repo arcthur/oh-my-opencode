@@ -131,11 +131,11 @@ export function buildToolExecuteBeforeNodes(
     })
   }
 
-  if (context.planningWithFiles?.["tool.execute.before"]) {
+  if (context.workOrchestrator?.["tool.execute.before"]) {
     nodes.push({
-      id: "planning-with-files:tool.execute.before",
+      id: "work-orchestrator:tool.execute.before",
       invoke: async () => {
-        await context.planningWithFiles?.["tool.execute.before"]?.(input, output)
+        await context.workOrchestrator?.["tool.execute.before"]?.(input, output)
       },
     })
   }
@@ -163,15 +163,6 @@ export function buildToolExecuteBeforeNodes(
       id: "sisyphus-junior-notepad:tool.execute.before",
       invoke: async () => {
         await context.sisyphusJuniorNotepad?.["tool.execute.before"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.executionOrchestratorHook?.["tool.execute.before"]) {
-    nodes.push({
-      id: "execution-orchestrator:tool.execute.before",
-      invoke: async () => {
-        await context.executionOrchestratorHook?.["tool.execute.before"]?.(input, output)
       },
     })
   }
@@ -306,7 +297,7 @@ export function buildToolExecuteBeforeNodes(
       const sessionID = input.sessionID || context.getMainSessionID?.()
 
       if (command === "stop-continuation" && sessionID) {
-        context.continuationStopGuard?.stop(sessionID)
+        context.workOrchestrator?.stopContinuation(sessionID)
         context.taskAutoContinuation?.cancelAllCountdowns()
         context.ralphLoop?.cancelLoop(sessionID)
         if (context.directory) {

@@ -10,9 +10,9 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 
 | Capability | Start Here (Journey/Research) | Contract Reference | Primary Code Entry |
 |---|---|---|---|
-| Planning → execution | `docs/journeys/planning-to-execution.md` | `docs/reference/tools.md`, `docs/reference/agents.md`, `docs/reference/hooks.md` | `src/hooks/execution-orchestrator/`, `src/tools/delegate-task/` |
+| Planning → execution | `docs/journeys/planning-to-execution.md` | `docs/reference/tools.md`, `docs/reference/agents.md`, `docs/reference/hooks.md` | `src/hooks/work-orchestrator/`, `src/tools/delegate-task/` |
 | Slash command workflows | `docs/guide/features.md` | `docs/reference/commands.md`, `docs/reference/hooks.md` | `src/features/builtin-commands/`, `src/tools/slashcommand/`, `src/hooks/auto-slash-command/` |
-| Planning with files | `docs/journeys/planning-with-files.md` | `docs/reference/artifacts-and-paths.md`, `docs/reference/hooks.md` | `src/hooks/planning-with-files/` |
+| Planning protocol (work-orchestrator) | `docs/journeys/planning-with-files.md` | `docs/reference/artifacts-and-paths.md`, `docs/reference/hooks.md` | `src/hooks/work-orchestrator/planning.ts`, `src/features/planning-with-files/` |
 | TaskGraph lifecycle | `docs/journeys/planning-to-execution.md` | `docs/reference/task-graph.md`, `docs/reference/tools.md`, `docs/reference/artifacts-and-paths.md` | `src/features/task-system/`, `src/tools/task-graph/` |
 | Background tasks | `docs/journeys/background-and-parallelism.md` | `docs/reference/tools.md` | `src/features/background-agent/`, `src/tools/background-task/` |
 | Parallel agents (tmux + worktrees) | `docs/journeys/parallel-agents.md` | `docs/reference/artifacts-and-paths.md`, `docs/reference/skills.md` | `src/hooks/tmux-parallel-agents/`, `src/features/builtin-skills/skills/parallel-agents.ts` |

@@ -17,13 +17,13 @@ flowchart TD
   ART --> SW["Start execution (/start-work or start-work hook)"]
   SW --> MIG["Select active plan spec + Create/Update .sisyphus/work.yaml"]
 
-  MIG --> PWF{"planning_with_files.enabled?"}
+  MIG --> PWF{"work_orchestrator.planning_with_files.enabled?"}
   PWF -->|Yes| PWFY["Enable execution guardrails\n(2-action, 3-strike, auto reread, stop verification)"]
-  PWF -->|No| PWFN["Skip planning-with-files protocols"]
+  PWF -->|No| PWFN["Skip planning protocol guardrails"]
 
   PWFY --> MODE{"Swarm-first enabled?"}
   PWFN --> MODE
-  MODE -->|No| AT["Single-session execution (execution-orchestrator hook)"]
+  MODE -->|No| AT["Single-session execution (work-orchestrator execution phase)"]
   MODE -->|Yes| SF["Swarm-first bootstrap (swarm-from-plan)\nSync plan tasks -> TaskGraph (scope=swarm); (optional) spawn workers"]
 
   AT --> TOOL["Tools (Read/Glob/Grep/LSP/Edit/Bash/...)"]
@@ -48,7 +48,7 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 ## Recommended Reading Order
 
 1. Planning concepts: `docs/journeys/prometheus-planning.md`
-2. Planning with files: `docs/journeys/planning-with-files.md`
+2. Planning protocol (work-orchestrator): `docs/journeys/planning-with-files.md`
 3. BDD ↔ plan contract: `docs/reference/planning-bdd-contract.md`
 4. Orchestration: `docs/guide/orchestration.md`
 5. Deterministic delegation context: `docs/journeys/context-packs-and-manifests.md`
@@ -56,9 +56,9 @@ See: `docs/journeys/swarm-coordination.md` and `docs/guide/orchestration.md`.
 
 ## Where to Look in Code
 
-- Orchestrator hook: `src/hooks/execution-orchestrator/`
+- Unified orchestrator hook: `src/hooks/work-orchestrator/`
 - Start-work bootstrap: `src/hooks/start-work/`
-- Planning-with-files hook: `src/hooks/planning-with-files/`
+- Planning protocol engine: `src/hooks/work-orchestrator/planning.ts`, `src/features/planning-with-files/`
 - Pre-planning agent: `src/agents/metis.ts`
 - Plan review agent: `src/agents/momus.ts`
 

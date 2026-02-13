@@ -18,7 +18,7 @@ Journeys are “how to accomplish X” guides that connect multiple subsystems a
 
 - Planning → execution: `docs/journeys/planning-to-execution.md`
 - Prometheus planning: `docs/journeys/prometheus-planning.md`
-- Planning with files: `docs/journeys/planning-with-files.md`
+- Planning protocol (work-orchestrator): `docs/journeys/planning-with-files.md`
 - Session handoff & session reference: `docs/journeys/session-handoff-and-reference.md`
 - Conditional rules: `docs/journeys/conditional-rules.md`
 - Governance: `docs/journeys/governance.md`
