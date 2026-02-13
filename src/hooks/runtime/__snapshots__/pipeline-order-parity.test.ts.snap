@@ -40,6 +40,7 @@ exports[`EVENT_TOTAL_ORDER parity matches baseline event ordering snapshot 1`] =
     "internal:org-memory:event",
     "runtime-tracker:event",
     "repo-overview-injector:event",
+    "codemap-injector:event",
     "directory-agents-injector:event",
     "directory-readme-injector:event",
     "rules-injector:event",
@@ -76,6 +77,7 @@ exports[`EVENT_TOTAL_ORDER parity matches baseline event ordering snapshot 1`] =
     "silent-tool-output:tool.execute.after",
     "runtime-tracker:tool.execute.after",
     "repo-overview-injector:tool.execute.after",
+    "codemap-injector:tool.execute.after",
     "internal:policy-enforce:tool.execute.after",
     "internal:governance-post-tool:tool.execute.after",
     "internal:user-memory:tool.execute.after",
@@ -125,6 +127,7 @@ exports[`EVENT_TOTAL_ORDER parity matches baseline event ordering snapshot 1`] =
     "internal:user-memory:user.prompt.submit",
     "internal:org-memory:user.prompt.submit",
     "session-handoff:user.prompt.submit",
+    "codemap-injector:user.prompt.submit",
   ],
 }
 `;

@@ -126,6 +126,15 @@ export function buildEventNodes(
     })
   }
 
+  if (context.codemapInjector?.event) {
+    nodes.push({
+      id: "codemap-injector:event",
+      invoke: async () => {
+        await context.codemapInjector?.event?.(input)
+      },
+    })
+  }
+
   if (context.directoryAgentsInjector?.event) {
     nodes.push({
       id: "directory-agents-injector:event",

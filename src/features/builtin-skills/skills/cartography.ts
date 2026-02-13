@@ -2,11 +2,21 @@ import type { BuiltinSkill } from "../types"
 
 export const cartographySkill: BuiltinSkill = {
   name: "cartography",
-  description: "Generate hierarchical codemap.md files for codebase understanding",
+  description:
+    "Deterministic codemap generation for architecture context. Use the `cartography` tool as the execution path, and pair with codemap-injector only when directory-level context injection is needed.",
   argumentHint: "[init|update|changes] [--force] [--max-depth=N]",
   template: `# Cartography Skill
 
 Generate hierarchical codemap.md files that document codebase structure, patterns, and flows.
+
+## Non-Negotiable Execution Path
+
+Do NOT simulate cartography in plain text.
+Always execute the dedicated \`cartography\` tool for deterministic output.
+
+\`\`\`
+cartography(mode="update")
+\`\`\`
 
 ## Commands
 

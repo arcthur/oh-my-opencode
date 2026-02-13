@@ -36,6 +36,7 @@ export const BuiltinSkillNameSchema = z.enum([
   "git-master",
   "parallel-agents",
   "dev-browser",
+  "cartography",
   "spec-compliance-review",
   "code-quality-review",
   "writing-plans",
@@ -95,6 +96,7 @@ export const HookNameSchema = z.enum([
   "silent-tool-output",
   "context-manifest-injector",
   "repo-overview-injector",
+  "codemap-injector",
   "runtime-tracker",
   "anti-slop-enforcer",
   "pre-completion-verification",
@@ -175,6 +177,7 @@ export const BuiltinCommandNameSchema = z.enum([
   "ralph-loop",
   "ulw-loop",
   "cancel-ralph",
+  "cartography",
   "refactor",
   "start-work",
   "stop-continuation",
@@ -745,6 +748,62 @@ export const RepoOverviewConfigSchema = z.object({
   min_tool_calls: z.number().min(1).max(100).default(1),
 }).strict()
 
+/** Cartography Configuration - codemap generation controls */
+export const CartographyConfigSchema = z.object({
+  /** Enable cartography tool execution (default: true) */
+  enabled: z.boolean().default(true),
+  /** Maximum directory depth to scan (default: 4) */
+  max_depth: z.number().min(1).max(12).default(4),
+  /** Minimum files required for non-root codemap generation (default: 3) */
+  min_files: z.number().min(1).max(200).default(3),
+  /** Maximum parallel explorers budget (default: 5) */
+  max_parallel_explorers: z.number().min(1).max(20).default(5),
+  /** Include glob patterns for source discovery */
+  include_patterns: z.array(z.string()).default([
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.py",
+    "**/*.go",
+    "**/*.rs",
+    "**/*.js",
+    "**/*.jsx",
+  ]),
+  /** Exclude glob patterns for discovery */
+  exclude_patterns: z.array(z.string()).default([
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/tests/**",
+    "**/__tests__/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/target/**",
+    "**/__pycache__/**",
+  ]),
+}).strict()
+
+/** Codemap Injector Configuration - contextual codemap injection on reads */
+export const CodemapInjectorConfigSchema = z.object({
+  /** Enable codemap injector hook (default: false) */
+  enabled: z.boolean().default(false),
+  /** Token budget for codemap-injector output chunks (default: 600) */
+  budget: z.number().min(100).max(4000).default(600),
+  /** Max summary tokens for a single codemap snippet (default: 400) */
+  max_per_codemap: z.number().min(100).max(2000).default(400),
+  /** Suggest generating codemaps for hot directories (default: true) */
+  suggest_cartography: z.boolean().default(true),
+  /** Reserved flag for semantic retrieval strategy (default: false) */
+  semantic_search: z.boolean().default(false),
+  /**
+   * Inject root project-map for architecture/refactor prompts.
+   * Default false to avoid overlap with repo-overview-injector.
+   */
+  inject_root_project_map: z.boolean().default(false),
+}).strict()
+
 /** Runtime Tracker Configuration - tracks tool execution times */
 export const RuntimeTrackerConfigSchema = z.object({
   /** Enable runtime tracking (default: true) */
@@ -1267,6 +1326,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
   silent_tool_output: SilentToolOutputConfigSchema.optional(),
+  cartography: CartographyConfigSchema.optional(),
+  codemap_injector: CodemapInjectorConfigSchema.optional(),
   repo_overview: RepoOverviewConfigSchema.optional(),
   runtime_tracker: RuntimeTrackerConfigSchema.optional(),
   user_memory: UserMemoryConfigSchema.optional(),
@@ -1329,6 +1390,8 @@ export type BuiltinCategoryName = z.infer<typeof BuiltinCategoryNameSchema>
 export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
 export type PlanningWithFilesConfig = z.infer<typeof PlanningWithFilesConfigSchema>
 export type SilentToolOutputConfig = z.infer<typeof SilentToolOutputConfigSchema>
+export type CartographyConfig = z.infer<typeof CartographyConfigSchema>
+export type CodemapInjectorConfig = z.infer<typeof CodemapInjectorConfigSchema>
 export type RepoOverviewConfig = z.infer<typeof RepoOverviewConfigSchema>
 export type RuntimeTrackerConfig = z.infer<typeof RuntimeTrackerConfigSchema>
 export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>

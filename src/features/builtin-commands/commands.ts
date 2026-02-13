@@ -6,6 +6,7 @@ import { STOP_CONTINUATION_TEMPLATE } from "./templates/stop-continuation"
 import { REFACTOR_TEMPLATE } from "./templates/refactor"
 import { START_WORK_TEMPLATE } from "./templates/start-work"
 import { BRAINSTORM_TEMPLATE } from "./templates/brainstorm"
+import { CARTOGRAPHY_TEMPLATE } from "./templates/cartography"
 
 const BUILTIN_COMMAND_DEFINITIONS: Record<BuiltinCommandName, Omit<CommandDefinition, "name">> = {
   brainstorm: {
@@ -58,6 +59,18 @@ $ARGUMENTS
     template: `<command-instruction>
 ${CANCEL_RALPH_TEMPLATE}
 </command-instruction>`,
+  },
+  cartography: {
+    description:
+      "(builtin) Deterministic codemap generation command backed by the cartography tool.",
+    template: `<command-instruction>
+${CARTOGRAPHY_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+    argumentHint: "[init|update|changes] [--force] [--max-depth=N]",
   },
   refactor: {
     description:

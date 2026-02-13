@@ -122,7 +122,8 @@ export function createCodemapInjectorHook(
     const state = getSessionState(input.sessionID)
 
     // Inject root project map once for architecture/refactoring queries
-    if (state.pendingRootProjectMap && !state.rootProjectMapInjected) {
+    // when explicitly enabled to avoid overlap with repo-overview injector.
+    if (config.inject_root_project_map && state.pendingRootProjectMap && !state.rootProjectMapInjected) {
       const projectMap = cache.getRootProjectMap()
       if (projectMap) {
         const projectMapContext = formatRootProjectMapContext(projectMap)
@@ -210,6 +211,11 @@ export function createCodemapInjectorHook(
 
     const messageText = input.message?.content ?? ""
     if (!messageText) return
+
+    if (!config.inject_root_project_map) {
+      state.pendingRootProjectMap = false
+      return
+    }
 
     const trigger = detectQueryType(messageText)
     state.pendingRootProjectMap = trigger.injectRootProjectMap

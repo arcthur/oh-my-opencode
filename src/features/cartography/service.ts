@@ -24,6 +24,7 @@ import { generateCodemap, writeCodemap, generateProjectMap } from "./generator"
 import { getCodemapPath, CODEMAP_FILE_NAME, getProjectMapPath } from "./constants"
 import { hashDirectory } from "./hash-utils"
 import { log } from "../../shared"
+import { invalidateRepoOverviewCache } from "../../shared/repo-overview-cache"
 
 /**
  * Cartography service options
@@ -57,7 +58,7 @@ export class CartographyService {
     this.onProgress = options.onProgress
   }
 
-  private async computeChangeReport(config: CartographyConfig): Promise<{
+  private async computeChangeReport(config: CartographyConfig, forceRegenerate: boolean = false): Promise<{
     report: ChangeReport
     directoryMap: Map<string, DirectoryInfo>
   }> {
@@ -122,7 +123,7 @@ export class CartographyService {
         maxDepth: Math.max(0, config.max_depth - dir.depth),
       })
 
-      if (!storedHash || storedHash !== currentHash) {
+      if (forceRegenerate || !storedHash || storedHash !== currentHash) {
         changedDirs.push(relPath)
       }
     }
@@ -203,16 +204,16 @@ export class CartographyService {
             maxDepth: Math.max(0, effectiveConfig.max_depth - dir.depth),
           })
 
-          // Check if codemap already exists
           const codemapPath = getCodemapPath(dir.path)
-          if (existsSync(codemapPath)) {
+          const existedBeforeWrite = existsSync(codemapPath)
+
+          // Write codemap
+          writeCodemap(content, meta)
+          if (existedBeforeWrite) {
             result.updatedCodemaps.push(dir.relativePath)
           } else {
             result.createdCodemaps.push(dir.relativePath)
           }
-
-          // Write codemap
-          writeCodemap(content, meta)
 
           // Update state
           this.stateManager.updateCodemapMeta(meta)
@@ -242,6 +243,9 @@ export class CartographyService {
       // Update state
       this.stateManager.updateLastRun()
       await this.stateManager.save()
+      this.invalidateRepoOverviewCacheIfNeeded(
+        result.createdCodemaps.length + result.updatedCodemaps.length > 0
+      )
 
       result.durationMs = Date.now() - startTime
       this.progress("complete", `Completed in ${result.durationMs}ms`)
@@ -283,7 +287,10 @@ export class CartographyService {
       this.config = effectiveConfig
 
       // Get full change report (includes new dirs)
-      const { report: changeReport, directoryMap } = await this.computeChangeReport(effectiveConfig)
+      const { report: changeReport, directoryMap } = await this.computeChangeReport(
+        effectiveConfig,
+        options.force === true
+      )
       const dirsToUpdate = [
         ...changeReport.changedDirs,
         ...changeReport.newDirs,
@@ -324,15 +331,15 @@ export class CartographyService {
             maxDepth: Math.max(0, effectiveConfig.max_depth - dir.depth),
           })
 
-          // Check if this is an update or create
           const codemapPath = getCodemapPath(dir.path)
-          if (existsSync(codemapPath)) {
+          const existedBeforeWrite = existsSync(codemapPath)
+
+          writeCodemap(content, meta)
+          if (existedBeforeWrite) {
             result.updatedCodemaps.push(dir.relativePath)
           } else {
             result.createdCodemaps.push(dir.relativePath)
           }
-
-          writeCodemap(content, meta)
           this.stateManager.updateCodemapMeta(meta)
           this.stateManager.updateFolderHash(dir.path, meta.sourceHash)
 
@@ -371,6 +378,9 @@ export class CartographyService {
       // Save state
       this.stateManager.updateLastRun()
       await this.stateManager.save()
+      this.invalidateRepoOverviewCacheIfNeeded(
+        result.createdCodemaps.length + result.updatedCodemaps.length + changeReport.deletedDirs.length > 0
+      )
 
       result.durationMs = Date.now() - startTime
       this.progress("complete", `Update completed in ${result.durationMs}ms`)
@@ -435,6 +445,20 @@ export class CartographyService {
       include_patterns: options.includePatterns ?? this.config.include_patterns,
       exclude_patterns: options.excludePatterns ?? this.config.exclude_patterns,
       min_files: options.minFiles ?? this.config.min_files,
+    }
+  }
+
+  private invalidateRepoOverviewCacheIfNeeded(hasChanges: boolean): void {
+    if (!hasChanges) {
+      return
+    }
+
+    const invalidated = invalidateRepoOverviewCache(this.projectRoot)
+    if (invalidated) {
+      this.progress(
+        "coordination",
+        "Invalidated repo-overview cache due to cartography artifact changes"
+      )
     }
   }
 

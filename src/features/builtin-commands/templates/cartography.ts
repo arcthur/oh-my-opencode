@@ -8,6 +8,22 @@ export const CARTOGRAPHY_TEMPLATE = `# /cartography
 
 Generate hierarchical codemap.md files for comprehensive codebase understanding.
 
+## Deterministic Rule
+
+This command MUST execute the \`cartography\` tool first.
+Do not produce "simulated" codemap output from reasoning alone.
+
+### Required first action
+
+\`\`\`
+cartography(mode="update")
+\`\`\`
+
+Use \`mode\` derived from user arguments:
+- \`init\` => full generation
+- \`changes\` => dry change report
+- default => \`update\`
+
 ## Usage
 
 \`\`\`

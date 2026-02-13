@@ -34,8 +34,8 @@ function createToolInput(
   return { tool, sessionID, callID }
 }
 
-function createToolOutput(output = "test output") {
-  return { title: "Test", output, metadata: {} }
+function createToolOutput(output = "test output", title = "Test") {
+  return { title, output, metadata: {} }
 }
 
 describe("createRepoOverviewInjectorHook", () => {
@@ -255,6 +255,52 @@ describe("createRepoOverviewInjectorHook", () => {
 
       // then
       expect(output.output).toBe("test output")
+    })
+
+    test("defers read injection when codemap-injector coordination is enabled", async () => {
+      // given
+      const uniqueDir = path.join(tmpDir, "coordination-with-codemap")
+      fs.mkdirSync(uniqueDir, { recursive: true })
+      fs.writeFileSync(path.join(uniqueDir, "codemap.md"), "# CODEMAP: .\n", "utf8")
+      const mockCtx = createMockCtx(uniqueDir)
+      const hook = createRepoOverviewInjectorHook(
+        mockCtx,
+        undefined,
+        { suppress_read_injection_when_codemap_enabled: true }
+      )
+
+      // when: Read call reaches threshold but should be deferred
+      const readOutput = createToolOutput("test output", "src/index.ts")
+      await hook["tool.execute.after"](createToolInput("Read"), readOutput)
+
+      // then: No overview injected on read
+      expect(readOutput.output).toBe("test output")
+
+      // when: Next non-read tool call
+      const bashOutput = createToolOutput()
+      await hook["tool.execute.after"](createToolInput("Bash"), bashOutput)
+
+      // then: Overview injects on non-read call
+      expect(bashOutput.output).toContain("Repository Overview")
+    })
+
+    test("does not defer read injection when coordination is enabled but no codemap exists", async () => {
+      // given
+      const uniqueDir = path.join(tmpDir, "coordination-no-codemap")
+      fs.mkdirSync(uniqueDir, { recursive: true })
+      const mockCtx = createMockCtx(uniqueDir)
+      const hook = createRepoOverviewInjectorHook(
+        mockCtx,
+        undefined,
+        { suppress_read_injection_when_codemap_enabled: true }
+      )
+
+      // when
+      const output = createToolOutput("test output", "src/index.ts")
+      await hook["tool.execute.after"](createToolInput("Read"), output)
+
+      // then
+      expect(output.output).toContain("Repository Overview")
     })
   })
   // #endregion

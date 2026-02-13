@@ -26,6 +26,7 @@ export const EVENT_TOTAL_ORDER: Record<HookEventType, HookNodeId[]> = {
     "internal:user-memory:user.prompt.submit",
     "internal:org-memory:user.prompt.submit",
     "session-handoff:user.prompt.submit",
+    "codemap-injector:user.prompt.submit",
   ],
   "command.execute.before": [
     "auto-slash-command:command.execute.before",
@@ -68,6 +69,7 @@ export const EVENT_TOTAL_ORDER: Record<HookEventType, HookNodeId[]> = {
     "silent-tool-output:tool.execute.after",
     "runtime-tracker:tool.execute.after",
     "repo-overview-injector:tool.execute.after",
+    "codemap-injector:tool.execute.after",
     "internal:policy-enforce:tool.execute.after",
     "internal:governance-post-tool:tool.execute.after",
     "internal:user-memory:tool.execute.after",
@@ -100,6 +102,7 @@ export const EVENT_TOTAL_ORDER: Record<HookEventType, HookNodeId[]> = {
     "internal:org-memory:event",
     "runtime-tracker:event",
     "repo-overview-injector:event",
+    "codemap-injector:event",
     "directory-agents-injector:event",
     "directory-readme-injector:event",
     "rules-injector:event",

@@ -30,3 +30,18 @@ describe("builtin /brainstorm command", () => {
     expect(brainstorm.description).toContain("brainstorm")
   })
 })
+
+describe("builtin /cartography command", () => {
+  test("loads deterministic cartography command template", () => {
+    // #given
+    const commands = loadBuiltinCommands()
+
+    // #when
+    const cartography = commands["cartography"]
+
+    // #then
+    expect(cartography).toBeDefined()
+    expect(cartography.description).toContain("codemap")
+    expect(cartography.template).toContain("/cartography init")
+  })
+})

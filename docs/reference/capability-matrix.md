@@ -27,7 +27,7 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 | Governance | `docs/journeys/governance.md` | `docs/reference/governance.md`, `docs/reference/configuration.md`, `docs/reference/artifacts-and-paths.md` | `src/features/governance/` |
 | Browser automation | `docs/journeys/browser-automation.md` | `docs/reference/skills.md`, `docs/reference/mcps.md` | `src/features/builtin-skills/skills/playwright.ts`, `src/tools/skill-mcp/` |
 | Extending the plugin | `docs/journeys/extensibility.md` | `docs/reference/hooks.md`, `docs/reference/tools.md`, `docs/reference/skills.md`, `docs/reference/mcps.md` | `src/index.ts`, `src/hooks/`, `src/tools/`, `src/features/` |
-| Cartography / codemaps | `docs/research/cartography.md` (not wired by default) | `docs/reference/artifacts-and-paths.md` | `src/features/cartography/`, `src/hooks/codemap-injector/` (not wired) |
+| Cartography / codemaps | `docs/research/cartography.md` | `docs/reference/artifacts-and-paths.md`, `docs/reference/configuration.md` | `src/features/cartography/`, `src/tools/cartography/`, `src/hooks/codemap-injector/` |
 
 ## Known Limitations (Wiring)
 

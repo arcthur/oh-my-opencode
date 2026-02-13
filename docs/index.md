@@ -64,7 +64,7 @@ Reference pages are stable, “look it up quickly” docs:
 
 - Troubleshooting: `docs/troubleshooting/`
 - Research (non-normative):
-  - Cartography (codemaps, not wired by default): `docs/research/cartography.md`
+  - Cartography (codemaps): `docs/research/cartography.md`
   - Context distillation comparison notes: `docs/research/context-distillation-research.md`
   - Governance design deep dive: `docs/research/governance-orchestration-design.md`
   - User memory deep dive: `docs/research/user-memory-deep-dive.md`

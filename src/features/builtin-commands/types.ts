@@ -6,6 +6,7 @@ export type BuiltinCommandName =
   | "ralph-loop"
   | "cancel-ralph"
   | "ulw-loop"
+  | "cartography"
   | "refactor"
   | "start-work"
   | "stop-continuation"

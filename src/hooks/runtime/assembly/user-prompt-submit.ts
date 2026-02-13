@@ -34,5 +34,14 @@ export function buildUserPromptSubmitNodes(
     })
   }
 
+  if (context.codemapInjector?.["user.prompt.submit"]) {
+    nodes.push({
+      id: "codemap-injector:user.prompt.submit",
+      invoke: async () => {
+        await context.codemapInjector?.["user.prompt.submit"]?.(input)
+      },
+    })
+  }
+
   return nodes
 }

@@ -377,6 +377,7 @@ Oh My OpenCode includes built-in skills that provide additional capabilities:
 - **git-master**: Git expert for atomic commits, rebase/squash, and history search (blame, bisect, log -S).
 - **parallel-agents**: Worktree + tmux orchestration for parallel agent workflows (spawn/monitor/rescue/merge/cleanup).
 - **dev-browser**: Stateful browser automation (requires separate local server setup).
+- **cartography**: Deterministic codemap generation (`codemap.md`, `project-map.md`, `.opencode/cartography.json`).
 - **spec-compliance-review**: Strict acceptance-criteria verification with PASS/FAIL verdict and file:line evidence.
 - **code-quality-review**: Post-spec code quality review (type safety, error handling, tests, maintainability, safety risks).
 - **writing-plans**: Structured implementation planning with dependencies, risks, and verification steps.
@@ -402,7 +403,35 @@ You can also disable any skill (including built-ins) via the `skills` map:
 }
 ```
 
-Available built-in skills include: `playwright` (or `agent-browser` when explicitly selected), `frontend-ui-ux`, `git-master`, `parallel-agents`, `dev-browser`, `spec-compliance-review`, `code-quality-review`, `writing-plans`, `systematic-debugging`, `code-simplifier`.
+Available built-in skills include: `playwright` (or `agent-browser` when explicitly selected), `frontend-ui-ux`, `git-master`, `parallel-agents`, `dev-browser`, `cartography`, `spec-compliance-review`, `code-quality-review`, `writing-plans`, `systematic-debugging`, `code-simplifier`.
+
+## Cartography
+
+Configure codemap generation defaults:
+
+```json
+{
+  "cartography": {
+    "enabled": true,
+    "max_depth": 4,
+    "min_files": 3
+  }
+}
+```
+
+Configure codemap context injection hook:
+
+```json
+{
+  "codemap_injector": {
+    "enabled": false,
+    "budget": 600,
+    "max_per_codemap": 400,
+    "suggest_cartography": true,
+    "inject_root_project_map": false
+  }
+}
+```
 
 ## Git Master
 

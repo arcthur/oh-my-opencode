@@ -1,12 +1,18 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
-import { join } from "node:path"
-import { homedir } from "node:os"
-import type { RepoOverviewConfig } from "./types"
-import { DEFAULT_CONFIG } from "./types"
+import { dirname, resolve } from "node:path"
+import type {
+  RepoOverviewConfig,
+  RepoOverviewCoordinationConfig,
+} from "./types"
+import { DEFAULT_CONFIG, DEFAULT_COORDINATION_CONFIG } from "./types"
 import { generateRepoOverview, formatRepoOverview } from "./generator"
 import { log } from "../../shared/logger"
 import { contextBudgetArbiter } from "../../features/context-view"
+import { createCodemapCache } from "../../features/codemap-injector"
+import {
+  getCachedRepoOverview,
+  setCachedRepoOverview,
+} from "../../shared/repo-overview-cache"
 
 interface ToolExecuteInput {
   tool: string
@@ -27,70 +33,35 @@ interface EventInput {
   }
 }
 
-interface CacheEntry {
-  overview: string
-  timestamp: number
-  projectDir: string
-}
-
-const CACHE_DIR = join(homedir(), ".opencode", "cache", "repo-overview")
-
-function ensureCacheDir(): void {
-  if (!existsSync(CACHE_DIR)) {
-    mkdirSync(CACHE_DIR, { recursive: true })
-  }
-}
-
-function getCacheKey(projectDir: string): string {
-  // Create a safe filename from project path
-  return Buffer.from(projectDir).toString("base64url")
-}
-
-function getCachedOverview(projectDir: string, config: RepoOverviewConfig): string | null {
-  try {
-    ensureCacheDir()
-    const cacheFile = join(CACHE_DIR, `${getCacheKey(projectDir)}.json`)
-
-    if (!existsSync(cacheFile)) return null
-
-    const data: CacheEntry = JSON.parse(readFileSync(cacheFile, "utf-8"))
-
-    // Check if cache is still valid
-    if (Date.now() - data.timestamp > config.cache_duration_ms) {
-      return null
-    }
-
-    if (data.projectDir !== projectDir) {
-      return null
-    }
-
-    return data.overview
-  } catch {
-    return null
-  }
-}
-
-function setCachedOverview(projectDir: string, overview: string): void {
-  try {
-    ensureCacheDir()
-    const cacheFile = join(CACHE_DIR, `${getCacheKey(projectDir)}.json`)
-
-    const data: CacheEntry = {
-      overview,
-      timestamp: Date.now(),
-      projectDir,
-    }
-
-    writeFileSync(cacheFile, JSON.stringify(data, null, 2), "utf-8")
-  } catch (error) {
-    log("[repo-overview] failed to cache overview", { error: String(error) })
-  }
-}
-
-export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Partial<RepoOverviewConfig>) {
+export function createRepoOverviewInjectorHook(
+  ctx: PluginInput,
+  userConfig?: Partial<RepoOverviewConfig>,
+  coordinationConfig?: Partial<RepoOverviewCoordinationConfig>
+) {
   const config: RepoOverviewConfig = { ...DEFAULT_CONFIG, ...userConfig }
+  const coordination: RepoOverviewCoordinationConfig = {
+    ...DEFAULT_COORDINATION_CONFIG,
+    ...coordinationConfig,
+  }
+  const codemapCache = createCodemapCache(ctx.directory)
   const injectedSessions = new Set<string>()
   const sessionToolCalls = new Map<string, number>()
+
+  function hasCodemapCoverageForRead(output: ToolExecuteOutput): boolean {
+    const filePath = output.title
+    if (!filePath) return false
+
+    const resolvedPath = filePath.startsWith("/")
+      ? filePath
+      : resolve(ctx.directory, filePath)
+
+    if (!resolvedPath.startsWith(ctx.directory)) {
+      return false
+    }
+
+    const dir = dirname(resolvedPath)
+    return Boolean(codemapCache.findForDirectory(dir))
+  }
 
   async function injectOverview(sessionID: string, output: ToolExecuteOutput): Promise<void> {
     if (!config.enabled || !config.auto_generate) return
@@ -99,13 +70,13 @@ export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Pa
     const projectDir = ctx.directory
 
     // Try to get cached overview
-    let overviewText = getCachedOverview(projectDir, config)
+    let overviewText = getCachedRepoOverview(projectDir, config.cache_duration_ms)
 
     if (!overviewText) {
       log("[repo-overview] generating new overview", { projectDir })
       const overview = generateRepoOverview(projectDir, config.max_tree_depth)
       overviewText = formatRepoOverview(overview)
-      setCachedOverview(projectDir, overviewText)
+      setCachedRepoOverview(projectDir, overviewText)
     } else {
       log("[repo-overview] using cached overview", { projectDir })
     }
@@ -141,9 +112,23 @@ export function createRepoOverviewInjectorHook(ctx: PluginInput, userConfig?: Pa
     sessionToolCalls.set(input.sessionID, count)
 
     // Only inject after reaching min_tool_calls threshold
-    if (count >= config.min_tool_calls) {
-      await injectOverview(input.sessionID, output)
+    if (count < config.min_tool_calls) {
+      return
     }
+
+    if (
+      coordination.suppress_read_injection_when_codemap_enabled
+      && input.tool.trim().toLowerCase() === "read"
+      && hasCodemapCoverageForRead(output)
+    ) {
+      log("[repo-overview] deferred read injection due to codemap coordination", {
+        sessionID: input.sessionID,
+        callID: input.callID,
+      })
+      return
+    }
+
+    await injectOverview(input.sessionID, output)
   }
 
   const eventHandler = async ({ event }: EventInput) => {

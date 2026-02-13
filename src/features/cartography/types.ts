@@ -553,7 +553,7 @@ export interface CartographyConfig {
  * Codemap injector configuration
  */
 export interface CodemapInjectorConfig {
-  /** Enable injector (default: true) */
+  /** Enable injector (default: false) */
   enabled: boolean
 
   /** Token budget for injected content (default: 600) */
@@ -567,6 +567,12 @@ export interface CodemapInjectorConfig {
 
   /** Use semantic search for relevance (default: false) */
   semantic_search: boolean
+
+  /**
+   * Inject root project-map snippets on architecture/refactor prompts.
+   * Default false to avoid overlapping with repo-overview injection.
+   */
+  inject_root_project_map: boolean
 }
 
 // ============================================================================
@@ -610,11 +616,12 @@ export const DEFAULT_CARTOGRAPHY_CONFIG: CartographyConfig = {
  * Default codemap injector configuration
  */
 export const DEFAULT_CODEMAP_INJECTOR_CONFIG: CodemapInjectorConfig = {
-  enabled: true,
+  enabled: false,
   budget: 600,
   max_per_codemap: 400,
   suggest_cartography: true,
   semantic_search: false,
+  inject_root_project_map: false,
 }
 
 /**

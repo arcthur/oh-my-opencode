@@ -242,6 +242,15 @@ export function buildToolExecuteAfterNodes(
     })
   }
 
+  if (context.codemapInjector?.["tool.execute.after"]) {
+    nodes.push({
+      id: "codemap-injector:tool.execute.after",
+      invoke: async () => {
+        await context.codemapInjector?.["tool.execute.after"]?.(input, output)
+      },
+    })
+  }
+
   nodes.push({
     id: "internal:policy-enforce:tool.execute.after",
     failurePolicy: "fail-closed",

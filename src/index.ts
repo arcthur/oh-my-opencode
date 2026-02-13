@@ -27,6 +27,7 @@ import {
   createStartWorkHook,
   createSilentToolOutputHook,
   createRepoOverviewInjectorHook,
+  createCodemapInjectorHook,
   createRuntimeTrackerHook,
   createContextManifestInjectorHook,
   createSwarmFromPlanHook,
@@ -115,6 +116,7 @@ import {
   createSkillMcpTool,
   createSlashcommandTool,
   discoverCommandsSync,
+  createCartographyTool,
   sessionExists,
   createDelegateTask,
   createSwarmTool,
@@ -249,8 +251,19 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const silentToolOutput = isHookEnabled("silent-tool-output") && pluginConfig.silent_tool_output
     ? createSilentToolOutputHook(ctx, pluginConfig.silent_tool_output)
     : null;
+  const codemapInjectorEnabled = isHookEnabled("codemap-injector")
+    && (pluginConfig.codemap_injector?.enabled ?? false);
   const repoOverviewInjector = isHookEnabled("repo-overview-injector")
-    ? createRepoOverviewInjectorHook(ctx, pluginConfig.repo_overview)
+    ? createRepoOverviewInjectorHook(
+      ctx,
+      pluginConfig.repo_overview,
+      {
+        suppress_read_injection_when_codemap_enabled: codemapInjectorEnabled,
+      }
+    )
+    : null;
+  const codemapInjector = codemapInjectorEnabled
+    ? createCodemapInjectorHook(ctx, pluginConfig.codemap_injector)
     : null;
   const runtimeTracker = isHookEnabled("runtime-tracker")
     ? createRuntimeTrackerHook(ctx, pluginConfig.runtime_tracker)
@@ -820,6 +833,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     runtime: swarmRuntime,
     getSessionId: () => getMainSessionID(),
   });
+  const cartographyTool = createCartographyTool({
+    directory: ctx.directory,
+    pluginInput: ctx,
+    cartographyConfig: pluginConfig.cartography,
+  });
 
   const skillMcpManager = new SkillMcpManager();
   const getSessionIDForMcp = () => getMainSessionID() || "";
@@ -939,6 +957,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     unstableAgentWatchdog: optional(unstableAgentWatchdog),
     runtimeTracker: optional(runtimeTracker),
     repoOverviewInjector: optional(repoOverviewInjector),
+    codemapInjector: optional(codemapInjector),
     directoryAgentsInjector: optional(directoryAgentsInjector),
     directoryReadmeInjector: optional(directoryReadmeInjector),
     rulesInjector: optional(rulesInjector),
@@ -979,6 +998,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     look_at: lookAt,
     delegate_task: delegateTask,
     swarm: swarmTool,
+    cartography: cartographyTool,
     skill: skillTool,
     skill_mcp: skillMcpTool,
     slashcommand: slashcommandTool,

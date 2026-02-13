@@ -318,6 +318,12 @@ export interface RuntimeAssemblyContext {
     event?: EventHandler
   }
 
+  codemapInjector?: {
+    ["tool.execute.after"]?: ToolExecuteAfterHandler
+    ["user.prompt.submit"]?: UserPromptSubmitHandler
+    event?: EventHandler
+  }
+
   directoryAgentsInjector?: {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     ["tool.execute.after"]?: ToolExecuteAfterHandler

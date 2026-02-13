@@ -43,6 +43,7 @@ export { createSilentToolOutputHook } from "./silent-tool-output";
 export { createContextManifestInjectorHook } from "./context-manifest-injector";
 export { createSwarmFromPlanHook } from "./swarm-from-plan";
 export { createRepoOverviewInjectorHook } from "./repo-overview-injector";
+export { createCodemapInjectorHook } from "./codemap-injector";
 export { createRuntimeTrackerHook, type RuntimeTrackerConfig } from "./runtime-tracker";
 export { createAntiSlopEnforcerHook, type AntiSlopEnforcerOptions } from "./anti-slop-enforcer";
 export { createPreCompletionVerificationHook, type PreCompletionVerificationOptions } from "./pre-completion-verification";

@@ -320,6 +320,7 @@ describe("disabled_skills schema", () => {
         "git-master",
         "parallel-agents",
         "dev-browser",
+        "cartography",
         "agent-browser",
       ],
     }
@@ -336,6 +337,7 @@ describe("disabled_skills schema", () => {
         "git-master",
         "parallel-agents",
         "dev-browser",
+        "cartography",
         "agent-browser",
       ])
     }
@@ -371,6 +373,58 @@ describe("repo_overview schema", () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.repo_overview?.min_tool_calls).toBe(2)
+    }
+  })
+})
+
+describe("cartography schema", () => {
+  test("should accept cartography config", () => {
+    // given
+    const config = {
+      cartography: {
+        enabled: true,
+        max_depth: 3,
+        min_files: 4,
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.cartography?.enabled).toBe(true)
+      expect(result.data.cartography?.max_depth).toBe(3)
+      expect(result.data.cartography?.min_files).toBe(4)
+    }
+  })
+})
+
+describe("codemap_injector schema", () => {
+  test("should accept codemap_injector config", () => {
+    // given
+    const config = {
+      codemap_injector: {
+        enabled: true,
+        budget: 500,
+        max_per_codemap: 300,
+        suggest_cartography: true,
+        semantic_search: false,
+        inject_root_project_map: false,
+      },
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.codemap_injector?.enabled).toBe(true)
+      expect(result.data.codemap_injector?.budget).toBe(500)
+      expect(result.data.codemap_injector?.max_per_codemap).toBe(300)
+      expect(result.data.codemap_injector?.inject_root_project_map).toBe(false)
     }
   })
 })

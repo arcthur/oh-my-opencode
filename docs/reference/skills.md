@@ -49,13 +49,12 @@ The built-in skill set is created by `createBuiltinSkills()` and currently inclu
 - `git-master`
 - `parallel-agents`
 - `dev-browser`
+- `cartography`
 - `spec-compliance-review`
 - `code-quality-review`
 - `writing-plans`
 - `systematic-debugging`
 - `code-simplifier`
-
-The codebase also contains additional skill implementations (e.g., `cartography`) that are **not** included in the default built-in set unless explicitly wired by the runtime.
 
 ### Automatic exclusion: system MCP name collisions
 

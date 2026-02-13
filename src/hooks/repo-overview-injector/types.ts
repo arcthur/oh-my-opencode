@@ -41,10 +41,22 @@ export interface RepoOverviewConfig {
   min_tool_calls: number
 }
 
+export interface RepoOverviewCoordinationConfig {
+  /**
+   * If true, defer overview injection on Read tool calls so codemap-injector
+   * owns read-time context and avoids duplicate context blocks.
+   */
+  suppress_read_injection_when_codemap_enabled: boolean
+}
+
 export const DEFAULT_CONFIG: RepoOverviewConfig = {
   enabled: true,
   auto_generate: true,
   max_tree_depth: 50,
   cache_duration_ms: 60 * 60 * 1000, // 1 hour
   min_tool_calls: 1, // Inject on first tool use by default
+}
+
+export const DEFAULT_COORDINATION_CONFIG: RepoOverviewCoordinationConfig = {
+  suppress_read_injection_when_codemap_enabled: false,
 }

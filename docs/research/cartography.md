@@ -6,12 +6,12 @@ This document is **non-normative**. It describes the cartography and codemap inj
 
 As of this repo state:
 
-- `src/features/cartography/` exists (analysis + generation + state management), but it is not exposed as a first-class runtime capability in `src/index.ts`.
-- `src/hooks/codemap-injector/` exists, but it is not wired in `src/index.ts` and it is not part of the `disabled_hooks` hook surface (`HookNameSchema`).
-- No stable user-facing configuration keys for cartography/codemap injection exist in `src/config/schema.ts`.
-- Template artifacts exist (for example under `src/features/builtin-commands/templates/` and `src/features/builtin-skills/skills/`), but they are not necessarily loaded into the default built-in set.
+- `src/features/cartography/` is exposed via runtime command/tool surfaces (`/cartography` command template + `cartography` tool).
+- `src/hooks/codemap-injector/` is wired in `src/index.ts`, included in `HookNameSchema`, and can be controlled through `disabled_hooks`.
+- Stable user-facing configuration keys exist in `src/config/schema.ts`: `cartography` and `codemap_injector`.
+- `cartography` is part of the default built-in skills set.
 
-Implication: you can read/modify the implementation, but you SHOULD NOT assume end-users can invoke “/cartography” or get codemap auto-injection in a default install without additional wiring work.
+Implication: end-users can invoke cartography deterministically. Codemap injection remains opt-in by config (`codemap_injector.enabled` defaults to `false`).
 
 ## Artifacts (Implemented)
 
@@ -84,16 +84,12 @@ The injector hook (`src/hooks/codemap-injector/index.ts`) is designed to:
 - Enforce token budgets and per-session de-duplication.
 - Suggest running cartography for frequently accessed directories without an exact codemap.
 
-Again: this hook exists in code, but is not wired by default.
+Note: root `project-map.md` injection is configurable (`codemap_injector.inject_root_project_map`) and defaults to `false` to avoid overlap with `repo-overview-injector`.
 
-## Wiring / Productization Checklist (Proposed)
+## Remaining Gaps
 
-If you want this to become a “productized” capability (available by default and documented under Journeys/Contracts), the minimal checklist is:
-
-1. **Expose config**: add `cartography` and `codemap_injector` config surfaces to `src/config/schema.ts` and `src/plugin-config.ts`.
-2. **Wire hooks**: export `createCodemapInjectorHook` from `src/hooks/index.ts`, add hook name to the hook enum, and wire it in `src/index.ts`.
-3. **Add an invocation surface**: implement a tool or command that triggers `runCartography(...)` and writes artifacts deterministically.
-4. **Update capability matrix**: mark status as “wired” and add canonical docs entrypoints.
+1. Explorer-based deep analysis in `analyzer.ts` is still a stub path (`Would spawn explorer` log + null return).
+2. Runtime coverage for `codemap-injector` hook behavior should be expanded with dedicated hook tests.
 
 ## Where to Look in Code
 
@@ -101,4 +97,3 @@ If you want this to become a “productized” capability (available by default 
 - Injector hook: `src/hooks/codemap-injector/index.ts`
 - Injector cache + triggers: `src/features/codemap-injector/`
 - Artifact paths and constants: `src/features/cartography/constants.ts`
-

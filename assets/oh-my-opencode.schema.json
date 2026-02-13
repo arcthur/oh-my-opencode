@@ -54,6 +54,7 @@
           "git-master",
           "parallel-agents",
           "dev-browser",
+          "cartography",
           "spec-compliance-review",
           "code-quality-review",
           "writing-plans",
@@ -101,6 +102,7 @@
           "silent-tool-output",
           "context-manifest-injector",
           "repo-overview-injector",
+          "codemap-injector",
           "runtime-tracker",
           "anti-slop-enforcer",
           "pre-completion-verification",
@@ -128,6 +130,7 @@
           "ralph-loop",
           "ulw-loop",
           "cancel-ralph",
+          "cartography",
           "refactor",
           "start-work",
           "stop-continuation"
@@ -2588,6 +2591,93 @@
             }
           },
           "additionalProperties": false
+        },
+        "verifier_gate": {
+          "default": {
+            "enabled": true,
+            "evidence_ttl_ms": 900000,
+            "require_lsp_clean": true,
+            "require_test_or_build": true,
+            "allow_no_code_change": true
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "evidence_ttl_ms": {
+              "default": 900000,
+              "type": "number",
+              "minimum": 10000,
+              "maximum": 86400000
+            },
+            "require_lsp_clean": {
+              "default": true,
+              "type": "boolean"
+            },
+            "require_test_or_build": {
+              "default": true,
+              "type": "boolean"
+            },
+            "allow_no_code_change": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "discovery_channel": {
+          "default": {
+            "enabled": true,
+            "capture_delegate_output": true,
+            "capture_assistant_updates": true,
+            "marker_mode": "hybrid",
+            "dedupe_window_ms": 1800000,
+            "max_open_items": 200,
+            "auto_task_create": false
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "capture_delegate_output": {
+              "default": true,
+              "type": "boolean"
+            },
+            "capture_assistant_updates": {
+              "default": true,
+              "type": "boolean"
+            },
+            "marker_mode": {
+              "default": "hybrid",
+              "type": "string",
+              "enum": [
+                "xml",
+                "prefix",
+                "hybrid"
+              ]
+            },
+            "dedupe_window_ms": {
+              "default": 1800000,
+              "type": "number",
+              "minimum": 60000,
+              "maximum": 86400000
+            },
+            "max_open_items": {
+              "default": 200,
+              "type": "number",
+              "minimum": 10,
+              "maximum": 5000
+            },
+            "auto_task_create": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -2644,6 +2734,103 @@
         "preview_max_chars": {
           "default": 200,
           "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cartography": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_depth": {
+          "default": 4,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "min_files": {
+          "default": 3,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "max_parallel_explorers": {
+          "default": 5,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "include_patterns": {
+          "default": [
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.py",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.js",
+            "**/*.jsx"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude_patterns": {
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/*.test.ts",
+            "**/*.spec.ts",
+            "**/tests/**",
+            "**/__tests__/**",
+            "**/.venv/**",
+            "**/venv/**",
+            "**/target/**",
+            "**/__pycache__/**"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "codemap_injector": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "budget": {
+          "default": 600,
+          "type": "number",
+          "minimum": 100,
+          "maximum": 4000
+        },
+        "max_per_codemap": {
+          "default": 400,
+          "type": "number",
+          "minimum": 100,
+          "maximum": 2000
+        },
+        "suggest_cartography": {
+          "default": true,
+          "type": "boolean"
+        },
+        "semantic_search": {
+          "default": false,
+          "type": "boolean"
+        },
+        "inject_root_project_map": {
+          "default": false,
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -3751,6 +3938,61 @@
               "maximum": 50
             },
             "generate_embeddings": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "auto_handoff": {
+          "default": {
+            "enabled": true,
+            "trigger_verifier_denials": 2,
+            "trigger_context_pressure_hits": 2,
+            "trigger_prompt_failures": 2,
+            "cooldown_ms": 600000,
+            "launch_mode": "auto",
+            "stop_continuation_on_launch": true
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "trigger_verifier_denials": {
+              "default": 2,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "trigger_context_pressure_hits": {
+              "default": 2,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "trigger_prompt_failures": {
+              "default": 2,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "cooldown_ms": {
+              "default": 600000,
+              "type": "number",
+              "minimum": 60000,
+              "maximum": 86400000
+            },
+            "launch_mode": {
+              "default": "auto",
+              "type": "string",
+              "enum": [
+                "auto",
+                "preview"
+              ]
+            },
+            "stop_continuation_on_launch": {
               "default": true,
               "type": "boolean"
             }

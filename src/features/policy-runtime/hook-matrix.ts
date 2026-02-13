@@ -34,6 +34,7 @@ export const HOOK_POLICY_MIGRATION_MATRIX: Record<HookName, HookDisposition> = {
   "silent-tool-output": "retain",
   "context-manifest-injector": "retain",
   "repo-overview-injector": "retain",
+  "codemap-injector": "retain",
   "runtime-tracker": "observe_only",
   "anti-slop-enforcer": "retain",
   "pre-completion-verification": "retain",

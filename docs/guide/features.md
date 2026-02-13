@@ -88,6 +88,7 @@ Skills provide specialized workflows with embedded MCP servers and detailed inst
 | **git-master** | commit, rebase, squash, blame | MUST USE for ANY git operations. Atomic commits with automatic splitting, rebase/squash workflows, history search (blame, bisect, log -S). |
 | **parallel-agents** | worktree, tmux, spawn, swarm, isolate | Git worktree + tmux orchestration for parallel agent workflows: spawn, monitor, rescue, merge, cleanup. |
 | **dev-browser** | Navigate sites, fill forms, screenshots | Stateful browser automation with persistent page state across scripts (requires separate local server setup). |
+| **cartography** | codemap, project map, architecture map | Deterministic codemap generation via dedicated `cartography` tool. Produces `codemap.md`, `project-map.md`, and `.opencode/cartography.json`. |
 | **spec-compliance-review** | verify, acceptance criteria, compliance | Strict PASS/FAIL verification against acceptance criteria, with file:line evidence and scope-creep detection. |
 | **code-quality-review** | code review, quality gate, harden | Post-spec-compliance quality review: type safety, error handling, tests, maintainability, and safety risks. |
 | **writing-plans** | plan, approach, roadmap | Structured planning with dependencies, risks, and verification steps. |

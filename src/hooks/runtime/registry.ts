@@ -31,6 +31,7 @@ const REGISTRY: RuntimeRegistryEntry[] = [
   { name: "silent-tool-output", events: ["tool.execute.before", "tool.execute.after"] },
   { name: "context-manifest-injector", events: ["tool.execute.before"] },
   { name: "repo-overview-injector", events: ["tool.execute.after", "event"] },
+  { name: "codemap-injector", events: ["user.prompt.submit", "tool.execute.after", "event"] },
   { name: "runtime-tracker", events: ["tool.execute.before", "tool.execute.after", "event"] },
   { name: "anti-slop-enforcer", events: ["tool.execute.after"] },
   { name: "pre-completion-verification", events: ["chat.message", "event"] },

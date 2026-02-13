@@ -48,6 +48,7 @@ export { createLookAt } from "./look-at"
 export { createDelegateTask, type DelegateTaskToolOptions, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS } from "./delegate-task"
 export { createSwarmTool } from "./swarm"
 export { createTaskGraphTools } from "./task-graph"
+export { createCartographyTool } from "./cartography"
 
 export function createBackgroundTools(manager: BackgroundManager, client: OpencodeClient): Record<string, ToolDefinition> {
   return {

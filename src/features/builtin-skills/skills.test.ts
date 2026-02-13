@@ -105,6 +105,19 @@ describe("createBuiltinSkills", () => {
 		}
 	})
 
+	test("always includes cartography skill", () => {
+		// given
+
+		// when
+		const defaultSkills = createBuiltinSkills()
+		const agentBrowserSkills = createBuiltinSkills({ browserProvider: "agent-browser" })
+
+		// then
+		for (const skills of [defaultSkills, agentBrowserSkills]) {
+			expect(skills.find((s) => s.name === "cartography")).toBeDefined()
+		}
+	})
+
 	test("writing-plans template requires scenario mapping and negative verification", () => {
 		// given
 		const skills = createBuiltinSkills()
@@ -116,7 +129,86 @@ describe("createBuiltinSkills", () => {
 		expect(writingPlans!.template).toContain("Negative verification")
 	})
 
-	test("returns exactly 10 skills regardless of provider", () => {
+	test("code-quality-review template includes unambiguous review contract and preflight edge-cases", () => {
+		// given
+		const skills = createBuiltinSkills()
+		const codeQualityReview = skills.find((s) => s.name === "code-quality-review")
+
+		// when / #then
+		expect(codeQualityReview).toBeDefined()
+		expect(codeQualityReview!.template).toContain("Ambiguity Guardrails")
+		expect(codeQualityReview!.template).toContain("No diff handling")
+		expect(codeQualityReview!.template).toContain("Large diff handling (>500 LOC changed)")
+		expect(codeQualityReview!.template).toContain("Mixed concerns handling")
+	})
+
+	test("code-quality-review template covers SOLID, security concurrency, and boundary checks", () => {
+		// given
+		const skills = createBuiltinSkills()
+		const codeQualityReview = skills.find((s) => s.name === "code-quality-review")
+
+		// when / #then
+		expect(codeQualityReview).toBeDefined()
+		expect(codeQualityReview!.template).toContain("Architecture & SOLID Review")
+		expect(codeQualityReview!.template).toContain("Security / Safety / Reliability Review")
+		expect(codeQualityReview!.template).toContain("Race conditions and TOCTOU")
+		expect(codeQualityReview!.template).toContain("Boundary Conditions Review")
+		expect(codeQualityReview!.template).toContain("Removal / Simplification Candidates (Optional)")
+	})
+
+	test("code-quality-review template defines strict severity and verdict mapping", () => {
+		// given
+		const skills = createBuiltinSkills()
+		const codeQualityReview = skills.find((s) => s.name === "code-quality-review")
+
+		// when / #then
+		expect(codeQualityReview).toBeDefined()
+		expect(codeQualityReview!.template).toContain("Severity and Blocking Rules")
+		expect(codeQualityReview!.template).toContain("P0 (critical, always blocking)")
+		expect(codeQualityReview!.template).toContain("Verdict: PASS | PASS_WITH_NITS | FAIL")
+		expect(codeQualityReview!.template).toContain("Blocking issue count")
+	})
+
+	test("code-quality-review template includes security long-tail checklist coverage", () => {
+		// given
+		const skills = createBuiltinSkills()
+		const codeQualityReview = skills.find((s) => s.name === "code-quality-review")
+
+		// when / #then
+		expect(codeQualityReview).toBeDefined()
+		expect(codeQualityReview!.template).toContain("JWT & token hardening")
+		expect(codeQualityReview!.template).toContain("CORS and security headers")
+		expect(codeQualityReview!.template).toContain("Supply-chain and dependency risk")
+		expect(codeQualityReview!.template).toContain("Cryptography safety")
+		expect(codeQualityReview!.template).toContain("Data integrity and idempotency")
+	})
+
+	test("code-quality-review template resolves evidence uncertainty into blocking verdict semantics", () => {
+		// given
+		const skills = createBuiltinSkills()
+		const codeQualityReview = skills.find((s) => s.name === "code-quality-review")
+
+		// when / #then
+		expect(codeQualityReview).toBeDefined()
+		expect(codeQualityReview!.template).toContain("Missing verification evidence")
+		expect(codeQualityReview!.template).toContain("Final verdict MUST be FAIL")
+	})
+
+	test("code-quality-review template constrains blocking field consistency and security review scope", () => {
+		// given
+		const skills = createBuiltinSkills()
+		const codeQualityReview = skills.find((s) => s.name === "code-quality-review")
+
+		// when / #then
+		expect(codeQualityReview).toBeDefined()
+		expect(codeQualityReview!.template).toContain("Blocking field consistency")
+		expect(codeQualityReview!.template).toContain("P0 => Blocking must be yes")
+		expect(codeQualityReview!.template).toContain("P2 => Blocking must be no")
+		expect(codeQualityReview!.template).toContain("Security long-tail scope boundary")
+		expect(codeQualityReview!.template).toContain("changed files and directly impacted execution paths")
+	})
+
+	test("returns exactly 11 skills regardless of provider", () => {
 		// given
 
 		// when
@@ -124,7 +216,7 @@ describe("createBuiltinSkills", () => {
 		const agentBrowserSkills = createBuiltinSkills({ browserProvider: "agent-browser" })
 
 		// then
-		expect(defaultSkills).toHaveLength(10)
-		expect(agentBrowserSkills).toHaveLength(10)
+		expect(defaultSkills).toHaveLength(11)
+		expect(agentBrowserSkills).toHaveLength(11)
 	})
 })
