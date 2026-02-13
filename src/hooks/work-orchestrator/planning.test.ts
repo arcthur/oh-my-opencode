@@ -591,18 +591,17 @@ updated_at: "2026-02-06T00:00:00Z"
     expect(collector.hasPending("session-blocker-generic")).toBe(false)
   })
 
-  test("ignores custom planning directory and still uses canonical plans path", async () => {
+  test("uses canonical plans path for plan context injection", async () => {
     // given
     await initializePlan(tmpDir, "custom-dir-plan", "Goal", {
       ...DEFAULT_PLANNING_CONFIG,
       enabled: true,
-      directory: "custom-plans",
     })
 
     const collector = new ContextCollector()
     const promptCalls: Array<{ sessionID: string; text: string }> = []
     const hook = createPlanningWithFilesHook(createMockPluginInput(tmpDir, promptCalls), {
-      config: { enabled: true, directory: "custom-plans" },
+      config: { enabled: true },
       collector,
     })
 

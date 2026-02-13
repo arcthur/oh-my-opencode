@@ -13,8 +13,6 @@ export type BddAlignmentMode = "off" | "warn" | "required"
 
 export interface PlanningWithFilesConfig {
   enabled: boolean
-  /** Deprecated. Directory is fixed to .sisyphus/plans and ignored at runtime. */
-  directory: string
   /** BDD alignment gate for task-level Scenario Ref coverage. */
   bdd_alignment: BddAlignmentMode
   two_action_rule: boolean
@@ -27,7 +25,6 @@ export interface PlanningWithFilesConfig {
 
 export const DEFAULT_PLANNING_CONFIG: PlanningWithFilesConfig = {
   enabled: false,
-  directory: "plans",
   bdd_alignment: "warn",
   two_action_rule: true,
   three_strike_protocol: true,

@@ -3,6 +3,8 @@ import {
   AgentOverrideConfigSchema,
   BuiltinCategoryNameSchema,
   CategoryConfigSchema,
+  PlanningWithFilesConfigSchema,
+  SisyphusTasksConfigSchema,
   HookNameSchema,
   OhMyOpenCodeConfigSchema,
   SessionReferenceConfigSchema,
@@ -915,6 +917,11 @@ describe("continuation_control schema", () => {
 })
 
 describe("planning_with_files schema", () => {
+  test("does not expose removed directory key", () => {
+    // #then
+    expect(Object.keys(PlanningWithFilesConfigSchema.shape)).not.toContain("directory")
+  })
+
   test("applies bdd_alignment default as warn", () => {
     // given
     const config = {
@@ -932,6 +939,34 @@ describe("planning_with_files schema", () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.work_orchestrator?.planning_with_files?.bdd_alignment).toBe("warn")
+    }
+  })
+
+  test("rejects removed planning_with_files.directory key", () => {
+    // #given
+    const config = {
+      work_orchestrator: {
+        planning_with_files: {
+          enabled: true,
+          directory: "custom-plans",
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // #then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys"
+            && issue.path.join(".") === "work_orchestrator.planning_with_files"
+            && issue.keys.includes("directory")
+        )
+      ).toBe(true)
     }
   })
 })
@@ -962,6 +997,12 @@ describe("background_task.unstable_watchdog schema", () => {
 })
 
 describe("latest-only removed config keys", () => {
+  test("does not expose removed keys in schema surface", () => {
+    // #then
+    expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("multi_plan_pipeline")
+    expect(Object.keys(SisyphusTasksConfigSchema.shape)).not.toContain("claude_code_compat")
+  })
+
   test("rejects sisyphus.tasks.claude_code_compat", () => {
     // given
     const config = {
@@ -980,7 +1021,12 @@ describe("latest-only removed config keys", () => {
     expect(result.success).toBe(false)
     if (!result.success) {
       expect(
-        result.error.issues.some((issue) => issue.path.join(".") === "sisyphus.tasks.claude_code_compat")
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys" &&
+            issue.path.join(".") === "sisyphus.tasks" &&
+            issue.keys.includes("claude_code_compat")
+        )
       ).toBe(true)
     }
   })
@@ -1003,9 +1049,180 @@ describe("latest-only removed config keys", () => {
     expect(result.success).toBe(false)
     if (!result.success) {
       expect(
-        result.error.issues.some((issue) => issue.path.join(".") === "governance.budget_monitor.gc_threshold")
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys" &&
+            issue.path.join(".") === "governance.budget_monitor" &&
+            issue.keys.includes("gc_threshold")
+        )
       ).toBe(true)
     }
+  })
+})
+
+describe("strict nested unknown-key rejection", () => {
+  test("rejects unknown key inside agents.oracle", () => {
+    // #given
+    const config = {
+      agents: {
+        oracle: {
+          model: "openai/gpt-5.2",
+          typo_key: true,
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // #then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys" &&
+            issue.keys.includes("typo_key")
+        )
+      ).toBe(true)
+    }
+  })
+
+  test("rejects unknown key inside governance.checkpoint", () => {
+    // #given
+    const config = {
+      governance: {
+        enabled: true,
+        checkpoint: {
+          enabled: true,
+          unknown_option: 42,
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // #then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys" &&
+            issue.keys.includes("unknown_option")
+        )
+      ).toBe(true)
+    }
+  })
+
+  test("rejects unknown key inside work_orchestrator", () => {
+    // #given
+    const config = {
+      work_orchestrator: {
+        enabled: true,
+        deprecated_key: "value",
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // #then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys" &&
+            issue.keys.includes("deprecated_key")
+        )
+      ).toBe(true)
+    }
+  })
+
+  test("rejects unknown key inside sisyphus.swarm", () => {
+    // #given
+    const config = {
+      sisyphus: {
+        swarm: {
+          enabled: true,
+          mailbox_consume_mode: "fifo",
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // #then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys" &&
+            issue.keys.includes("mailbox_consume_mode")
+        )
+      ).toBe(true)
+    }
+  })
+
+  test("rejects unknown key inside session_handoff.extractor", () => {
+    // #given
+    const config = {
+      session_handoff: {
+        enabled: true,
+        extractor: {
+          model: "haiku",
+          unknown_field: true,
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // #then
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.code === "unrecognized_keys" &&
+            issue.keys.includes("unknown_field")
+        )
+      ).toBe(true)
+    }
+  })
+
+  test("accepts valid deeply nested config without unknown keys", () => {
+    // #given
+    const config = {
+      governance: {
+        enabled: true,
+        budget_monitor: {
+          enabled: true,
+          warn_threshold: 0.7,
+        },
+        checkpoint: {
+          enabled: false,
+        },
+      },
+      work_orchestrator: {
+        enabled: true,
+        planning_with_files: {
+          enabled: true,
+          bdd_alignment: "warn",
+        },
+      },
+    }
+
+    // #when
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+
+    // #then
+    expect(result.success).toBe(true)
   })
 })
 

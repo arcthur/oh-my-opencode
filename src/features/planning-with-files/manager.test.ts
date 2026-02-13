@@ -34,7 +34,7 @@ describe("planning-with-files manager", () => {
 
   test("uses canonical plan directory and files", () => {
     // #given / #when
-    const dir = getPlanDir(tmpDir, "demo", { ...DEFAULT_PLANNING_CONFIG, directory: "custom" })
+    const dir = getPlanDir(tmpDir, "demo", DEFAULT_PLANNING_CONFIG)
 
     // #then
     expect(dir).toBe(path.join(tmpDir, ".sisyphus", "plans", "demo"))

@@ -108,14 +108,13 @@ Enable in `.opencode/oh-my-opencode/00-core.json`:
 }
 ```
 
-**Note**: `work_orchestrator.planning_with_files.directory` is deprecated and ignored in the current implementation. The canonical layout is fixed to `.sisyphus/plans/`.
+**Note**: `work_orchestrator.planning_with_files.directory` is removed in latest-only mode and rejected by schema validation. The canonical layout is fixed to `.sisyphus/plans/`.
 
 ### Configuration Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `enabled` | `false` | Enable the planning-with-files pattern |
-| `directory` | `"plans"` | Deprecated and ignored (canonical path is fixed to `.sisyphus/plans/`) |
 | `bdd_alignment` | `"warn"` | BDD task alignment mode: `off` \| `warn` \| `required` |
 | `two_action_rule` | `true` | Remind to update findings after 2 research ops |
 | `three_strike_protocol` | `true` | Structured error handling with escalation |

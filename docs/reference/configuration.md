@@ -58,7 +58,6 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 - `work_orchestrator`: Unified planning + continuation + execution orchestration config (see [Work Orchestrator](#work-orchestrator)).
 - `sisyphus`: Sisyphus Tasks & Swarm configuration (see [Sisyphus](#sisyphus)).
 - `tmux_parallel_agents`: Auto-create tmux windows/worktrees for background agents (see [Tmux Parallel Agents](#tmux-parallel-agents)).
-- `multi_plan_pipeline`: Removed in latest-only mode and rejected by schema.
 
 ### Context / memory / governance
 
@@ -688,9 +687,9 @@ Artifacts (canonical layout):
 - `.sisyphus/plans/<plan_id>/findings.md`
 - `.sisyphus/plans/<plan_id>/progress.md`
 
-Directory note:
+Removed key note:
 
-- `work_orchestrator.planning_with_files.directory` is **deprecated and ignored** in the current implementation; the directory is fixed to `.sisyphus/plans` (`src/hooks/work-orchestrator/planning.ts`, `src/features/planning-with-files/types.ts`).
+- `work_orchestrator.planning_with_files.directory` is removed in latest-only mode and rejected by schema validation. Plan files are always stored under `.sisyphus/plans`.
 
 Minimal config:
 
@@ -1205,9 +1204,9 @@ Don't want them? Disable via `disabled_mcps` in `~/.config/opencode/oh-my-openco
 
 OpenCode provides LSP tools for analysis.
 Oh My OpenCode adds refactoring tools (rename, code actions).
-All OpenCode LSP configs and custom settings (from opencode.json) are supported, plus additional Oh My OpenCode-specific settings.
+LSP settings are read from OpenCode's `opencode.json`.
 
-Add LSP servers via the `lsp` option in `~/.config/opencode/oh-my-opencode/*.json` or `.opencode/oh-my-opencode/*.json`:
+Add LSP servers via the `lsp` option in `~/.config/opencode/opencode.json` (or `${OPENCODE_CONFIG_DIR}/opencode.json` when overridden):
 
 ```json
 {
@@ -1390,6 +1389,7 @@ These keys are intentionally removed and rejected by schema validation:
 - `sisyphus.tasks.claude_code_compat`
 - `sisyphus.swarm.mailbox_consume_mode`
 - `governance.budget_monitor.gc_threshold`
+- `work_orchestrator.planning_with_files.directory`
 
 ## Environment Variables
 

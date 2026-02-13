@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "fs"
+import { existsSync, readFileSync } from "fs"
 import { join } from "path"
 import { BUILTIN_SERVERS, EXT_TO_LANG, LSP_INSTALL_HINTS } from "./constants"
 import type { ResolvedServer, ServerLookupResult } from "./types"
-import { deepMerge, getOpenCodeConfigDir, getDataDir, parseJsonc } from "../../shared"
+import { getOpenCodeConfigDir, getDataDir, parseJsonc } from "../../shared"
 
 interface LspEntry {
   disabled?: boolean
@@ -17,7 +17,7 @@ interface ConfigJson {
   lsp?: Record<string, LspEntry>
 }
 
-type ConfigSource = "project" | "user" | "opencode"
+type ConfigSource = "opencode" | "builtin"
 
 interface ServerWithSource extends ResolvedServer {
   source: ConfigSource
@@ -32,45 +32,9 @@ function loadJsonFile<T>(path: string): T | null {
   }
 }
 
-function isConfigObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function loadModularConfigDirectory(path: string): ConfigJson | null {
-  if (!existsSync(path)) return null
-
-  try {
-    const stat = statSync(path)
-    if (!stat.isDirectory()) return null
-
-    const moduleFiles = readdirSync(path, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")))
-      .map((entry) => entry.name)
-      .sort()
-
-    if (moduleFiles.length === 0) return null
-
-    let merged: Record<string, unknown> = {}
-    for (const moduleFile of moduleFiles) {
-      const modulePath = join(path, moduleFile)
-      const parsed = loadJsonFile<unknown>(modulePath)
-      if (isConfigObject(parsed)) {
-        merged = deepMerge(merged, parsed) ?? merged
-      }
-    }
-
-    return merged as ConfigJson
-  } catch {
-    return null
-  }
-}
-
-function getConfigPaths(): { project: string; user: string; opencode: string } {
-  const cwd = process.cwd()
+function getConfigPaths(): { opencode: string } {
   const configDir = getOpenCodeConfigDir({ binary: "opencode" })
   return {
-    project: join(cwd, ".opencode", "oh-my-opencode"),
-    user: join(configDir, "oh-my-opencode"),
     opencode: join(configDir, "opencode.json"),
   }
 }
@@ -78,12 +42,6 @@ function getConfigPaths(): { project: string; user: string; opencode: string } {
 function loadAllConfigs(): Map<ConfigSource, ConfigJson> {
   const paths = getConfigPaths()
   const configs = new Map<ConfigSource, ConfigJson>()
-
-  const project = loadModularConfigDirectory(paths.project)
-  if (project) configs.set("project", project)
-
-  const user = loadModularConfigDirectory(paths.user)
-  if (user) configs.set("user", user)
 
   const opencode = loadJsonFile<ConfigJson>(paths.opencode)
   if (opencode) configs.set("opencode", opencode)
@@ -97,7 +55,7 @@ function getMergedServers(): ServerWithSource[] {
   const disabled = new Set<string>()
   const seen = new Set<string>()
 
-  const sources: ConfigSource[] = ["project", "user", "opencode"]
+  const sources: ConfigSource[] = ["opencode"]
 
   for (const source of sources) {
     const config = configs.get(source)
@@ -133,13 +91,13 @@ function getMergedServers(): ServerWithSource[] {
       command: config.command,
       extensions: config.extensions,
       priority: -100,
-      source: "opencode",
+      source: "builtin",
     })
   }
 
   return servers.sort((a, b) => {
     if (a.source !== b.source) {
-      const order: Record<ConfigSource, number> = { project: 0, user: 1, opencode: 2 }
+      const order: Record<ConfigSource, number> = { opencode: 0, builtin: 1 }
       return order[a.source] - order[b.source]
     }
     return b.priority - a.priority
@@ -317,6 +275,6 @@ export function getAllServers(): Array<{
   return result
 }
 
-export function getConfigPaths_(): { project: string; user: string; opencode: string } {
+export function getConfigPaths_(): { opencode: string } {
   return getConfigPaths()
 }

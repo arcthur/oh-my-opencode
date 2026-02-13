@@ -57,4 +57,24 @@ describe("validateStrictOhMyOpenCodeConfig", () => {
     // #then
     expect(result.success).toBe(true)
   })
+
+  test("fails when unknown top-level key is provided (lsp)", () => {
+    // #given
+    const rawConfig: Record<string, unknown> = {
+      config_version: CURRENT_CONFIG_VERSION,
+      lsp: {
+        "typescript-language-server": {
+          command: ["typescript-language-server", "--stdio"],
+          extensions: [".ts"],
+        },
+      },
+    }
+
+    // #when
+    const result = validateStrictOhMyOpenCodeConfig(rawConfig)
+
+    // #then
+    expect(result.success).toBe(false)
+    expect(result.errors.some((e) => e.includes('Unrecognized key: "lsp"'))).toBe(true)
+  })
 })

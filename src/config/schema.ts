@@ -15,7 +15,7 @@ const AgentPermissionSchema = z.object({
   webfetch: PermissionValue.optional(),
   doom_loop: PermissionValue.optional(),
   external_directory: PermissionValue.optional(),
-})
+}).strict()
 
 export const BuiltinAgentNameSchema = z.enum([
   "sisyphus",
@@ -149,7 +149,7 @@ export const AgentOverrideConfigSchema = z.object({
     .regex(/^#[0-9A-Fa-f]{6}$/)
     .optional(),
   permission: AgentPermissionSchema.optional(),
-})
+}).strict()
 
 export const AgentOverridesSchema = z.object({
   build: AgentOverrideConfigSchema.optional(),
@@ -165,7 +165,7 @@ export const AgentOverridesSchema = z.object({
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
   metis: AgentOverrideConfigSchema.optional(),
   momus: AgentOverrideConfigSchema.optional(),
-})
+}).strict()
 
 export const ClaudeCodeConfigSchema = z.object({
   mcp: z.boolean().optional(),
@@ -175,14 +175,14 @@ export const ClaudeCodeConfigSchema = z.object({
   hooks: z.boolean().optional(),
   plugins: z.boolean().optional(),
   plugins_override: z.record(z.string(), z.boolean()).optional(),
-})
+}).strict()
 
 export const SisyphusAgentConfigSchema = z.object({
   disabled: z.boolean().optional(),
   default_builder_enabled: z.boolean().optional(),
   planner_enabled: z.boolean().optional(),
   replace_plan: z.boolean().optional(),
-})
+}).strict()
 
 export const CategoryConfigSchema = z.object({
   model: z.string().optional(),
@@ -193,7 +193,7 @@ export const CategoryConfigSchema = z.object({
   thinking: z.object({
     type: z.enum(["enabled", "disabled"]),
     budgetTokens: z.number().optional(),
-  }).optional(),
+  }).strict().optional(),
   reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
   textVerbosity: z.enum(["low", "medium", "high"]).optional(),
   tools: z.record(z.string(), z.boolean()).optional(),
@@ -204,7 +204,7 @@ export const CategoryConfigSchema = z.object({
   description: z.string().optional(),
   /** Disable this category from prompts and delegate_task routing */
   disable: z.boolean().optional(),
-})
+}).strict()
 
 export const BuiltinCategoryNameSchema = z.enum([
   "visual-engineering",
@@ -222,7 +222,7 @@ export const CategoriesConfigSchema = z.record(z.string(), CategoryConfigSchema)
 export const CommentCheckerConfigSchema = z.object({
   /** Custom prompt to replace the default warning message. Use {{comments}} placeholder for detected comments XML. */
   custom_prompt: z.string().optional(),
-})
+}).strict()
 
 export const DynamicContextPruningConfigSchema = z.object({
   /** Enable dynamic context pruning for context-window-governor recovery path */
@@ -239,7 +239,7 @@ export const DynamicContextPruningConfigSchema = z.object({
   turn_protection: z.object({
     enabled: z.boolean().default(true),
     turns: z.number().min(1).max(20).default(3),
-  }).optional(),
+  }).strict().optional(),
   /** Tools that should never be pruned */
   protected_tools: z.array(z.string()).default([
     "task",
@@ -254,25 +254,25 @@ export const DynamicContextPruningConfigSchema = z.object({
   strategies: z.object({
     deduplication: z.object({
       enabled: z.boolean().default(true),
-    }).optional(),
+    }).strict().optional(),
     stale_tool_outputs: z.object({
       enabled: z.boolean().default(true),
       keep_recent_turns: z.number().min(0).max(50).default(6),
       min_output_chars: z.number().min(0).max(500_000).default(1200),
       max_outputs: z.number().min(1).max(500).default(6),
-    }).optional(),
-  }).optional(),
-})
+    }).strict().optional(),
+  }).strict().optional(),
+}).strict()
 
 export const SessionStateRepairConfigSchema = z.object({
   /** Automatically resumes session after successful thinking-related recovery. */
   auto_resume: z.boolean().optional(),
-})
+}).strict()
 
 export const ToolOutputTruncatorConfigSchema = z.object({
   /** Truncate all tool outputs, not just whitelisted tools (default: false). */
   truncate_all_tool_outputs: z.boolean().optional(),
-})
+}).strict()
 
 export const ContextWindowGovernorRecoveryConfigSchema = z.object({
   max_attempts: z.number().min(1).max(10).default(2),
@@ -295,7 +295,7 @@ export const ContextWindowGovernorRecoveryConfigSchema = z.object({
       "session_write",
       "session_search",
     ]),
-  }).default({
+  }).strict().default({
     enabled: true,
     target_ratio: 0.8,
     chars_per_token: 4,
@@ -312,7 +312,7 @@ export const ContextWindowGovernorRecoveryConfigSchema = z.object({
       "session_search",
     ],
   }),
-})
+}).strict()
 
 export const ContextWindowGovernorConfigSchema = z.object({
   warning_ratio: z.number().min(0.1).max(0.95).default(0.7),
@@ -344,7 +344,7 @@ export const ContextWindowGovernorConfigSchema = z.object({
     },
   }),
   dynamic_pruning: DynamicContextPruningConfigSchema.optional(),
-})
+}).strict()
 
 export const CacheStrategyProviderPolicyModeSchema = z.enum(["off", "observe", "enforce"])
 export const CacheStrategyProviderOverrideModeSchema = z.enum([
@@ -372,7 +372,7 @@ export const CacheStrategyObservabilityConfigSchema = z.object({
   enabled: z.boolean().default(true),
   /** Emit structured cache-policy decisions to logger */
   emit_log: z.boolean().default(true),
-})
+}).strict()
 
 export const CacheStrategyProviderPolicyConfigSchema = z.object({
   /** Global provider cache policy mode */
@@ -387,7 +387,7 @@ export const CacheStrategyProviderPolicyConfigSchema = z.object({
     z.string(),
     z.object({
       mode: CacheStrategyProviderOverrideModeSchema.default("inherit"),
-    })
+    }).strict()
   ).optional(),
   /** Provider cache capability overrides (policy-as-data) */
   capabilities: z.record(
@@ -396,7 +396,7 @@ export const CacheStrategyProviderPolicyConfigSchema = z.object({
       supports_cache_policy: z.boolean().optional(),
       preferred_option_key: z.string().optional(),
       option_aliases: z.array(z.string()).optional(),
-    })
+    }).strict()
   ).optional(),
   rollout: z.object({
     /** Enable staged provider rollout for enforce mode */
@@ -420,7 +420,7 @@ export const CacheStrategyProviderPolicyConfigSchema = z.object({
           max_error_rate: z.number().min(0).max(1).default(1),
           max_p95_latency_ms: z.number().min(1).max(600_000).default(600_000),
           min_samples: z.number().min(0).max(1_000_000).default(0),
-        }).default({
+        }).strict().default({
           enabled: false,
           min_cache_hit_ratio: 0,
           max_error_rate: 1,
@@ -432,15 +432,15 @@ export const CacheStrategyProviderPolicyConfigSchema = z.object({
           error_rate: z.number().min(0).max(1).optional(),
           p95_latency_ms: z.number().min(0).max(600_000).optional(),
           samples: z.number().min(0).max(1_000_000).optional(),
-        }).optional(),
-      })
+        }).strict().optional(),
+      }).strict()
     ).optional(),
-  }).default({
+  }).strict().default({
     enabled: false,
     stage: 0,
     require_thresholds: true,
   }),
-})
+}).strict()
 
 export const CacheStrategyPrefixStabilityConfigSchema = z.object({
   /** Prefix stability protection mode for destructive recovery */
@@ -453,14 +453,14 @@ export const CacheStrategyPrefixStabilityConfigSchema = z.object({
   cooldown_ms: z.number().min(0).max(86_400_000).default(120_000),
   /** Allow destructive recovery when current/max exceeds this ratio */
   hard_limit_bypass_ratio: z.number().min(0.5).max(2).default(1),
-})
+}).strict()
 
 export const CacheStrategyLedgerConfigSchema = z.object({
   /** Enable append-only context ledger side writes */
   enabled: z.boolean().default(false),
   /** Optional ledger base directory override */
   base_dir: z.string().optional(),
-})
+}).strict()
 
 export const CacheStrategyCompilerConfigSchema = z.object({
   /** Enable ledger-first prefix compiler read path */
@@ -471,7 +471,7 @@ export const CacheStrategyCompilerConfigSchema = z.object({
   max_prefix_chars: z.number().min(256).max(200_000).default(32_000),
   /** Segment separator used by compiler */
   separator: z.string().default("\n\n---\n\n"),
-})
+}).strict()
 
 export const CacheStrategyConfigSchema = z.object({
   observability: CacheStrategyObservabilityConfigSchema.default({
@@ -503,7 +503,7 @@ export const CacheStrategyConfigSchema = z.object({
     max_prefix_chars: 32_000,
     separator: "\n\n---\n\n",
   }),
-})
+}).strict()
 
 export const SkillSourceSchema = z.union([
   z.string(),
@@ -511,7 +511,7 @@ export const SkillSourceSchema = z.union([
     path: z.string(),
     recursive: z.boolean().optional(),
     glob: z.string().optional(),
-  }),
+  }).strict(),
 ])
 
 export const SkillDefinitionSchema = z.object({
@@ -527,7 +527,7 @@ export const SkillDefinitionSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
   "allowed-tools": z.array(z.string()).optional(),
   disable: z.boolean().optional(),
-})
+}).strict()
 
 export const SkillEntrySchema = z.union([
   z.boolean(),
@@ -550,7 +550,7 @@ export const RalphLoopConfigSchema = z.object({
   default_max_iterations: z.number().min(1).max(1000).default(100),
   /** Custom state file path relative to project root (default: .sisyphus/ralph-loop.local.md) */
   state_dir: z.string().optional(),
-})
+}).strict()
 
 export const UnstableAgentWatchdogConfigSchema = z.object({
   /** Enable unstable-agent watchdog reminders (default: true) */
@@ -561,7 +561,7 @@ export const UnstableAgentWatchdogConfigSchema = z.object({
   cooldown_ms: z.number().min(10_000).default(300_000),
   /** Maximum chars to include from background thinking/reasoning summary (default: 500) */
   thinking_summary_max_chars: z.number().min(100).max(4000).default(500),
-})
+}).strict()
 
 export const BackgroundTaskConfigSchema = z.object({
   defaultConcurrency: z.number().min(1).optional(),
@@ -571,7 +571,7 @@ export const BackgroundTaskConfigSchema = z.object({
   staleTimeoutMs: z.number().min(60000).optional(),
   /** Watchdog for unstable-model background tasks (Gemini/Minimax/custom unstable categories) */
   unstable_watchdog: UnstableAgentWatchdogConfigSchema.optional(),
-})
+}).strict()
 
 export const ParallelRuntimeModeSchema = z.enum(["shadow", "enforce"])
 
@@ -590,7 +590,7 @@ export const ParallelRuntimeConfigSchema = z.object({
   acquire_timeout_ms: z.number().min(100).default(15000),
   /** Lock wait timeout for runtime state operations (default: 2000) */
   lock_timeout_ms: z.number().min(100).default(2000),
-})
+}).strict()
 
 /** Tmux Parallel Agents Configuration - auto-create tmux windows and git worktrees for background tasks */
 // ============================================================================
@@ -610,9 +610,7 @@ export const SisyphusTasksConfigSchema = z.object({
   enabled: z.boolean().default(false),
   /** Storage path for tasks (default: .sisyphus/tasks) */
   storage_path: z.string().default(".sisyphus/tasks"),
-  /** Removed in latest-only mode: use storage_path only */
-  claude_code_compat: z.never().optional(),
-})
+}).strict()
 
 export const SisyphusSwarmConfigSchema = z.object({
   /** Enable Sisyphus Swarm system (default: false) */
@@ -639,12 +637,12 @@ export const SisyphusSwarmConfigSchema = z.object({
   auto_rescue_policy: z.enum(["disabled", "allowlist"]).default("disabled"),
   /** Allowlist prompt patterns used when auto_rescue_policy=allowlist */
   auto_rescue_allowlist: z.array(z.string()).default([]),
-})
+}).strict()
 
 export const SisyphusConfigSchema = z.object({
   tasks: SisyphusTasksConfigSchema.optional(),
   swarm: SisyphusSwarmConfigSchema.optional(),
-})
+}).strict()
 
 export const TmuxParallelAgentsConfigSchema = z.object({
   /** Enable tmux window auto-creation for background tasks (default: false) */
@@ -662,7 +660,7 @@ export const TmuxParallelAgentsConfigSchema = z.object({
     done: z.string().default("OK"),
     error: z.string().default("ERR"),
     idle: z.string().default(""),
-  }).optional(),
+  }).strict().optional(),
   /** Git worktree configuration for file system isolation */
   worktree: z.object({
     /** Enable git worktree creation for each background task (default: false) */
@@ -675,27 +673,25 @@ export const TmuxParallelAgentsConfigSchema = z.object({
     symlink: z.array(z.string()).default(["node_modules"]),
     /** Auto-cleanup worktree and branch on session end (default: false - keep for manual merge) */
     auto_cleanup: z.boolean().default(false),
-  }).optional(),
-})
+  }).strict().optional(),
+}).strict()
 
 export const NotificationConfigSchema = z.object({
   /** Force enable session-notification even if external notification plugins are detected (default: false) */
   force_enable: z.boolean().optional(),
-})
+}).strict()
 
 export const GitMasterConfigSchema = z.object({
   /** Add "Ultraworked with Sisyphus" footer to commit messages (default: true). Can be boolean or custom string. */
   commit_footer: z.union([z.boolean(), z.string()]).default(true),
   /** Add "Co-authored-by: Sisyphus" trailer to commit messages (default: true) */
   include_co_authored_by: z.boolean().default(true),
-})
+}).strict()
 
 /** Planning with Files Configuration (Manus-style persistent planning) */
 export const PlanningWithFilesConfigSchema = z.object({
   /** Enable the planning-with-files pattern (default: false) */
   enabled: z.boolean().default(false),
-  /** Directory for planning files relative to .sisyphus/ (default: "plans") */
-  directory: z.string().default("plans"),
   /** BDD alignment gate for task Scenario Ref coverage (default: "warn") */
   bdd_alignment: z.enum(["off", "warn", "required"]).default("warn"),
   /** Enable 2-action rule for findings updates (default: true) */
@@ -710,7 +706,7 @@ export const PlanningWithFilesConfigSchema = z.object({
   reread_trigger_tools: z.array(z.string()).optional(),
   /** Tools that count toward the 2-action rule */
   action_count_tools: z.array(z.string()).optional(),
-})
+}).strict()
 
 /** Default planning-with-files configuration */
 export const DEFAULT_PLANNING_WITH_FILES_CONFIG = PlanningWithFilesConfigSchema.parse({})
@@ -725,7 +721,7 @@ export const ContinuationControlPrioritySchema = z.object({
   "task-auto-continuation": z.number().min(0).max(1000).default(200),
   /** Lowest priority: unstable background watchdog reminder */
   "unstable-agent-watchdog": z.number().min(0).max(1000).default(50),
-})
+}).strict()
 
 export const ContinuationControlConfigSchema = z.object({
   /** Grace period after session compaction before allowing continuation (default: 1500ms) */
@@ -737,7 +733,7 @@ export const ContinuationControlConfigSchema = z.object({
     "task-auto-continuation": 200,
     "unstable-agent-watchdog": 50,
   }),
-})
+}).strict()
 
 /** Default continuation-control configuration */
 export const DEFAULT_CONTINUATION_CONTROL_CONFIG = ContinuationControlConfigSchema.parse({})
@@ -750,7 +746,7 @@ export const WorkOrchestratorConfigSchema = z.object({
   planning_with_files: PlanningWithFilesConfigSchema.default(DEFAULT_PLANNING_WITH_FILES_CONFIG),
   /** Embedded continuation arbitration configuration */
   continuation_control: ContinuationControlConfigSchema.default(DEFAULT_CONTINUATION_CONTROL_CONFIG),
-})
+}).strict()
 
 /** Default work-orchestrator configuration */
 export const DEFAULT_WORK_ORCHESTRATOR_CONFIG = WorkOrchestratorConfigSchema.parse({})
@@ -767,7 +763,7 @@ export const SilentToolOutputConfigSchema = z.object({
   search_max_lines: z.number().default(20),
   /** Max characters for content preview (default: 200) */
   preview_max_chars: z.number().default(200),
-})
+}).strict()
 
 /** Repository Overview Configuration - bootstraps session with project context */
 export const RepoOverviewConfigSchema = z.object({
@@ -784,7 +780,7 @@ export const RepoOverviewConfigSchema = z.object({
    * Set to 2+ to skip injection for trivial one-shot interactions.
    */
   min_tool_calls: z.number().min(1).max(100).default(1),
-})
+}).strict()
 
 /** Runtime Tracker Configuration - tracks tool execution times */
 export const RuntimeTrackerConfigSchema = z.object({
@@ -798,7 +794,7 @@ export const RuntimeTrackerConfigSchema = z.object({
   inject_hints: z.boolean().default(true),
   /** Cooldown in ms between hints for the same tool (default: 60000) */
   hint_cooldown_ms: z.number().min(0).default(60000),
-})
+}).strict()
 
 const UserMemoryEntityTypeSchema = z.enum([
   "person",
@@ -818,7 +814,7 @@ export const HierarchicalMemoryConfigOverrideSchema = z.object({
   long_term_knowledge_limit: z.number().min(0).max(5000),
   aggregation_model: z.enum(["haiku", "sonnet", "opus"]),
   auto_aggregate: z.boolean(),
-}).partial()
+}).partial().strict()
 
 /** Entity Memory override configuration */
 export const EntityMemoryConfigOverrideSchema = z.object({
@@ -828,7 +824,7 @@ export const EntityMemoryConfigOverrideSchema = z.object({
   min_mentions: z.number().min(1).max(1000),
   injection_confidence_threshold: z.number().min(0).max(1),
   extract_types: z.array(UserMemoryEntityTypeSchema),
-}).partial()
+}).partial().strict()
 
 /** Temporal Validity override configuration */
 export const TemporalValidityConfigOverrideSchema = z.object({
@@ -836,7 +832,7 @@ export const TemporalValidityConfigOverrideSchema = z.object({
   staleness_threshold: z.number().min(0).max(1),
   decay_factor: z.number().min(0).max(1),
   include_expired: z.boolean(),
-}).partial()
+}).partial().strict()
 
 /** Size-based consolidation override configuration */
 export const ConsolidationConfigOverrideSchema = z.object({
@@ -844,7 +840,7 @@ export const ConsolidationConfigOverrideSchema = z.object({
   work_history_threshold: z.number().min(0).max(100000),
   weekly_summaries_threshold: z.number().min(0).max(100000),
   monthly_summaries_threshold: z.number().min(0).max(100000),
-}).partial()
+}).partial().strict()
 
 /** Semantic clustering override configuration */
 export const SemanticClusteringConfigOverrideSchema = z.object({
@@ -854,7 +850,7 @@ export const SemanticClusteringConfigOverrideSchema = z.object({
   max_llm_calls: z.number().min(0).max(1000),
   use_synonyms: z.boolean(),
   use_stemming: z.boolean(),
-}).partial()
+}).partial().strict()
 
 /** Hybrid search weights configuration */
 const HybridWeightsObjectSchema = z.object({
@@ -864,7 +860,7 @@ const HybridWeightsObjectSchema = z.object({
   bm25: z.number().min(0).max(1).default(0.3),
   /** Weight for Jaccard (n-gram/synonym) similarity (default: 0.2) */
   jaccard: z.number().min(0).max(1).default(0.2),
-})
+}).strict()
 
 function hybridWeightsSumToOne(weights: {
   vector: number
@@ -904,7 +900,7 @@ export const HybridWeightsOverrideSchema = z.object({
   vector: z.number().min(0).max(1).optional(),
   bm25: z.number().min(0).max(1).optional(),
   jaccard: z.number().min(0).max(1).optional(),
-}).refine(
+}).strict().refine(
   (w) => !hasCompleteHybridWeights(w) || hybridWeightsSumToOne(w),
   { message: "Hybrid weights must sum to 1.0" }
 )
@@ -929,7 +925,7 @@ export const EmbeddingConfigOverrideSchema = z.object({
   cache_enabled: z.boolean(),
   /** Batch size for embedding API calls (default: 20) */
   batch_size: z.number().min(1).max(100),
-}).partial()
+}).partial().strict()
 
 /** User Memory Configuration - persistent memory across sessions */
 export const UserMemoryConfigSchema = z.object({
@@ -951,7 +947,7 @@ export const UserMemoryConfigSchema = z.object({
   disclosure_level: UserMemoryDisclosureLevelSchema.optional(),
   /** Vector search / embedding configuration */
   embeddings: EmbeddingConfigOverrideSchema.optional(),
-})
+}).strict()
 
 /** Org Memory Configuration - project/team memory shared via repo */
 export const OrgMemoryConfigSchema = z.object({
@@ -969,7 +965,7 @@ export const OrgMemoryConfigSchema = z.object({
   max_terminology: z.number().min(0).max(50).default(10),
   /** Max custom rules to include (default: 20) */
   max_custom_rules: z.number().min(0).max(200).default(20),
-})
+}).strict()
 
 /**
  * Context budget configuration for controlling token allocation across context sources
@@ -989,10 +985,10 @@ export const ContextBudgetConfigSchema = z.object({
     "delegate-prompt": z.number().optional(),
     "synthetic-message": z.number().optional(),
     "session-prompt": z.number().optional(),
-  }).partial().optional(),
+  }).partial().strict().optional(),
   /** Overflow strategy (default: drop-low-priority) */
   overflow_strategy: z.enum(["truncate", "drop-low-priority"]).default("drop-low-priority"),
-})
+}).strict()
 
 /** Governance Tool Criticality Configuration */
 export const GovernanceToolCriticalitySchema = z.object({
@@ -1004,9 +1000,22 @@ export const GovernanceToolCriticalitySchema = z.object({
   reason: z.string().optional(),
   /** Categories this applies to */
   categories: z.array(z.string()).optional(),
-})
+}).strict()
 
 /** Governance Configuration - approval, tracing, budget, checkpoints */
+const GovernanceBudgetMonitorConfigSchema = z.object({
+  /** Enable budget monitoring (default: true when governance enabled) */
+  enabled: z.boolean().default(true),
+  /** Warn threshold - triggers GC/convergence hints (default: 0.7) */
+  warn_threshold: z.number().min(0.3).max(0.95).default(0.7),
+  /** Refactor threshold - triggers fork suggestion (default: 0.85) */
+  refactor_threshold: z.number().min(0.5).max(0.95).default(0.85),
+  /** Hard limit threshold - triggers budget exhausted guardrail (default: 0.95) */
+  hard_limit: z.number().min(0.7).max(0.99).default(0.95),
+  /** Context window size estimate (default: 200000) */
+  context_window_size: z.number().min(50000).max(1000000).default(200000),
+}).partial().strict()
+
 export const GovernanceConfigSchema = z.object({
   /** Enable governance module (default: false - opt-in) */
   enabled: z.boolean().default(false),
@@ -1023,7 +1032,7 @@ export const GovernanceConfigSchema = z.object({
     token_expiry_minutes: z.number().min(1).max(1440).default(30),
     /** Custom tool criticality overrides */
     tool_criticality: z.array(GovernanceToolCriticalitySchema).optional(),
-  }).partial().optional(),
+  }).partial().strict().optional(),
 
   /** Execution Tracer Configuration */
   tracer: z.object({
@@ -1035,23 +1044,10 @@ export const GovernanceConfigSchema = z.object({
     auto_compress_threshold: z.number().min(50).max(5000).default(500),
     /** Sanitize sensitive data in inputs/outputs (default: true) */
     sanitize_sensitive_data: z.boolean().default(true),
-  }).partial().optional(),
+  }).partial().strict().optional(),
 
   /** Budget Monitor Configuration */
-  budget_monitor: z.object({
-    /** Enable budget monitoring (default: true when governance enabled) */
-    enabled: z.boolean().default(true),
-    /** Warn threshold - triggers GC/convergence hints (default: 0.7) */
-    warn_threshold: z.number().min(0.3).max(0.95).default(0.7),
-    /** Refactor threshold - triggers fork suggestion (default: 0.85) */
-    refactor_threshold: z.number().min(0.5).max(0.95).default(0.85),
-    /** Removed in latest-only mode: use refactor_threshold */
-    gc_threshold: z.never().optional(),
-    /** Hard limit threshold - triggers budget exhausted guardrail (default: 0.95) */
-    hard_limit: z.number().min(0.7).max(0.99).default(0.95),
-    /** Context window size estimate (default: 200000) */
-    context_window_size: z.number().min(50000).max(1000000).default(200000),
-  }).partial().optional(),
+  budget_monitor: GovernanceBudgetMonitorConfigSchema.optional(),
 
   /** Semantic Checkpoint Configuration */
   checkpoint: z.object({
@@ -1063,7 +1059,7 @@ export const GovernanceConfigSchema = z.object({
     max_checkpoints: z.number().min(1).max(20).default(5),
     /** Recovery strategy preference */
     recovery_preference: z.enum(["conservative", "balanced", "aggressive"]).default("balanced"),
-  }).partial().optional(),
+  }).partial().strict().optional(),
 
   /** Ledger Configuration */
   ledger: z.object({
@@ -1073,8 +1069,8 @@ export const GovernanceConfigSchema = z.object({
     base_dir: z.string().optional(),
     /** Retention days for ledger entries (default: 30) */
     retention_days: z.number().min(1).max(365).default(30),
-  }).partial().optional(),
-})
+  }).partial().strict().optional(),
+}).strict()
 
 // ============================================================================
 // Conditional Rules Configuration
@@ -1102,7 +1098,7 @@ export const AgentsMdConfigSchema = z.object({
   ]),
   /** Maximum directory depth to search (default: 10) */
   max_depth: z.number().min(1).max(20).default(10),
-})
+}).strict()
 
 /** Glob condition - matches file paths against glob pattern */
 export const GlobConditionSchema = z.object({
@@ -1111,7 +1107,7 @@ export const GlobConditionSchema = z.object({
   pattern: z.string(),
   /** If true (default), rule matches if ANY file matches. If false, ALL files must match. */
   matchAny: z.boolean().optional(),
-})
+}).strict()
 
 /** Directory condition - matches files within a directory */
 export const DirectoryConditionSchema = z.object({
@@ -1120,7 +1116,7 @@ export const DirectoryConditionSchema = z.object({
   path: z.string(),
   /** If true (default), includes subdirectories */
   recursive: z.boolean().optional(),
-})
+}).strict()
 
 /** Content condition - matches files containing specific patterns */
 export const ContentConditionSchema = z.object({
@@ -1129,14 +1125,14 @@ export const ContentConditionSchema = z.object({
   pattern: z.string(),
   /** Only check files already matched by other conditions (default: true) */
   relevantFilesOnly: z.boolean().optional(),
-})
+}).strict()
 
 /** Context matcher for context conditions */
 export const ContextMatcherSchema = z.union([
-  z.object({ agent: z.string() }),
-  z.object({ category: z.string() }),
-  z.object({ task: z.enum(["planning", "implementation", "review", "debugging"]) }),
-  z.object({ skill: z.string() }),
+  z.object({ agent: z.string() }).strict(),
+  z.object({ category: z.string() }).strict(),
+  z.object({ task: z.enum(["planning", "implementation", "review", "debugging"]) }).strict(),
+  z.object({ skill: z.string() }).strict(),
 ])
 
 /** Context condition - matches execution context */
@@ -1144,7 +1140,7 @@ export const ContextConditionSchema = z.object({
   type: z.literal("context"),
   /** Context to match */
   match: ContextMatcherSchema,
-})
+}).strict()
 
 /** Union of all condition types */
 export const RuleConditionSchema = z.discriminatedUnion("type", [
@@ -1160,7 +1156,7 @@ export const RuleContentSchema = z.union([
   z.object({
     /** Path to file containing rule content */
     file: z.string(),
-  }),
+  }).strict(),
 ])
 
 /** Config-defined conditional rule */
@@ -1177,7 +1173,7 @@ export const ConfigRuleSchema = z.object({
   priority: z.number().optional(),
   /** Enable/disable the rule (default: true) */
   enabled: z.boolean().optional(),
-})
+}).strict()
 
 /** Conditional Rules Configuration */
 export const ConditionalRulesConfigSchema = z.object({
@@ -1185,7 +1181,7 @@ export const ConditionalRulesConfigSchema = z.object({
   agents_md: AgentsMdConfigSchema.partial().default({}),
   /** Config-defined conditional rules */
   conditional_rules: z.array(ConfigRuleSchema).optional(),
-})
+}).strict()
 
 // ============================================================================
 // Session Reference Configuration (defined before Session Handoff to allow nesting)
@@ -1203,7 +1199,7 @@ export const SessionReferenceResolveOptionsSchema = z.object({
   max_results: z.number().min(1).max(20).default(5),
   /** Minimum relevance score for semantic results (default: 0.3) */
   min_relevance: z.number().min(0).max(1).default(0.3),
-})
+}).strict()
 
 /** Session Reference Configuration - @session:id syntax for referencing previous sessions */
 export const SessionReferenceConfigSchema = z.object({
@@ -1219,7 +1215,7 @@ export const SessionReferenceConfigSchema = z.object({
     max_results: 5,
     min_relevance: 0.3,
   }),
-})
+}).strict()
 
 // ============================================================================
 // Session Handoff Configuration
@@ -1235,7 +1231,7 @@ export const HandoffExtractorConfigSchema = z.object({
   max_artifacts: z.number().min(1).max(50).default(20),
   /** Generate embedding index for semantic search */
   generate_embeddings: z.boolean().default(true),
-})
+}).strict()
 
 /** Session Handoff Configuration - knowledge transfer between sessions */
 export const SessionHandoffConfigSchema = z.object({
@@ -1264,7 +1260,7 @@ export const SessionHandoffConfigSchema = z.object({
   }),
   /** Session reference configuration (@session:id syntax). */
   reference: SessionReferenceConfigSchema.optional(),
-})
+}).strict()
 
 /** Default session handoff configuration - parsed from schema to ensure consistency */
 export const DEFAULT_SESSION_HANDOFF_CONFIG = SessionHandoffConfigSchema.parse({})
@@ -1302,8 +1298,6 @@ export const OhMyOpenCodeConfigSchema = z.object({
   work_orchestrator: WorkOrchestratorConfigSchema.optional(),
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
-  /** Removed in latest-only mode: multi-plan pipeline has been fully deleted */
-  multi_plan_pipeline: z.never().optional(),
   silent_tool_output: SilentToolOutputConfigSchema.optional(),
   repo_overview: RepoOverviewConfigSchema.optional(),
   runtime_tracker: RuntimeTrackerConfigSchema.optional(),
@@ -1323,7 +1317,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   plugin_load_timeout_ms: z.number().min(1000).optional(),
   /** Wrap hook creation in try/catch to prevent one failing hook from crashing the plugin (default: true) */
   safe_hook_creation: z.boolean().optional(),
-})
+}).strict()
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
 export type AgentOverrideConfig = z.infer<typeof AgentOverrideConfigSchema>

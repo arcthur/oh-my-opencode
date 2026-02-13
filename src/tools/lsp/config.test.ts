@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { isServerInstalled } from "./config"
+import { getConfigPaths_, isServerInstalled } from "./config"
 import { mkdtempSync, rmSync, writeFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
@@ -127,4 +127,13 @@ describe("isServerInstalled", () => {
           expect(isServerInstalled([binName])).toBe(false)
       })
   }
+})
+
+describe("getConfigPaths_", () => {
+  test("returns only opencode config path", () => {
+    const paths = getConfigPaths_()
+
+    expect(Object.keys(paths)).toEqual(["opencode"])
+    expect(paths.opencode.includes("opencode.json")).toBe(true)
+  })
 })

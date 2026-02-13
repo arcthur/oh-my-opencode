@@ -192,8 +192,6 @@ export function createPlanningWithFilesHook(
   const config: PlanningWithFilesConfig = {
     ...DEFAULT_PLANNING_CONFIG,
     ...options.config,
-    // directory is deprecated and ignored; canonical path is fixed to .sisyphus/plans
-    directory: "plans",
     reread_trigger_tools:
       options.config?.reread_trigger_tools ?? DEFAULT_PLANNING_CONFIG.reread_trigger_tools,
     action_count_tools:
