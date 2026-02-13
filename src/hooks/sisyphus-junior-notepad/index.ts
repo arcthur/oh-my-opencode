@@ -1,5 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { injectBudgetedPrompt } from "../../features/context-budget"
+import { injectBudgetedPrompt } from "../../features/context-view"
 import { isCallerOrchestrator } from "../../shared/session-utils"
 import { log } from "../../shared/logger"
 import { HOOK_NAME, NOTEPAD_DIRECTIVE } from "./constants"

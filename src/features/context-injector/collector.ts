@@ -5,7 +5,7 @@ import type {
   PendingContext,
   RegisterContextOptions,
 } from "./types"
-import { contextBudgetArbiter, type ContextBudgetArbiter } from "../context-budget"
+import { contextBudgetArbiter, type ContextBudgetArbiter } from "../context-view"
 import {
   contextLedgerStore,
   configureContextLedgerStore,

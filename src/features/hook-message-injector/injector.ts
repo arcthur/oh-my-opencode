@@ -4,8 +4,8 @@ import { join } from "node:path"
 import { MESSAGE_STORAGE, PART_STORAGE } from "./constants"
 import type { MessageMeta, OriginalMessageContext, TextPart, ToolPermission } from "./types"
 import { log } from "../../shared/logger"
-import { contextBudgetArbiter } from "../context-budget"
-import type { BudgetPriority, ContextChannel } from "../context-budget"
+import { contextBudgetArbiter } from "../context-view"
+import type { BudgetPriority, ContextChannel } from "../context-view"
 import { contextLedgerStore } from "../context-ledger/store"
 
 export interface StoredMessage {

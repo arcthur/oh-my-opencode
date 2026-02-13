@@ -2,7 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import type { AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
 import { getSessionAgent } from "../../features/claude-code-session-state"
 import { log } from "../../shared"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 /**
  * Target agents that should receive category+skill reminders.

@@ -2,7 +2,7 @@ import type {
   BudgetPriority,
   ContextBudgetConfig as SharedContextBudgetConfig,
   ContextChannel,
-} from "../context-budget"
+} from "../context-view"
 
 /**
  * Source identifier for context injection

@@ -27,7 +27,7 @@ import { cacheToolInput, getToolInput } from "./tool-input-cache"
 import { appendTranscriptEntry, getTranscriptPath } from "./transcript"
 import type { PluginConfig } from "./types"
 import { log, isHookDisabled } from "../../shared"
-import { appendBudgetedOutput, pushBudgetedContext } from "../../features/context-budget"
+import { appendBudgetedOutput, pushBudgetedContext } from "../../features/context-view"
 import type { ContextCollector } from "../../features/context-injector"
 
 const sessionFirstMessageProcessed = new Set<string>()

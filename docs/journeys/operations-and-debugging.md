@@ -37,12 +37,12 @@ This journey focuses on diagnosing misbehavior in production-like usage: orderin
 
 - **Tool output missing/changed**:
   - `src/hooks/silent-tool-output/`
-  - `src/hooks/tool-output-truncator.ts`
+  - `src/features/context-view/output-append.ts`
   - `src/hooks/runtime/pipeline-order.ts` (`tool.execute.after` ordering)
 - **Unexpected compaction / lost constraints**:
-  - `src/hooks/context-window-governor/index.ts`
-  - `src/hooks/context-window-governor/`
-  - Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/context-window-governor/actions/`, `src/hooks/claude-code-hooks/pre-compact.ts`
+  - `src/features/context-view/assembler.ts`
+  - `src/features/policy-runtime/`
+  - Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/claude-code-hooks/pre-compact.ts` + policy/context-view runtime nodes
 - **Delegation feels “wrong”**:
   - `src/tools/delegate-task/`
   - `docs/guide/orchestration.md`

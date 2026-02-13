@@ -1,11 +1,166 @@
 import { executePreToolGovernance } from "../../../features/governance"
 import { createWorkStateManager } from "../../../features/work-state"
+import { isSubagentSession } from "../../../features/claude-code-session-state"
 import { log } from "../../../shared"
+import type { PolicyDecision } from "../../../contracts"
 import type { ToolExecuteInput } from "../../../shared/hook-types"
+import type { ExecutionBudgetSnapshot } from "../../../features/policy-runtime"
+import {
+  PROMETHEUS_MUTATION_TOOLS,
+  PROMETHEUS_AGENTS,
+} from "../../../features/policy-runtime/prometheus-policy"
+import { SYSTEM_DIRECTIVE_PREFIX } from "../../../shared/system-directive"
+import { existsSync } from "node:fs"
+import { isAbsolute, join, normalize, relative, resolve, sep } from "node:path"
 import type { RuntimeExecutionNode } from "../types"
 import type { RuntimeAssemblyContext, ToolExecuteBeforeOutput } from "./types"
 
 const DEFAULT_GOVERNANCE_BLOCK_PREFIX = "Governance blocked:"
+
+function resolveFilePath(args: Record<string, unknown>): string | undefined {
+  const value = args.filePath ?? args.path ?? args.file_path ?? args.file
+  return typeof value === "string" ? value : undefined
+}
+
+function isPrometheusAgent(agentName: string | undefined): boolean {
+  if (!agentName) {
+    return false
+  }
+  const lowered = agentName.toLowerCase()
+  return PROMETHEUS_AGENTS.some((name) => lowered.includes(name.toLowerCase()))
+}
+
+function isAllowedPrometheusFile(filePath: string, workspaceRoot: string): boolean {
+  const resolved = resolve(workspaceRoot, filePath)
+  const rel = relative(workspaceRoot, resolved)
+  if (rel.startsWith("..") || isAbsolute(rel)) {
+    return false
+  }
+  if (!/\.sisyphus[/\\]/i.test(rel)) {
+    return false
+  }
+  return resolved.toLowerCase().endsWith(".md")
+}
+
+function resolvePolicyGuards(
+  context: RuntimeAssemblyContext,
+  input: ToolExecuteInput,
+  output: ToolExecuteBeforeOutput,
+  executionBudget?: ExecutionBudgetSnapshot
+): Record<string, unknown> {
+  const toolName = input.tool
+  const toolNameLower = toolName.toLowerCase()
+  const args = output.args
+  const filePath = resolveFilePath(args)
+  const cwd = context.directory ?? process.cwd()
+  const resolvedPath = filePath
+    ? normalize(isAbsolute(filePath) ? filePath : resolve(cwd, filePath))
+    : undefined
+
+  const fileExists = resolvedPath ? existsSync(resolvedPath) : false
+  const sisyphusRoot = join(cwd, ".sisyphus") + sep
+  const isSisyphusMarkdown =
+    Boolean(resolvedPath)
+    && Boolean(resolvedPath?.startsWith(sisyphusRoot))
+    && Boolean(resolvedPath?.toLowerCase().endsWith(".md"))
+
+  const sessionAgent = context.getSessionAgent?.(input.sessionID)
+  const prometheusAgent = isPrometheusAgent(sessionAgent)
+  const prometheusBlockedTool = PROMETHEUS_MUTATION_TOOLS.includes(toolName)
+  const prometheusAllowedFile = filePath
+    ? isAllowedPrometheusFile(filePath, cwd)
+    : true
+  const normalizedFilePath = filePath?.toLowerCase().replace(/\\/g, "/") ?? ""
+  const prompt = typeof args.prompt === "string" ? args.prompt : undefined
+
+  return {
+    writeExistingFile: {
+      blocked:
+        toolNameLower === "write"
+        && Boolean(filePath)
+        && fileExists
+        && !isSisyphusMarkdown,
+      filePath,
+      resolvedPath,
+    },
+    subagentQuestion: {
+      blocked:
+        (toolNameLower === "question" || toolNameLower === "askuserquestion")
+        && isSubagentSession(input.sessionID),
+    },
+    prometheus: {
+      isPrometheus: prometheusAgent,
+      blockedWrite:
+        prometheusAgent
+        && prometheusBlockedTool
+        && Boolean(filePath)
+        && !prometheusAllowedFile,
+      taskWarning:
+        prometheusAgent
+        && (toolNameLower === "task" || toolNameLower === "delegate_task")
+        && Boolean(prompt)
+        && !prompt!.includes(SYSTEM_DIRECTIVE_PREFIX),
+      planReminder:
+        prometheusAgent
+        && prometheusBlockedTool
+        && Boolean(filePath)
+        && prometheusAllowedFile
+        && normalizedFilePath.includes(".sisyphus/plans/"),
+      filePath,
+      agent: sessionAgent,
+    },
+    executionBudget: executionBudget
+      ? {
+          toolCalls: executionBudget.toolCalls,
+          maxToolCalls: executionBudget.maxToolCalls,
+          elapsedMs: executionBudget.elapsedMs,
+          wallClockMs: executionBudget.wallClockMs,
+        }
+      : undefined,
+  }
+}
+
+function enforcePolicyDecisionsOnToolBefore(params: {
+  decisions: PolicyDecision[]
+  output: ToolExecuteBeforeOutput
+}): void {
+  for (const decision of params.decisions) {
+    if (decision.decision === "deny" && decision.enforcement === "hard") {
+      throw new Error(decision.message ?? "Policy denied tool.execute.before")
+    }
+
+    if (decision.decision !== "modify" || !decision.mutation) {
+      continue
+    }
+
+    const mutationArgs = decision.mutation.args
+    if (mutationArgs && typeof mutationArgs === "object" && !Array.isArray(mutationArgs)) {
+      Object.assign(params.output.args, mutationArgs as Record<string, unknown>)
+      continue
+    }
+
+    const argsPromptPrepend = decision.mutation.argsPromptPrepend
+    if (
+      typeof argsPromptPrepend === "string"
+      && typeof params.output.args.prompt === "string"
+    ) {
+      params.output.args.prompt = `${argsPromptPrepend}${params.output.args.prompt}`
+    }
+
+    const argsPromptAppend = decision.mutation.argsPromptAppend
+    if (
+      typeof argsPromptAppend === "string"
+      && typeof params.output.args.prompt === "string"
+    ) {
+      params.output.args.prompt = `${params.output.args.prompt}${argsPromptAppend}`
+    }
+
+    const messageAppend = decision.mutation.messageAppend
+    if (typeof messageAppend === "string") {
+      params.output.message = `${params.output.message ?? ""}${messageAppend}`
+    }
+  }
+}
 
 export function buildToolExecuteBeforeNodes(
   context: RuntimeAssemblyContext,
@@ -13,30 +168,37 @@ export function buildToolExecuteBeforeNodes(
   output: ToolExecuteBeforeOutput
 ): RuntimeExecutionNode[] {
   const nodes: RuntimeExecutionNode[] = []
+  let cachedGuards: Record<string, unknown> | undefined
+  let lastPolicyDecisions: PolicyDecision[] | undefined
+
+  const getPolicyGuards = (): Record<string, unknown> => {
+    if (cachedGuards) {
+      return cachedGuards
+    }
+
+    const budgetLimits = context.executionBudgetLimits
+    const budgetAdmission =
+      context.executionBudgetManager && budgetLimits
+        ? context.executionBudgetManager.admitToolCall(input.sessionID, budgetLimits)
+        : undefined
+    if (budgetAdmission && !budgetAdmission.allowed) {
+      throw new Error(budgetAdmission.message ?? "Execution budget exceeded")
+    }
+
+    cachedGuards = resolvePolicyGuards(
+      context,
+      input,
+      output,
+      budgetAdmission?.snapshot
+    )
+    return cachedGuards
+  }
 
   if (context.questionLabelTruncator?.["tool.execute.before"]) {
     nodes.push({
       id: "question-label-truncator:tool.execute.before",
       invoke: async () => {
         await context.questionLabelTruncator?.["tool.execute.before"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.delegationBlockSubagentQuestion?.["tool.execute.before"]) {
-    nodes.push({
-      id: "delegation-block-subagent-question:tool.execute.before",
-      invoke: async () => {
-        await context.delegationBlockSubagentQuestion?.["tool.execute.before"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.writeExistingFileGuard?.["tool.execute.before"]) {
-    nodes.push({
-      id: "write-existing-file-guard:tool.execute.before",
-      invoke: async () => {
-        await context.writeExistingFileGuard?.["tool.execute.before"]?.(input, output)
       },
     })
   }
@@ -67,6 +229,27 @@ export function buildToolExecuteBeforeNodes(
       },
     })
   }
+
+  nodes.push({
+    id: "internal:policy-observe:tool.execute.before",
+    failurePolicy: "fail-open",
+    invoke: async () => {
+      const guards = getPolicyGuards()
+      await context.policyRuntime?.observe?.({
+        hookPoint: "tool.execute.before",
+        sessionID: input.sessionID,
+        toolName: input.tool,
+        agent: context.getSessionAgent?.(input.sessionID),
+        payload: {
+          guardsVersion: 1,
+          callID: input.callID,
+          args: output.args,
+          guards,
+        },
+        traceHookNodeId: "internal:policy-observe:tool.execute.before",
+      })
+    },
+  })
 
   if (context.claudeCodeBridgeEnabled && context.claudeCodeHooks?.["tool.execute.before"]) {
     nodes.push({
@@ -118,15 +301,6 @@ export function buildToolExecuteBeforeNodes(
       id: "rules-injector:tool.execute.before",
       invoke: async () => {
         await context.rulesInjector?.["tool.execute.before"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.prometheusMdOnly?.["tool.execute.before"]) {
-    nodes.push({
-      id: "prometheus-md-only:tool.execute.before",
-      invoke: async () => {
-        await context.prometheusMdOnly?.["tool.execute.before"]?.(input, output)
       },
     })
   }
@@ -310,6 +484,34 @@ export function buildToolExecuteBeforeNodes(
     },
   })
 
+  nodes.push({
+    id: "internal:policy-enforce:tool.execute.before",
+    failurePolicy: "fail-closed",
+    invoke: async () => {
+      const guards = getPolicyGuards()
+      const decisions = await context.policyRuntime?.enforce?.({
+        hookPoint: "tool.execute.before",
+        sessionID: input.sessionID,
+        toolName: input.tool,
+        agent: context.getSessionAgent?.(input.sessionID),
+        payload: {
+          guardsVersion: 1,
+          callID: input.callID,
+          args: output.args,
+          guards,
+        },
+        traceHookNodeId: "internal:policy-enforce:tool.execute.before",
+      })
+
+      if (!decisions || decisions.length === 0) {
+        return
+      }
+
+      lastPolicyDecisions = decisions
+      enforcePolicyDecisionsOnToolBefore({ decisions, output })
+    },
+  })
+
   if (context.governanceEnabled) {
     nodes.push({
       id: "internal:governance-pre-tool:tool.execute.before",
@@ -326,6 +528,17 @@ export function buildToolExecuteBeforeNodes(
           })
 
           if (!govResult.proceed) {
+            const appliedDecisions = lastPolicyDecisions?.filter(
+              (d) => !(d.decision === "deny" && d.enforcement === "hard")
+            )
+            if (appliedDecisions && appliedDecisions.length > 0) {
+              context.policyRuntime?.recordSuperseded?.({
+                sessionID: input.sessionID,
+                hookPoint: "tool.execute.before",
+                decisions: appliedDecisions,
+                reason: govResult.reason ?? "Governance blocked after policy allowed",
+              })
+            }
             throw new Error(
               `${context.governanceBlockPrefix ?? DEFAULT_GOVERNANCE_BLOCK_PREFIX} ${
                 govResult.reason ?? "Operation blocked"

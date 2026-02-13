@@ -46,10 +46,7 @@ describe("semantic groups", () => {
     const entries = Object.entries(DELEGATION_PROGRESS_STAGE_BY_HOOK)
 
     // #then
-    expect(entries).toHaveLength(4)
-    expect(
-      DELEGATION_PROGRESS_STAGE_BY_HOOK["delegation-block-subagent-question"]
-    ).toBe("block")
+    expect(entries).toHaveLength(3)
     expect(
       DELEGATION_PROGRESS_STAGE_BY_HOOK["delegation-validate-decision"]
     ).toBe("validate")
@@ -67,27 +64,6 @@ describe("semantic groups", () => {
 
     // #when #then
     expect(() => validateSemanticGroups({ order })).not.toThrow()
-  })
-
-  test("throws when validate-stage runs before block-stage", () => {
-    // #given
-    const order = cloneOrder()
-    const before = order["tool.execute.before"]
-    const blockNode =
-      "delegation-block-subagent-question:tool.execute.before"
-    const validateNode = "delegation-validate-decision:tool.execute.before"
-    const blockIndex = before.indexOf(blockNode)
-    const validateIndex = before.indexOf(validateNode)
-    expect(blockIndex).toBeGreaterThan(-1)
-    expect(validateIndex).toBeGreaterThan(-1)
-
-    before[blockIndex] = validateNode
-    before[validateIndex] = blockNode
-
-    // #when #then
-    expect(() => validateSemanticGroups({ order })).toThrow(
-      "block-stage hooks must run before validate-stage hooks"
-    )
   })
 
   test("throws when nudge-stage hook is placed in tool.execute.before", () => {

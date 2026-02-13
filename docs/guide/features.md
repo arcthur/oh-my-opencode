@@ -355,10 +355,10 @@ OpenCode runtime wiring uses OpenCode lifecycle events. For source of truth, see
 | **`chat.headers`** | Outbound chat request header stage | Add provider/session-specific headers (for example Copilot Anthropic beta token) |
 | **`shell.env`** | Shell environment assembly stage | Inject non-interactive environment guards for shell tools |
 | **`tool.execute.before`** | Before tool execution | Validate/guard/modify tool input |
-| **`tool.execute.after`** | After tool execution | Truncate output, add guidance, inject context |
+| **`tool.execute.after`** | After tool execution | Budget output, add guidance, inject context |
 | **`event`** | Session lifecycle stream (`session.*`, `message.*`, etc.) | Notifications, continuation, runtime state repair |
 | **`experimental.chat.messages.transform`** | Message transform phase | Thinking-block validation, transform-time context |
-| **`experimental.session.compacting`** | Compaction-time phase | Claude bridge `PreCompact`, compaction context injection |
+| **`experimental.session.compacting`** | Compaction-time phase | Policy observe/enforce wrapper + Claude bridge `PreCompact` + compaction context injection |
 | **`chat.params`** | Model params phase | Provider/model parameter adjustment (e.g., effort tuning) |
 
 ### Built-in Hooks (Representative, Not Exhaustive)
@@ -372,14 +372,13 @@ For the complete hook-name surface and exact ordering contract, see `docs/refere
 | **directory-agents-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Auto-injects AGENTS.md when reading files. Walks from file to project root, collecting all AGENTS.md files. **Deprecated for OpenCode 1.1.37+** - Auto-disabled when native AGENTS.md injection is available. |
 | **directory-readme-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Auto-injects README.md for directory context. |
 | **rules-injector** | `event`, `tool.execute.before`, `tool.execute.after` | Injects rules from `.claude/rules/` when conditions match. Supports globs and alwaysApply. |
-| **context-window-governor** | `event`, `tool.execute.after`, `experimental.session.compacting` | Unified context window governance: warnings, preemptive summarize, hard-limit recovery (`dynamic_pruning` -> `aggressive_output_truncation` -> summarize fallback), and compaction-time context injection. |
+| **policy-runtime (internal nodes)** | `chat.message`, `tool.execute.before`, `tool.execute.after`, `experimental.chat.messages.transform`, `experimental.session.compacting`, `chat.params` | Hook-first policy observe/enforce pipeline with contract clauses, decision audit, and context-view budget coordination. |
 
 #### Productivity & Control
 
 | Hook | Event | Description |
 |------|-------|-------------|
 | **keyword-detector** | `chat.message` | Detects keywords and activates modes: `ultrawork`/`ulw`, `search`/`find`, `analyze`/`investigate`. |
-| **think-mode** | `chat.message`, `event` | Auto-detects extended thinking needs and adjusts model behavior. |
 | **ralph-loop** | `event` | Manages self-referential loop continuation. |
 | **start-work** | `chat.message` | Handles `/start-work` command execution. |
 | **auto-slash-command** | `chat.message` | Automatically executes slash commands from prompts. |
@@ -393,7 +392,6 @@ For the complete hook-name surface and exact ordering contract, see `docs/refere
 | **empty-task-response-detector** | `tool.execute.after` | Detects empty task responses and injects recovery guidance. |
 | **edit-failure-guidance** | `tool.execute.after` | Recovers from edit tool failures. |
 | **question-label-truncator** | `tool.execute.before` | Truncates overlong labels for `question` tool calls. |
-| **write-existing-file-guard** | `tool.execute.before` | Prevents accidental `Write` over existing files; nudges safer edit flows. |
 
 #### Recovery & Stability
 
@@ -401,11 +399,11 @@ For the complete hook-name surface and exact ordering contract, see `docs/refere
 |------|-------|-------------|
 | **session-state-repair** | `event` (internal `session.error` path) | Recovers from recoverable session errors (`tool_result_missing`, thinking-block ordering/disabled violations, `assistant_prefill_unsupported`). Includes `tool_result_missing` -> revert fallback when `tool_result` injection is rejected by the API. |
 
-#### Truncation & Context Management
+#### Context Budgeting
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **tool-output-truncator** | `tool.execute.after` | Truncates output from Grep, Glob, LSP, AST-grep tools. |
+| **context-view (feature)** | n/a (used by multiple hooks) | Unified context budget arbiter for prompt injection and output append. |
 
 #### Notifications & UX
 
@@ -436,7 +434,7 @@ Note: `task-resume-info` is an internal runtime node (`internal:task-resume-info
 
 | Hook | Event | Description |
 |------|-------|-------------|
-| **prometheus-md-only** | `tool.execute.before` | Enforces markdown-only output for Prometheus planner. |
+| **policy-runtime (phase 5a clauses)** | `tool.execute.before` | Enforces write safety and planner constraints via contract clauses instead of standalone hooks. |
 | **sisyphus-junior-notepad** | `tool.execute.before` | Injects notepad context only when delegating to `sisyphus-junior`. |
 | **anthropic-effort** | `chat.params` | Tunes Anthropic effort/variant params outside runtime dispatcher ordering. |
 

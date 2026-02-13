@@ -87,6 +87,8 @@ export type {
   ApprovalEvent,
   StateProposalEvent,
   EnvironmentDriftEvent,
+  PolicyDecisionEvent,
+  PolicyOutcomeEvent,
   AgentEnvelope,
   EnvelopeMetadata,
   EnvelopePermissions,

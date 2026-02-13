@@ -10,7 +10,7 @@ const TARGET_FILES = [
   "src/agents/prometheus/identity-constraints.ts",
   "src/agents/prometheus/plan-generation.ts",
   "src/agents/prometheus/plan-template.ts",
-  "src/hooks/prometheus-md-only/constants.ts",
+  "src/features/policy-runtime/prometheus-policy.ts",
   "src/hooks/sisyphus-junior-notepad/constants.ts",
   "src/hooks/keyword-detector/ultrawork/planner.ts",
 ] as const

@@ -1,5 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { appendBudgetedOutput } from "../../features/context-budget"
+import { appendBudgetedOutput } from "../../features/context-view"
 
 /**
  * Known Edit tool error patterns that indicate the AI made a mistake

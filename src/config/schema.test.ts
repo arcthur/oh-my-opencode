@@ -14,6 +14,7 @@ import { CURRENT_CONFIG_VERSION } from "./version"
 function withVersion(config: Record<string, unknown>): Record<string, unknown> {
   return {
     config_version: CURRENT_CONFIG_VERSION,
+    architecture_version: 2,
     ...config,
   }
 }
@@ -22,6 +23,20 @@ describe("config_version requirement", () => {
   test("rejects config without config_version", () => {
     // given
     const config = {
+      disabled_mcps: ["context7"],
+    }
+
+    // when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    // then
+    expect(result.success).toBe(false)
+  })
+
+  test("rejects config without architecture_version", () => {
+    // given
+    const config = {
+      config_version: CURRENT_CONFIG_VERSION,
       disabled_mcps: ["context7"],
     }
 
@@ -1001,6 +1016,15 @@ describe("latest-only removed config keys", () => {
     // #then
     expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("multi_plan_pipeline")
     expect(Object.keys(SisyphusTasksConfigSchema.shape)).not.toContain("claude_code_compat")
+    expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("context_window_governor")
+    expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("tool_output_truncator")
+    expect(Object.keys(OhMyOpenCodeConfigSchema.shape)).not.toContain("context_budget")
+    expect(HookNameSchema.options).not.toContain("think-mode")
+    expect(HookNameSchema.options).not.toContain("tool-output-truncator")
+    expect(HookNameSchema.options).not.toContain("context-window-governor")
+    expect(HookNameSchema.options).not.toContain("prometheus-md-only")
+    expect(HookNameSchema.options).not.toContain("delegation-block-subagent-question")
+    expect(HookNameSchema.options).not.toContain("write-existing-file-guard")
   })
 
   test("rejects sisyphus.tasks.claude_code_compat", () => {
@@ -1226,8 +1250,8 @@ describe("strict nested unknown-key rejection", () => {
   })
 })
 
-describe("context window governor dynamic pruning schema", () => {
-  test("accepts context_window_governor.dynamic_pruning", () => {
+describe("removed legacy hook configs", () => {
+  test("rejects context_window_governor", () => {
     // given
     const config = {
       context_window_governor: {
@@ -1269,13 +1293,10 @@ describe("context window governor dynamic pruning schema", () => {
     const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
-    expect(result.success).toBe(true)
+    expect(result.success).toBe(false)
   })
 
-})
-
-describe("session_state_repair and tool_output_truncator schema", () => {
-  test("accepts explicit top-level configs without experimental wrapper", () => {
+  test("rejects tool_output_truncator while keeping session_state_repair valid", () => {
     // given
     const config = {
       session_state_repair: {
@@ -1290,16 +1311,27 @@ describe("session_state_repair and tool_output_truncator schema", () => {
     const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
 
     // then
+    expect(result.success).toBe(false)
+  })
+
+  test("accepts session_state_repair alone", () => {
+    const result = OhMyOpenCodeConfigSchema.safeParse(
+      withVersion({
+        session_state_repair: {
+          auto_resume: true,
+        },
+      })
+    )
+
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.session_state_repair?.auto_resume).toBe(true)
-      expect(result.data.tool_output_truncator?.truncate_all_tool_outputs).toBe(true)
     }
   })
 })
 
 describe("cache_strategy schema", () => {
-  test("accepts cache_strategy with provider policy, prefix stability, ledger, and compiler settings", () => {
+  test("accepts cache_strategy with provider policy, ledger, and compiler settings", () => {
     // given
     const config = {
       cache_strategy: {
@@ -1345,13 +1377,6 @@ describe("cache_strategy schema", () => {
             },
           },
         },
-        prefix_stability: {
-          mode: "balanced",
-          max_destructive_recoveries: 2,
-          window_ms: 600000,
-          cooldown_ms: 120000,
-          hard_limit_bypass_ratio: 1,
-        },
         ledger: {
           enabled: true,
         },
@@ -1376,14 +1401,91 @@ describe("cache_strategy schema", () => {
       ).toBe("cache_mode")
       expect(result.data.cache_strategy?.provider_policy.rollout.enabled).toBe(true)
       expect(result.data.cache_strategy?.provider_policy.rollout.stage).toBe(2)
-      expect(result.data.cache_strategy?.prefix_stability.mode).toBe("balanced")
       expect(result.data.cache_strategy?.ledger.enabled).toBe(true)
       expect(result.data.cache_strategy?.compiler.enabled).toBe(true)
     }
   })
 
+  test("rejects cache_strategy.prefix_stability", () => {
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion({
+      cache_strategy: {
+        prefix_stability: {
+          mode: "strict",
+        },
+      },
+    }))
+
+    expect(result.success).toBe(false)
+  })
+
   test("includes cache-policy in HookNameSchema", () => {
     // then
     expect(HookNameSchema.options).toContain("cache-policy")
+  })
+})
+
+describe("hook-first policy schema", () => {
+  test("accepts contracts/model_policy/budget_profiles/evaluator", () => {
+    const config = {
+      architecture_version: 2,
+      contracts: {
+        clauses: [
+          {
+            id: "deny-write",
+            description: "deny write",
+            hook_points: ["tool.execute.before"],
+            enforcement: "hard",
+            selector: { tool_name: "Write" },
+            condition: {},
+            action: { type: "deny", message: "blocked" },
+            priority: 10,
+            conflict_resolution: "most-restrictive",
+            enabled: true,
+            version: 1,
+            provenance: {
+              author: "test",
+              source: "unit",
+              created_at: 1,
+            },
+            reason_code: "WRITE_DENY",
+          },
+        ],
+      },
+      model_policy: {
+        primary: "openai/gpt-5.3-codex",
+        provider_priority: ["openai", "google", "anthropic"],
+        allow_fallback: true,
+      },
+      budget_profiles: {
+        default: {
+          context_tokens_target: 240000,
+          context_tokens_hard_limit: 320000,
+          reasoning_budget: "medium",
+          max_tool_calls: 30,
+          wall_clock_ms: 120000,
+        },
+      },
+      evaluator: {
+        enabled: true,
+        async: true,
+        metrics: ["task_success", "cost"],
+      },
+    }
+
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+    expect(result.success).toBe(true)
+  })
+
+  test("rejects model_policy.primary other than openai/gpt-5.3-codex", () => {
+    const config = {
+      model_policy: {
+        primary: "google/gemini-2.5-pro",
+        provider_priority: ["openai", "google"],
+        allow_fallback: true,
+      },
+    }
+
+    const result = OhMyOpenCodeConfigSchema.safeParse(withVersion(config))
+    expect(result.success).toBe(false)
   })
 })

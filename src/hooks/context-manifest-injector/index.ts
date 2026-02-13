@@ -8,7 +8,7 @@ import {
   getContextManifestPath,
 } from "../../features/context-manifests"
 import { log } from "../../shared/logger"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 export const HOOK_NAME = "context-manifest-injector"
 

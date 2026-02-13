@@ -1,0 +1,51 @@
+import type { HookName } from "../../config"
+
+export type HookDisposition =
+  | "migrate_clause"
+  | "observe_only"
+  | "retain"
+
+export const HOOK_POLICY_MIGRATION_MATRIX: Record<HookName, HookDisposition> = {
+  "task-auto-continuation": "observe_only",
+  "unstable-agent-watchdog": "observe_only",
+  "session-state-repair": "observe_only",
+  "session-notification": "retain",
+  "comment-checker": "retain",
+  "directory-agents-injector": "retain",
+  "directory-readme-injector": "retain",
+  "empty-task-response-detector": "retain",
+  "rules-injector": "retain",
+  "background-notification": "retain",
+  "auto-update-checker": "retain",
+  "startup-toast": "retain",
+  "keyword-detector": "retain",
+  "delegation-nudge-agent-usage": "retain",
+  "non-interactive-env": "observe_only",
+  "interactive-bash-session": "observe_only",
+  "thinking-block-validator": "retain",
+  "ralph-loop": "observe_only",
+  "claude-code-hooks": "observe_only",
+  "auto-slash-command": "observe_only",
+  "edit-failure-guidance": "retain",
+  "delegation-failure-guidance": "retain",
+  "start-work": "observe_only",
+  "swarm-from-plan": "observe_only",
+  "work-orchestrator": "observe_only",
+  "silent-tool-output": "retain",
+  "context-manifest-injector": "retain",
+  "repo-overview-injector": "retain",
+  "runtime-tracker": "observe_only",
+  "anti-slop-enforcer": "retain",
+  "pre-completion-verification": "retain",
+  "sisyphus-contextual-injector": "retain",
+  "delegation-validate-decision": "observe_only",
+  "conditional-rules": "observe_only",
+  "session-handoff": "observe_only",
+  "question-label-truncator": "retain",
+  "delegation-nudge-category-skill": "retain",
+  "sisyphus-junior-notepad": "retain",
+  "tmux-parallel-agents": "observe_only",
+  "swarm-agent": "observe_only",
+  "anthropic-effort": "observe_only",
+  "cache-policy": "observe_only",
+}

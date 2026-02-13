@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 const { createTaskResumeInfoHook } = await import("./index")
 

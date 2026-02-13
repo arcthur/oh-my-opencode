@@ -28,7 +28,6 @@ export const RECOVERY_MECHANISM_CATEGORY_BY_HOOK: Record<
 export type DelegationProgressStage = "block" | "validate" | "nudge"
 
 export type DelegationProgressHook =
-  | "delegation-block-subagent-question"
   | "delegation-validate-decision"
   | "delegation-nudge-agent-usage"
   | "delegation-nudge-category-skill"
@@ -37,7 +36,6 @@ export const DELEGATION_PROGRESS_STAGE_BY_HOOK: Record<
   DelegationProgressHook,
   DelegationProgressStage
 > = {
-  "delegation-block-subagent-question": "block",
   "delegation-validate-decision": "validate",
   "delegation-nudge-agent-usage": "nudge",
   "delegation-nudge-category-skill": "nudge",

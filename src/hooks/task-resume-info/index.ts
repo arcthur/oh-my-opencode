@@ -1,4 +1,4 @@
-import { appendBudgetedOutput } from "../../features/context-budget"
+import { appendBudgetedOutput } from "../../features/context-view"
 
 const TARGET_TOOLS = ["task", "Task", "task_tool", "delegate_task"]
 

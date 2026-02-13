@@ -28,7 +28,8 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 
 ### Meta / wiring
 
-- `config_version`: **Required**. Must equal current runtime version (`1` as of this release).
+- `config_version`: **Required**. Must equal current runtime version (`2` as of this release).
+- `architecture_version`: **Required**. Must be `2` for the hook-first policy runtime.
 - `$schema`: Optional JSON schema URL for editor autocomplete.
 - `auto_update`: Controls whether `auto-update-checker` performs automatic install or notification-only mode (see [Auto Update](#auto-update)).
 
@@ -61,11 +62,12 @@ The top-level configuration object (`OhMyOpenCodeConfigSchema`) supports these k
 
 ### Context / memory / governance
 
-- `context_budget`: Shared context injection token budget (see [Context Budget](#context-budget)).
-- `context_window_governor`: Token-limit warning/compaction/recovery policy (see [Context Window Governor](#context-window-governor)).
+- `contracts`: Policy clauses (TaskSpec-like executable constraints) for policy runtime.
+- `model_policy`: Primary model + provider fallback ordering for multi-model orchestration.
+- `budget_profiles`: Context/reasoning/tool-call/wall-clock budget profiles used by ContextView.
+- `evaluator`: Async evaluator controls for policy outcome scoring.
 - `cache_strategy`: Cache observability/provider policy/prefix stability/ledger/compiler controls (see [Cache Strategy](#cache-strategy)).
 - `session_state_repair`: Session error recovery behavior controls (see [Session State Repair](#session-state-repair)).
-- `tool_output_truncator`: Tool output truncation behavior controls (see [Tool Output Truncator](#tool-output-truncator)).
 - `silent_tool_output`: Tool output shaping config (requires `silent-tool-output` hook; see `docs/reference/hooks.md`).
 - `repo_overview`: Repository overview injection config (requires `repo-overview-injector` hook; see `docs/reference/hooks.md`).
 - `runtime_tracker`: Tool runtime tracking config (requires `runtime-tracker` hook; see `docs/reference/hooks.md`).
@@ -106,7 +108,8 @@ Schema autocomplete is typically added in `00-core.json`:
 
 ```json
 {
-  "config_version": 1,
+  "config_version": 2,
+  "architecture_version": 2,
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json"
 }
 ```
@@ -122,7 +125,8 @@ Each module file in `oh-my-opencode/` supports JSONC (JSON with Comments):
 
 ```jsonc
 {
-  "config_version": 1,
+  "config_version": 2,
+  "architecture_version": 2,
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
 
   /* Agent overrides - customize models for specific tasks */
@@ -191,14 +195,12 @@ For the built-in tool name surface shipped by this repo, see `docs/reference/too
   - `provider_policy.rollout.stage` controls how many providers in that fixed order are eligible for enforce.
   - `provider_policy.rollout.require_thresholds=true` requires per-provider threshold gates (`providers.<id>.threshold` + `observed`) before enforce.
   - Fast rollback: set `provider_policy.providers.<id>.mode` to `observe` (provider-level one-click fallback).
-- `prefix_stability`: destructive recovery budget and hard-limit bypass guardrail.
 - `ledger`: append-only context ledger side writes.
 - `compiler`: ledger-first prefix compilation for context injection.
 
 Execution/wiring contract:
 
 - `provider_policy` is applied by the `cache-policy` hook (`chat.params` surface). If `cache-policy` is disabled, provider policy config is inert.
-- `prefix_stability` is consumed by `context-window-governor` recovery arbitration. If `context-window-governor` is disabled, prefix stability config is inert.
 - `ledger` and `compiler` are integrated through context collection/injection paths and are designed to be rollout-safe (`enabled=false` by default).
 
 ### Cache Strategy Defaults
@@ -212,11 +214,6 @@ Execution/wiring contract:
 | `provider_policy.rollout.enabled` | `false` | Staged enforce rollout disabled by default |
 | `provider_policy.rollout.stage` | `0` | Stage gate: `0=none`, `1=openai` ... `6=moonshot` |
 | `provider_policy.rollout.require_thresholds` | `true` | Require per-provider threshold gate when rollout is enabled |
-| `prefix_stability.mode` | `off` | No destructive-recovery budget guard by default |
-| `prefix_stability.max_destructive_recoveries` | `2` | Max destructive recoveries per sliding window |
-| `prefix_stability.window_ms` | `600000` | Sliding window length for destructive recovery budget |
-| `prefix_stability.cooldown_ms` | `120000` | Cooldown applied when destructive budget is exhausted |
-| `prefix_stability.hard_limit_bypass_ratio` | `1` | Bypass guard when `current/max >= ratio` |
 | `ledger.enabled` | `false` | Append-only context ledger side writes disabled by default |
 | `compiler.enabled` | `false` | Ledger-first prefix compiler read path disabled by default |
 | `compiler.max_prefix_segments` | `64` | Max immutable ledger segments in compiled prefix |
@@ -256,13 +253,6 @@ Enforce mode proceeds only when all applicable checks pass:
 
 If any check fails, enforce is downgraded to observe with reason logging.
 
-### Prefix Stability Modes
-
-- `off`: no destructive-recovery budget guard.
-- `balanced`: blocks destructive recovery after budget exhaustion, then allows recovery again after cooldown.
-- `strict`: blocks destructive recovery after budget exhaustion for the remainder of the budget window.
-- `hard_limit_bypass_ratio` applies to both balanced/strict and allows destructive recovery when hard limit pressure is high enough.
-
 ### Minimal Rollout Example
 
 ```jsonc
@@ -298,13 +288,6 @@ If any check fails, enforce is downgraded to observe with reason logging.
           }
         }
       }
-    },
-    "prefix_stability": {
-      "mode": "balanced",
-      "max_destructive_recoveries": 2,
-      "window_ms": 600000,
-      "cooldown_ms": 120000,
-      "hard_limit_bypass_ratio": 1
     },
     "ledger": { "enabled": true },
     "compiler": { "enabled": true }
@@ -942,43 +925,55 @@ You can always override automatic selection in `.opencode/oh-my-opencode/*.json`
 }
 ```
 
-## Context Budget
+## Hook-First Policy and Budgeting
 
-All model-visible context injection/append hooks share a unified token budget governed by a single `ContextBudgetArbiter` singleton (`src/features/context-budget/`). This prevents any one hook from starving others.
+The latest architecture is hook-first policy + ContextView budgeting.
 
-```json
+```jsonc
 {
-  "context_budget": {
-    "total_budget": 2000,
-    "reserved_budget": 400,
-    "overflow_strategy": "drop-low-priority",
-    "source_limits": {
-      "codemap-injector": 600,
-      "rules-injector": 500
-    },
-    "channel_limits": {
-      "tool-output": 1200,
-      "synthetic-message": 400
+  "architecture_version": 2,
+  "model_policy": {
+    "primary": "openai/gpt-5.3-codex",
+    "provider_priority": ["openai", "google", "anthropic"],
+    "allow_fallback": true
+  },
+  "budget_profiles": {
+    "default": {
+      "context_tokens_target": 240000,
+      "context_tokens_hard_limit": 320000,
+      "reasoning_budget": "medium",
+      "max_tool_calls": 30,
+      "wall_clock_ms": 120000
     }
+  },
+  "contracts": {
+    "clauses": []
+  },
+  "evaluator": {
+    "enabled": true,
+    "async": true,
+    "metrics": ["task_success", "groundedness", "cost", "latency"]
   }
 }
 ```
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `total_budget` | `2000` | Total tokens per turn across all injection sources |
-| `reserved_budget` | `400` | Tokens reserved for `critical`/`high` priority injections. Normal/low priority sources can only use `total_budget - reserved_budget`. |
-| `overflow_strategy` | `"drop-low-priority"` | `"drop-low-priority"` drops normal/low entries that exceed budget; `"truncate"` truncates content to fit |
-| `source_limits` | — | Per-source token caps (e.g., `"codemap-injector": 600`) |
-| `channel_limits` | — | Per-channel token caps. Channels: `messages-transform`, `tool-output`, `chat-message`, `delegate-prompt`, `synthetic-message`, `session-prompt` |
+Contract notes:
 
-**Injection channels** route through the arbiter via three paths:
+- `architecture_version` is a strict gate for the latest runtime surface (`2` only).
+- `contracts` define policy clauses with `hard|soft|audit` enforcement.
+  - Guard-shape dependent clauses (`payload.guards.*`) are versioned; runtime currently requires `payload.guardsVersion: 1`.
+- `model_policy` keeps multi-model orchestration explicit and auditable.
+- `budget_profiles` drive ContextView packing (context, reasoning, tool-call, and wall-clock budgets).
+- `evaluator` is async by default and MUST NOT block hot-path execution.
+- Policy outcomes are audited in governance ledger. Runtime may emit `outcome="superseded"` when governance blocks after a policy outcome was already marked as applied.
 
-1. **`ContextCollector.register()`** → `arbiter.decide()` — used by `work-orchestrator(planning)`, `claude-code-hooks`
-2. **`appendBudgetedOutput()` / `pushBudgetedContext()` / `injectBudgetedPrompt()`** — used by tool-output guidance/instruction hooks, compaction-context writers, and delegate-prompt injectors such as `anti-slop-enforcer`, `comment-checker`, `runtime-tracker`, `edit/delegation failure guidance`, `context-window-governor`, `task-resume-info`, `work-orchestrator(execution)`, `prometheus-md-only`, `sisyphus-junior-notepad`, `claude-code-hooks(PreCompact)`
-3. **Direct `arbiter.decide()`** — used by hooks with custom composition flows such as `rules-injector`, `directory-agents/readme`, `repo-overview`, `codemap-injector`, `keyword-detector`, `context-manifest-injector`, `conditional-rules`, `hook-message-injector`, `delegation-nudge-category-skill`
+Budget enforcement details:
 
-Budget counters reset at the start of each user turn via `beginTurn()`.
+- `context_tokens_target` and `context_tokens_hard_limit` are both used by ContextView packing.
+  - target drives normal packing pressure.
+  - hard limit drives reserved headroom and context-pressure checks.
+- `max_tool_calls` and `wall_clock_ms` are enforced on `tool.execute.before` via execution-budget guards.
+- `reasoning_budget` is applied on `chat.params` into model option hints (`reasoningEffort` / `reasoning.effort` style fields).
 
 ## Hooks
 
@@ -1000,7 +995,12 @@ Hook names MUST come from `HookNameSchema` in `src/config/schema.ts`. For full h
 
 **Note on `directory-agents-injector`**: This hook is **automatically disabled** when running on OpenCode 1.1.37+ because OpenCode now has native support for dynamically resolving AGENTS.md files from subdirectories (PR #10678). This prevents duplicate AGENTS.md injection. For older OpenCode versions, the hook remains active to provide the same functionality.
 
-**Note on `context-window-governor`**: This hook is wired in `src/index.ts` under the `experimental.session.compacting` lifecycle surface. When OpenCode emits that event during compaction, the plugin can run Claude Code compat `PreCompact` hooks and/or inject extra compaction-time context via `context-window-governor` (best-effort; depends on runtime support and hook enablement).
+**Note on `experimental.session.compacting`**: Compaction path is now policy-wrapped:
+1. `internal:policy-observe:experimental.session.compacting` (fail-open)
+2. `bridge:claude-code-hooks:experimental.session.compacting` (`PreCompact`, when enabled)
+3. `internal:policy-enforce:experimental.session.compacting` (hard deny / modify context)
+
+This surface still depends on the OpenCode runtime emitting `experimental.session.compacting`.
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
 
@@ -1076,114 +1076,6 @@ Example:
 }
 ```
 
-## Context Window Governor
-
-`context-window-governor` is the single source of truth for context window warnings, preemptive compaction, hard-limit recovery, and compaction-time context injection (best-effort via `experimental.session.compacting`).
-
-Recovery chain (current implementation):
-
-1. Optional dynamic pruning (`dynamic_pruning`) to remove duplicate/stale historical tool outputs.
-2. Optional aggressive output truncation (`recovery.aggressive_output_truncation`) to trim large tool outputs toward a target ratio.
-3. Fallback summarize (`session.summarize(auto=true)`) with bounded retries/backoff.
-
-Configure it via the top-level `context_window_governor` block:
-
-```jsonc
-{
-  "context_window_governor": {
-    "warning_ratio": 0.7,
-    "preemptive_ratio": 0.78,
-    "limit_ratio": 1.0,
-    "warning_reset_ratio": 0.65,
-    "preemptive_reset_ratio": 0.73,
-    "recovery": {
-      "max_attempts": 2,
-      "initial_delay_ms": 2000,
-      "max_delay_ms": 30000,
-      "toast_cooldown_ms": 30000,
-      "aggressive_output_truncation": {
-        "enabled": true,
-        "target_ratio": 0.8,
-        "chars_per_token": 4,
-        "max_outputs": 20,
-        "min_output_chars": 500,
-        "keep_recent_turns": 2,
-        "protected_tools": [
-          "task",
-          "task_update",
-          "task_get",
-          "lsp_rename",
-          "session_read",
-          "session_write",
-          "session_search"
-        ]
-      }
-    },
-    "dynamic_pruning": {
-      "enabled": true,
-      "notification": "minimal",
-      "recovery_target_ratio": 0.9,
-      "chars_per_token": 4,
-      "skip_summarize_if_recovered": true,
-      "turn_protection": {
-        "enabled": true,
-        "turns": 3
-      },
-      "protected_tools": [
-        "task",
-        "task_update",
-        "task_get",
-        "lsp_rename",
-        "session_read",
-        "session_write",
-        "session_search"
-      ],
-      "strategies": {
-        "deduplication": { "enabled": true },
-        "stale_tool_outputs": {
-          "enabled": true,
-          "keep_recent_turns": 6,
-          "min_output_chars": 1200,
-          "max_outputs": 6
-        }
-      }
-    }
-  }
-}
-```
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `warning_ratio` | `0.7` | Emit a warning reminder when usage crosses this ratio (edge-triggered) |
-| `preemptive_ratio` | `0.78` | Trigger preemptive `session.summarize(auto=true)` when usage crosses this ratio (edge-triggered) |
-| `limit_ratio` | `1.0` | Trigger recovery compaction when usage reaches this ratio or token-limit errors are observed |
-| `warning_reset_ratio` | `0.65` | Re-arm warning once usage falls below this ratio |
-| `preemptive_reset_ratio` | `0.73` | Re-arm preemptive compaction once usage falls below this ratio |
-| `recovery.max_attempts` | `2` | Maximum recovery attempts before the governor enters `failed` until reset thresholds re-arm |
-| `recovery.initial_delay_ms` | `2000` | Initial retry backoff after a failed recovery attempt |
-| `recovery.max_delay_ms` | `30000` | Maximum retry backoff for recovery attempts |
-| `recovery.toast_cooldown_ms` | `30000` | Minimum time between recovery toasts for the same session |
-| `recovery.aggressive_output_truncation.enabled` | `true` | Enables aggressive output truncation before summarize fallback |
-| `recovery.aggressive_output_truncation.target_ratio` | `0.8` | Recovery target usage ratio for aggressive truncation |
-| `recovery.aggressive_output_truncation.chars_per_token` | `4` | Estimator used to convert chars removed to token savings |
-| `recovery.aggressive_output_truncation.max_outputs` | `20` | Max number of tool outputs to truncate per recovery attempt |
-| `recovery.aggressive_output_truncation.min_output_chars` | `500` | Ignore tool outputs smaller than this threshold |
-| `recovery.aggressive_output_truncation.keep_recent_turns` | `2` | Protect most recent turns from aggressive truncation |
-| `recovery.aggressive_output_truncation.protected_tools` | task/LSP/session tools | Tool allowlist that must not be truncated |
-| `dynamic_pruning.enabled` | `false` | Enables dynamic context pruning in recovery path |
-| `dynamic_pruning.notification` | `minimal` | Toast verbosity: `off` / `minimal` / `detailed` |
-| `dynamic_pruning.recovery_target_ratio` | `0.9` | If projected usage drops below this ratio, summarize can be skipped |
-| `dynamic_pruning.chars_per_token` | `4` | Estimator used for projected token savings |
-| `dynamic_pruning.skip_summarize_if_recovered` | `true` | Skip summarize when pruning projection reaches target |
-| `dynamic_pruning.turn_protection.enabled` | `true` | Enable recent-turn protection for pruning |
-| `dynamic_pruning.turn_protection.turns` | `3` | Number of latest turns to protect |
-| `dynamic_pruning.protected_tools` | task/LSP/session tools | Tool allowlist that must not be pruned |
-| `dynamic_pruning.strategies.deduplication.enabled` | `true` | Enables duplicate-tool-output pruning |
-| `dynamic_pruning.strategies.stale_tool_outputs.enabled` | `true` | Enables stale large-output pruning |
-| `dynamic_pruning.strategies.stale_tool_outputs.keep_recent_turns` | `6` | Additional recent-turn protection for stale pruning |
-| `dynamic_pruning.strategies.stale_tool_outputs.min_output_chars` | `1200` | Minimum output size to consider stale-pruning |
-| `dynamic_pruning.strategies.stale_tool_outputs.max_outputs` | `6` | Maximum stale outputs pruned per recovery pass |
-
 ## MCPs
 
 Exa, Context7 and grep.app MCP enabled by default.
@@ -1243,22 +1135,6 @@ Each server supports: `command`, `extensions`, `priority`, `env`, `initializatio
 
 Note:
 - `assistant_prefill_unsupported` recovery sends a best-effort `continue` for the main session (independent of `auto_resume`).
-
-## Tool Output Truncator
-
-`tool_output_truncator` configures `tool-output-truncator` behavior.
-
-```jsonc
-{
-  "tool_output_truncator": {
-    "truncate_all_tool_outputs": true
-  }
-}
-```
-
-| Option | Default | Description |
-| ------ | ------- | ----------- |
-| `truncate_all_tool_outputs` | `false` | Truncates all tool outputs instead of only the built-in high-risk tool allowlist. |
 
 ## Session Handoff
 

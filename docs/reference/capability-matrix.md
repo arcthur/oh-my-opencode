@@ -22,8 +22,8 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 | Context and memory | `docs/journeys/context-and-memory.md` | `docs/reference/user-memory.md`, `docs/reference/org-memory.md`, `docs/reference/artifacts-and-paths.md`, `docs/reference/hooks.md` | `src/features/context-injector/`, `src/features/user-memory/`, `src/features/org-memory/` |
 | Delegation safety | `docs/journeys/delegation-safety.md` | `docs/reference/hooks.md`, `docs/reference/agents.md`, `docs/reference/configuration.md` | `src/hooks/delegation-validate-decision/`, `src/delegation/` |
 | Engineering discipline | `docs/journeys/engineering-discipline.md` | `docs/reference/hooks.md`, `docs/reference/skills.md` | `src/hooks/anti-slop-enforcer.ts`, `src/hooks/pre-completion-verification.ts`, `src/features/builtin-skills/` |
-| Output shaping (truncate/silent) | `docs/journeys/operations-and-debugging.md` | `docs/reference/hooks.md` | `src/hooks/tool-output-truncator.ts`, `src/hooks/silent-tool-output/` |
-| Token limit recovery | `docs/journeys/operations-and-debugging.md` | `docs/reference/hooks.md` | `src/hooks/context-window-governor/`, `src/hooks/session-state-repair/` |
+| Output shaping (budgeted/silent) | `docs/journeys/operations-and-debugging.md` | `docs/reference/hooks.md` | `src/features/context-view/`, `src/hooks/silent-tool-output/` |
+| Token limit recovery | `docs/journeys/operations-and-debugging.md` | `docs/reference/hooks.md` | `src/features/context-view/`, `src/features/policy-runtime/`, `src/hooks/session-state-repair/` |
 | Governance | `docs/journeys/governance.md` | `docs/reference/governance.md`, `docs/reference/configuration.md`, `docs/reference/artifacts-and-paths.md` | `src/features/governance/` |
 | Browser automation | `docs/journeys/browser-automation.md` | `docs/reference/skills.md`, `docs/reference/mcps.md` | `src/features/builtin-skills/skills/playwright.ts`, `src/tools/skill-mcp/` |
 | Extending the plugin | `docs/journeys/extensibility.md` | `docs/reference/hooks.md`, `docs/reference/tools.md`, `docs/reference/skills.md`, `docs/reference/mcps.md` | `src/index.ts`, `src/hooks/`, `src/tools/`, `src/features/` |
@@ -31,4 +31,4 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 
 ## Known Limitations (Wiring)
 
-- Compaction-time injection is wired via `experimental.session.compacting` (Claude Code `PreCompact` + `context-window-governor`), but it depends on the OpenCode runtime emitting that experimental surface.
+- Compaction-time injection is wired via `experimental.session.compacting` with policy observe/enforce wrapping the Claude Code `PreCompact` bridge, and still depends on the OpenCode runtime emitting that experimental surface.

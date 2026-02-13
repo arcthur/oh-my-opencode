@@ -6,7 +6,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { createRepoOverviewInjectorHook } from "./index"
 import { DEFAULT_CONFIG } from "./types"
 import * as generator from "./generator"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 function createTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "omo-repo-overview-"))

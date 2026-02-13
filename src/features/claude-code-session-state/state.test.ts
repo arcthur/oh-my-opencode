@@ -96,7 +96,7 @@ describe("claude-code-session-state", () => {
     // (uninitialized variable returns undefined) + parallel test state pollution
   })
 
-  describe("prometheus-md-only integration scenario", () => {
+  describe("prometheus policy integration scenario", () => {
     test("should correctly identify Prometheus agent for permission checks", () => {
       // given - Prometheus session
       const sessionID = "test-prometheus-session"
@@ -105,7 +105,7 @@ describe("claude-code-session-state", () => {
       // when - agent is set (simulating chat.message hook)
       setSessionAgent(sessionID, prometheusAgent)
 
-      // then - getSessionAgent returns correct agent for prometheus-md-only hook
+      // then - getSessionAgent returns correct agent for policy runtime guard checks
       const agent = getSessionAgent(sessionID)
       expect(agent).toBe("prometheus")
       expect(["prometheus"].includes(agent!)).toBe(true)

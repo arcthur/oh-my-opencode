@@ -1,6 +1,11 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { Message, Part } from "@opencode-ai/sdk"
 import type { GovernanceConfig, OhMyOpenCodeConfig } from "../../../config"
+import type { HookPoint, PolicyDecision, PolicyEventInput } from "../../../contracts"
+import type {
+  ExecutionBudgetLimits,
+  SessionExecutionBudgetManager,
+} from "../../../features/policy-runtime/execution-budget"
 import type { EventInput, MessageInput, ToolExecuteInput } from "../../../shared/hook-types"
 
 export type MaybePromiseVoid = Promise<void> | void
@@ -140,17 +145,6 @@ export interface RuntimeAssemblyContext {
     cleanupTempDirectoryClients: () => Promise<void>
   }
 
-  thinkMode?: {
-    ["chat.params"]?: (
-      output: {
-        parts: Array<{ type: string; text?: string }>
-        message: { model?: { providerID: string; modelID: string } }
-      },
-      sessionID: string
-    ) => MaybePromiseVoid
-    event?: EventHandler
-  }
-
   keywordDetector?: {
     ["chat.message"]?: ChatMessageHandler
   }
@@ -265,12 +259,6 @@ export interface RuntimeAssemblyContext {
     event?: EventHandler
   }
 
-  contextWindowGovernor?: {
-    ["tool.execute.after"]?: ToolExecuteAfterHandler
-    ["experimental.session.compacting"]?: ExperimentalSessionCompactingHandler
-    event?: EventHandler
-  }
-
   directoryAgentsInjector?: {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     ["tool.execute.after"]?: ToolExecuteAfterHandler
@@ -343,14 +331,6 @@ export interface RuntimeAssemblyContext {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
   }
 
-  delegationBlockSubagentQuestion?: {
-    ["tool.execute.before"]?: ToolExecuteBeforeHandler
-  }
-
-  writeExistingFileGuard?: {
-    ["tool.execute.before"]?: ToolExecuteBeforeHandler
-  }
-
   nonInteractiveEnv?: {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
   }
@@ -358,10 +338,6 @@ export interface RuntimeAssemblyContext {
   commentChecker?: {
     ["tool.execute.before"]?: ToolExecuteBeforeHandler
     ["tool.execute.after"]?: ToolExecuteAfterHandler
-  }
-
-  prometheusMdOnly?: {
-    ["tool.execute.before"]?: ToolExecuteBeforeHandler
   }
 
   delegationValidateDecision?: {
@@ -385,10 +361,6 @@ export interface RuntimeAssemblyContext {
     ["tool.execute.after"]?: ToolExecuteAfterHandler
   }
 
-  toolOutputTruncator?: {
-    ["tool.execute.after"]?: ToolExecuteAfterHandler
-  }
-
   emptyTaskResponseDetector?: {
     ["tool.execute.after"]?: ToolExecuteAfterHandler
   }
@@ -404,4 +376,18 @@ export interface RuntimeAssemblyContext {
   taskResumeInfo?: {
     ["tool.execute.after"]?: ToolExecuteAfterHandler
   }
+
+  policyRuntime?: {
+    observe?: (event: PolicyEventInput) => Promise<void>
+    enforce?: (event: PolicyEventInput) => Promise<PolicyDecision[]>
+    recordSuperseded?: (params: {
+      sessionID: string
+      hookPoint: HookPoint
+      decisions: PolicyDecision[]
+      reason: string
+    }) => void
+  }
+
+  executionBudgetManager?: SessionExecutionBudgetManager
+  executionBudgetLimits?: ExecutionBudgetLimits
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
-import { contextBudgetArbiter } from "../context-budget"
+import { contextBudgetArbiter } from "../context-view"
 
 const injectHookMessage = mock(() => true)
 

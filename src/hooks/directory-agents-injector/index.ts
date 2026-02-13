@@ -8,7 +8,7 @@ import {
 } from "./storage";
 import { AGENTS_FILENAME } from "./constants";
 import { createDynamicTruncator } from "../../shared/dynamic-truncator";
-import { contextBudgetArbiter } from "../../features/context-budget";
+import { contextBudgetArbiter } from "../../features/context-view";
 
 interface ToolExecuteInput {
   tool: string;

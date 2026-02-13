@@ -12,7 +12,6 @@ Hook collection intercepting/modifying agent behavior across multiple lifecycle 
 hooks/
 ├── work-orchestrator/          # Unified planning + continuation + execution control plane
 ├── start-work/                 # Session initialization (uses work-state)
-├── context-window-governor/    # Unified context window governance (warn/preemptive/recovery/inject)
 ├── task-auto-continuation.ts   # Force task completion
 ├── ralph-loop/                 # Self-referential dev loop until done
 ├── claude-code-hooks/          # settings.json hook compat layer (13 files)
@@ -25,19 +24,15 @@ hooks/
 ├── delegation-failure-guidance/ # Retries failed delegations
 ├── thinking-block-validator/   # Ensures valid <thinking> format
 ├── session-state-repair/        # Auto-recovers from crashes
-├── think-mode/                 # Dynamic thinking budget
 ├── keyword-detector/           # ultrawork/search/analyze modes
 ├── question-label-truncator/   # Truncates question option labels
-├── delegation-block-subagent-question/ # Blocks question tool for subagent sessions
-├── write-existing-file-guard/  # Blocks write tool for existing files
-├── prometheus-md-only/         # Planner read-only mode
+├── policy-runtime (internal)   # Contract-based guard/modify/deny pipeline
 ├── sisyphus-junior-notepad/    # Injects notepad context for Junior tasks
 ├── delegation-nudge-agent-usage/ # Nudges to use specialized agents/tools
 ├── delegation-nudge-category-skill/ # Reminds orchestrators of category+skills
 ├── non-interactive-env/        # Non-TTY environment handling
 ├── interactive-bash-session/   # Interactive bash session management
-├── background-notification/    # OS notification on task completion
-└── tool-output-truncator.ts    # Prevents context bloat
+└── background-notification/    # OS notification on task completion
 ```
 
 This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set of hooks in this fork.
@@ -56,9 +51,9 @@ This list is intentionally **non-exhaustive**. See `src/hooks/` for the full set
 
 **chat.message** (high-level): keywordDetector → claudeCodeHooks → sessionHandoffHook → autoSlashCommand → startWork → swarmFromPlan → workOrchestrator → preCompletionVerification → (ralphLoop start/cancel)
 
-**tool.execute.before** (high-level): questionLabelTruncator → delegationBlockSubagentQuestion → writeExistingFileGuard → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → prometheusMdOnly → workOrchestrator → delegationValidateDecision → sisyphusJuniorNotepad → tmuxParallelAgents → swarmAgent → silentToolOutput
+**tool.execute.before** (high-level): questionLabelTruncator → policy-enforce(pre-tool) → user/org memory → claudeCodeHooks → nonInteractiveEnv → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → workOrchestrator → delegationValidateDecision → sisyphusJuniorNotepad → tmuxParallelAgents → swarmAgent → silentToolOutput
 
-**tool.execute.after** (high-level): workOrchestrator → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → toolOutputTruncator → user/org memory → contextWindowGovernor → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → delegationNudgeAgentUsage → delegationNudgeCategorySkill → interactiveBashSession → editFailureGuidance → delegationFailureGuidance → taskResumeInfo → sessionHandoffHook → swarmAgent
+**tool.execute.after** (high-level): workOrchestrator → policy-enforce(post-tool) → claudeCodeHooks → antiSlopEnforcer → silentToolOutput → user/org memory → commentChecker → directoryAgentsInjector → directoryReadmeInjector → rulesInjector → emptyTaskResponseDetector → delegationNudgeAgentUsage → delegationNudgeCategorySkill → interactiveBashSession → editFailureGuidance → delegationFailureGuidance → taskResumeInfo → sessionHandoffHook → swarmAgent
 
 Notes:
 - Conditional rules and governance add additional per-tool logic in runtime assembly builders and lifecycle wrappers (see `src/hooks/runtime/assembly/` and `src/index.ts`).

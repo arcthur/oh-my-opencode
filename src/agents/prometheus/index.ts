@@ -13,7 +13,7 @@
  * - Generates plan + context manifest in .sisyphus/
  * - High accuracy = stricter Momus iterative review
  *
- * Can write .md files only (enforced by prometheus-md-only hook).
+ * Can write .md files only (enforced by policy-runtime clauses).
  */
 
 import { PROMETHEUS_IDENTITY_CONSTRAINTS } from "./identity-constraints"
@@ -87,7 +87,7 @@ export const PROMETHEUS_RUNTIME_PROMPT = buildDynamicPrometheusPrompt({ phase: "
 
 /**
  * Prometheus planner permission configuration.
- * Allows write/edit for plan files (.md only, enforced by prometheus-md-only hook).
+ * Allows write/edit for plan files (.md only, enforced by policy-runtime clauses).
  * Question permission allows agent to ask user questions via OpenCode's QuestionTool.
  */
 export const PROMETHEUS_PERMISSION = {

@@ -166,6 +166,21 @@ describe("GovernanceLedgerWriter", () => {
 
       expect(entry.type).toBe("environment-drift")
     })
+
+    it("logs policy outcome superseded", () => {
+      const entry = ledger.logPolicyOutcome({
+        decisionId: "dec-1",
+        clauseId: "clause-1",
+        outcome: "superseded",
+        sessionId: "test-session",
+        hookPoint: "tool.execute.before",
+        toolName: "Write",
+        message: "Governance blocked after policy allowed",
+      })
+
+      expect(entry.type).toBe("policy-outcome")
+      expect(entry.outcome).toBe("superseded")
+    })
   })
 
   describe("verifyIntegrity", () => {

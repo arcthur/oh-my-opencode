@@ -188,7 +188,6 @@ You can control related features in `oh-my-opencode/*.json`.
   // Hook settings (add to disable)
   "disabled_hooks": [
     // "start-work",             // Disable execution trigger
-    // "prometheus-md-only"      // Remove Prometheus write restrictions (not recommended)
     // "context-manifest-injector" // Disable Context Packs auto-injection
     // "swarm-from-plan"         // Disable Swarm-first bootstrap from /start-work
   ]

@@ -15,15 +15,12 @@ export {
   type ContinuationRejectReason,
   type ContinuationSource,
 } from "./work-orchestrator";
-export { createContextWindowGovernorHook, getCompactionContextPrompt } from "./context-window-governor";
 export { createSessionNotification } from "./session-notification";
 export { createSessionStateRepairHook, type SessionStateRepairHook, type SessionStateRepairOptions } from "./session-state-repair";
 export { createCommentCheckerHooks } from "./comment-checker";
-export { createToolOutputTruncatorHook } from "./tool-output-truncator";
 export { createDirectoryAgentsInjectorHook } from "./directory-agents-injector";
 export { createDirectoryReadmeInjectorHook } from "./directory-readme-injector";
 export { createEmptyTaskResponseDetectorHook } from "./empty-task-response-detector";
-export { createThinkModeHook } from "./think-mode";
 export { createClaudeCodeHooksHook } from "./claude-code-hooks";
 export { createRulesInjectorHook } from "./rules-injector";
 export { createBackgroundNotificationHook } from "./background-notification"
@@ -38,13 +35,10 @@ export { createThinkingBlockValidatorHook } from "./thinking-block-validator";
 export { createRalphLoopHook, type RalphLoopHook } from "./ralph-loop";
 export { createAutoSlashCommandHook } from "./auto-slash-command";
 export { createEditFailureGuidanceHook } from "./edit-failure-guidance";
-export { createPrometheusMdOnlyHook } from "./prometheus-md-only";
 export { createTaskResumeInfoHook } from "./task-resume-info";
 export { createStartWorkHook } from "./start-work";
 export { createDelegationFailureGuidanceHook } from "./delegation-failure-guidance";
 export { createQuestionLabelTruncatorHook } from "./question-label-truncator";
-export { createDelegationBlockSubagentQuestionHook } from "./delegation-block-subagent-question";
-export { createWriteExistingFileGuardHook } from "./write-existing-file-guard";
 export { createSilentToolOutputHook } from "./silent-tool-output";
 export { createContextManifestInjectorHook } from "./context-manifest-injector";
 export { createSwarmFromPlanHook } from "./swarm-from-plan";

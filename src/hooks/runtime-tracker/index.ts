@@ -1,7 +1,7 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { RuntimeTrackerConfig, RuntimeStats, ToolRuntime } from "./types"
 import { DEFAULT_CONFIG } from "./types"
-import { appendBudgetedOutput } from "../../features/context-budget"
+import { appendBudgetedOutput } from "../../features/context-view"
 import { log } from "../../shared/logger"
 
 interface ToolExecuteInput {

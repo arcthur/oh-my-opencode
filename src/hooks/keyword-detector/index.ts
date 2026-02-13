@@ -5,7 +5,7 @@ import { log } from "../../shared"
 import { isSystemDirective, removeSystemReminders } from "../../shared/system-directive"
 import { getMainSessionID, getSessionAgent, isSubagentSession } from "../../features/claude-code-session-state"
 import type { ContextCollector } from "../../features/context-injector"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 export * from "./detector"
 export * from "./constants"

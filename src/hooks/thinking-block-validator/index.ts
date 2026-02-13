@@ -30,7 +30,7 @@ type MessagesTransformHook = {
 
 /**
  * Check if a model has extended thinking enabled
- * Uses patterns from think-mode/switcher.ts for consistency
+ * Uses shared model-family heuristics for consistency.
  */
 function isExtendedThinkingModel(modelID: string): boolean {
   if (!modelID) return false
@@ -42,7 +42,7 @@ function isExtendedThinkingModel(modelID: string): boolean {
   }
 
   // Check for thinking-capable models (claude-4 family, claude-3)
-  // Aligns with THINKING_CAPABLE_MODELS in think-mode/switcher.ts
+  // Keep this list synchronized with Anthropic thinking-capable model families.
   return (
     lower.includes("claude-sonnet-4") ||
     lower.includes("claude-opus-4") ||

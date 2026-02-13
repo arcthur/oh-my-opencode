@@ -85,12 +85,12 @@ A session summarization step that reduces context window usage.
 
 Contract (current wiring):
 
-- `context-window-governor` is assembled in `src/hooks/runtime/assembly/experimental-session-compacting.ts` and dispatched from `src/index.ts` on `experimental.session.compacting` (runs only if the OpenCode runtime emits this surface during compaction).
+- Policy observe/enforce nodes are assembled in `src/hooks/runtime/assembly/experimental-session-compacting.ts` and dispatched from `src/index.ts` on `experimental.session.compacting` (runs only if the OpenCode runtime emits this surface during compaction).
 - Claude Code `PreCompact` support exists under `src/hooks/claude-code-hooks/pre-compact.ts` and is invoked on the same `experimental.session.compacting` surface (best-effort; depends on runtime support).
 
 ## Preemptive Compaction
 
-A proactive summarize trigger before hitting a hard context limit. Implementation: `src/hooks/context-window-governor/index.ts`.
+A proactive context-pressure guard before hitting a hard context limit. Current implementation emits compaction guidance/metadata and uses policy-wrapped compaction surfaces (`src/features/context-view/` + `src/features/policy-runtime/`).
 
 ## Cartography / Codemap
 

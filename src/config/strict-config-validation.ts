@@ -23,6 +23,12 @@ function formatConfigVersionError(received: unknown): string {
   return `config_version must be ${CURRENT_CONFIG_VERSION} (received: ${displayedValue}). This build only supports the latest config format.`
 }
 
+function formatArchitectureVersionError(received: unknown): string {
+  const displayedValue =
+    received === undefined ? "undefined" : JSON.stringify(received)
+  return `architecture_version must be 2 (received: ${displayedValue}). This build only supports the hook-first policy runtime.`
+}
+
 export function validateStrictOhMyOpenCodeConfig(
   rawConfig: unknown,
 ): StrictConfigValidationResult {
@@ -40,6 +46,14 @@ export function validateStrictOhMyOpenCodeConfig(
       success: false,
       data: null,
       errors: [formatConfigVersionError(configObject.config_version)],
+    }
+  }
+
+  if (configObject.architecture_version !== 2) {
+    return {
+      success: false,
+      data: null,
+      errors: [formatArchitectureVersionError(configObject.architecture_version)],
     }
   }
 

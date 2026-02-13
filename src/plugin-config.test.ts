@@ -5,9 +5,12 @@ import { tmpdir } from "node:os";
 import { CURRENT_CONFIG_VERSION, type OhMyOpenCodeConfig } from "./config";
 import { loadConfigFromDirectory, loadPluginConfig, mergeConfigs } from "./plugin-config";
 
-function withVersion(config: Omit<OhMyOpenCodeConfig, "config_version">): OhMyOpenCodeConfig {
+function withVersion(
+  config: Omit<OhMyOpenCodeConfig, "config_version" | "architecture_version">
+): OhMyOpenCodeConfig {
   return {
     config_version: CURRENT_CONFIG_VERSION,
+    architecture_version: 2,
     ...config,
   };
 }
@@ -50,7 +53,15 @@ describe("config loading strictness", () => {
     mkdirSync(projectConfigDir, { recursive: true });
     writeFileSync(
       join(projectConfigDir, "oh-my-opencode.json"),
-      JSON.stringify({ config_version: CURRENT_CONFIG_VERSION, agents: { oracle: { model: "openai/gpt-5.2" } } }, null, 2),
+      JSON.stringify(
+        {
+          config_version: CURRENT_CONFIG_VERSION,
+          architecture_version: 2,
+          agents: { oracle: { model: "openai/gpt-5.2" } },
+        },
+        null,
+        2
+      ),
     );
 
     expect(() => loadPluginConfig(projectRoot, {})).toThrow("legacy single-file config");
@@ -64,7 +75,11 @@ describe("config loading strictness", () => {
     mkdirSync(userConfigDir, { recursive: true });
     writeFileSync(
       join(userConfigDir, "00-core.json"),
-      JSON.stringify({ config_version: CURRENT_CONFIG_VERSION }, null, 2),
+      JSON.stringify(
+        { config_version: CURRENT_CONFIG_VERSION, architecture_version: 2 },
+        null,
+        2
+      ),
     );
     writeFileSync(
       join(userConfigDir, "10-agents.json"),
@@ -86,7 +101,11 @@ describe("config loading strictness", () => {
     mkdirSync(projectConfigDir, { recursive: true });
     writeFileSync(
       join(projectConfigDir, "00-core.json"),
-      JSON.stringify({ config_version: CURRENT_CONFIG_VERSION }, null, 2),
+      JSON.stringify(
+        { config_version: CURRENT_CONFIG_VERSION, architecture_version: 2 },
+        null,
+        2
+      ),
     );
     writeFileSync(
       join(projectConfigDir, "20-overrides.json"),
@@ -210,17 +229,17 @@ describe("mergeConfigs", () => {
 
     it("should merge disabled arrays without duplicates", () => {
       const base: OhMyOpenCodeConfig = withVersion({
-        disabled_hooks: ["comment-checker", "think-mode"],
+        disabled_hooks: ["comment-checker", "keyword-detector"],
       });
 
       const override: OhMyOpenCodeConfig = withVersion({
-        disabled_hooks: ["think-mode", "session-state-repair"],
+        disabled_hooks: ["keyword-detector", "session-state-repair"],
       });
 
       const result = mergeConfigs(base, override);
 
       expect(result.disabled_hooks).toContain("comment-checker");
-      expect(result.disabled_hooks).toContain("think-mode");
+      expect(result.disabled_hooks).toContain("keyword-detector");
       expect(result.disabled_hooks).toContain("session-state-repair");
       expect(result.disabled_hooks?.length).toBe(3);
     });

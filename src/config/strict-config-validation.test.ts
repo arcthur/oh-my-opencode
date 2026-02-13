@@ -44,6 +44,7 @@ describe("validateStrictOhMyOpenCodeConfig", () => {
     // #given
     const rawConfig: Record<string, unknown> = {
       config_version: CURRENT_CONFIG_VERSION,
+      architecture_version: 2,
       agents: {
         oracle: {
           model: "openai/gpt-5.2",
@@ -62,6 +63,7 @@ describe("validateStrictOhMyOpenCodeConfig", () => {
     // #given
     const rawConfig: Record<string, unknown> = {
       config_version: CURRENT_CONFIG_VERSION,
+      architecture_version: 2,
       lsp: {
         "typescript-language-server": {
           command: ["typescript-language-server", "--stdio"],
@@ -76,5 +78,19 @@ describe("validateStrictOhMyOpenCodeConfig", () => {
     // #then
     expect(result.success).toBe(false)
     expect(result.errors.some((e) => e.includes('Unrecognized key: "lsp"'))).toBe(true)
+  })
+
+  test("fails when architecture_version is missing", () => {
+    // #given
+    const rawConfig: Record<string, unknown> = {
+      config_version: CURRENT_CONFIG_VERSION,
+    }
+
+    // #when
+    const result = validateStrictOhMyOpenCodeConfig(rawConfig)
+
+    // #then
+    expect(result.success).toBe(false)
+    expect(result.errors[0]).toContain("architecture_version")
   })
 })

@@ -1,7 +1,7 @@
 import type { PendingCall } from "./types"
 import { runCommentChecker, getCommentCheckerPath, startBackgroundInit, type HookInput } from "./cli"
 import type { CommentCheckerConfig } from "../../config/schema"
-import { appendBudgetedOutput } from "../../features/context-budget"
+import { appendBudgetedOutput } from "../../features/context-view"
 
 import * as fs from "fs"
 import { existsSync } from "fs"

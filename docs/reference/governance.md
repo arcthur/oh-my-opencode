@@ -126,6 +126,14 @@ The schema contains additional knobs; not all are currently enforced in runtime 
   - The current integration layer does NOT auto-save checkpoints to disk.
   - Consumers MUST NOT assume checkpoint files exist unless saved explicitly by a caller that invokes the persistence API.
 
+## Policy Outcome Semantics (Hook-First Runtime)
+
+When policy runtime is enabled (`architecture_version: 2`), governance ledger also receives policy audit outcomes:
+
+- `type="policy-outcome"` entries are written by policy-runtime event writer through governance ledger APIs.
+- Allowed outcomes are: `applied | blocked | skipped | error | superseded`.
+- `superseded` means a policy decision was recorded as applied first, but a downstream governance gate later blocked execution for the same flow; the superseded event MUST reference the original `decisionId`.
+
 ## Error Handling Contract
 
 The plugin wraps governance calls with best-effort error handling:

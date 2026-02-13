@@ -1,5 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { contextBudgetArbiter, injectBudgetedPrompt } from "../../features/context-budget"
+import { contextBudgetArbiter, injectBudgetedPrompt } from "../../features/context-view"
 import { getSessionAgent } from "../../features/claude-code-session-state"
 import {
   SISYPHUS_CATEGORY_SKILLS_PROMPT_INJECTION,

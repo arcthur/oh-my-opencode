@@ -1,5 +1,6 @@
 import { executeUserPromptGovernance } from "../../../features/governance"
 import { log } from "../../../shared"
+import type { PolicyDecision } from "../../../contracts"
 import type { RuntimeExecutionNode } from "../types"
 import type {
   ChatMessageInput,
@@ -8,6 +9,32 @@ import type {
 } from "./types"
 
 const DEFAULT_GOVERNANCE_BLOCK_PREFIX = "Governance blocked:"
+
+function enforcePolicyDecisionsOnChatMessage(params: {
+  decisions: PolicyDecision[]
+  output: ChatMessageOutput
+}): void {
+  for (const decision of params.decisions) {
+    if (decision.decision === "deny" && decision.enforcement === "hard") {
+      throw new Error(decision.message ?? "Policy denied chat.message")
+    }
+
+    if (decision.decision !== "modify" || !decision.mutation) {
+      continue
+    }
+
+    const mutation = decision.mutation
+    const nextVariant = mutation.messageVariant
+    if (typeof nextVariant === "string") {
+      params.output.message.variant = nextVariant
+    }
+
+    const appendText = mutation.appendText
+    if (typeof appendText === "string" && appendText.length > 0) {
+      params.output.parts.push({ type: "text", text: appendText })
+    }
+  }
+}
 
 export function buildChatMessageNodes(
   context: RuntimeAssemblyContext,
@@ -46,25 +73,6 @@ export function buildChatMessageNodes(
     },
   ]
 
-  if (context.thinkMode?.["chat.params"]) {
-    nodes.push({
-      id: "think-mode:chat.message",
-      invoke: async () => {
-        await context.thinkMode?.["chat.params"]?.(
-          {
-            parts: output.parts,
-            message: {
-              model:
-                (output.message as unknown as { model?: { providerID: string; modelID: string } })
-                  .model,
-            },
-          },
-          input.sessionID
-        )
-      },
-    })
-  }
-
   if (context.keywordDetector?.["chat.message"]) {
     nodes.push({
       id: "keyword-detector:chat.message",
@@ -82,6 +90,23 @@ export function buildChatMessageNodes(
       },
     })
   }
+
+  nodes.push({
+    id: "internal:policy-observe:chat.message",
+    failurePolicy: "fail-open",
+    invoke: async () => {
+      await context.policyRuntime?.observe?.({
+        hookPoint: "chat.message",
+        sessionID: input.sessionID,
+        agent: input.agent,
+        payload: {
+          messageID: input.messageID,
+          partCount: output.parts.length,
+        },
+        traceHookNodeId: "internal:policy-observe:chat.message",
+      })
+    },
+  })
 
   if (context.claudeCodeBridgeEnabled && context.claudeCodeHooks?.["chat.message"]) {
     nodes.push({
@@ -171,6 +196,32 @@ export function buildChatMessageNodes(
       },
     })
   }
+
+  nodes.push({
+    id: "internal:policy-enforce:chat.message",
+    failurePolicy: "fail-closed",
+    invoke: async () => {
+      const decisions = await context.policyRuntime?.enforce?.({
+        hookPoint: "chat.message",
+        sessionID: input.sessionID,
+        agent: input.agent,
+        payload: {
+          messageID: input.messageID,
+          partCount: output.parts.length,
+        },
+        traceHookNodeId: "internal:policy-enforce:chat.message",
+      })
+
+      if (!decisions || decisions.length === 0) {
+        return
+      }
+
+      enforcePolicyDecisionsOnChatMessage({
+        decisions,
+        output,
+      })
+    },
+  })
 
   if (context.startWork?.["chat.message"]) {
     nodes.push({

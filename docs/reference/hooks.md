@@ -53,15 +53,13 @@ If you need a definitive answer for “can I disable this?”, consult the wirin
 
 ```text
 task-auto-continuation
-context-window-governor
+unstable-agent-watchdog
 session-state-repair
 session-notification
 comment-checker
-tool-output-truncator
 directory-agents-injector
 directory-readme-injector
 empty-task-response-detector
-think-mode
 rules-injector
 background-notification
 auto-update-checker
@@ -76,7 +74,6 @@ claude-code-hooks
 auto-slash-command
 edit-failure-guidance
 delegation-failure-guidance
-prometheus-md-only
 start-work
 swarm-from-plan
 work-orchestrator
@@ -91,15 +88,12 @@ delegation-validate-decision
 conditional-rules
 session-handoff
 question-label-truncator
-delegation-block-subagent-question
-write-existing-file-guard
 delegation-nudge-category-skill
 sisyphus-junior-notepad
 tmux-parallel-agents
 swarm-agent
 anthropic-effort
 cache-policy
-unstable-agent-watchdog
 ```
 
 Notes:
@@ -130,29 +124,33 @@ Execution order (simplified to plugin-relevant steps):
 
 1. Session agent tracking (internal)
 2. First-message variant gate (internal)
-3. Think-mode chat params (if enabled)
-4. Keyword detector (if enabled)
-5. Sisyphus contextual injector (if enabled)
+3. Keyword detector (if enabled)
+4. Sisyphus contextual injector (if enabled)
+5. Policy observe (internal, fail-open)
 6. Claude Code bridge node (if enabled)
 7. Governance user-prompt processing (if enabled)
 8. Session handoff (if enabled)
 9. Auto slashcommand (if enabled)
-10. Start-work (if enabled)
-11. Swarm-from-plan (if enabled; Swarm-first bootstrap)
-12. Work-orchestrator (if enabled)
-13. Pre-completion verification (if enabled)
-14. Ralph loop template detection (if enabled)
+10. Policy enforce (internal, hard decisions can block)
+11. Start-work (if enabled)
+12. Swarm-from-plan (if enabled; Swarm-first bootstrap)
+13. Work-orchestrator (if enabled)
+14. Pre-completion verification (if enabled)
+15. Ralph loop template detection (if enabled)
 
 ### `chat.params`
 
 Execution order:
 
-1. `anthropic-effort` (if enabled)
-2. `cache-policy` (if enabled)
+1. Policy observe (internal)
+2. `anthropic-effort` (if enabled)
+3. `cache-policy` (if enabled)
+4. Policy enforce (internal)
 
 Notes:
 
 - `chat.params` nodes are executed directly in `src/index.ts` and are intentionally outside `EVENT_TOTAL_ORDER` runtime dispatcher wiring.
+- Runtime also applies contract budget/model hints on this surface (`reasoning_budget` + model policy metadata) before policy-enforce.
 - `cache-policy` performs observe/enforce decisioning and may mutate `output.options` only in enforce mode when provider capability + rollout gates allow it.
 - `cache-policy` remains hook-gated by `disabled_hooks` (`cache-policy`) even though it is not part of runtime dispatcher ordering.
 
@@ -200,31 +198,30 @@ Notes:
 Execution order (high-level):
 
 1. Question label truncator
-2. `delegation-block-subagent-question`
-3. Write existing file guard (if enabled)
-4. User memory
-5. Org memory
-6. Runtime tracker (if enabled)
-7. Claude Code bridge node (if enabled)
-8. Non-interactive env (if enabled)
-9. Comment checker (if enabled)
-10. Directory AGENTS injector (if enabled)
-11. Directory README injector (if enabled)
-12. Rules injector (if enabled)
-13. Prometheus MD-only (if enabled)
-14. Work-orchestrator (planning + execution pre-tool logic, if enabled)
-15. Sisyphus contextual injector (if enabled)
-16. `delegation-validate-decision` (if enabled)
-17. Sisyphus-junior notepad (if enabled)
-18. Tmux parallel agents (if enabled)
-19. Swarm agent (if enabled)
-20. Conditional rules (if enabled; special handling for `delegate_task`)
-21. Context manifest injector (if enabled)
-22. Task-tool sanitizer (internal)
-23. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
-24. Stop-continuation slash handling (internal)
-25. Governance pre-tool checks (if enabled)
-26. Silent tool output pre-hook (if enabled)
+2. User memory
+3. Org memory
+4. Runtime tracker (if enabled)
+5. Policy observe (internal, fail-open)
+6. Claude Code bridge node (if enabled)
+7. Non-interactive env (if enabled)
+8. Comment checker (if enabled)
+9. Directory AGENTS injector (if enabled)
+10. Directory README injector (if enabled)
+11. Rules injector (if enabled)
+12. Work-orchestrator (planning + execution pre-tool logic, if enabled)
+13. Sisyphus contextual injector (if enabled)
+14. `delegation-validate-decision` (if enabled)
+15. Sisyphus-junior notepad (if enabled)
+16. Tmux parallel agents (if enabled)
+17. Swarm agent (if enabled)
+18. Conditional rules (if enabled; special handling for `delegate_task`)
+19. Context manifest injector (if enabled)
+20. Task-tool sanitizer (internal)
+21. Ralph loop start/cancel (if enabled; special handling for `slashcommand`)
+22. Stop-continuation slash handling (internal)
+23. Policy enforce (internal, hard decisions can block)
+24. Governance pre-tool checks (if enabled)
+25. Silent tool output pre-hook (if enabled)
 
 Note:
 - `tmux-parallel-agents` is a workspace/process orchestration hook (worktree/window lifecycle and rescue UX).
@@ -237,16 +234,16 @@ Note:
 Execution order (high-level):
 
 1. Work-orchestrator (planning + execution post-tool logic, if enabled)
-2. Claude Code bridge node (if enabled)
-3. Anti-slop enforcer (if enabled)
-4. Silent tool output post-hook (if enabled)
-5. Tool output truncator (if enabled)
+2. Policy observe (internal, fail-open)
+3. Claude Code bridge node (if enabled)
+4. Anti-slop enforcer (if enabled)
+5. Silent tool output post-hook (if enabled)
 6. Runtime tracker (if enabled)
 7. Repo overview injector (if enabled)
-8. Governance post-tool processing (if enabled)
-9. User memory
-10. Org memory
-11. Context-window-governor (if enabled; warning / preemptive / recovery arbitration)
+8. Policy enforce (internal, hard decisions can block)
+9. Governance post-tool processing (if enabled)
+10. User memory
+11. Org memory
 12. Comment checker (if enabled)
 13. Directory AGENTS injector (if enabled)
 14. Directory README injector (if enabled)
@@ -260,7 +257,6 @@ Execution order (high-level):
 22. Task resume info (always wired)
 23. Session handoff (if enabled)
 24. Swarm agent (if enabled)
-25. Output finalization (internal)
 
 ### `event`
 
@@ -281,9 +277,9 @@ Notes:
 
 This experimental lifecycle surface is used for message-level transforms, including context injection and thinking-block validation. See `src/index.ts`.
 
-### Context Budget Gating
+### ContextView Budget Gating
 
-All model-visible context additions are gated by a shared `ContextBudgetArbiter` singleton (`src/features/context-budget/`).
+All model-visible context additions are gated by a shared ContextView budget layer (`src/features/context-view/`).
 
 Injection paths:
 
@@ -292,18 +288,17 @@ Injection paths:
 - `appendBudgetedOutput()` (tool-output/chat-message/delegate-prompt/session-prompt append path)
 - `pushBudgetedContext()` (`experimental.session.compacting` context arrays)
 - `injectBudgetedPrompt()` (`delegate-prompt` rewrites on `tool.execute.before`)
-- Direct `arbiter.decide()` for hook-local flows that need custom pre/post handling
+- Direct budget decisions for hook-local flows that need custom pre/post handling.
 
-Runtime guardrail: `src/features/context-budget/raw-output-append-guard.test.ts` prevents raw `output.output += ...` style appends in guarded hook surfaces so budgeted append helpers remain the default.
-
-See `docs/reference/configuration.md` § Context Budget for user-facing config.
+See `docs/reference/configuration.md` for user-facing budget profile settings.
 
 ### `experimental.session.compacting`
 
 Compaction-time ordering:
 
-1. Claude Code bridge node (`PreCompact`, if enabled and event payload supports context)
-2. `context-window-governor` compaction hook (if enabled)
+1. Policy observe node (`internal:policy-observe:experimental.session.compacting`, fail-open)
+2. Claude Code bridge node (`PreCompact`, if enabled and event payload supports context)
+3. Policy enforce node (`internal:policy-enforce:experimental.session.compacting`, fail-closed for hard denies; supports context mutation via policy modify)
 
 ## Claude Code Compatibility Mapping
 
@@ -320,7 +315,7 @@ Mapping (Claude Code hook type → intended OpenCode surface):
 | `PostToolUse` | `tool.execute.after` | `src/hooks/claude-code-hooks/post-tool-use.ts` | Wired as a bridge node in runtime order |
 | `UserPromptSubmit` | `chat.message` | `src/hooks/claude-code-hooks/user-prompt-submit.ts` | Wired as a bridge node in runtime order |
 | `Stop` | `event(type="session.idle")` | `src/hooks/claude-code-hooks/stop.ts` | Wired as a bridge node in runtime order |
-| `PreCompact` | `experimental.session.compacting` | `src/hooks/claude-code-hooks/pre-compact.ts` | Wired as a bridge node in compaction order (best-effort; depends on runtime support) |
+| `PreCompact` | `experimental.session.compacting` | `src/hooks/claude-code-hooks/pre-compact.ts` | Wired as the middle bridge node in policy-wrapped compaction order (best-effort; depends on runtime support) |
 
 ### Claude Code extended config (`opencode-cc-plugin.json`)
 

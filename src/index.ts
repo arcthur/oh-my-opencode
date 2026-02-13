@@ -3,15 +3,12 @@ import type { Message, Part } from "@opencode-ai/sdk";
 import {
   createTaskAutoContinuationHook,
   createUnstableAgentWatchdogHook,
-  createContextWindowGovernorHook,
   createSessionStateRepairHook,
   createSessionNotification,
   createCommentCheckerHooks,
-  createToolOutputTruncatorHook,
   createDirectoryAgentsInjectorHook,
   createDirectoryReadmeInjectorHook,
   createEmptyTaskResponseDetectorHook,
-  createThinkModeHook,
   createClaudeCodeHooksHook,
   createRulesInjectorHook,
   createBackgroundNotificationHook,
@@ -27,11 +24,8 @@ import {
   createEditFailureGuidanceHook,
   createDelegationFailureGuidanceHook,
   createQuestionLabelTruncatorHook,
-  createDelegationBlockSubagentQuestionHook,
-  createWriteExistingFileGuardHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
-  createPrometheusMdOnlyHook,
   createSilentToolOutputHook,
   createRepoOverviewInjectorHook,
   createRuntimeTrackerHook,
@@ -76,6 +70,7 @@ import {
   type ExperimentalSessionCompactingOutput,
   type RuntimeExecutionNode,
 } from "./hooks/runtime";
+import { runChatParamsPolicyPipeline } from "./hooks/chat-params-policy-pipeline"
 import { createHandoffSummarizer } from "./features/session-handoff";
 import {
   contextCollector,
@@ -155,10 +150,21 @@ import {
 import {
   cleanupAllGovernanceSessions,
   cleanupGovernanceSession,
+  getGovernanceSession,
   hasGovernanceSession,
   persistGovernanceTraceSnapshot,
   recordWorkOrchestratorTransition,
 } from "./features/governance";
+import {
+  AsyncPolicyEvaluator,
+  applyExecutionContractToChatParams,
+  buildExecutionContract,
+  createPolicyEventWriter,
+  createPolicyRuntime,
+  getPolicyLedgerStore,
+  SessionExecutionBudgetManager,
+} from "./features/policy-runtime"
+import { provenanceClaimStore } from "./features/provenance-memory"
 import { CATEGORY_DESCRIPTIONS } from "./tools/delegate-task/constants";
 import { mergeCategories } from "./shared/merge-categories";
 import { NON_INTERACTIVE_ENV } from "./hooks/non-interactive-env/constants";
@@ -257,122 +263,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     await workOrchestrator?.reportContinuationIntent(intent)
   }
 
-  const contextWindowGovernor = isHookEnabled("context-window-governor")
-    ? createContextWindowGovernorHook(ctx, {
-        modelCacheState,
-        taskConfig: pluginConfig.sisyphus ? { sisyphus: pluginConfig.sisyphus } : undefined,
-        warningRatio: pluginConfig.context_window_governor?.warning_ratio,
-        preemptiveRatio: pluginConfig.context_window_governor?.preemptive_ratio,
-        limitRatio: pluginConfig.context_window_governor?.limit_ratio,
-        warningResetRatio: pluginConfig.context_window_governor?.warning_reset_ratio,
-        preemptiveResetRatio: pluginConfig.context_window_governor?.preemptive_reset_ratio,
-        recovery: pluginConfig.context_window_governor?.recovery
-          ? {
-              maxAttempts: pluginConfig.context_window_governor.recovery.max_attempts,
-              initialDelayMs:
-                pluginConfig.context_window_governor.recovery.initial_delay_ms,
-              maxDelayMs: pluginConfig.context_window_governor.recovery.max_delay_ms,
-              toastCooldownMs:
-                pluginConfig.context_window_governor.recovery.toast_cooldown_ms,
-              aggressiveOutputTruncation: {
-                enabled:
-                  pluginConfig.context_window_governor.recovery
-                    .aggressive_output_truncation?.enabled ?? true,
-                targetRatio:
-                  pluginConfig.context_window_governor.recovery
-                    .aggressive_output_truncation?.target_ratio ?? 0.8,
-                charsPerToken:
-                  pluginConfig.context_window_governor.recovery
-                    .aggressive_output_truncation?.chars_per_token ?? 4,
-                maxOutputs:
-                  pluginConfig.context_window_governor.recovery
-                    .aggressive_output_truncation?.max_outputs ?? 20,
-                minOutputChars:
-                  pluginConfig.context_window_governor.recovery
-                    .aggressive_output_truncation?.min_output_chars ?? 500,
-                keepRecentTurns:
-                  pluginConfig.context_window_governor.recovery
-                    .aggressive_output_truncation?.keep_recent_turns ?? 2,
-                protectedTools:
-                  pluginConfig.context_window_governor.recovery
-                    .aggressive_output_truncation?.protected_tools ?? [
-                    "task",
-                    "task_update",
-                    "task_get",
-                    "lsp_rename",
-                    "session_read",
-                    "session_write",
-                    "session_search",
-                  ],
-              },
-            }
-          : undefined,
-        dynamicPruning: pluginConfig.context_window_governor?.dynamic_pruning
-          ? {
-              enabled: pluginConfig.context_window_governor.dynamic_pruning.enabled,
-              notification:
-                pluginConfig.context_window_governor.dynamic_pruning.notification,
-              recoveryTargetRatio:
-                pluginConfig.context_window_governor.dynamic_pruning
-                  .recovery_target_ratio,
-              charsPerToken:
-                pluginConfig.context_window_governor.dynamic_pruning.chars_per_token,
-              skipSummarizeIfRecovered:
-                pluginConfig.context_window_governor.dynamic_pruning
-                  .skip_summarize_if_recovered,
-              protectedTools:
-                pluginConfig.context_window_governor.dynamic_pruning.protected_tools,
-              turnProtection: {
-                enabled:
-                  pluginConfig.context_window_governor.dynamic_pruning
-                    .turn_protection?.enabled ?? true,
-                turns:
-                  pluginConfig.context_window_governor.dynamic_pruning
-                    .turn_protection?.turns ?? 3,
-              },
-              strategies: {
-                deduplication: {
-                  enabled:
-                    pluginConfig.context_window_governor.dynamic_pruning
-                      .strategies?.deduplication?.enabled ?? true,
-                },
-                staleToolOutputs: {
-                  enabled:
-                    pluginConfig.context_window_governor.dynamic_pruning
-                      .strategies?.stale_tool_outputs?.enabled ?? true,
-                  keepRecentTurns:
-                    pluginConfig.context_window_governor.dynamic_pruning
-                      .strategies?.stale_tool_outputs
-                      ?.keep_recent_turns ?? 6,
-                  minOutputChars:
-                    pluginConfig.context_window_governor.dynamic_pruning
-                      .strategies?.stale_tool_outputs
-                      ?.min_output_chars ?? 1200,
-                  maxOutputs:
-                    pluginConfig.context_window_governor.dynamic_pruning
-                      .strategies?.stale_tool_outputs
-                      ?.max_outputs ?? 6,
-                },
-              },
-            }
-          : undefined,
-        prefixStability: pluginConfig.cache_strategy?.prefix_stability
-          ? {
-              mode: pluginConfig.cache_strategy.prefix_stability.mode,
-              maxDestructiveRecoveries:
-                pluginConfig.cache_strategy.prefix_stability
-                  .max_destructive_recoveries,
-              windowMs:
-                pluginConfig.cache_strategy.prefix_stability.window_ms,
-              cooldownMs:
-                pluginConfig.cache_strategy.prefix_stability.cooldown_ms,
-              hardLimitBypassRatio:
-                pluginConfig.cache_strategy.prefix_stability
-                  .hard_limit_bypass_ratio,
-            }
-          : undefined,
-      })
-    : null;
   const sessionStateRepair = isHookEnabled("session-state-repair")
     ? createSessionStateRepairHook(ctx, { config: pluginConfig.session_state_repair })
     : null;
@@ -397,11 +287,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const commentChecker = isHookEnabled("comment-checker")
     ? safeCreateHook("comment-checker", () => createCommentCheckerHooks(pluginConfig.comment_checker), { enabled: safeHookEnabled })
-    : null;
-  const toolOutputTruncator = isHookEnabled("tool-output-truncator")
-    ? createToolOutputTruncatorHook(ctx, {
-        config: pluginConfig.tool_output_truncator,
-      })
     : null;
   const silentToolOutput = isHookEnabled("silent-tool-output") && pluginConfig.silent_tool_output
     ? createSilentToolOutputHook(ctx, pluginConfig.silent_tool_output)
@@ -438,7 +323,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const emptyTaskResponseDetector = isHookEnabled("empty-task-response-detector")
     ? createEmptyTaskResponseDetectorHook(ctx)
     : null;
-  const thinkMode = isHookEnabled("think-mode") ? createThinkModeHook() : null;
   const anthropicEffort = isHookEnabled("anthropic-effort")
     ? createAnthropicEffortHook()
     : null;
@@ -518,14 +402,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         : { enabled: false },
     });
 
-  // Configure context budget
-  if (pluginConfig.context_budget) {
+  // Configure context view budget from active budget profile.
+  const activeBudgetProfile =
+    pluginConfig.budget_profiles?.default
+    ?? Object.values(pluginConfig.budget_profiles ?? {})[0]
+  if (activeBudgetProfile) {
+    const targetBudget = Math.max(
+      500,
+      Math.min(10000, Math.floor(activeBudgetProfile.context_tokens_target / 100))
+    )
+    const hardBudget = Math.max(
+      targetBudget,
+      Math.min(12000, Math.floor(activeBudgetProfile.context_tokens_hard_limit / 100))
+    )
+    const reservedBudget = Math.max(0, hardBudget - targetBudget)
     contextCollector.setBudgetConfig({
-      total_budget: pluginConfig.context_budget.total_budget ?? 2000,
-      reserved_budget: pluginConfig.context_budget.reserved_budget,
-      source_limits: pluginConfig.context_budget.source_limits,
-      channel_limits: pluginConfig.context_budget.channel_limits,
-      overflow_strategy: pluginConfig.context_budget.overflow_strategy ?? "drop-low-priority",
+      total_budget: hardBudget,
+      reserved_budget: reservedBudget,
+      overflow_strategy: "drop-low-priority",
     })
   }
 
@@ -534,15 +428,54 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     baseDir: pluginConfig.cache_strategy?.ledger?.base_dir,
   })
 
+  const policyContract = buildExecutionContract({
+    config: pluginConfig,
+    taskId: "runtime-default",
+  })
+  const executionBudgetManager = new SessionExecutionBudgetManager()
+
+  const policyLedgerStore = getPolicyLedgerStore()
+  policyLedgerStore.cleanup()
+
+  const policyEvaluator = new AsyncPolicyEvaluator({
+    enabled: pluginConfig.evaluator?.enabled ?? true,
+    async: pluginConfig.evaluator?.async ?? true,
+    metrics: pluginConfig.evaluator?.metrics ?? [
+      "task_success",
+      "groundedness",
+      "cost",
+      "latency",
+    ],
+  })
+
+  const policyEventWriter = createPolicyEventWriter({
+    policyLedger: policyLedgerStore,
+    resolveGovernanceLedger: (sessionID) => {
+      if (!governanceEnabled || !hasGovernanceSession(sessionID)) {
+        return null
+      }
+      return getGovernanceSession(sessionID, ctx.directory, governanceConfig).ledger
+    },
+  })
+
+  const policyRuntime = createPolicyRuntime({
+    contract: policyContract,
+    eventWriter: policyEventWriter,
+    evaluator: policyEvaluator,
+    provenanceStore: provenanceClaimStore,
+  })
+
   // Register feature handlers with session coordinator
   sessionStateCoordinator.registerFeature("context-collector", {
     onSessionDeleted(sessionID) {
       contextCollector.clearSession(sessionID)
       clearPrefixFingerprintForSession(sessionID)
+      executionBudgetManager.clearSession(sessionID)
     },
     onSessionCompacted(sessionID) {
       contextCollector.resetOncePerSession(sessionID)
       clearPrefixFingerprintForSession(sessionID)
+      executionBudgetManager.clearSession(sessionID)
     },
   })
 
@@ -619,10 +552,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createSwarmFromPlanHook(ctx, pluginConfig, swarmRuntime)
     : null;
 
-  const prometheusMdOnly = isHookEnabled("prometheus-md-only")
-    ? createPrometheusMdOnlyHook(ctx)
-    : null;
-
   const taskResumeInfo = createTaskResumeInfoHook();
 
   let tmuxParallelAgents: ReturnType<typeof createTmuxParallelAgentsHook> | null = null;
@@ -647,12 +576,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const questionLabelTruncator = isHookEnabled("question-label-truncator")
     ? createQuestionLabelTruncatorHook()
-    : null;
-  const delegationBlockSubagentQuestion = isHookEnabled("delegation-block-subagent-question")
-    ? createDelegationBlockSubagentQuestionHook()
-    : null;
-  const writeExistingFileGuard = isHookEnabled("write-existing-file-guard")
-    ? createWriteExistingFileGuardHook(ctx)
     : null;
 
   const taskAutoContinuationEnabled = isHookEnabled("task-auto-continuation");
@@ -997,7 +920,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     swarmRuntime,
     skillMcpManager,
     lspManager,
-    thinkMode: optional(thinkMode),
     keywordDetector: optional(keywordDetector),
     claudeCodeHooks: optional(claudeCodeHooks),
     sessionHandoffHook: optional(sessionHandoffHook),
@@ -1019,7 +941,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     unstableAgentWatchdog: optional(unstableAgentWatchdog),
     runtimeTracker: optional(runtimeTracker),
     repoOverviewInjector: optional(repoOverviewInjector),
-    contextWindowGovernor: optional(contextWindowGovernor),
     directoryAgentsInjector: optional(directoryAgentsInjector),
     directoryReadmeInjector: optional(directoryReadmeInjector),
     rulesInjector: optional(rulesInjector),
@@ -1031,21 +952,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     swarmAgent: optional(swarmAgent),
     sessionStateRepair: optional(sessionStateRepair),
     questionLabelTruncator: optional(questionLabelTruncator),
-    delegationBlockSubagentQuestion: optional(delegationBlockSubagentQuestion),
-    writeExistingFileGuard: optional(writeExistingFileGuard),
     nonInteractiveEnv: optional(nonInteractiveEnv),
     commentChecker: optional(commentChecker),
-    prometheusMdOnly: optional(prometheusMdOnly),
     delegationValidateDecision: optional(delegationValidateDecision),
     sisyphusJuniorNotepad: optional(sisyphusJuniorNotepad),
     contextManifestInjector: optional(contextManifestInjector),
     silentToolOutput: optional(silentToolOutput),
     antiSlopEnforcer: optional(antiSlopEnforcer),
-    toolOutputTruncator: optional(toolOutputTruncator),
     emptyTaskResponseDetector: optional(emptyTaskResponseDetector),
     editFailureGuidance: optional(editFailureGuidance),
     delegationFailureGuidance: optional(delegationFailureGuidance),
     taskResumeInfo: optional(taskResumeInfo),
+    policyRuntime,
+    executionBudgetManager,
+    executionBudgetLimits: {
+      maxToolCalls: policyContract.budgets.maxToolCalls,
+      wallClockMs: policyContract.budgets.wallClockMs,
+      contextTokensHardLimit: policyContract.budgets.contextTokensHardLimit,
+    },
   } as RuntimeAssemblyContext;
 
   const taskGraphTools = createTaskGraphTools(pluginConfig);
@@ -1085,26 +1009,91 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ) => {
       const model = input.model as { providerID?: string; modelID?: string }
       const message = input.message as { variant?: string }
-      await anthropicEffort?.["chat.params"]?.(
-        {
-          ...input,
-          agent: { name: input.agent },
+      const normalizedInput = {
+        ...input,
+        agent: { name: input.agent },
+        model,
+        provider: input.provider as { id: string },
+        message,
+      }
+
+      await runChatParamsPolicyPipeline({
+        input: {
+          sessionID: input.sessionID,
+          agent: input.agent,
           model,
-          provider: input.provider as { id: string },
+          provider: input.provider as { id?: string },
           message,
         },
         output,
-      )
-      await cachePolicy?.["chat.params"]?.(
-        {
-          ...input,
-          agent: { name: input.agent },
-          model,
-          provider: input.provider as { id: string },
-          message,
+        observe: async () => {
+          try {
+            await policyRuntime.observe({
+              hookPoint: "chat.params",
+              sessionID: input.sessionID,
+              agent: input.agent,
+              payload: {
+                providerID: model.providerID,
+                modelID: model.modelID,
+                variant: message.variant,
+              },
+              traceHookNodeId: "internal:policy-observe:chat.params",
+            })
+          } catch (error) {
+            log("[policy] chat.params observe failed (fail-open)", {
+              sessionID: input.sessionID,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
         },
-        output,
-      )
+        runExisting: async () => {
+          await anthropicEffort?.["chat.params"]?.(normalizedInput, output)
+          await cachePolicy?.["chat.params"]?.(normalizedInput, output)
+          applyExecutionContractToChatParams(output, policyContract)
+        },
+        enforce: async () => {
+          const decisions = await policyRuntime.enforce({
+            hookPoint: "chat.params",
+            sessionID: input.sessionID,
+            agent: input.agent,
+            payload: {
+              providerID: model.providerID,
+              modelID: model.modelID,
+              variant: message.variant,
+              output: {
+                temperature: output.temperature,
+                topP: output.topP,
+                topK: output.topK,
+              },
+            },
+            traceHookNodeId: "internal:policy-enforce:chat.params",
+          })
+
+          for (const decision of decisions) {
+            if (decision.decision === "deny" && decision.enforcement === "hard") {
+              throw new Error(decision.message ?? "Policy denied chat.params")
+            }
+
+            if (decision.decision !== "modify" || !decision.mutation) {
+              continue
+            }
+
+            const mutation = decision.mutation
+            if (typeof mutation.temperature === "number") {
+              output.temperature = mutation.temperature
+            }
+            if (typeof mutation.topP === "number") {
+              output.topP = mutation.topP
+            }
+            if (typeof mutation.topK === "number") {
+              output.topK = mutation.topK
+            }
+            if (mutation.options && typeof mutation.options === "object" && !Array.isArray(mutation.options)) {
+              Object.assign(output.options, mutation.options as Record<string, unknown>)
+            }
+          }
+        },
+      })
     },
 
     "chat.message": async (input, output) => {

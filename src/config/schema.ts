@@ -67,15 +67,12 @@ export const AgentNameSchema = BuiltinAgentNameSchema
 export const HookNameSchema = z.enum([
   "task-auto-continuation",
   "unstable-agent-watchdog",
-  "context-window-governor",
   "session-state-repair",
   "session-notification",
   "comment-checker",
-  "tool-output-truncator",
   "directory-agents-injector",
   "directory-readme-injector",
   "empty-task-response-detector",
-  "think-mode",
   "rules-injector",
   "background-notification",
   "auto-update-checker",
@@ -92,7 +89,6 @@ export const HookNameSchema = z.enum([
   "auto-slash-command",
   "edit-failure-guidance",
   "delegation-failure-guidance",
-  "prometheus-md-only",
   "start-work",
   "swarm-from-plan",
   "work-orchestrator",
@@ -107,8 +103,6 @@ export const HookNameSchema = z.enum([
   "conditional-rules",
   "session-handoff",
   "question-label-truncator",
-  "delegation-block-subagent-question",
-  "write-existing-file-guard",
   "delegation-nudge-category-skill",
   "sisyphus-junior-notepad",
   "tmux-parallel-agents",
@@ -116,6 +110,64 @@ export const HookNameSchema = z.enum([
   "anthropic-effort",
   "cache-policy",
 ])
+
+export const HookPointSchema = z.enum([
+  "chat.params",
+  "chat.message",
+  "tool.execute.before",
+  "tool.execute.after",
+  "experimental.chat.messages.transform",
+  "experimental.session.compacting",
+])
+
+export const ContractClauseSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  hook_points: z.array(HookPointSchema),
+  enforcement: z.enum(["hard", "soft", "audit"]),
+  selector: z.object({
+    tool_name: z.union([z.string(), z.array(z.string())]).optional(),
+    agent: z.string().optional(),
+    session_tags: z.array(z.string()).optional(),
+  }).default({}),
+  condition: z.record(z.string(), z.unknown()),
+  action: z.record(z.string(), z.unknown()),
+  priority: z.number().int().default(100),
+  conflict_resolution: z.enum(["first-match", "most-restrictive", "merge"]).default("most-restrictive"),
+  enabled: z.boolean().default(true),
+  version: z.number().int().default(1),
+  provenance: z.object({
+    author: z.string(),
+    source: z.string(),
+    created_at: z.number().int(),
+  }),
+  reason_code: z.string(),
+}).strict()
+
+export const ContractConfigSchema = z.object({
+  clauses: z.array(ContractClauseSchema).default([]),
+  conflict_resolution: z.enum(["first-match", "most-restrictive"]).default("most-restrictive"),
+}).strict()
+
+export const BudgetProfileSchema = z.object({
+  context_tokens_target: z.number().int().positive(),
+  context_tokens_hard_limit: z.number().int().positive(),
+  reasoning_budget: z.enum(["low", "medium", "high"]),
+  max_tool_calls: z.number().int().positive(),
+  wall_clock_ms: z.number().int().positive(),
+}).strict()
+
+export const EvaluatorConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  async: z.boolean().default(true),
+  metrics: z.array(z.string()).default(["task_success", "groundedness", "cost", "latency"]),
+}).strict()
+
+export const ModelPolicySchema = z.object({
+  primary: z.literal("openai/gpt-5.3-codex"),
+  provider_priority: z.array(z.enum(["openai", "google", "anthropic"])).min(1),
+  allow_fallback: z.literal(true),
+}).strict()
 
 export const BuiltinCommandNameSchema = z.enum([
   "brainstorm",
@@ -224,126 +276,9 @@ export const CommentCheckerConfigSchema = z.object({
   custom_prompt: z.string().optional(),
 }).strict()
 
-export const DynamicContextPruningConfigSchema = z.object({
-  /** Enable dynamic context pruning for context-window-governor recovery path */
-  enabled: z.boolean().default(false),
-  /** Notification level for pruning actions */
-  notification: z.enum(["off", "minimal", "detailed"]).default("minimal"),
-  /** Target ratio after pruning. If projected usage is below this value, summarize can be skipped. */
-  recovery_target_ratio: z.number().min(0.5).max(1).default(0.9),
-  /** Estimated chars-per-token used for pruning impact estimation */
-  chars_per_token: z.number().min(1).max(16).default(4),
-  /** Skip summarize when pruning projection reaches recovery_target_ratio */
-  skip_summarize_if_recovered: z.boolean().default(true),
-  /** Keep the latest N message turns protected from pruning */
-  turn_protection: z.object({
-    enabled: z.boolean().default(true),
-    turns: z.number().min(1).max(20).default(3),
-  }).strict().optional(),
-  /** Tools that should never be pruned */
-  protected_tools: z.array(z.string()).default([
-    "task",
-    "task_update",
-    "task_get",
-    "lsp_rename",
-    "session_read",
-    "session_write",
-    "session_search",
-  ]),
-  /** Pruning strategy toggles */
-  strategies: z.object({
-    deduplication: z.object({
-      enabled: z.boolean().default(true),
-    }).strict().optional(),
-    stale_tool_outputs: z.object({
-      enabled: z.boolean().default(true),
-      keep_recent_turns: z.number().min(0).max(50).default(6),
-      min_output_chars: z.number().min(0).max(500_000).default(1200),
-      max_outputs: z.number().min(1).max(500).default(6),
-    }).strict().optional(),
-  }).strict().optional(),
-}).strict()
-
 export const SessionStateRepairConfigSchema = z.object({
   /** Automatically resumes session after successful thinking-related recovery. */
   auto_resume: z.boolean().optional(),
-}).strict()
-
-export const ToolOutputTruncatorConfigSchema = z.object({
-  /** Truncate all tool outputs, not just whitelisted tools (default: false). */
-  truncate_all_tool_outputs: z.boolean().optional(),
-}).strict()
-
-export const ContextWindowGovernorRecoveryConfigSchema = z.object({
-  max_attempts: z.number().min(1).max(10).default(2),
-  initial_delay_ms: z.number().min(0).max(60_000).default(2000),
-  max_delay_ms: z.number().min(0).max(300_000).default(30_000),
-  toast_cooldown_ms: z.number().min(0).max(300_000).default(30_000),
-  aggressive_output_truncation: z.object({
-    enabled: z.boolean().default(true),
-    target_ratio: z.number().min(0.5).max(0.99).default(0.8),
-    chars_per_token: z.number().min(1).max(16).default(4),
-    max_outputs: z.number().min(1).max(200).default(20),
-    min_output_chars: z.number().min(0).max(500_000).default(500),
-    keep_recent_turns: z.number().min(0).max(20).default(2),
-    protected_tools: z.array(z.string()).default([
-      "task",
-      "task_update",
-      "task_get",
-      "lsp_rename",
-      "session_read",
-      "session_write",
-      "session_search",
-    ]),
-  }).strict().default({
-    enabled: true,
-    target_ratio: 0.8,
-    chars_per_token: 4,
-    max_outputs: 20,
-    min_output_chars: 500,
-    keep_recent_turns: 2,
-    protected_tools: [
-      "task",
-      "task_update",
-      "task_get",
-      "lsp_rename",
-      "session_read",
-      "session_write",
-      "session_search",
-    ],
-  }),
-}).strict()
-
-export const ContextWindowGovernorConfigSchema = z.object({
-  warning_ratio: z.number().min(0.1).max(0.95).default(0.7),
-  preemptive_ratio: z.number().min(0.1).max(0.99).default(0.78),
-  limit_ratio: z.number().min(0.5).max(1.5).default(1.0),
-  warning_reset_ratio: z.number().min(0.05).max(0.9).default(0.65),
-  preemptive_reset_ratio: z.number().min(0.05).max(0.95).default(0.73),
-  recovery: ContextWindowGovernorRecoveryConfigSchema.default({
-    max_attempts: 2,
-    initial_delay_ms: 2000,
-    max_delay_ms: 30000,
-    toast_cooldown_ms: 30000,
-    aggressive_output_truncation: {
-      enabled: true,
-      target_ratio: 0.8,
-      chars_per_token: 4,
-      max_outputs: 20,
-      min_output_chars: 500,
-      keep_recent_turns: 2,
-      protected_tools: [
-        "task",
-        "task_update",
-        "task_get",
-        "lsp_rename",
-        "session_read",
-        "session_write",
-        "session_search",
-      ],
-    },
-  }),
-  dynamic_pruning: DynamicContextPruningConfigSchema.optional(),
 }).strict()
 
 export const CacheStrategyProviderPolicyModeSchema = z.enum(["off", "observe", "enforce"])
@@ -360,11 +295,6 @@ export const CacheStrategyRolloutProviderSchema = z.enum([
   "minimax",
   "zai",
   "moonshot",
-])
-export const CacheStrategyPrefixStabilityModeSchema = z.enum([
-  "off",
-  "balanced",
-  "strict",
 ])
 
 export const CacheStrategyObservabilityConfigSchema = z.object({
@@ -442,19 +372,6 @@ export const CacheStrategyProviderPolicyConfigSchema = z.object({
   }),
 }).strict()
 
-export const CacheStrategyPrefixStabilityConfigSchema = z.object({
-  /** Prefix stability protection mode for destructive recovery */
-  mode: CacheStrategyPrefixStabilityModeSchema.default("off"),
-  /** Max destructive recoveries in a single budget window */
-  max_destructive_recoveries: z.number().min(0).max(20).default(2),
-  /** Sliding window duration for destructive recovery budget */
-  window_ms: z.number().min(1_000).max(86_400_000).default(600_000),
-  /** Cooldown after budget exhaustion (balanced mode can resume after this) */
-  cooldown_ms: z.number().min(0).max(86_400_000).default(120_000),
-  /** Allow destructive recovery when current/max exceeds this ratio */
-  hard_limit_bypass_ratio: z.number().min(0.5).max(2).default(1),
-}).strict()
-
 export const CacheStrategyLedgerConfigSchema = z.object({
   /** Enable append-only context ledger side writes */
   enabled: z.boolean().default(false),
@@ -486,13 +403,6 @@ export const CacheStrategyConfigSchema = z.object({
       stage: 0,
       require_thresholds: true,
     },
-  }),
-  prefix_stability: CacheStrategyPrefixStabilityConfigSchema.default({
-    mode: "off",
-    max_destructive_recoveries: 2,
-    window_ms: 600_000,
-    cooldown_ms: 120_000,
-    hard_limit_bypass_ratio: 1,
   }),
   ledger: CacheStrategyLedgerConfigSchema.default({
     enabled: false,
@@ -967,29 +877,6 @@ export const OrgMemoryConfigSchema = z.object({
   max_custom_rules: z.number().min(0).max(200).default(20),
 }).strict()
 
-/**
- * Context budget configuration for controlling token allocation across context sources
- */
-export const ContextBudgetConfigSchema = z.object({
-  /** Total token budget for all injected context (default: 2000) */
-  total_budget: z.number().min(500).max(10000).default(2000),
-  /** Reserved token budget for high/critical injections (default: 400) */
-  reserved_budget: z.number().min(0).max(10000).default(400),
-  /** Per-source token limits */
-  source_limits: z.record(z.string(), z.number().min(1)).optional(),
-  /** Per-channel token limits */
-  channel_limits: z.object({
-    "messages-transform": z.number().optional(),
-    "tool-output": z.number().optional(),
-    "chat-message": z.number().optional(),
-    "delegate-prompt": z.number().optional(),
-    "synthetic-message": z.number().optional(),
-    "session-prompt": z.number().optional(),
-  }).partial().strict().optional(),
-  /** Overflow strategy (default: drop-low-priority) */
-  overflow_strategy: z.enum(["truncate", "drop-low-priority"]).default("drop-low-priority"),
-}).strict()
-
 /** Governance Tool Criticality Configuration */
 export const GovernanceToolCriticalitySchema = z.object({
   /** Tool name or pattern */
@@ -1271,6 +1158,8 @@ export const DEFAULT_SESSION_REFERENCE_CONFIG = SessionReferenceConfigSchema.par
 export const OhMyOpenCodeConfigSchema = z.object({
   /** Required config schema/runtime version. Must equal CURRENT_CONFIG_VERSION. */
   config_version: z.literal(CURRENT_CONFIG_VERSION),
+  /** Hook-first policy architecture generation. */
+  architecture_version: z.literal(2),
   $schema: z.string().optional(),
   /** Default agent name for `oh-my-opencode run` (env: OPENCODE_DEFAULT_AGENT) */
   default_run_agent: z.string().optional(),
@@ -1285,10 +1174,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   categories: CategoriesConfigSchema.optional(),
   claude_code: ClaudeCodeConfigSchema.optional(),
   sisyphus_agent: SisyphusAgentConfigSchema.optional(),
-  context_window_governor: ContextWindowGovernorConfigSchema.optional(),
   cache_strategy: CacheStrategyConfigSchema.optional(),
   session_state_repair: SessionStateRepairConfigSchema.optional(),
-  tool_output_truncator: ToolOutputTruncatorConfigSchema.optional(),
   comment_checker: CommentCheckerConfigSchema.optional(),
   auto_update: z.boolean().optional(),
   skills: SkillsConfigSchema.optional(),
@@ -1303,7 +1190,10 @@ export const OhMyOpenCodeConfigSchema = z.object({
   runtime_tracker: RuntimeTrackerConfigSchema.optional(),
   user_memory: UserMemoryConfigSchema.optional(),
   org_memory: OrgMemoryConfigSchema.optional(),
-  context_budget: ContextBudgetConfigSchema.optional(),
+  contracts: ContractConfigSchema.optional(),
+  model_policy: ModelPolicySchema.optional(),
+  budget_profiles: z.record(z.string(), BudgetProfileSchema).optional(),
+  evaluator: EvaluatorConfigSchema.optional(),
   governance: GovernanceConfigSchema.optional(),
   /** Conditional rules configuration for path-sensitive rule injection */
   conditional_rules: ConditionalRulesConfigSchema.optional(),
@@ -1337,14 +1227,14 @@ export type BuiltinSkillName = z.infer<typeof BuiltinSkillNameSchema>
 export type SisyphusAgentConfig = z.infer<typeof SisyphusAgentConfigSchema>
 export type CommentCheckerConfig = z.infer<typeof CommentCheckerConfigSchema>
 export type SessionStateRepairConfig = z.infer<typeof SessionStateRepairConfigSchema>
-export type ToolOutputTruncatorConfig = z.infer<typeof ToolOutputTruncatorConfigSchema>
-export type DynamicContextPruningConfig = z.infer<typeof DynamicContextPruningConfigSchema>
-export type ContextWindowGovernorConfig = z.infer<typeof ContextWindowGovernorConfigSchema>
 export type CacheStrategyConfig = z.infer<typeof CacheStrategyConfigSchema>
 export type CacheStrategyProviderPolicyMode = z.infer<typeof CacheStrategyProviderPolicyModeSchema>
-export type CacheStrategyPrefixStabilityMode = z.infer<
-  typeof CacheStrategyPrefixStabilityModeSchema
->
+export type HookPoint = z.infer<typeof HookPointSchema>
+export type ContractClause = z.infer<typeof ContractClauseSchema>
+export type ContractConfig = z.infer<typeof ContractConfigSchema>
+export type BudgetProfile = z.infer<typeof BudgetProfileSchema>
+export type EvaluatorConfig = z.infer<typeof EvaluatorConfigSchema>
+export type ModelPolicy = z.infer<typeof ModelPolicySchema>
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>
 export type RalphLoopConfig = z.infer<typeof RalphLoopConfigSchema>
@@ -1359,7 +1249,6 @@ export type RepoOverviewConfig = z.infer<typeof RepoOverviewConfigSchema>
 export type RuntimeTrackerConfig = z.infer<typeof RuntimeTrackerConfigSchema>
 export type UserMemoryConfig = z.infer<typeof UserMemoryConfigSchema>
 export type OrgMemoryConfig = z.infer<typeof OrgMemoryConfigSchema>
-export type ContextBudgetConfig = z.infer<typeof ContextBudgetConfigSchema>
 export type HybridWeightsConfig = z.infer<typeof HybridWeightsConfigSchema>
 export type EmbeddingConfigOverride = z.infer<typeof EmbeddingConfigOverrideSchema>
 export type GovernanceConfig = z.infer<typeof GovernanceConfigSchema>

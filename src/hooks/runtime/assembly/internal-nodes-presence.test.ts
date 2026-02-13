@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   buildChatMessageNodes,
   buildEventNodes,
+  buildExperimentalSessionCompactingNodes,
   buildToolExecuteBeforeNodes,
   buildToolExecuteAfterNodes,
   type RuntimeAssemblyContext,
@@ -108,17 +109,19 @@ describe("runtime assembly internal nodes", () => {
     expect(nodes.some((node) => node.id === "internal:task-resume-info:tool.execute.after")).toBe(true)
   })
 
-  test("tool.execute.after contains output-finalization internal node when truncator exists", () => {
+  test("experimental.session.compacting contains policy observe/enforce internal nodes", () => {
     const context = createTestContext()
-    context.toolOutputTruncator = {
-      "tool.execute.after": async () => {},
-    }
-    const nodes = buildToolExecuteAfterNodes(
+    const nodes = buildExperimentalSessionCompactingNodes(
       context,
-      { tool: "Read", sessionID: "s", callID: "c" },
-      { title: "", output: "", metadata: {} }
+      { sessionID: "s" },
+      { context: [] }
     )
 
-    expect(nodes.some((node) => node.id === "internal:output-finalization:tool.execute.after")).toBe(true)
+    expect(
+      nodes.some((node) => node.id === "internal:policy-observe:experimental.session.compacting")
+    ).toBe(true)
+    expect(
+      nodes.some((node) => node.id === "internal:policy-enforce:experimental.session.compacting")
+    ).toBe(true)
   })
 })

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("experimental.session.compacting", () => {
-  test("delegates compacting event to context-window-governor without hardcoded model fallback", () => {
+  test("routes compacting event through policy-wrapped bridge path without hardcoded model fallback", () => {
     //#given
     const indexPath = resolve(import.meta.dir, "../../src/index.ts")
     const assemblyPath = resolve(
@@ -22,11 +22,17 @@ describe("experimental.session.compacting", () => {
           hookIndex
         )
         : -1
-    const governorNodeIndex = assemblyContent.indexOf(
-      '"context-window-governor:experimental.session.compacting"'
+    const bridgeNodeIndex = assemblyContent.indexOf(
+      '"bridge:claude-code-hooks:experimental.session.compacting"'
     )
-    const governorInvokeIndex = assemblyContent.indexOf(
-      'contextWindowGovernor?.["experimental.session.compacting"]'
+    const observeNodeIndex = assemblyContent.indexOf(
+      '"internal:policy-observe:experimental.session.compacting"'
+    )
+    const enforceNodeIndex = assemblyContent.indexOf(
+      '"internal:policy-enforce:experimental.session.compacting"'
+    )
+    const bridgeInvokeIndex = assemblyContent.indexOf(
+      'claudeCodeHooks?.["experimental.session.compacting"]'
     )
     const directMessagesReadIndex =
       hookIndex >= 0
@@ -40,8 +46,10 @@ describe("experimental.session.compacting", () => {
     expect(hookIndex).toBeGreaterThanOrEqual(0)
     expect(legacyModelFallbackIndex).toBe(-1)
     expect(builderCallIndex).toBeGreaterThanOrEqual(0)
-    expect(governorNodeIndex).toBeGreaterThanOrEqual(0)
-    expect(governorInvokeIndex).toBeGreaterThanOrEqual(0)
+    expect(observeNodeIndex).toBeGreaterThanOrEqual(0)
+    expect(bridgeNodeIndex).toBeGreaterThanOrEqual(0)
+    expect(enforceNodeIndex).toBeGreaterThanOrEqual(0)
+    expect(bridgeInvokeIndex).toBeGreaterThanOrEqual(0)
     expect(directMessagesReadIndex).toBe(-1)
   })
 })

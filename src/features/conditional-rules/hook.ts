@@ -13,7 +13,7 @@ import { RuleMatcher, formatRulesForInjection, formatRulesForDelegation } from "
 import { loadAllRules, extractFileMentions, shouldReloadRules } from "./loader"
 import type { ConditionalRulesConfig, RuleMatchContext } from "./types"
 import { DEFAULT_CONDITIONAL_RULES_CONFIG } from "./types"
-import { contextBudgetArbiter } from "../context-budget"
+import { contextBudgetArbiter } from "../context-view"
 
 // ============================================================================
 // Hook State

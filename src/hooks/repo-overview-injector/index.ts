@@ -6,7 +6,7 @@ import type { RepoOverviewConfig } from "./types"
 import { DEFAULT_CONFIG } from "./types"
 import { generateRepoOverview, formatRepoOverview } from "./generator"
 import { log } from "../../shared/logger"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 interface ToolExecuteInput {
   tool: string

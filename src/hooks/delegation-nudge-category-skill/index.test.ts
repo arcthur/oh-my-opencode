@@ -7,7 +7,7 @@ import {
 } from "../../features/claude-code-session-state"
 import type { AvailableSkill } from "../../agents/dynamic-agent-prompt-builder"
 import * as sharedModule from "../../shared"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 describe("delegation-nudge-category-skill hook", () => {
   let logCalls: Array<{ msg: string; data?: unknown }>

@@ -24,6 +24,8 @@ import type {
   ApprovalEvent,
   StateProposalEvent,
   EnvironmentDriftEvent,
+  PolicyDecisionEvent,
+  PolicyOutcomeEvent,
 } from "./types"
 import { log } from "../../shared/logger"
 import { generateId } from "./utils"
@@ -261,6 +263,56 @@ export class GovernanceLedgerWriter {
     })
   }
 
+  /**
+   * Log a policy decision event
+   */
+  logPolicyDecision(params: {
+    policy: PolicyDecisionEvent["policy"]
+    sessionId: string
+    hookNodeId: string
+    toolName?: string
+    mutation?: Record<string, unknown>
+    message?: string
+    traceNodeId?: string
+  }): LedgerEntry {
+    return this.append<PolicyDecisionEvent>({
+      type: "policy-decision",
+      traceNodeId: params.traceNodeId,
+      policy: params.policy,
+      sessionId: params.sessionId,
+      hookNodeId: params.hookNodeId,
+      toolName: params.toolName,
+      mutation: params.mutation,
+      message: params.message,
+    })
+  }
+
+  /**
+   * Log a policy outcome event
+   */
+  logPolicyOutcome(params: {
+    decisionId: string
+    clauseId: string
+    outcome: PolicyOutcomeEvent["outcome"]
+    sessionId: string
+    hookPoint: string
+    toolName?: string
+    message?: string
+    traceNodeId?: string
+  }): LedgerEntry {
+    return this.append<PolicyOutcomeEvent>({
+      type: "policy-outcome",
+      traceNodeId: params.traceNodeId,
+      decisionId: params.decisionId,
+      clauseId: params.clauseId,
+      outcome: params.outcome,
+      sessionId: params.sessionId,
+      hookPoint: params.hookPoint,
+      toolName: params.toolName,
+      message: params.message,
+    })
+  }
+
   // =========================================================================
   // Query and verification methods
   // =========================================================================
@@ -405,6 +457,9 @@ export class GovernanceLedgerWriter {
     if (symptomLower.includes("drift") || symptomLower.includes("changed") || symptomLower.includes("external")) {
       relevantTypes.push("environment-drift")
     }
+    if (symptomLower.includes("policy") || symptomLower.includes("clause")) {
+      relevantTypes.push("policy-decision", "policy-outcome")
+    }
 
     // If no specific types identified, include all
     if (relevantTypes.length === 0) {
@@ -461,6 +516,14 @@ export class GovernanceLedgerWriter {
       case "state-proposal": {
         const e = event as StateProposalEvent
         return `State proposal ${e.outcome}: ${e.target.namespace}.${e.target.key}`
+      }
+      case "policy-decision": {
+        const e = event as PolicyDecisionEvent
+        return `Policy decision ${e.policy.decision} (${e.policy.enforcement}) by ${e.policy.clauseId}`
+      }
+      case "policy-outcome": {
+        const e = event as PolicyOutcomeEvent
+        return `Policy outcome ${e.outcome} for ${e.decisionId}`
       }
       default:
         return "Unknown event"

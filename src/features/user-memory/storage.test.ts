@@ -215,7 +215,7 @@ describe("user-memory storage", () => {
       test("extracts directory pattern from absolute path", () => {
         // Absolute paths keep first two segments after splitting by /
         const result = normalizeArgsToPattern("Read", {
-          file_path: "/Users/test/project/src/hooks/context-window-governor/index.ts",
+          file_path: "/Users/test/project/src/features/context-view/assembler.ts",
         })
         // Leading "/" creates empty first element, so first two non-empty are "Users" and "test"
         expect(result).toBe("/Users/*")
@@ -223,9 +223,9 @@ describe("user-memory storage", () => {
 
       test("extracts directory pattern from relative path", () => {
         const result = normalizeArgsToPattern("Read", {
-          file_path: "src/hooks/context-window-governor/index.ts",
+          file_path: "src/features/context-view/assembler.ts",
         })
-        expect(result).toBe("src/hooks/*")
+        expect(result).toBe("src/features/*")
       })
 
       test("handles shallow paths", () => {

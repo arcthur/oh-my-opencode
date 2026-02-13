@@ -17,7 +17,7 @@ import {
 } from "./storage";
 import { createDynamicTruncator } from "../../shared/dynamic-truncator";
 import { getRuleInjectionFilePath } from "./output-path";
-import { contextBudgetArbiter } from "../../features/context-budget";
+import { contextBudgetArbiter } from "../../features/context-view";
 
 interface ToolExecuteInput {
   tool: string;

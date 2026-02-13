@@ -17,13 +17,13 @@ describe("bridge hook behavior", () => {
         },
       },
       {
-        id: "prometheus-md-only:tool.execute.before",
+        id: "work-orchestrator:tool.execute.before",
         invoke: async () => {
-          calls.push("prometheus")
+          calls.push("work-orchestrator")
         },
       },
     ])
 
-    expect(calls).toEqual(["bridge", "prometheus"])
+    expect(calls).toEqual(["bridge", "work-orchestrator"])
   })
 })

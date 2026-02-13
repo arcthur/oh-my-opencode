@@ -29,6 +29,6 @@ describe("per-event order differences", () => {
 
     expect(beforeIndex).toBe(before.length - 1)
     expect(afterIndex).toBeGreaterThan(-1)
-    expect(afterIndex).toBeLessThan(4)
+    expect(afterIndex).toBeLessThan(5)
   })
 })

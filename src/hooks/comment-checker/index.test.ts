@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 import { createCommentCheckerHooks } from "./index"
 
 const mockRunCommentChecker = mock(async () => ({ hasComments: false, message: "" }))

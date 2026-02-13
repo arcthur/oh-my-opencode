@@ -389,6 +389,67 @@ export interface EnvironmentDriftEvent extends LedgerEntryBase {
 }
 
 /**
+ * Policy decision audit event
+ */
+export interface PolicyDecisionEvent extends LedgerEntryBase {
+  type: "policy-decision"
+
+  /** Source policy decision metadata */
+  policy: {
+    decisionId: string
+    clauseId: string
+    matchedClauseIds: string[]
+    hookPoint: string
+    enforcement: "hard" | "soft" | "audit"
+    decision: "allow" | "deny" | "modify" | "audit"
+    reasonCode: string
+  }
+
+  /** Optional mutation payload for modify decision */
+  mutation?: Record<string, unknown>
+
+  /** Optional human-readable message from policy engine */
+  message?: string
+
+  /** Session correlation */
+  sessionId: string
+
+  /** Tool correlation (if policy is tool-scoped) */
+  toolName?: string
+
+  /** Runtime node that emitted this decision */
+  hookNodeId: string
+}
+
+/**
+ * Policy outcome audit event
+ */
+export interface PolicyOutcomeEvent extends LedgerEntryBase {
+  type: "policy-outcome"
+
+  /** Decision being resolved */
+  decisionId: string
+
+  /** Clause that produced this decision */
+  clauseId: string
+
+  /** Runtime outcome of enforcement */
+  outcome: "applied" | "blocked" | "skipped" | "error" | "superseded"
+
+  /** Session correlation */
+  sessionId: string
+
+  /** Hook point where the outcome happened */
+  hookPoint: string
+
+  /** Optional tool context */
+  toolName?: string
+
+  /** Optional reason detail */
+  message?: string
+}
+
+/**
  * Union of all ledger entry types
  */
 export type LedgerEntry =
@@ -400,6 +461,8 @@ export type LedgerEntry =
   | ApprovalEvent
   | StateProposalEvent
   | EnvironmentDriftEvent
+  | PolicyDecisionEvent
+  | PolicyOutcomeEvent
 
 /**
  * Governance Ledger structure

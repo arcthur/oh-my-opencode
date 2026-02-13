@@ -15,16 +15,16 @@ flowchart TD
 
   ROUTE --> PRE["tool.execute.before hooks inject context"]
   PRE --> TOOL["Tool execution (Read/Glob/Grep/LSP/Bash/...)"]
-  TOOL --> POST["tool.execute.after hooks shape output (truncate/optimize/recover)"]
+  TOOL --> POST["tool.execute.after hooks shape output (budget/optimize/recover)"]
 
   POST --> LIM{"Context pressure?"}
-  LIM -->|Near limit| PC["context-window-governor (preemptive/recovery)"]
-  PC --> SUM["session.summarize(auto=true)"]
-  SUM --> SC["session.compacted event"]
+  LIM -->|Near limit| PC["context-view + policy-runtime (preemptive/recovery)"]
+  PC --> WARN["context-pressure hint + compaction metadata"]
+  WARN --> SC["session.compacted event / experimental compaction surface"]
   SC --> MEM
 ```
 
-This journey explains how context is managed (budgeting, truncation, compaction), how memory features inject state, and how to reason about “what the agent knows”.
+This journey explains how context is managed (budgeting, compaction, recovery), how memory features inject state, and how to reason about “what the agent knows”.
 
 ## Key Docs
 
@@ -40,11 +40,10 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 ## Where to Look in Code
 
 - Context collection/injection: `src/features/context-injector/`
-- Context budget arbiter: `src/features/context-budget/` (unified token budget across all injection channels)
-- Tool output truncation: `src/hooks/tool-output-truncator.ts`
-- Preemptive compaction: `src/hooks/context-window-governor/index.ts`
-- Compaction-time injection helpers (wired via `experimental.session.compacting`): `src/hooks/context-window-governor/actions/` and Claude Code compat `src/hooks/claude-code-hooks/pre-compact.ts`
-- Session recovery on token-limit errors: `src/hooks/context-window-governor/`
+- Context budget arbiter: `src/features/context-view/` (unified token budget across all injection channels)
+- Preemptive compaction policy: `src/features/policy-runtime/`
+- Compaction-time injection helpers (wired via `experimental.session.compacting`): policy/context-view runtime nodes and Claude Code compat `src/hooks/claude-code-hooks/pre-compact.ts`
+- Session recovery on token-limit errors: `src/features/context-view/` + `src/hooks/session-state-repair/`
 - User memory: `src/features/user-memory/`
 - Org memory: `src/features/org-memory/`
 
@@ -52,4 +51,4 @@ This journey explains how context is managed (budgeting, truncation, compaction)
 
 - Verify runtime order in `src/hooks/runtime/pipeline-order.ts`, event node assembly in `src/hooks/runtime/assembly/*.ts`, and lifecycle dispatch entrypoints in `src/index.ts`.
 - Confirm `disabled_hooks` and feature config in `oh-my-opencode/*.json`.
-- If compaction seems to “forget” critical constraints, inspect compaction triggers (`context-window-governor`, `context-window-governor`) and whether your build has any compaction-time injection wired (see `docs/reference/hooks.md`).
+- If compaction seems to “forget” critical constraints, inspect policy decisions (`policy-runtime`) and context packing decisions (`context-view`) plus compaction-time injection wiring (see `docs/reference/hooks.md`).

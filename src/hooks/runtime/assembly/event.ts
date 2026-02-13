@@ -126,15 +126,6 @@ export function buildEventNodes(
     })
   }
 
-  if (context.contextWindowGovernor?.event) {
-    nodes.push({
-      id: "context-window-governor:event",
-      invoke: async () => {
-        await context.contextWindowGovernor?.event?.(input)
-      },
-    })
-  }
-
   if (context.directoryAgentsInjector?.event) {
     nodes.push({
       id: "directory-agents-injector:event",
@@ -158,15 +149,6 @@ export function buildEventNodes(
       id: "rules-injector:event",
       invoke: async () => {
         await context.rulesInjector?.event?.(input)
-      },
-    })
-  }
-
-  if (context.thinkMode?.event) {
-    nodes.push({
-      id: "think-mode:event",
-      invoke: async () => {
-        await context.thinkMode?.event?.(input)
       },
     })
   }

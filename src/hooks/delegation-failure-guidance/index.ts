@@ -1,5 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { appendBudgetedOutput } from "../../features/context-budget"
+import { appendBudgetedOutput } from "../../features/context-view"
 
 export interface DelegateTaskErrorPattern {
   pattern: string

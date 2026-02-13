@@ -20,7 +20,7 @@ import {
 } from "../../features/claude-code-session-state"
 import { MESSAGE_STORAGE, setOpenCodeStorageDirForTesting } from "../../features/hook-message-injector"
 import { createTaskNode, transitionTaskNode } from "../../features/task-system"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
   const sisyphusDir = join(directory, ".sisyphus")

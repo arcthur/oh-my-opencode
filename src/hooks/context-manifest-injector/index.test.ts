@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto"
 import * as yaml from "js-yaml"
 import { createContextManifestInjectorHook, extractRequestedContextPackIds } from "./index"
 import type { WorkState } from "../../features/work-state"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 function writeWorkState(directory: string, state: Partial<WorkState>): void {
   const sisyphusDir = join(directory, ".sisyphus")

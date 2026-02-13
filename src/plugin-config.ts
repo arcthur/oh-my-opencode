@@ -144,7 +144,11 @@ export function loadPluginConfig(
 
   // Load user config first (base)
   let config: OhMyOpenCodeConfig =
-    loadConfigFromDirectory(userConfigDirPath, ctx) ?? { config_version: CURRENT_CONFIG_VERSION };
+    loadConfigFromDirectory(userConfigDirPath, ctx)
+    ?? {
+      config_version: CURRENT_CONFIG_VERSION,
+      architecture_version: 2,
+    };
 
   // Override with project config
   const projectConfig = loadConfigFromDirectory(projectConfigDirPath, ctx);

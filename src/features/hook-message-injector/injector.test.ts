@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { contextBudgetArbiter } from "../context-budget"
+import { contextBudgetArbiter } from "../context-view"
 import { injectHookMessage } from "./injector"
 import { resetOpenCodeStorageDirForTesting, setOpenCodeStorageDirForTesting } from "./constants"
 

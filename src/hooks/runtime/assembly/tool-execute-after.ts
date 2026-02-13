@@ -1,7 +1,9 @@
 import { executePostToolGovernance } from "../../../features/governance"
 import { extractCacheUsageSnapshot } from "../../../features/cache-observability/probe"
-import { appendBudgetedOutput } from "../../../features/context-budget"
+import { appendBudgetedOutput } from "../../../features/context-view"
 import { getPrefixFingerprintForSession } from "../../../features/context-injector"
+import type { PolicyDecision } from "../../../contracts"
+import type { ExecutionBudgetSnapshot } from "../../../features/policy-runtime"
 import type { ToolExecuteInput } from "../../../shared/hook-types"
 import { log } from "../../../shared"
 import type { RuntimeExecutionNode } from "../types"
@@ -18,12 +20,125 @@ export function resolvePrefixFingerprint(
   return getPrefixFingerprintForSession(sessionID)
 }
 
+function enforcePolicyDecisionsOnToolAfter(params: {
+  decisions: PolicyDecision[]
+  output: ToolExecuteAfterOutput
+}): void {
+  for (const decision of params.decisions) {
+    if (decision.decision === "deny" && decision.enforcement === "hard") {
+      throw new Error(decision.message ?? "Policy denied tool.execute.after")
+    }
+
+    if (decision.decision !== "modify" || !decision.mutation) {
+      continue
+    }
+
+    const mutation = decision.mutation
+
+    const outputOverride = mutation.output
+    if (typeof outputOverride === "string") {
+      params.output.output = outputOverride
+    }
+
+    const titleOverride = mutation.title
+    if (typeof titleOverride === "string") {
+      params.output.title = titleOverride
+    }
+
+    const metadataPatch = mutation.metadata
+    if (metadataPatch && typeof metadataPatch === "object" && !Array.isArray(metadataPatch)) {
+      Object.assign(params.output.metadata, metadataPatch as Record<string, unknown>)
+    }
+  }
+}
+
+interface ToolTokenUsageResolution {
+  usageSnapshot: ReturnType<typeof extractCacheUsageSnapshot>
+  estimatedTokensUsed: number
+  resolvedTokensUsed: number
+}
+
+function resolveToolTokenUsage(output: ToolExecuteAfterOutput): ToolTokenUsageResolution {
+  const metadata = output.metadata as Record<string, unknown> | undefined
+  const outputStr = typeof output.output === "string" ? output.output : ""
+  const usageSnapshot = extractCacheUsageSnapshot(metadata ?? output)
+  const estimatedTokensUsed = Math.ceil(outputStr.length / 4)
+  const resolvedTokensUsed =
+    usageSnapshot.totalTokens > 0 ? usageSnapshot.totalTokens : estimatedTokensUsed
+
+  return {
+    usageSnapshot,
+    estimatedTokensUsed,
+    resolvedTokensUsed,
+  }
+}
+
+function appendContextPressureHint(params: {
+  context: RuntimeAssemblyContext
+  input: ToolExecuteInput
+  output: ToolExecuteAfterOutput
+  snapshot: ExecutionBudgetSnapshot
+}): void {
+  const { context, input, output, snapshot } = params
+  if (
+    !snapshot.tokenPressure
+    || !context.executionBudgetManager?.shouldEmitCompactionHint(input.sessionID, snapshot)
+  ) {
+    return
+  }
+
+  const metadata = output.metadata as Record<string, unknown>
+  metadata.policyContextPressure = true
+  metadata.policyContextPressureRatio = Number(snapshot.pressureRatio.toFixed(3))
+  metadata.policyContextTokenUsage = snapshot.estimatedRecentTokens
+  metadata.policyContextTokenHardLimit = snapshot.contextTokensHardLimit
+
+  appendBudgetedOutput({
+    output,
+    sessionID: input.sessionID,
+    source: "policy-runtime:context-pressure",
+    id: `${input.callID}:context-pressure`,
+    priority: "high",
+    oncePerSession: true,
+    content:
+      `\n\n[Policy Runtime] Context pressure is high ` +
+      `(${snapshot.estimatedRecentTokens}/${snapshot.contextTokensHardLimit} tokens, ` +
+      `${Math.round(snapshot.pressureRatio * 100)}%). ` +
+      "Prioritize compacting stale context before continuing long tool chains.",
+  })
+}
+
 export function buildToolExecuteAfterNodes(
   context: RuntimeAssemblyContext,
   input: ToolExecuteInput,
   output: ToolExecuteAfterOutput
 ): RuntimeExecutionNode[] {
   const nodes: RuntimeExecutionNode[] = []
+  let cachedTokenUsage: ToolTokenUsageResolution | undefined
+  let cachedBudgetSnapshot: ExecutionBudgetSnapshot | undefined
+
+  const getTokenUsage = (): ToolTokenUsageResolution => {
+    if (!cachedTokenUsage) {
+      cachedTokenUsage = resolveToolTokenUsage(output)
+    }
+    return cachedTokenUsage
+  }
+
+  const getExecutionBudgetSnapshot = (): ExecutionBudgetSnapshot | undefined => {
+    if (cachedBudgetSnapshot) {
+      return cachedBudgetSnapshot
+    }
+    if (!context.executionBudgetManager || !context.executionBudgetLimits) {
+      return undefined
+    }
+    const usage = getTokenUsage()
+    cachedBudgetSnapshot = context.executionBudgetManager.snapshot(
+      input.sessionID,
+      context.executionBudgetLimits,
+      usage.resolvedTokensUsed
+    )
+    return cachedBudgetSnapshot
+  }
 
   if (context.workOrchestrator?.["tool.execute.after"]) {
     nodes.push({
@@ -33,6 +148,41 @@ export function buildToolExecuteAfterNodes(
       },
     })
   }
+
+  nodes.push({
+    id: "internal:policy-observe:tool.execute.after",
+    failurePolicy: "fail-open",
+    invoke: async () => {
+      const executionBudget = getExecutionBudgetSnapshot()
+      await context.policyRuntime?.observe?.({
+        hookPoint: "tool.execute.after",
+        sessionID: input.sessionID,
+        toolName: input.tool,
+        agent: context.getSessionAgent?.(input.sessionID),
+        payload: {
+          guardsVersion: 1,
+          callID: input.callID,
+          title: output.title,
+          outputLength: output.output.length,
+          guards: executionBudget
+            ? {
+                executionBudget: {
+                  toolCalls: executionBudget.toolCalls,
+                  maxToolCalls: executionBudget.maxToolCalls,
+                  elapsedMs: executionBudget.elapsedMs,
+                  wallClockMs: executionBudget.wallClockMs,
+                  contextTokens: executionBudget.estimatedRecentTokens,
+                  contextTokensHardLimit: executionBudget.contextTokensHardLimit,
+                  tokenPressure: executionBudget.tokenPressure,
+                  pressureRatio: executionBudget.pressureRatio,
+                },
+              }
+            : undefined,
+        },
+        traceHookNodeId: "internal:policy-observe:tool.execute.after",
+      })
+    },
+  })
 
   if (context.claudeCodeBridgeEnabled && context.claudeCodeHooks?.["tool.execute.after"]) {
     nodes.push({
@@ -61,15 +211,6 @@ export function buildToolExecuteAfterNodes(
     })
   }
 
-  if (context.toolOutputTruncator?.["tool.execute.after"]) {
-    nodes.push({
-      id: "tool-output-truncator:tool.execute.after",
-      invoke: async () => {
-        await context.toolOutputTruncator?.["tool.execute.after"]?.(input, output)
-      },
-    })
-  }
-
   if (context.runtimeTracker?.["tool.execute.after"]) {
     nodes.push({
       id: "runtime-tracker:tool.execute.after",
@@ -88,6 +229,64 @@ export function buildToolExecuteAfterNodes(
     })
   }
 
+  nodes.push({
+    id: "internal:policy-enforce:tool.execute.after",
+    failurePolicy: "fail-closed",
+    invoke: async () => {
+      const executionBudget = getExecutionBudgetSnapshot()
+      const decisions = await context.policyRuntime?.enforce?.({
+        hookPoint: "tool.execute.after",
+        sessionID: input.sessionID,
+        toolName: input.tool,
+        agent: context.getSessionAgent?.(input.sessionID),
+        payload: {
+          guardsVersion: 1,
+          callID: input.callID,
+          title: output.title,
+          outputLength: output.output.length,
+          guards: executionBudget
+            ? {
+                executionBudget: {
+                  toolCalls: executionBudget.toolCalls,
+                  maxToolCalls: executionBudget.maxToolCalls,
+                  elapsedMs: executionBudget.elapsedMs,
+                  wallClockMs: executionBudget.wallClockMs,
+                  contextTokens: executionBudget.estimatedRecentTokens,
+                  contextTokensHardLimit: executionBudget.contextTokensHardLimit,
+                  tokenPressure: executionBudget.tokenPressure,
+                  pressureRatio: executionBudget.pressureRatio,
+                },
+              }
+            : undefined,
+        },
+        traceHookNodeId: "internal:policy-enforce:tool.execute.after",
+      })
+
+      if (!decisions || decisions.length === 0) {
+        if (executionBudget) {
+          appendContextPressureHint({
+            context,
+            input,
+            output,
+            snapshot: executionBudget,
+          })
+        }
+        return
+      }
+
+      enforcePolicyDecisionsOnToolAfter({ decisions, output })
+
+      if (executionBudget) {
+        appendContextPressureHint({
+          context,
+          input,
+          output,
+          snapshot: executionBudget,
+        })
+      }
+    },
+  })
+
   if (context.governanceEnabled) {
     nodes.push({
       id: "internal:governance-post-tool:tool.execute.after",
@@ -104,10 +303,9 @@ export function buildToolExecuteAfterNodes(
             ?? (exitCode !== undefined
               ? exitCode === 0
               : !outputLower.includes("error:") && !outputLower.includes("failed:"))
-          const usageSnapshot = extractCacheUsageSnapshot(metadata ?? output)
-          const estimatedTokensUsed = Math.ceil(outputStr.length / 4)
-          const resolvedTokensUsed =
-            usageSnapshot.totalTokens > 0 ? usageSnapshot.totalTokens : estimatedTokensUsed
+          const usage = getTokenUsage()
+          const usageSnapshot = usage.usageSnapshot
+          const resolvedTokensUsed = usage.resolvedTokensUsed
           const prefixFingerprint = resolvePrefixFingerprint(metadata, input.sessionID)
 
           const rawArgs =
@@ -197,15 +395,6 @@ export function buildToolExecuteAfterNodes(
       id: "internal:org-memory:tool.execute.after",
       invoke: async () => {
         await context.orgMemory?.["tool.execute.after"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.contextWindowGovernor?.["tool.execute.after"]) {
-    nodes.push({
-      id: "context-window-governor:tool.execute.after",
-      invoke: async () => {
-        await context.contextWindowGovernor?.["tool.execute.after"]?.(input, output)
       },
     })
   }
@@ -323,15 +512,6 @@ export function buildToolExecuteAfterNodes(
       id: "swarm-agent:tool.execute.after",
       invoke: async () => {
         await context.swarmAgent?.["tool.execute.after"]?.(input, output)
-      },
-    })
-  }
-
-  if (context.toolOutputTruncator?.["tool.execute.after"]) {
-    nodes.push({
-      id: "internal:output-finalization:tool.execute.after",
-      invoke: async () => {
-        await context.toolOutputTruncator?.["tool.execute.after"]?.(input, output)
       },
     })
   }

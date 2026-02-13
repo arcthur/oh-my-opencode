@@ -19,7 +19,7 @@ import { DEFAULT_CODEMAP_INJECTOR_CONFIG } from "../../features/cartography/type
 import { extractCodemapSummary } from "../../features/cartography/generator"
 import type { EventInput, MessageInput, ToolExecuteInput, ToolExecuteOutput } from "../../shared/hook-types"
 import { log } from "../../shared"
-import { contextBudgetArbiter } from "../../features/context-budget"
+import { contextBudgetArbiter } from "../../features/context-view"
 
 // ============================================================================
 // Types
