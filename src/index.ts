@@ -134,6 +134,7 @@ import {
   OPENCODE_CHAT_HEADERS_HOOK_VERSION,
   OPENCODE_SHELL_ENV_HOOK_VERSION,
   applyProviderEnvCompat,
+  injectServerAuthIntoClient,
 } from "./shared";
 import { filterDisabledTools } from "./shared/disabled-tools";
 import { safeCreateHook } from "./shared/safe-create-hook";
@@ -233,6 +234,7 @@ function appendHeaderToken(existingValue: string | undefined, token: string): st
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[oh-my-opencode] Plugin loading", { directory: ctx.directory });
   applyProviderEnvCompat(process.env)
+  injectServerAuthIntoClient(ctx.client)
   // Start background tmux check immediately
   startTmuxCheck();
 
