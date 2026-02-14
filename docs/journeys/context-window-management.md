@@ -60,13 +60,17 @@ Notes:
 
 1. Validate ordering anchors: `src/hooks/runtime/pipeline-policy-order.test.ts`.
 2. Validate `chat.params` order: `src/hooks/chat-params-policy-order.test.ts`.
-3. Validate replay parity: `src/features/policy-runtime/parity-replay.test.ts`.
+3. Validate replay parity: `test/integration/features/policy-runtime.parity-replay.test.ts`.
 4. Verify three-ledger writes:
    - context ledger: `src/features/context-ledger/`
    - policy ledger (observed events only): `src/features/policy-runtime/policy-ledger.ts`
    - governance ledger: `src/features/governance/ledger.ts`
    - policy decisions/outcomes must be present in governance ledger (`policy-decision` / `policy-outcome`), not policy ledger.
    - when governance blocks after a policy decision was already applied, runtime MUST append a follow-up `policy-outcome` with `outcome="superseded"` for the same `decisionId`.
+5. Validate tool-call correlation IDs across hook pipeline:
+   - integration test: `test/integration/features/hook-pipeline.policy-governance.test.ts`
+   - `traceNodeId` MUST be `tool:<callID>` for tool hooks.
+   - governance policy audit entries MUST use `traceNodeId` directly and MUST NOT fall back to `traceHookNodeId`.
 
 ## Practical Notes
 

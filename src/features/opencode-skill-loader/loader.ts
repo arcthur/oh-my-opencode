@@ -2,7 +2,7 @@ import { promises as fs } from "fs"
 import { join, basename } from "path"
 import { resolveSymlinkAsync, isMarkdownFile } from "../../shared/file-utils"
 import { toDefinitionRecord } from "../../shared/collection-utils"
-import { getSkillDirectories } from "../../shared/paths"
+import { getSkillDirectories, type DirectoryContext } from "../../shared/paths"
 import { buildSkillFromContent } from "./skill-builder"
 import type { CommandDefinition } from "../claude-code-command-loader/types"
 import type { SkillScope, LoadedSkill, LazyContentLoader } from "./types"
@@ -176,16 +176,16 @@ export async function loadOpencodeProjectSkills(): Promise<Record<string, Comman
   return toDefinitionRecord(skills)
 }
 
-export interface DiscoverSkillsOptions {
+export interface DiscoverSkillsOptions extends DirectoryContext {
   includeClaudeCodePaths?: boolean
 }
 
-export async function discoverAllSkills(): Promise<LoadedSkill[]> {
+export async function discoverAllSkills(context: DirectoryContext = {}): Promise<LoadedSkill[]> {
   const [opencodeProjectSkills, opencodeGlobalSkills, projectSkills, userSkills] = await Promise.all([
-    discoverOpencodeProjectSkills(),
-    discoverOpencodeGlobalSkills(),
-    discoverProjectClaudeSkills(),
-    discoverUserClaudeSkills(),
+    discoverOpencodeProjectSkills(context),
+    discoverOpencodeGlobalSkills(context),
+    discoverProjectClaudeSkills(context),
+    discoverUserClaudeSkills(context),
   ])
 
   // Priority: opencode-project > opencode > project > user
@@ -198,11 +198,11 @@ export async function discoverAllSkills(): Promise<LoadedSkill[]> {
 }
 
 export async function discoverSkills(options: DiscoverSkillsOptions = {}): Promise<LoadedSkill[]> {
-  const { includeClaudeCodePaths = true } = options
+  const { includeClaudeCodePaths = true, ...context } = options
 
   const [opencodeProjectSkills, opencodeGlobalSkills] = await Promise.all([
-    discoverOpencodeProjectSkills(),
-    discoverOpencodeGlobalSkills(),
+    discoverOpencodeProjectSkills(context),
+    discoverOpencodeGlobalSkills(context),
   ])
 
   if (!includeClaudeCodePaths) {
@@ -211,8 +211,8 @@ export async function discoverSkills(options: DiscoverSkillsOptions = {}): Promi
   }
 
   const [projectSkills, userSkills] = await Promise.all([
-    discoverProjectClaudeSkills(),
-    discoverUserClaudeSkills(),
+    discoverProjectClaudeSkills(context),
+    discoverUserClaudeSkills(context),
   ])
 
   // Priority: opencode-project > opencode > project > user
@@ -229,22 +229,22 @@ export async function getSkillByName(name: string, options: DiscoverSkillsOption
   return skills.find(s => s.name === name)
 }
 
-export async function discoverUserClaudeSkills(): Promise<LoadedSkill[]> {
-  const dirs = getSkillDirectories()
+export async function discoverUserClaudeSkills(context: DirectoryContext = {}): Promise<LoadedSkill[]> {
+  const dirs = getSkillDirectories(context)
   return loadExternalSkillsByScope(dirs.agentsUser, dirs.user, "user")
 }
 
-export async function discoverProjectClaudeSkills(): Promise<LoadedSkill[]> {
-  const dirs = getSkillDirectories()
+export async function discoverProjectClaudeSkills(context: DirectoryContext = {}): Promise<LoadedSkill[]> {
+  const dirs = getSkillDirectories(context)
   return loadExternalSkillsByScope(dirs.agentsProject, dirs.project, "project")
 }
 
-export async function discoverOpencodeGlobalSkills(): Promise<LoadedSkill[]> {
-  const dirs = getSkillDirectories()
+export async function discoverOpencodeGlobalSkills(context: DirectoryContext = {}): Promise<LoadedSkill[]> {
+  const dirs = getSkillDirectories(context)
   return loadSkillsFromDir(dirs.opencodeGlobal, "opencode")
 }
 
-export async function discoverOpencodeProjectSkills(): Promise<LoadedSkill[]> {
-  const dirs = getSkillDirectories()
+export async function discoverOpencodeProjectSkills(context: DirectoryContext = {}): Promise<LoadedSkill[]> {
+  const dirs = getSkillDirectories(context)
   return loadSkillsFromDir(dirs.opencodeProject, "opencode-project")
 }

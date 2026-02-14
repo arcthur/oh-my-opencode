@@ -297,22 +297,22 @@ describe("checkCompletionConditions", () => {
     expect(result).toBe(false)
   })
 
-  it("resolves relative task storage path from ctx.directory", async () => {
+  it("resolves relative task storage path from ORCHESTRATOR_PROJECT_ROOT", async () => {
     // given
     spyOn(console, "log").mockImplementation(() => {})
     const projectRoot = join(tmpdir(), `cli-completion-project-root-${Date.now()}`)
-    const wrongRoot = join(tmpdir(), `cli-completion-wrong-root-${Date.now()}`)
+    const workerRoot = join(tmpdir(), `cli-completion-worker-root-${Date.now()}`)
     try {
       mkdirSync(projectRoot, { recursive: true })
-      mkdirSync(wrongRoot, { recursive: true })
-      process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = wrongRoot
+      mkdirSync(workerRoot, { recursive: true })
+      process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = projectRoot
 
       const relativeStoragePath = ".orchestrator/tasks"
       const absoluteStoragePath = join(projectRoot, relativeStoragePath)
       mkdirSync(absoluteStoragePath, { recursive: true })
 
       const ctx = createMockContext({
-        directory: projectRoot,
+        directory: workerRoot,
         taskConfig: {
           orchestrator: {
             tasks: {
@@ -347,7 +347,7 @@ describe("checkCompletionConditions", () => {
       expect(result).toBe(false)
     } finally {
       rmSync(projectRoot, { recursive: true, force: true })
-      rmSync(wrongRoot, { recursive: true, force: true })
+      rmSync(workerRoot, { recursive: true, force: true })
     }
   })
 })

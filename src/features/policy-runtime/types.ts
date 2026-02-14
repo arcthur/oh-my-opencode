@@ -9,6 +9,7 @@ export interface ObservedEvent {
   toolName?: string
   agent?: string
   payload?: Record<string, unknown>
+  traceNodeId?: string
   traceHookNodeId:
     | HookNodeId
     | "internal:policy-observe:chat.params"

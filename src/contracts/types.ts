@@ -69,6 +69,7 @@ export interface PolicyEventInput {
   agent?: string
   sessionTags?: string[]
   payload?: Record<string, unknown>
+  traceNodeId?: string
   traceHookNodeId?: HookNodeId | "internal:policy-observe:chat.params" | "internal:policy-enforce:chat.params"
 }
 
@@ -85,6 +86,7 @@ export interface PolicyDecision {
   timestamp: number
   trace: {
     hookNodeId: HookNodeId | "internal:policy-observe:chat.params" | "internal:policy-enforce:chat.params"
+    traceNodeId?: string
     sessionID: string
     toolName?: string
   }

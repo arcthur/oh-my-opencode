@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { randomUUID } from "node:crypto"
-import { contextBudgetArbiter } from "../../features/context-view"
+import { contextBudgetArbiter } from "../../../src/features/context-view"
 
 const truncateMock = mock(async (_sessionID: string, content: string) => ({
   result: content,
@@ -13,19 +13,19 @@ const loadInjectedPathsMock = mock(() => new Set<string>())
 const saveInjectedPathsMock = mock(() => {})
 const clearInjectedPathsMock = mock(() => {})
 
-mock.module("../../shared/dynamic-truncator", () => ({
+mock.module("../../../src/shared/dynamic-truncator", () => ({
   createDynamicTruncator: () => ({
     truncate: truncateMock,
   }),
 }))
 
-mock.module("./storage", () => ({
+mock.module("../../../src/hooks/directory-readme-injector/storage", () => ({
   loadInjectedPaths: loadInjectedPathsMock,
   saveInjectedPaths: saveInjectedPathsMock,
   clearInjectedPaths: clearInjectedPathsMock,
 }))
 
-const { createDirectoryReadmeInjectorHook } = require("./index")
+const { createDirectoryReadmeInjectorHook } = require("../../../src/hooks/directory-readme-injector/index")
 
 describe("directory-readme-injector budget integration", () => {
   let testDir: string

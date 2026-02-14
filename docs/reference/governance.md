@@ -134,6 +134,21 @@ When policy runtime is enabled (`architecture_version: 2`), governance ledger al
 - Allowed outcomes are: `applied | blocked | skipped | error | superseded`.
 - `superseded` means a policy decision was recorded as applied first, but a downstream governance gate later blocked execution for the same flow; the superseded event MUST reference the original `decisionId`.
 
+### Trace Correlation Semantics (Normative)
+
+Policy and governance artifacts use two different IDs with different roles:
+
+- `traceHookNodeId`: hook-runtime node identity (for policy clause provenance).
+- `traceNodeId`: governance tracer node identity (for cross-ledger/tool-call correlation).
+
+Contract:
+
+- For `tool.execute.before` and `tool.execute.after`, runtime MUST pass `traceNodeId = "tool:<callID>"` to policy runtime events.
+- Governance pre-tool tracing MUST use the same `tool:<callID>` value as the tracer node ID.
+- Governance ledger `policy-decision` and `policy-outcome` entries MUST use `traceNodeId` from policy decisions/events for correlation.
+- Governance ledger policy entries MUST NOT fall back to `traceHookNodeId` when `traceNodeId` is absent.
+- `traceHookNodeId` remains a policy-hook provenance field and MUST NOT be treated as a governance tracer correlation ID.
+
 ## Error Handling Contract
 
 The plugin wraps governance calls with best-effort error handling:

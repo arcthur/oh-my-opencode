@@ -53,6 +53,7 @@ export function createPolicyRuntime(options: CreatePolicyRuntimeOptions): Policy
         toolName: event.toolName,
         agent: event.agent,
         payload: event.payload,
+        traceNodeId: event.traceNodeId,
         traceHookNodeId,
       })
 
@@ -117,7 +118,7 @@ export function createPolicyRuntime(options: CreatePolicyRuntimeOptions): Policy
           toolName: decision.trace.toolName,
           outcome,
           message: decision.message,
-          traceNodeId: decision.trace.hookNodeId,
+          traceNodeId: decision.trace.traceNodeId,
         })
 
         evaluator?.evaluate({
@@ -143,7 +144,7 @@ export function createPolicyRuntime(options: CreatePolicyRuntimeOptions): Policy
           toolName: decision.trace.toolName,
           outcome: "superseded",
           message: params.reason,
-          traceNodeId: decision.trace.hookNodeId,
+          traceNodeId: decision.trace.traceNodeId,
         })
       }
     },

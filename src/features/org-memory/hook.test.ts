@@ -1,7 +1,7 @@
 import { describe, test, expect, spyOn, beforeEach, afterEach, mock } from "bun:test"
 import type { PluginInput } from "@opencode-ai/plugin"
-import { createOrgMemoryHook } from "./hook"
-import * as storage from "./storage"
+import { createOrgMemoryHook } from "../../../src/features/org-memory/hook"
+import * as storage from "../../../src/features/org-memory/storage"
 
 describe("createOrgMemoryHook", () => {
   let ctx: PluginInput

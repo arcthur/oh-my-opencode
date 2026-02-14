@@ -25,13 +25,18 @@
     "build:all": "bun run build && bun run build:binaries",
     "build:binaries": "bun run script/build-binaries.ts",
     "build:schema": "bun run script/build-schema.ts",
+    "check:integration-quality": "bun run script/ci/check-integration-standards.ts",
     "check:plugin-validation": "bun run script/check-plugin-validation.ts",
     "clean": "rm -rf dist",
     "postinstall": "node postinstall.mjs",
     "prepublishOnly": "bun run clean && bun run build",
     "typecheck": "tsc -p tsconfig.src.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
+    "test:unit": "bash script/ci/run-tests-safely.sh src script bin",
     "test:contracts": "bun test test/contracts",
     "test:docs": "bun test test/docs",
+    "test:integration": "bun run check:integration-quality && bash script/ci/run-tests-safely.sh test/integration",
+    "test:e2e": "bash script/ci/run-tests-safely.sh test/e2e",
+    "test:ci": "bun run check:integration-quality && bash script/ci/run-tests-safely.sh src script bin test/contracts test/docs test/integration",
     "test": "bun test"
   },
   "keywords": [

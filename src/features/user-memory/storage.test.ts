@@ -1,17 +1,17 @@
 import { describe, test, expect, spyOn, afterEach, mock } from "bun:test"
-import * as storage from "./storage"
-import { buildMemorySummary, normalizeArgsToPattern, addWorkHistoryEntry, migrateUserMemory } from "./storage"
+import * as storage from "../../../src/features/user-memory/storage"
+import { buildMemorySummary, normalizeArgsToPattern, addWorkHistoryEntry, migrateUserMemory } from "../../../src/features/user-memory/storage"
 import {
   DEFAULT_CONFIG,
   DEFAULT_ENTITY_MEMORY_CONFIG,
   DEFAULT_TEMPORAL_VALIDITY_CONFIG,
   DEFAULT_USER_MEMORY,
   type UserMemory,
-} from "./types"
-import * as embeddingsProvider from "./embeddings/provider"
-import * as embeddingsCache from "./embeddings/cache"
-import * as bm25 from "./embeddings/bm25"
-import * as hybrid from "./embeddings/hybrid"
+} from "../../../src/features/user-memory/types"
+import * as embeddingsProvider from "../../../src/features/user-memory/embeddings/provider"
+import * as embeddingsCache from "../../../src/features/user-memory/embeddings/cache"
+import * as bm25 from "../../../src/features/user-memory/embeddings/bm25"
+import * as hybrid from "../../../src/features/user-memory/embeddings/hybrid"
 
 describe("user-memory storage", () => {
   afterEach(() => {

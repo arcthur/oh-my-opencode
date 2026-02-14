@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test"
-import { SkillMcpManager } from "./manager"
-import type { SkillMcpClientInfo, SkillMcpServerContext } from "./types"
-import type { ClaudeCodeMcpServer } from "../claude-code-mcp-loader/types"
+import { SkillMcpManager } from "../../../src/features/skill-mcp-manager/manager"
+import type { SkillMcpClientInfo, SkillMcpServerContext } from "../../../src/features/skill-mcp-manager/types"
+import type { ClaudeCodeMcpServer } from "../../../src/features/claude-code-mcp-loader/types"
 
 // Mock the MCP SDK transports to avoid network calls
 const mockHttpConnect = mock(() => Promise.reject(new Error("Mocked HTTP connection failure")))
@@ -25,7 +25,7 @@ mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
 const mockTokens = mock(() => null as { accessToken: string; refreshToken?: string; expiresAt?: number } | null)
 const mockLogin = mock(() => Promise.resolve({ accessToken: "new-token" }))
 
-mock.module("../mcp-oauth/provider", () => ({
+mock.module("../../../src/features/mcp-oauth/provider", () => ({
   McpOAuthProvider: class MockMcpOAuthProvider {
     constructor(public options: { serverUrl: string; clientId?: string; scopes?: string[] }) {}
     tokens() {

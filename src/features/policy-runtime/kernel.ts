@@ -173,6 +173,7 @@ function toMatch(clause: ContractClause, event: PolicyEventInput, matchedClauseI
       hookNodeId:
         event.traceHookNodeId
         ?? (`internal:policy-enforce:${event.hookPoint}` as PolicyDecision["trace"]["hookNodeId"]),
+      traceNodeId: event.traceNodeId,
       sessionID: event.sessionID,
       toolName: event.toolName,
     },

@@ -192,6 +192,7 @@ export function buildToolExecuteAfterNodes(
               }
             : undefined,
         },
+        traceNodeId: `tool:${input.callID}`,
         traceHookNodeId: "internal:policy-observe:tool.execute.after",
       })
     },
@@ -281,6 +282,7 @@ export function buildToolExecuteAfterNodes(
               }
             : undefined,
         },
+        traceNodeId: `tool:${input.callID}`,
         traceHookNodeId: "internal:policy-enforce:tool.execute.after",
       })
 

@@ -67,13 +67,22 @@ export class ExecutionTracer {
    * Start a new trace node
    */
   startNode(params: {
+    id?: string
     type: TraceNodeType
     name: string
     inputs?: Record<string, unknown>
     parentId?: string
     tags?: Record<string, string>
   }): string {
-    const nodeId = generateId()
+    const desiredNodeId =
+      typeof params.id === "string" && params.id.trim().length > 0
+        ? params.id
+        : undefined
+
+    let nodeId = desiredNodeId ?? generateId()
+    if (desiredNodeId && this.findNode(desiredNodeId)) {
+      nodeId = `${desiredNodeId}:${generateId()}`
+    }
     const now = Date.now()
 
     const node: TraceNode = {

@@ -9,7 +9,6 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, unlinkSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { homedir } from "node:os"
 import type {
   ExecutionTrace,
   TraceNode,
@@ -19,6 +18,7 @@ import type {
   CompressedTrace,
 } from "./tracer-types"
 import { log } from "../../shared/logger"
+import { getGovernanceTracesDir } from "./storage-paths"
 
 // ============================================================================
 // Types
@@ -110,7 +110,6 @@ export interface TraceListEntry {
 // Configuration
 // ============================================================================
 
-const TRACES_DIR = join(homedir(), ".orchestrator", "traces")
 const MAX_TIMELINE_EVENTS = 100
 const MAX_TRACES_RETENTION = 50 // Keep last 50 traces
 const CRITICAL_NODE_TYPES: TraceNode["type"][] = ["tool", "agent", "decision", "checkpoint"]
@@ -123,8 +122,9 @@ const CRITICAL_NODE_TYPES: TraceNode["type"][] = ["tool", "agent", "decision", "
  * Ensure traces directory exists
  */
 function ensureTracesDir(): void {
-  if (!existsSync(TRACES_DIR)) {
-    mkdirSync(TRACES_DIR, { recursive: true })
+  const tracesDir = getGovernanceTracesDir()
+  if (!existsSync(tracesDir)) {
+    mkdirSync(tracesDir, { recursive: true })
   }
 }
 
@@ -132,7 +132,7 @@ function ensureTracesDir(): void {
  * Get trace file path for a session
  */
 function getTraceFilePath(sessionId: string): string {
-  return join(TRACES_DIR, `${sessionId}.json`)
+  return join(getGovernanceTracesDir(), `${sessionId}.json`)
 }
 
 /**
@@ -241,12 +241,13 @@ export function loadTrace(sessionId: string): PersistedTrace | null {
 export function listTraces(filter?: TraceQueryFilter): TraceListEntry[] {
   try {
     ensureTracesDir()
+    const tracesDir = getGovernanceTracesDir()
 
-    const files = readdirSync(TRACES_DIR).filter((f) => f.endsWith(".json"))
+    const files = readdirSync(tracesDir).filter((f) => f.endsWith(".json"))
     let entries: TraceListEntry[] = []
 
     for (const file of files) {
-      const filePath = join(TRACES_DIR, file)
+      const filePath = join(tracesDir, file)
       try {
         const content = readFileSync(filePath, "utf-8")
         const trace = JSON.parse(content) as PersistedTrace

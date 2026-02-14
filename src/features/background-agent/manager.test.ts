@@ -2,11 +2,11 @@ import { describe, test, expect, beforeEach, mock } from "bun:test"
 import { afterEach } from "bun:test"
 import { tmpdir } from "node:os"
 import type { PluginInput } from "@opencode-ai/plugin"
-import type { BackgroundTask, ResumeInput } from "./types"
-import { BackgroundManager } from "./manager"
-import { ConcurrencyManager } from "./concurrency"
-import { TaskStateManager } from "./state"
-import { tryCompleteTask as tryCompleteTaskFn } from "./result-handler"
+import type { BackgroundTask, ResumeInput } from "../../../src/features/background-agent/types"
+import { BackgroundManager } from "../../../src/features/background-agent/manager"
+import { ConcurrencyManager } from "../../../src/features/background-agent/concurrency"
+import { TaskStateManager } from "../../../src/features/background-agent/state"
+import { tryCompleteTask as tryCompleteTaskFn } from "../../../src/features/background-agent/result-handler"
 
 
 const TASK_TTL_MS = 30 * 60 * 1000
@@ -410,7 +410,7 @@ describe("BackgroundManager.getAllDescendantTasks", () => {
 describe("BackgroundManager.notifyParentSession - release ordering", () => {
   test("should unblock queued task even when prompt hangs", async () => {
     // given - concurrency limit 1, task1 running, task2 waiting
-    const { ConcurrencyManager } = await import("./concurrency")
+    const { ConcurrencyManager } = await import("../../../src/features/background-agent/concurrency")
     const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
 
     await concurrencyManager.acquire("navigator")
@@ -445,7 +445,7 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
 
   test("should keep queue blocked if release is after prompt (demonstrates the bug)", async () => {
     // given - same setup
-    const { ConcurrencyManager } = await import("./concurrency")
+    const { ConcurrencyManager } = await import("../../../src/features/background-agent/concurrency")
     const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
 
     await concurrencyManager.acquire("navigator")
@@ -745,7 +745,7 @@ describe("BackgroundManager.resume", () => {
 describe("LaunchInput.skillContent", () => {
   test("skillContent should be optional in LaunchInput type", () => {
     // given
-    const input: import("./types").LaunchInput = {
+    const input: import("../../../src/features/background-agent/types").LaunchInput = {
       description: "test",
       prompt: "test prompt",
       agent: "navigator",
@@ -759,7 +759,7 @@ describe("LaunchInput.skillContent", () => {
 
   test("skillContent can be provided in LaunchInput", () => {
     // given
-    const input: import("./types").LaunchInput = {
+    const input: import("../../../src/features/background-agent/types").LaunchInput = {
       description: "test",
       prompt: "test prompt",
       agent: "navigator",

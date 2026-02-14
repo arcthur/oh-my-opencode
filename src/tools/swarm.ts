@@ -72,7 +72,18 @@ function extractPlanSubmitText(commandString: string): string {
   const trimmed = commandString.trim()
   const m = trimmed.match(/^plan\s+submit\s+/i)
   if (!m) return ""
-  return trimmed.slice(m[0].length)
+  return stripTrailingPlanSubmitFlags(trimmed.slice(m[0].length))
+}
+
+function stripTrailingPlanSubmitFlags(planText: string): string {
+  let next = planText
+  while (true) {
+    const stripped = next.replace(/\s+(--timeoutMs=\S+|--planFile=\S+)\s*$/i, "")
+    if (stripped === next) {
+      return next
+    }
+    next = stripped
+  }
 }
 
 /**

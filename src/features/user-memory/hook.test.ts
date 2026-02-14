@@ -1,11 +1,11 @@
 import { describe, test, expect, spyOn, beforeEach, afterEach, mock } from "bun:test"
 import type { PluginInput } from "@opencode-ai/plugin"
-import { createUserMemoryHook, type UserMemorySummarizer } from "./hook"
-import * as storage from "./storage"
-import { DEFAULT_PATTERN_STATS, DEFAULT_USER_MEMORY } from "./types"
-import * as embeddingsProvider from "./embeddings/provider"
-import * as embeddingsCache from "./embeddings/cache"
-import * as bm25 from "./embeddings/bm25"
+import { createUserMemoryHook, type UserMemorySummarizer } from "../../../src/features/user-memory/hook"
+import * as storage from "../../../src/features/user-memory/storage"
+import { DEFAULT_PATTERN_STATS, DEFAULT_USER_MEMORY } from "../../../src/features/user-memory/types"
+import * as embeddingsProvider from "../../../src/features/user-memory/embeddings/provider"
+import * as embeddingsCache from "../../../src/features/user-memory/embeddings/cache"
+import * as bm25 from "../../../src/features/user-memory/embeddings/bm25"
 
 describe("createUserMemoryHook", () => {
   let ctx: PluginInput

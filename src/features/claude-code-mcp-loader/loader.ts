@@ -16,12 +16,19 @@ interface McpConfigPath {
   scope: McpScope
 }
 
-function getMcpConfigPaths(): McpConfigPath[] {
-  const claudeConfigDir = getClaudeConfigDir()
-  const cwd = process.cwd()
+export interface McpDiscoveryContext {
+  cwd?: string
+  homeDir?: string
+  claudeConfigDir?: string
+}
+
+function getMcpConfigPaths(context: McpDiscoveryContext = {}): McpConfigPath[] {
+  const claudeConfigDir = context.claudeConfigDir ?? getClaudeConfigDir()
+  const cwd = context.cwd ?? process.cwd()
+  const home = context.homeDir ?? homedir()
 
   return [
-    { path: join(homedir(), ".claude.json"), scope: "user" },
+    { path: join(home, ".claude.json"), scope: "user" },
     { path: join(claudeConfigDir, ".mcp.json"), scope: "user" },
     { path: join(cwd, ".mcp.json"), scope: "project" },
     { path: join(cwd, ".claude", ".mcp.json"), scope: "local" },
@@ -44,9 +51,9 @@ async function loadMcpConfigFile(
   }
 }
 
-export function getSystemMcpServerNames(): Set<string> {
+export function getSystemMcpServerNames(context: McpDiscoveryContext = {}): Set<string> {
   const names = new Set<string>()
-  const paths = getMcpConfigPaths()
+  const paths = getMcpConfigPaths(context)
 
   for (const { path } of paths) {
     if (!existsSync(path)) continue
@@ -68,10 +75,10 @@ export function getSystemMcpServerNames(): Set<string> {
   return names
 }
 
-export async function loadMcpConfigs(): Promise<McpLoadResult> {
+export async function loadMcpConfigs(context: McpDiscoveryContext = {}): Promise<McpLoadResult> {
   const servers: McpLoadResult["servers"] = {}
   const loadedServers: LoadedMcpServer[] = []
-  const paths = getMcpConfigPaths()
+  const paths = getMcpConfigPaths(context)
 
   for (const { path, scope } of paths) {
     const config = await loadMcpConfigFile(path)

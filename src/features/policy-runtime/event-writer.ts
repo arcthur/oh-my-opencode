@@ -46,7 +46,7 @@ export class DefaultPolicyEventWriter implements PolicyEventWriter {
       toolName: event.decision.trace.toolName,
       mutation: event.decision.mutation,
       message: event.decision.message,
-      traceNodeId: event.decision.trace.hookNodeId,
+      traceNodeId: event.decision.trace.traceNodeId,
     })
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test, beforeEach } from "bun:test"
 
-mock.module("./storage", () => ({
+mock.module("../../../src/features/session-handoff/storage", () => ({
   generateHandoffId: () => "ho_test_0",
   cleanupExpired: mock(() => 0),
   shouldRunCleanup: mock(() => false),
@@ -17,7 +17,7 @@ mock.module("./storage", () => ({
   updateHandoffMetrics: mock(() => null),
 }))
 
-mock.module("./injector", () => ({
+mock.module("../../../src/features/session-handoff/injector", () => ({
   formatInjectionContent: () => "handoff-context",
   resolveSessionReference: () => null,
   selectHandoffsForInjection: mock(() => [{
@@ -41,12 +41,12 @@ mock.module("./injector", () => ({
   }]),
 }))
 
-const { createSessionHandoffHook } = require("./hook")
-const { DEFAULT_HANDOFF_CONFIG } = require("./types")
+const { createSessionHandoffHook } = require("../../../src/features/session-handoff/hook")
+const { DEFAULT_HANDOFF_CONFIG } = require("../../../src/features/session-handoff/types")
 
 describe("session-handoff hook", () => {
   beforeEach(() => {
-    const storage = require("./storage")
+    const storage = require("../../../src/features/session-handoff/storage")
     storage.findHandoffsForProject.mockReset()
     storage.findRecentHandoffs.mockReset()
     storage.loadIndex.mockReset()
@@ -101,7 +101,7 @@ describe("session-handoff hook", () => {
   })
 
   test("handles /handoff list via chat.message (no handoffs)", async () => {
-    const storage = require("./storage")
+    const storage = require("../../../src/features/session-handoff/storage")
     storage.findHandoffsForProject.mockReturnValueOnce([])
 
     // given
@@ -123,7 +123,7 @@ describe("session-handoff hook", () => {
   })
 
   test("handles /handoff list via chat.message (with handoffs)", async () => {
-    const storage = require("./storage")
+    const storage = require("../../../src/features/session-handoff/storage")
     storage.findHandoffsForProject.mockReturnValueOnce([
       {
         id: "ho_1706500000_abc",
@@ -159,7 +159,7 @@ describe("session-handoff hook", () => {
 
   test("retries extraction on session.deleted when async idle extraction fails", async () => {
     // given
-    const storage = require("./storage")
+    const storage = require("../../../src/features/session-handoff/storage")
     let saved = false
     storage.findHandoffBySessionId.mockImplementation(() => (saved ? { id: "ho_test_0" } : null))
     storage.saveHandoff

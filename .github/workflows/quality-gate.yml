@@ -24,8 +24,8 @@ jobs:
         env:
           BUN_INSTALL_ALLOW_SCRIPTS: "@ast-grep/napi"
 
-      - name: Run tests (isolated mock-heavy suites)
-        run: bash script/ci/run-tests-safely.sh
+      - name: Run tests (unit + contracts + docs + integration)
+        run: bash script/ci/run-tests-safely.sh src script bin test/contracts test/docs test/integration
 
   typecheck:
     runs-on: ubuntu-latest

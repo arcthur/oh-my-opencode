@@ -1,7 +1,7 @@
 import { describe, test, expect, mock } from "bun:test"
 
-const { executeActiveHandoff } = require("./launcher")
-const { DEFAULT_HANDOFF_CONFIG } = require("./types")
+const { executeActiveHandoff } = require("../../../src/features/session-handoff/launcher")
+const { DEFAULT_HANDOFF_CONFIG } = require("../../../src/features/session-handoff/types")
 
 function createRecoveryPattern(id: string) {
   return {

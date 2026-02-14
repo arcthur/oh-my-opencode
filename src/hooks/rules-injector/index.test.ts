@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { contextBudgetArbiter } from "../../features/context-view"
-import { createRulesInjectorHook } from "./index"
+import { contextBudgetArbiter } from "../../../src/features/context-view"
+import { createRulesInjectorHook } from "../../../src/hooks/rules-injector"
 
 describe("rules-injector budget integration", () => {
   const TEST_DIR = join(tmpdir(), `rules-injector-budget-test-${Date.now()}`)

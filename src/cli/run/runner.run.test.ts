@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { run, type RunDependencies } from "./runner"
+import { ORCHESTRATOR_PROJECT_ROOT_ENV } from "../../features/orchestrator-tasks/storage"
 
 const mockSubscribe = mock(async (_input?: unknown) => ({
   stream: new ReadableStream<Uint8Array>(),
@@ -45,6 +46,9 @@ const TEST_RUN_DEPS: Partial<RunDependencies> = {
 }
 
 describe("run()", () => {
+  let hadProjectRootEnv = false
+  let originalProjectRootEnv: string | undefined
+
   beforeEach(() => {
     mockSubscribe.mockClear()
     mockPromptAsync.mockClear()
@@ -55,10 +59,29 @@ describe("run()", () => {
     mockResolveSession.mockClear()
     mockLoadPluginConfig.mockClear()
     mockCreateServerConnection.mockClear()
+
+    hadProjectRootEnv = Object.prototype.hasOwnProperty.call(
+      process.env,
+      ORCHESTRATOR_PROJECT_ROOT_ENV
+    )
+    originalProjectRootEnv = process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
+    delete process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
+  })
+
+  afterEach(() => {
+    if (hadProjectRootEnv && originalProjectRootEnv !== undefined) {
+      process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = originalProjectRootEnv
+    } else {
+      delete process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
+    }
   })
 
   test("passes directory to event.subscribe for session-scoped events", async () => {
     // #when
+    mockPollForCompletion.mockImplementationOnce(async () => {
+      expect(process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]).toBe("/workspace/project")
+      return 0
+    })
     const exitCode = await run(
       {
         message: "hello",
@@ -70,6 +93,7 @@ describe("run()", () => {
 
     // #then
     expect(exitCode).toBe(0)
+    expect(process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]).toBeUndefined()
     expect(mockSubscribe).toHaveBeenCalledWith({
       query: { directory: "/workspace/project" },
     })

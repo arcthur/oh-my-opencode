@@ -8,6 +8,7 @@ import { createServerConnection } from "./server-connection"
 import { resolveSession } from "./session-resolver"
 import { createJsonOutputManager } from "./json-output"
 import { executeOnCompleteHook } from "./on-complete-hook"
+import { ORCHESTRATOR_PROJECT_ROOT_ENV } from "../../features/orchestrator-tasks/storage"
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_SERVER_HOSTNAME = "127.0.0.1"
@@ -131,24 +132,36 @@ export async function run(
     timeout = DEFAULT_TIMEOUT_MS,
   } = options
 
+  const abortController = new AbortController()
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const hadProjectRootEnv = Object.prototype.hasOwnProperty.call(
+    process.env,
+    ORCHESTRATOR_PROJECT_ROOT_ENV
+  )
+  const originalProjectRootEnv = process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
+  const shouldSetProjectRootEnv =
+    originalProjectRootEnv === undefined || originalProjectRootEnv === ""
+  if (shouldSetProjectRootEnv) {
+    process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = directory
+  }
+
   const jsonManager = options.json ? runtimeDeps.createJsonOutputManager() : null
   if (jsonManager) {
     jsonManager.redirectToStderr()
   }
 
-  const pluginConfig = runtimeDeps.loadPluginConfig(directory, { command: "run" })
-  const resolvedAgent = resolveRunAgent(options, pluginConfig)
-  const abortController = new AbortController()
-  let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-  if (timeout > 0) {
-    timeoutId = setTimeout(() => {
-      console.log(pc.yellow("\nTimeout reached. Aborting..."))
-      abortController.abort()
-    }, timeout)
-  }
-
   try {
+    const pluginConfig = runtimeDeps.loadPluginConfig(directory, { command: "run" })
+    const resolvedAgent = resolveRunAgent(options, pluginConfig)
+
+    if (timeout > 0) {
+      timeoutId = setTimeout(() => {
+        console.log(pc.yellow("\nTimeout reached. Aborting..."))
+        abortController.abort()
+      }, timeout)
+    }
+
     const resolvedPort = options.port ?? parseEnvPort(process.env.OPENCODE_SERVER_PORT)
     const resolvedHostname = process.env.OPENCODE_SERVER_HOSTNAME || DEFAULT_SERVER_HOSTNAME
 
@@ -244,5 +257,14 @@ export async function run(
     }
     console.error(pc.red(`Error: ${runtimeDeps.serializeError(error)}`))
     return 1
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+    if (shouldSetProjectRootEnv) {
+      if (hadProjectRootEnv && originalProjectRootEnv !== undefined) {
+        process.env[ORCHESTRATOR_PROJECT_ROOT_ENV] = originalProjectRootEnv
+      } else {
+        delete process.env[ORCHESTRATOR_PROJECT_ROOT_ENV]
+      }
+    }
   }
 }

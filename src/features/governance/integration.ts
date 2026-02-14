@@ -130,6 +130,14 @@ export interface GovernanceSession {
   toolCallCount: number
 }
 
+export interface GovernanceSessionOverrides {
+  tracer?: ExecutionTracer | null
+  budgetMonitor?: BudgetMonitor | null
+  ledger?: GovernanceLedgerWriter | null
+  checkpointManager?: SemanticCheckpointManager | null
+  criticalityRegistry?: ToolCriticalityRegistry
+}
+
 /** Session storage */
 const sessions = new Map<string, GovernanceSession>()
 
@@ -143,7 +151,8 @@ const sessions = new Map<string, GovernanceSession>()
 export function initGovernanceSession(
   sessionId: string,
   cwd: string,
-  config?: Partial<GovernanceConfig>
+  config?: Partial<GovernanceConfig>,
+  overrides?: GovernanceSessionOverrides
 ): GovernanceSession {
   const mergedConfig: GovernanceConfig = {
     ...DEFAULT_GOVERNANCE_CONFIG,
@@ -159,11 +168,11 @@ export function initGovernanceSession(
     // Return minimal session for disabled governance
     const session: GovernanceSession = {
       sessionId,
-      tracer: null,
-      budgetMonitor: null,
-      ledger: null,
-      checkpointManager: null,
-      criticalityRegistry: getToolCriticalityRegistry(),
+      tracer: overrides?.tracer ?? null,
+      budgetMonitor: overrides?.budgetMonitor ?? null,
+      ledger: overrides?.ledger ?? null,
+      checkpointManager: overrides?.checkpointManager ?? null,
+      criticalityRegistry: overrides?.criticalityRegistry ?? getToolCriticalityRegistry(),
       config: mergedConfig,
       activeToolNodes: new Map(),
       toolCallCount: 0,
@@ -237,11 +246,11 @@ export function initGovernanceSession(
 
   const session: GovernanceSession = {
     sessionId,
-    tracer: tracerManager?.getTracer(sessionId) ?? null,
-    budgetMonitor: budgetManager?.getMonitor(sessionId) ?? null,
-    ledger,
-    checkpointManager: checkpointRegistry?.getManager(sessionId) ?? null,
-    criticalityRegistry,
+    tracer: overrides?.tracer ?? tracerManager?.getTracer(sessionId) ?? null,
+    budgetMonitor: overrides?.budgetMonitor ?? budgetManager?.getMonitor(sessionId) ?? null,
+    ledger: overrides?.ledger ?? ledger,
+    checkpointManager: overrides?.checkpointManager ?? checkpointRegistry?.getManager(sessionId) ?? null,
+    criticalityRegistry: overrides?.criticalityRegistry ?? criticalityRegistry,
     config: mergedConfig,
     activeToolNodes: new Map(),
     toolCallCount: 0,
@@ -411,6 +420,7 @@ export function executePreToolGovernance(
   // 1. Start tracer node
   if (session.tracer) {
     const nodeId = session.tracer.startNode({
+      id: input.toolUseId ? `tool:${input.toolUseId}` : undefined,
       name: input.toolName,
       type: "tool",
       inputs: sanitizeInputs(input.toolInput, session.config.tracer?.sanitize_sensitive_data ?? true),

@@ -8,7 +8,6 @@
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, appendFileSync, readFileSync, readdirSync, unlinkSync, statSync } from "node:fs"
 import { join, dirname } from "node:path"
-import { homedir } from "node:os"
 import type {
   GovernanceLedger,
   LedgerEntry,
@@ -29,6 +28,7 @@ import type {
 } from "./types"
 import { log } from "../../shared/logger"
 import { generateId } from "./utils"
+import { getGovernanceLedgerDir } from "./storage-paths"
 
 /**
  * Compute SHA-256 hash of an entry
@@ -55,11 +55,13 @@ export interface LedgerStorageConfig {
   preserveErrors?: boolean
 }
 
-const DEFAULT_STORAGE_CONFIG: LedgerStorageConfig = {
-  baseDir: join(homedir(), ".orchestrator", "ledger"),
-  maxAgeDays: 30,
-  maxCount: 100,
-  preserveErrors: true,
+function getDefaultStorageConfig(): LedgerStorageConfig {
+  return {
+    baseDir: getGovernanceLedgerDir(),
+    maxAgeDays: 30,
+    maxCount: 100,
+    preserveErrors: true,
+  }
 }
 
 /**
@@ -74,7 +76,7 @@ export class GovernanceLedgerWriter {
   private filePath: string
 
   constructor(sessionId: string, storageConfig: Partial<LedgerStorageConfig> = {}) {
-    this.storageConfig = { ...DEFAULT_STORAGE_CONFIG, ...storageConfig }
+    this.storageConfig = { ...getDefaultStorageConfig(), ...storageConfig }
     this.filePath = join(this.storageConfig.baseDir, `${sessionId}.jsonl`)
 
     // Ensure directory exists
@@ -598,7 +600,7 @@ export class LedgerManager {
   private config: LedgerStorageConfig
 
   constructor(config: Partial<LedgerStorageConfig> = {}) {
-    this.config = { ...DEFAULT_STORAGE_CONFIG, ...config }
+    this.config = { ...getDefaultStorageConfig(), ...config }
   }
 
   /**

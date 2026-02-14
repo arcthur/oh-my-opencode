@@ -261,6 +261,7 @@ export function buildToolExecuteBeforeNodes(
           args: output.args,
           guards,
         },
+        traceNodeId: `tool:${input.callID}`,
         traceHookNodeId: "internal:policy-observe:tool.execute.before",
       })
     },
@@ -515,6 +516,7 @@ export function buildToolExecuteBeforeNodes(
           args: output.args,
           guards,
         },
+        traceNodeId: `tool:${input.callID}`,
         traceHookNodeId: "internal:policy-enforce:tool.execute.before",
       })
 

@@ -59,7 +59,10 @@ oh-my-opencode/
 **Rules:**
 - NEVER write implementation before test
 - NEVER delete failing tests to "pass" - fix the code
-- Test file naming: `*.test.ts` alongside source
+- Test file naming:
+  - Unit/component: `*.test.ts` alongside source
+  - Cross-module integration: `test/integration/**/*.test.ts`
+  - End-to-end smoke: `test/e2e/**/*.test.ts`
 - BDD comments: `#given`, `#when`, `#then` (same as AAA)
 
 ## CONVENTIONS

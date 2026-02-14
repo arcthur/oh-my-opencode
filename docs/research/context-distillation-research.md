@@ -17,7 +17,7 @@ It intentionally excludes legacy governor/truncator paths.
 | Event source | `src/hooks/runtime/assembly/*.ts` + `src/index.ts` | Deterministic hook-node ordering and lifecycle dispatch |
 | Decision engine | `src/features/policy-runtime/` | Contract clause evaluation (`hard/soft/audit`), decision/outcome logging |
 | Context distillation | `src/features/context-view/` | Budget-aware packing for prompt injections and output append |
-| Replayability | `src/features/policy-runtime/parity-replay.test.ts` | Session event replay + parity gates |
+| Replayability | `test/integration/features/policy-runtime.parity-replay.test.ts` | Session event replay + parity gates |
 | Audit | `src/features/policy-runtime/policy-ledger.ts`, `src/features/governance/ledger.ts` | Decision provenance and governance trail |
 
 ## Why View-Level Distillation
@@ -48,7 +48,7 @@ Evaluator failures are fail-open and do not block hot path execution.
 1. Ordering invariants: `src/hooks/runtime/pipeline-policy-order.test.ts`
 2. Chat params order: `src/hooks/chat-params-policy-order.test.ts`
 3. Conflict determinism: `src/features/policy-runtime/kernel.test.ts`
-4. Replay parity: `src/features/policy-runtime/parity-replay.test.ts`
+4. Replay parity: `test/integration/features/policy-runtime.parity-replay.test.ts`
 5. Ledger writing: `src/features/policy-runtime/event-writer.test.ts`
 
 ## Open Risks

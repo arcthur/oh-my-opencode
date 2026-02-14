@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
-import { contextBudgetArbiter } from "../context-view"
+import { contextBudgetArbiter } from "../../../src/features/context-view"
 
 const injectHookMessage = mock(() => true)
 
-mock.module("../hook-message-injector", () => ({
+mock.module("../../../src/features/hook-message-injector", () => ({
   injectHookMessage,
 }))
 
-const { createConditionalRulesHooks, clearConditionalRulesCache } = require("./hook")
-const { DEFAULT_CONDITIONAL_RULES_CONFIG } = require("./types")
+const { createConditionalRulesHooks, clearConditionalRulesCache } = require("../../../src/features/conditional-rules/hook")
+const { DEFAULT_CONDITIONAL_RULES_CONFIG } = require("../../../src/features/conditional-rules/types")
 
 describe("conditional-rules hook", () => {
   beforeEach(() => {

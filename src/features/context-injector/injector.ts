@@ -151,14 +151,14 @@ export function createContextInjectorMessagesTransformHook(
         return
       }
 
-      // synthetic part 패턴 (minimal fields)
+      // Synthetic part pattern (minimal fields)
       const syntheticPart = {
         id: `synthetic_hook_${Date.now()}`,
         messageID: lastUserMessage.info.id,
         sessionID: (lastUserMessage.info as { sessionID?: string }).sessionID ?? "",
         type: "text" as const,
         text: injectedContent,
-        synthetic: true,  // UI에서 숨겨짐
+        synthetic: true, // Hidden in the UI
         metadata: compileResult.usedLedger
           ? {
               prefixFingerprint: compileResult.prefixFingerprint,

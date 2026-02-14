@@ -1,8 +1,8 @@
 import { describe, test, expect, mock, beforeEach } from "bun:test"
-import type { HandoffPackage } from "./types"
-import * as storage from "./storage"
+import type { HandoffPackage } from "../../../src/features/session-handoff/types"
+import * as storage from "../../../src/features/session-handoff/storage"
 
-mock.module("./storage", () => {
+mock.module("../../../src/features/session-handoff/storage", () => {
   return {
     ...storage,
     loadHandoff: mock(() => null),
@@ -46,7 +46,7 @@ describe("resolveSessionReference", () => {
       loadEmbeddings,
       saveEmbeddings,
       saveHandoff,
-    } = require("./storage")
+    } = require("../../../src/features/session-handoff/storage")
 
     loadHandoff.mockReset()
     getRecentSessionHandoffs.mockReset()
@@ -57,11 +57,11 @@ describe("resolveSessionReference", () => {
   })
 
   test("resolves @session:handoff:ho_* to a direct handoff", async () => {
-    const { loadHandoff } = require("./storage")
+    const { loadHandoff } = require("../../../src/features/session-handoff/storage")
     const pkg = createTestHandoff("ho_123_abc")
     loadHandoff.mockImplementation((id: string) => (id === pkg.id ? pkg : null))
 
-    const { resolveSessionReference } = require("./injector")
+    const { resolveSessionReference } = require("../../../src/features/session-handoff/injector")
 
     // given
     const projectPath = "/test/project"
@@ -77,11 +77,11 @@ describe("resolveSessionReference", () => {
   })
 
   test("rejects unsafe handoff identifiers", async () => {
-    const { loadHandoff } = require("./storage")
+    const { loadHandoff } = require("../../../src/features/session-handoff/storage")
     const pkg = createTestHandoff("ho_999_xyz")
     loadHandoff.mockImplementation((id: string) => (id === pkg.id ? pkg : null))
 
-    const { resolveSessionReference } = require("./injector")
+    const { resolveSessionReference } = require("../../../src/features/session-handoff/injector")
 
     // given
     const projectPath = "/test/project"
@@ -96,7 +96,7 @@ describe("resolveSessionReference", () => {
   })
 
   test("uses embedding-based semantic search when embeddings are available", async () => {
-    const { loadHandoff, loadEmbeddings } = require("./storage")
+    const { loadHandoff, loadEmbeddings } = require("../../../src/features/session-handoff/storage")
     const pkg = createTestHandoff("ho_abc_123")
     pkg.embeddingIndex = [
       { id: "e0", content: "alpha", category: "decision", index: 0, vectorIndex: 0 },
@@ -110,7 +110,7 @@ describe("resolveSessionReference", () => {
         : null
     )
 
-    const { resolveSessionReference } = require("./injector")
+    const { resolveSessionReference } = require("../../../src/features/session-handoff/injector")
 
     // given
     const projectPath = "/test/project"
@@ -135,7 +135,7 @@ describe("resolveSessionReference", () => {
   })
 
   test("generates and persists embeddings on demand when missing", async () => {
-    const { loadHandoff, loadEmbeddings, saveEmbeddings, saveHandoff } = require("./storage")
+    const { loadHandoff, loadEmbeddings, saveEmbeddings, saveHandoff } = require("../../../src/features/session-handoff/storage")
     const pkg = createTestHandoff("ho_lazy_1")
     pkg.payload.decisions = [
       { what: "alpha", chosen: "x", why: "y" },
@@ -147,7 +147,7 @@ describe("resolveSessionReference", () => {
       id === pkg.id ? [new Float32Array([1, 0])] : null
     )
 
-    const { resolveSessionReference } = require("./injector")
+    const { resolveSessionReference } = require("../../../src/features/session-handoff/injector")
 
     // given
     const projectPath = "/test/project"

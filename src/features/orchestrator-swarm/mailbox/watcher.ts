@@ -50,6 +50,8 @@ export interface WatcherOptions {
   onStart?: () => void
   /** Called when watcher stops */
   onStop?: () => void
+  /** Optional override for fs.watch (testing / deterministic error injection). */
+  watchImpl?: (watchDir: string, onChange: () => void) => FSWatcher
 }
 
 async function processMessagesOnce(
@@ -211,7 +213,8 @@ export function startWatching(
   }
 
   try {
-    fsWatcher = watch(watchDir, { persistent: true }, scheduleDrain)
+    const watchImpl = options?.watchImpl ?? ((dir, onChange) => watch(dir, { persistent: true }, onChange))
+    fsWatcher = watchImpl(watchDir, scheduleDrain)
 
     fsWatcher.on("error", (err) => {
       onError(err instanceof Error ? err : new Error(String(err)))
