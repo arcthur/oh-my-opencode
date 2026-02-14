@@ -185,8 +185,8 @@ That's it. All the features we provide will work like magic—parallel agents, b
 
 ![Meet orchestrator](.github/assets/orchestrator-agent.png)
 
-In greek mythology, orchestrator was condemned to roll a boulder up a hill for eternity as punishment for deceiving the gods. LLM Agents haven't really done anything wrong, yet they too roll their "stones"—their thoughts—every single day.
-My life is no different. Looking back, we are not so different from these agents.
+In Greek mythology, there's a story about an endless boulder push: progress that never quite sticks. Long-running engineering work can feel the same—context, work, verification, repeat.
+That's why this project calls its main agent orchestrator: it keeps that loop controlled and productive, until the task is actually done.
 **Yes! LLM Agents are no different from us. They can write code as brilliant as ours and work just as excellently—if you give them great tools and solid teammates.**
 
 Meet our main agent: orchestrator (Opus 4.6 High). Below are the tools orchestrator uses to keep that boulder rolling.
@@ -240,7 +240,7 @@ If you don't want all this, as mentioned, you can just pick and choose specific 
 
 ![Meet executor](.github/assets/executor-agent.png)
 
-In Greek mythology, executor was the god of forge, fire, metalworking, and craftsmanship—the divine blacksmith who crafted weapons for the gods with unmatched precision and dedication.
+executor is the craftsman archetype: a deep worker that turns goals into finished artifacts with methodical precision.
 **Meet our autonomous deep worker: executor (GPT 5.3 Codex Medium). The Legitimate Craftsman Agent.**
 
 *Why "Legitimate"? When Anthropic blocked third-party access citing ToS violations, the community started joking about "legitimate" usage. executor embraces this irony—he's the craftsman who builds things the right way, methodically and thoroughly, without cutting corners.*

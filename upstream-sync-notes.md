@@ -79,7 +79,7 @@ These paths are structurally conflict-prone. Resolve with a stable rule rather t
 - `src/index.ts`: registry of hooks/tools/features; the most frequent conflict hotspot
 - `src/config/schema.ts`: hook names, categories, defaults; keep it consistent with runtime exports
 - `src/tools/delegate-task/*`: fast-moving API surface (args/protocol) and category behavior
-- `src/tools/call-omo-agent/*`: explore/librarian execution + `session_id` metadata/continuation; keep fork semantics consistent with `delegate_task`
+- `src/tools/call-omo-agent/*`: navigator/librarian execution + `session_id` metadata/continuation; keep fork semantics consistent with `delegate_task`
 - `src/agents/orchestrator/index.ts`, `src/agents/workflow-automator/*`: prompt/protocol changes; tightly coupled to tool args
 - `src/features/builtin-skills/skills.ts`: upstream additions vs fork-only skills; decide case-by-case
 - `docs/*`: upstream docs drift frequently; prefer this fork’s policy where it differs
@@ -229,7 +229,7 @@ bun run build:schema
 
 ### 2026-02-05 Addendum (CLI Install Model Fallback)
 
-- `src/cli/model-fallback.ts` + `src/cli/model-fallback.test.ts` + `src/cli/__snapshots__/model-fallback.test.ts.snap`: Synced upstream model fallback generator to use `src/shared/model-requirements.ts` as the single source of truth (provider availability mapping incl. Kimi; `requiresAnyModel`/`requiresModel` gating; category downgrade `unspecified-high` → `unspecified-low` when not Max plan; explore/orchestrator/executor special cases). Snapshots now reflect the current fork agent set (`scope-analyst` and `reviewer` included).
+- `src/cli/model-fallback.ts` + `src/cli/model-fallback.test.ts` + `src/cli/__snapshots__/model-fallback.test.ts.snap`: Synced upstream model fallback generator to use `src/shared/model-requirements.ts` as the single source of truth (provider availability mapping incl. Kimi; `requiresAnyModel`/`requiresModel` gating; category downgrade `unspecified-high` → `unspecified-low` when not Max plan; navigator/orchestrator/executor special cases). Snapshots now reflect the current fork agent set (`scope-analyst` and `reviewer` included).
 
 ### 2026-02-05 Addendum (CLI Config Manager)
 

@@ -1448,7 +1448,7 @@ describe("orchestrator-task", () => {
 
       let promptBody: any
       const mockManager = {
-        resume: async () => ({ id: "task-789", sessionID: "ses_explore", description: "Continue", agent: "navigator", status: "running" }),
+        resume: async () => ({ id: "task-789", sessionID: "ses_navigator", description: "Continue", agent: "navigator", status: "running" }),
       }
 
       const mockClient = {
@@ -1488,7 +1488,7 @@ describe("orchestrator-task", () => {
         {
           description: "Continue navigator session",
           prompt: "Continue",
-          session_id: "ses_explore",
+          session_id: "ses_navigator",
           run_in_background: false,
           load_skills: [],
         },
@@ -3200,7 +3200,7 @@ describe("orchestrator-task", () => {
           launchInput = input
           return {
             id: "task-navigator",
-            sessionID: "ses_explore_model",
+            sessionID: "ses_navigator_model",
             description: "navigator task",
             agent: "navigator",
             status: "running",
@@ -3218,7 +3218,7 @@ describe("orchestrator-task", () => {
         },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
-          create: async () => ({ data: { id: "ses_explore_model" } }),
+          create: async () => ({ data: { id: "ses_navigator_model" } }),
           prompt: async () => ({ data: {} }),
           messages: async () => ({ data: [] }),
         },
